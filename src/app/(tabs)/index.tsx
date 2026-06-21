@@ -177,6 +177,9 @@ const feedQueryFn = ({
     return fetchVideos({ pageParam, tab, refreshEpoch });
 };
 
+const feedVideosQueryKey = (tab: FeedTab, epoch: number, viewerDid?: string | null) =>
+    ['videos', tab, epoch, viewerDid ?? 'anon'] as const;
+
 const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0])) as Record<
     (typeof FEED_TABS)[number],
     number
@@ -190,6 +193,7 @@ export default function LoopsFeed({ navigation }) {
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
     const hasHydrated = useAuthStore((state) => state._hasHydrated);
     const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+    const viewerDid = useAuthStore((state) => state.user?.id);
     const feedQueryEnabled = hasHydrated && isLoggedIn && authReady;
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
     const [activeTab, setActiveTab] = useState(defaultFeed);
@@ -245,7 +249,7 @@ export default function LoopsFeed({ navigation }) {
             }
             const epoch = epochs[tab] ?? 0;
             void queryClient.prefetchInfiniteQuery({
-                queryKey: ['videos', tab, epoch],
+                queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
                 queryFn: feedQueryFn,
                 initialPageParam: null,
                 staleTime: getFeedStaleMs(tab),
@@ -257,7 +261,7 @@ export default function LoopsFeed({ navigation }) {
                 prefetchTab(tab);
             }
         }
-    }, [feedQueryEnabled, forYouEnabled, queryClient]);
+    }, [feedQueryEnabled, forYouEnabled, queryClient, viewerDid]);
 
     const recordVideoImpression = useCallback(
         async (video, duration) => {
@@ -288,7 +292,7 @@ export default function LoopsFeed({ navigation }) {
         isFetching,
         isRefetching,
     } = useInfiniteQuery({
-        queryKey: ['videos', activeTab, feedEpoch],
+        queryKey: feedVideosQueryKey(activeTab, feedEpoch, viewerDid),
         queryFn: feedQueryFn,
         getNextPageParam: (lastPage) => {
             const cursor = lastPage.meta?.next_cursor;
@@ -427,7 +431,7 @@ export default function LoopsFeed({ navigation }) {
 
     const refreshFeedIfStale = useCallback(
         (tab: string, epoch: number) => {
-            const state = queryClient.getQueryState(['videos', tab, epoch]);
+            const state = queryClient.getQueryState(feedVideosQueryKey(tab as FeedTab, epoch, viewerDid));
             if (!state?.data || state.fetchStatus === 'fetching') {
                 return;
             }
@@ -438,7 +442,7 @@ export default function LoopsFeed({ navigation }) {
                 softRefreshFeed(queryClient, tab);
             }
         },
-        [queryClient],
+        [queryClient, viewerDid],
     );
 
     const onRefresh = useCallback(() => {

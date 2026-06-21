@@ -15,6 +15,7 @@ export {
   recordImpression,
   invalidateFollowingDidsCache,
   clearFollowingDidsCache,
+  warmFollowingDidsCache,
 } from './feeds'
 
 export {

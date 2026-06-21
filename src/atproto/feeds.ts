@@ -10,7 +10,13 @@ import {
   videoDedupeKey,
 } from '@/utils/feedCache'
 import { postsToFeedPage, postsToMediaPage, isMediaPost, postToFlipItem } from './adapters'
-import { getAgent, restoreSessionFromStorageIfEmpty, SessionExpiredError, withAuthenticatedFetch } from './agent'
+import {
+  ensureFreshSession,
+  getAgent,
+  restoreSessionFromStorageIfEmpty,
+  SessionExpiredError,
+  withAuthenticatedFetch,
+} from './agent'
 import { normalizeToPostUri, resolveMediaPostView } from './postResolve'
 import type { FlipFeedPage, FlipVideo } from './types'
 
@@ -123,9 +129,37 @@ function followingFilterFromCache(cache: FollowingDidsCache): FollowingFilter {
   return { dids: cache.dids, active: true }
 }
 
+function addFollowIdentity(ids: Set<string>, profile: { did: string; handle?: string }) {
+  ids.add(profile.did)
+  const handle = profile.handle?.trim()
+  if (!handle) {
+    return
+  }
+  ids.add(handle)
+  const short = handle.includes('.') ? handle.split('.')[0]! : handle
+  if (short) {
+    ids.add(short)
+  }
+}
+
+function isAuthorFollowed(video: FlipVideo, followingIds: Set<string>): boolean {
+  const account = video.account
+  if (!account || followingIds.size === 0) {
+    return false
+  }
+  if (account.id && followingIds.has(account.id)) {
+    return true
+  }
+  if (account.username && followingIds.has(account.username)) {
+    return true
+  }
+  return false
+}
+
 /** Paginated follows list — cached briefly so discovery filters stay fast. */
 async function getViewerFollowingFilter(): Promise<FollowingFilter> {
   await restoreSessionFromStorageIfEmpty()
+  await ensureFreshSession()
   const actor = getAgent().session?.did
   if (!actor) {
     return { dids: new Set(), active: false }
@@ -145,7 +179,7 @@ async function getViewerFollowingFilter(): Promise<FollowingFilter> {
   }
 
   const loadFollows = async (): Promise<Set<string>> => {
-    const dids = new Set<string>()
+    const ids = new Set<string>()
     let cursor: string | undefined
 
     do {
@@ -157,12 +191,12 @@ async function getViewerFollowingFilter(): Promise<FollowingFilter> {
         }),
       )
       for (const follow of res.data.follows) {
-        dids.add(follow.did)
+        addFollowIdentity(ids, follow)
       }
       cursor = res.data.cursor
     } while (cursor)
 
-    return dids
+    return ids
   }
 
   const loadWithRetry = async (): Promise<Set<string>> => {
@@ -187,12 +221,54 @@ async function getViewerFollowingFilter(): Promise<FollowingFilter> {
   }
 }
 
+/**
+ * Discovery tabs require an active follow filter when logged in.
+ * Retries and stale cache prevent silent unfiltered discovery (follow-heavy).
+ */
+async function ensureDiscoveryFollowingFilter(): Promise<FollowingFilter> {
+  const actor = getAgent().session?.did
+  if (!actor) {
+    return { dids: new Set(), active: false }
+  }
+
+  let filter = await getViewerFollowingFilter()
+  if (filter.active) {
+    return filter
+  }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    followingDidsCache = null
+    await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)))
+    filter = await getViewerFollowingFilter()
+    if (filter.active) {
+      return filter
+    }
+  }
+
+  if (followingDidsCache?.actorDid === actor && followingDidsCache.dids.size > 0) {
+    if (__DEV__) {
+      console.warn('[feed] using stale follows cache for discovery filter')
+    }
+    return followingFilterFromCache(followingDidsCache)
+  }
+
+  return filter
+}
+
+/** Preload follows after login so discovery tabs filter on first open. */
+export async function warmFollowingDidsCache(): Promise<void> {
+  try {
+    await getViewerFollowingFilter()
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('[feed] warmFollowingDidsCache failed:', error)
+    }
+  }
+}
+
 /** Drop followed authors from a discovery page (final guard after merges). */
 function stripFollowedVideos(videos: FlipVideo[], followingDids: Set<string>): FlipVideo[] {
-  return videos.filter((video) => {
-    const authorDid = video.account?.id
-    return !authorDid || !followingDids.has(authorDid)
-  })
+  return videos.filter((video) => !isAuthorFollowed(video, followingDids))
 }
 
 function applyDiscoveryFollowingFilter(
@@ -214,8 +290,7 @@ function partitionByFollowing(
   const fromFollow: FlipVideo[] = []
 
   for (const video of videos) {
-    const authorDid = video.account?.id
-    if (authorDid && followingDids.has(authorDid)) {
+    if (isAuthorFollowed(video, followingDids)) {
       fromFollow.push(video)
     } else {
       nonFollow.push(video)
@@ -226,10 +301,7 @@ function partitionByFollowing(
 }
 
 function countNonFollowVideos(videos: FlipVideo[], followingDids: Set<string>): number {
-  return videos.filter((video) => {
-    const authorDid = video.account?.id
-    return !authorDid || !followingDids.has(authorDid)
-  }).length
+  return videos.filter((video) => !isAuthorFollowed(video, followingDids)).length
 }
 
 /**
@@ -251,10 +323,7 @@ async function fetchDiscoveryUntilNonFollow(
 
   const addVideos = (candidates: FlipVideo[]) => {
     for (const video of candidates) {
-      const authorDid = video.account?.id
-      const isFollowed =
-        followingFilter.active && !!authorDid && followingFilter.dids.has(authorDid)
-      if (isFollowed) {
+      if (followingFilter.active && isAuthorFollowed(video, followingFilter.dids)) {
         continue
       }
       const key = videoDedupeKey(video)
@@ -322,7 +391,7 @@ async function supplementDiscoveryPage(
   let filter = followingFilter
   if (!filter.active && getAgent().session?.did) {
     followingDidsCache = null
-    filter = await getViewerFollowingFilter()
+    filter = await ensureDiscoveryFollowingFilter()
   }
 
   if (filter.active) {
@@ -442,7 +511,7 @@ async function mergeForYouSuggestions(
     const boostVideos: FlipVideo[] = []
 
     for (const actor of res.data.actors) {
-      if (followingFilter.dids.has(actor.did)) {
+      if (followingFilter.dids.has(actor.did) || (actor.handle && followingFilter.dids.has(actor.handle))) {
         continue
       }
       const feedRes = await withAuthenticatedFetch(() =>
@@ -813,17 +882,17 @@ export async function fetchForYouFeed({
     fetchForYouBySource(sourceId, apiCursor, customUri)
 
   try {
-    let followingFilter = await getViewerFollowingFilter()
+    let followingFilter = await ensureDiscoveryFollowingFilter()
 
-    // Logged in but follows list failed — avoid follow-heavy generators; use global search.
-    if (!followingFilter.active && getAgent().session?.did && isFirstFeedPage(pageParam)) {
+    // Logged in but follows list unavailable — never use follow-heavy generators.
+    if (!followingFilter.active && getAgent().session?.did) {
       const { page, sourceId: searchSource } = await fetchSearchOnlyDiscovery(
         refreshEpoch,
         followingFilter,
         pageParam,
         'for you feed',
       )
-      followingFilter = await getViewerFollowingFilter()
+      followingFilter = await ensureDiscoveryFollowingFilter()
       let result = page
       if (firstPage) {
         result = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
@@ -885,7 +954,7 @@ export async function fetchForYouFeed({
     }
     console.warn('[feed] for you source failed, trying fallbacks:', error)
     try {
-      const followingFilter = await getViewerFollowingFilter()
+      const followingFilter = await ensureDiscoveryFollowingFilter()
       const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
         (apiCursor) =>
           fetchSingleVideoSearchPage(apiCursor ?? false, {
@@ -931,7 +1000,7 @@ export async function fetchForYouFeed({
         throw searchError
       }
       console.warn('[feed] for you video search failed, falling back to discover:', searchError)
-      const followingFilter = await getViewerFollowingFilter()
+      const followingFilter = await ensureDiscoveryFollowingFilter()
       const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
         (apiCursor) => fetchGeneratorFeed(BLUESKY_WHATS_HOT, apiCursor ?? false, 'for you feed'),
         pageParam,
@@ -980,7 +1049,7 @@ export async function fetchLocalFeed({
 
   if (customUri) {
     try {
-      const followingFilter = await getViewerFollowingFilter()
+      const followingFilter = await ensureDiscoveryFollowingFilter()
       const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
         (apiCursor) => fetchGeneratorFeed(customUri, apiCursor ?? false, 'local feed'),
         pageParam,
@@ -1033,16 +1102,16 @@ export async function fetchLocalFeed({
     fetchLocalBySource(sourceId, apiCursor, refreshEpoch)
 
   let page: FlipFeedPage
-  let followingFilter = await getViewerFollowingFilter()
+  let followingFilter = await ensureDiscoveryFollowingFilter()
 
-  if (!followingFilter.active && getAgent().session?.did && isFirstFeedPage(pageParam)) {
+  if (!followingFilter.active && getAgent().session?.did) {
     const searchOnly = await fetchSearchOnlyDiscovery(
       refreshEpoch,
       followingFilter,
       pageParam,
       'local feed',
     )
-    followingFilter = await getViewerFollowingFilter()
+    followingFilter = await ensureDiscoveryFollowingFilter()
     page = searchOnly.page
     sourceId = searchOnly.sourceId
   } else {
@@ -1069,7 +1138,7 @@ export async function fetchLocalFeed({
       }
       console.warn('[feed] local discovery failed, trying video search once:', error)
       try {
-        followingFilter = await getViewerFollowingFilter()
+        followingFilter = await ensureDiscoveryFollowingFilter()
         const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
           (apiCursor) =>
             fetchSingleVideoSearchPage(apiCursor ?? false, {

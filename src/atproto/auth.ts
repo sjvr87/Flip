@@ -1,5 +1,5 @@
 import { profileToFlipUser } from './adapters'
-import { clearFollowingDidsCache } from './feeds'
+import { clearFollowingDidsCache, warmFollowingDidsCache } from './feeds'
 import {
   clearSession,
   ensureFreshSession,
@@ -113,6 +113,8 @@ export async function loginWithPassword(
   const user = profileToFlipUser(profile.data, true)
   Storage.set(PROFILE_KEY, JSON.stringify(user))
 
+  void warmFollowingDidsCache()
+
   return user
 }
 
@@ -136,11 +138,13 @@ export async function hydrateSession(): Promise<boolean> {
   // Valid access token — unblock the app immediately; profile loads in background.
   if (!isAccessTokenExpired(session.accessJwt)) {
     fetchProfileInBackground()
+    void warmFollowingDidsCache()
     return true
   }
 
   // Expired access token but refresh may still be in flight — keep session for retry.
   fetchProfileInBackground()
+  void warmFollowingDidsCache()
   return true
 }
 
