@@ -14,17 +14,24 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
     Platform,
-    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Reanimated, {
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming,
+} from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,6 +40,8 @@ function safeCount(value: unknown): number {
 }
 
 const POSTER_BG = '#1a1a1a';
+const MAX_VIDEO_ZOOM = 2.5;
+const ZOOM_RESET_SPRING = { damping: 18, stiffness: 180 };
 
 type ExpoVideoPlayer = ReturnType<typeof createVideoPlayer>;
 
@@ -357,7 +366,7 @@ function VideoPlayerCore({
         onRepost(item.id, !isReposted);
     };
 
-    const flashPauseHint = (icon: 'play' | 'pause') => {
+    const flashPauseHint = useCallback((icon: 'play' | 'pause') => {
         if (pauseHintTimeoutRef.current) {
             clearTimeout(pauseHintTimeoutRef.current);
         }
@@ -368,9 +377,9 @@ function VideoPlayerCore({
                 setShowPauseHint(false);
             }
         }, 600);
-    };
+    }, []);
 
-    const togglePlayPause = () => {
+    const togglePlayPause = useCallback(() => {
         if (!player || !isMountedRef.current || !isActive) return;
 
         try {
@@ -390,14 +399,54 @@ function VideoPlayerCore({
         } catch (error) {
             console.log('Toggle play/pause error:', error);
         }
-    };
+    }, [flashPauseHint, isActive, isPlaying, item.id, player, setManuallyPaused]);
 
-    const handleScreenPress = () => {
-        if (!isMountedRef.current || !isActive) {
-            return;
+    const zoomScale = useSharedValue(1);
+    const zoomStartScale = useSharedValue(1);
+    const captionOverlayOpacity = useSharedValue(1);
+
+    useEffect(() => {
+        if (!isActive) {
+            zoomScale.value = 1;
+            zoomStartScale.value = 1;
+            captionOverlayOpacity.value = 1;
         }
-        togglePlayPause();
-    };
+    }, [isActive, captionOverlayOpacity, zoomScale, zoomStartScale]);
+
+    const videoGestures = useMemo(() => {
+        const pinch = Gesture.Pinch()
+            .onBegin(() => {
+                captionOverlayOpacity.value = withTiming(0, { duration: 120 });
+            })
+            .onStart(() => {
+                zoomStartScale.value = zoomScale.value;
+            })
+            .onUpdate((event) => {
+                const next = zoomStartScale.value * event.scale;
+                zoomScale.value = Math.min(MAX_VIDEO_ZOOM, Math.max(1, next));
+            })
+            .onEnd(() => {
+                zoomScale.value = withSpring(1, ZOOM_RESET_SPRING);
+                zoomStartScale.value = 1;
+                captionOverlayOpacity.value = withTiming(1, { duration: 200 });
+            });
+
+        const tap = Gesture.Tap()
+            .maxDuration(250)
+            .onEnd(() => {
+                runOnJS(togglePlayPause)();
+            });
+
+        return Gesture.Simultaneous(pinch, tap);
+    }, [captionOverlayOpacity, togglePlayPause, zoomScale, zoomStartScale]);
+
+    const zoomedVideoStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: zoomScale.value }],
+    }));
+
+    const captionOverlayStyle = useAnimatedStyle(() => ({
+        opacity: captionOverlayOpacity.value,
+    }));
 
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
@@ -505,44 +554,41 @@ function VideoPlayerCore({
 
     return (
         <View style={styles.videoContainer}>
-            <View style={styles.videoWrapper}>
-                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
-                <VideoView
-                    style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
-                    player={player}
-                    allowsPictureInPicture={false}
-                    nativeControls={false}
-                    pointerEvents="none"
-                    surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
-                    accessible={true}
-                    accessibilityLabel={item.media.alt_text || 'Video content'}
-                    accessibilityHint="Tap to pause or play"
-                    contentFit="contain"
-                />
-            </View>
+            <GestureDetector gesture={videoGestures}>
+                <Reanimated.View style={[styles.videoWrapper, zoomedVideoStyle]}>
+                    {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
+                    <VideoView
+                        style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
+                        player={player}
+                        allowsPictureInPicture={false}
+                        nativeControls={false}
+                        pointerEvents="none"
+                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        accessible={true}
+                        accessibilityLabel={item.media.alt_text || 'Video content'}
+                        accessibilityHint="Tap to pause or play"
+                        contentFit="contain"
+                    />
 
-            <Pressable
-                style={styles.tapOverlay}
-                onPress={handleScreenPress}
-                accessible={true}
-                accessibilityLabel="Video"
-                accessibilityHint="Tap to pause or play"
-                accessibilityRole="button"
-            />
+                    {showPauseHint && (
+                        <View style={styles.controlsOverlay} pointerEvents="none">
+                            <View style={styles.playButton}>
+                                <Ionicons name={pauseHintIcon} size={60} color="white" />
+                            </View>
+                        </View>
+                    )}
+                </Reanimated.View>
+            </GestureDetector>
 
-            {showPauseHint && (
-                <View style={styles.controlsOverlay} pointerEvents="none">
-                    <View style={styles.playButton}>
-                        <Ionicons name={pauseHintIcon} size={60} color="white" />
-                    </View>
-                </View>
-            )}
-
-            <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                style={styles.gradientOverlay}
+            <Reanimated.View
                 pointerEvents="none"
-            />
+                style={[styles.gradientOverlay, captionOverlayStyle]}>
+                <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                    style={StyleSheet.absoluteFillObject}
+                    pointerEvents="none"
+                />
+            </Reanimated.View>
 
             <FeedActionRail
                 avatarUrl={item.account?.avatar}
@@ -571,7 +617,9 @@ function VideoPlayerCore({
                 onOther={() => onOther(item)}
             />
 
-            <View style={[styles.bottomInfo, { bottom: captionBottom }]}>
+            <Reanimated.View
+                style={[styles.bottomInfo, { bottom: captionBottom }, captionOverlayStyle]}
+                pointerEvents="box-none">
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
@@ -657,7 +705,7 @@ function VideoPlayerCore({
                         </View>
                     </View>
                 )}
-            </View>
+            </Reanimated.View>
         </View>
     );
 }
@@ -671,6 +719,7 @@ const styles = StyleSheet.create({
     videoWrapper: {
         flex: 1,
         backgroundColor: POSTER_BG,
+        overflow: 'hidden',
     },
     posterLayer: {
         ...StyleSheet.absoluteFillObject,
@@ -689,11 +738,6 @@ const styles = StyleSheet.create({
     },
     videoHiddenUntilReady: {
         opacity: 0,
-    },
-    tapOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 4,
-        elevation: 4,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -764,6 +808,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 12,
         right: 80,
+        zIndex: 6,
+        elevation: 6,
     },
     username: {
         fontSize: 18,
@@ -812,6 +858,8 @@ const styles = StyleSheet.create({
         right: 0,
         bottom: 0,
         height: '20%',
+        zIndex: 3,
+        elevation: 3,
     },
     aiLabelWrapper: {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
