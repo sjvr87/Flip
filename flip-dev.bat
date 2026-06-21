@@ -1,4 +1,6 @@
 @echo off
+REM Metro-only reload (flip-dev.bat). After native deps change (e.g. expo-audio for remix
+REM reference audio), rebuild the dev client once: npm run android:dev
 cd /d "%~dp0"
 if not exist "package.json" (
   echo.

@@ -415,34 +415,54 @@ function VideoPlayerCore({
     }, [isActive, zoomScale, zoomStartScale]);
 
     const videoGestures = useMemo(() => {
-        const pinch = Gesture.Pinch()
-            .onStart(() => {
-                'worklet';
-                zoomStartScale.value = zoomScale.value;
-            })
-            .onUpdate((event) => {
-                'worklet';
-                const next = zoomStartScale.value * event.scale;
-                zoomScale.value = Math.min(MAX_VIDEO_ZOOM, Math.max(1, next));
-            })
-            .onFinalize(() => {
-                'worklet';
-                zoomScale.value = withSpring(1, ZOOM_RESET_SPRING);
-                zoomStartScale.value = 1;
-            });
+        try {
+            const pinchFactory = Gesture?.Pinch;
+            const tapFactory = Gesture?.Tap;
+            const exclusiveFactory = Gesture?.Exclusive;
 
-        if (feedScrollGesture) {
-            pinch.blocksExternalGesture(feedScrollGesture);
+            if (typeof tapFactory !== 'function') {
+                return null;
+            }
+
+            const tap = tapFactory()
+                .maxDuration(250)
+                .maxPointers(1)
+                .onEnd(() => {
+                    runOnJS(togglePlayPause)();
+                });
+
+            if (typeof pinchFactory !== 'function' || typeof exclusiveFactory !== 'function') {
+                return tap;
+            }
+
+            const pinch = pinchFactory()
+                .onStart(() => {
+                    'worklet';
+                    zoomStartScale.value = zoomScale.value;
+                })
+                .onUpdate((event) => {
+                    'worklet';
+                    const next = zoomStartScale.value * event.scale;
+                    zoomScale.value = Math.min(MAX_VIDEO_ZOOM, Math.max(1, next));
+                })
+                .onFinalize(() => {
+                    'worklet';
+                    zoomScale.value = withSpring(1, ZOOM_RESET_SPRING);
+                    zoomStartScale.value = 1;
+                });
+
+            if (
+                feedScrollGesture &&
+                typeof pinch.blocksExternalGesture === 'function'
+            ) {
+                pinch.blocksExternalGesture(feedScrollGesture);
+            }
+
+            return exclusiveFactory(pinch, tap);
+        } catch (error) {
+            console.warn('[VideoPlayer] gesture setup failed:', error);
+            return null;
         }
-
-        const tap = Gesture.Tap()
-            .maxDuration(250)
-            .maxPointers(1)
-            .onEnd(() => {
-                runOnJS(togglePlayPause)();
-            });
-
-        return Gesture.Exclusive(pinch, tap);
     }, [feedScrollGesture, togglePlayPause, zoomScale, zoomStartScale]);
 
     const zoomedVideoStyle = useAnimatedStyle(() => ({
@@ -561,8 +581,7 @@ function VideoPlayerCore({
 
     const hidePoster = videoReady && isActive;
 
-    return (
-        <GestureDetector gesture={videoGestures}>
+    const videoBody = (
             <View style={styles.videoContainer}>
                 <Reanimated.View style={[styles.videoWrapper, zoomedVideoStyle]}>
                     {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
@@ -715,8 +734,13 @@ function VideoPlayerCore({
                 )}
                 </Reanimated.View>
             </View>
-        </GestureDetector>
     );
+
+    if (videoGestures) {
+        return <GestureDetector gesture={videoGestures}>{videoBody}</GestureDetector>;
+    }
+
+    return videoBody;
 }
 
 const styles = StyleSheet.create({

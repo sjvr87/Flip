@@ -1,4 +1,4 @@
-import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
+import { getExpoAudioModule, isExpoAudioAvailable } from '@/utils/expoAudioAvailability';
 import { useEffect } from 'react';
 
 type ReferenceAudioPlayerProps = {
@@ -8,6 +8,15 @@ type ReferenceAudioPlayerProps = {
 
 /** Audio-only playback for remix/create flows (no VideoView — avoids camera decoder conflicts on Android). */
 export default function ReferenceAudioPlayer({ url, active = true }: ReferenceAudioPlayerProps) {
+    if (!isExpoAudioAvailable() || !url) {
+        return null;
+    }
+
+    return <ReferenceAudioPlayerActive url={url} active={active} />;
+}
+
+function ReferenceAudioPlayerActive({ url, active }: { url: string; active: boolean }) {
+    const { useAudioPlayer, setAudioModeAsync } = getExpoAudioModule()!;
     const player = useAudioPlayer(url, { downloadFirst: true });
 
     useEffect(() => {
@@ -15,7 +24,7 @@ export default function ReferenceAudioPlayer({ url, active = true }: ReferenceAu
             playsInSilentMode: true,
             interruptionMode: 'mixWithOthers',
         });
-    }, []);
+    }, [setAudioModeAsync]);
 
     useEffect(() => {
         player.loop = true;
