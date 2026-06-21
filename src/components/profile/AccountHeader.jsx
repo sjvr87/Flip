@@ -3,6 +3,7 @@ import Avatar from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
+import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { openBrowser } from '@/utils/requests';
 import { shareContent } from '@/utils/sharer';
 import { prettyCount } from '@/utils/ui';
@@ -19,14 +20,26 @@ export default function AccountHeader(props) {
 
     const state = props?.userState;
 
+    const profileUrl = getProfileUrl(props.user);
+
     const handleShare = async () => {
         try {
             await shareContent({
-                message: `Check out my account on Flip!`,
-                url: props.user?.url,
+                message: isOwner
+                    ? 'Check out my account on Flip!'
+                    : `Check out @${props.user?.username}'s account on Flip!`,
+                url: profileUrl,
             });
         } catch (error) {
             console.error('Share error:', error);
+        }
+    };
+
+    const handleCopyLink = async () => {
+        try {
+            await copyProfileLink(props.user);
+        } catch (error) {
+            console.error('Copy profile link error:', error);
         }
     };
 
@@ -119,11 +132,22 @@ export default function AccountHeader(props) {
                 {isOwner ? (
                     props.showActions ? (
                         <>
-                            <XStack flex={1} justifyContent="center" alignItems="center" gap="$4">
+                            <XStack flex={1} justifyContent="center" alignItems="center" gap="$3">
                                 <Link href="/private/settings/account/edit" role="button" asChild>
                                     <Button title="Edit profile" theme="light" />
                                 </Link>
                                 <Button title="Share profile" theme="light" onPress={handleShare} />
+                                <Pressable
+                                    onPress={handleCopyLink}
+                                    accessibilityLabel="Copy profile link"
+                                    accessibilityRole="button"
+                                    style={tw`px-3 py-2 rounded-full bg-gray-100 dark:bg-gray-900`}>
+                                    <Ionicons
+                                        name="copy-outline"
+                                        size={22}
+                                        color={isDark ? '#ccc' : '#333'}
+                                    />
+                                </Pressable>
                             </XStack>
                         </>
                     ) : null

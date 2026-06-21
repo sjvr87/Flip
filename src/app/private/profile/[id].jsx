@@ -28,6 +28,7 @@ import {
     usesAtprotoBackend,
 } from '@/utils/requests';
 import { decodeRouteParam, toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
+import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -260,10 +261,22 @@ export default function ProfileScreen() {
         try {
             await shareContent({
                 message: `Check out @${user.username}'s account on Flip!`,
-                url: user.url,
+                url: getProfileUrl(user),
             });
         } catch (error) {
             console.error('Share error:', error);
+        }
+    }, [user]);
+
+    const handleCopyProfileLink = useCallback(async () => {
+        if (!user) return;
+
+        setShowMenuModal(false);
+
+        try {
+            await copyProfileLink(user);
+        } catch (error) {
+            console.error('Copy profile link error:', error);
         }
     }, [user]);
 
@@ -460,6 +473,17 @@ export default function ProfileScreen() {
                                 <Text
                                     style={tw`text-base text-gray-900 dark:text-gray-300 font-medium`}>
                                     Open in browser
+                                </Text>
+                            </Pressable>
+
+                            <View style={tw`h-px bg-gray-200 dark:bg-gray-800 mx-6`} />
+
+                            <Pressable
+                                style={tw`px-6 py-4 flex-row items-center`}
+                                onPress={handleCopyProfileLink}>
+                                <Text
+                                    style={tw`text-base text-gray-900 dark:text-gray-300 font-medium`}>
+                                    Copy profile link
                                 </Text>
                             </Pressable>
 

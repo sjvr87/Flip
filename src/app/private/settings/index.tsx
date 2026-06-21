@@ -2,6 +2,7 @@ import { Divider, SectionHeader, SettingsItem } from '@/components/settings/Stac
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
+import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { openBrowser } from '@/utils/requests';
 import { shareContent } from '@/utils/sharer';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,10 +47,18 @@ export default function SettingsScreen() {
         try {
             await shareContent({
                 message: `Check out my account on Flip!`,
-                url: user?.url,
+                url: getProfileUrl(user),
             });
         } catch (error) {
             console.error('Share error:', error);
+        }
+    };
+
+    const handleCopyProfileLink = async () => {
+        try {
+            await copyProfileLink(user);
+        } catch (error) {
+            console.error('Copy profile link error:', error);
         }
     };
 
@@ -106,6 +115,12 @@ export default function SettingsScreen() {
                     icon="share-outline"
                     label="Share profile"
                     onPress={() => handleShare()}
+                />
+                <Divider />
+                <SettingsItem
+                    icon="copy-outline"
+                    label="Copy profile link"
+                    onPress={() => handleCopyProfileLink()}
                 />
                 <Divider />
                 <SectionHeader title="Content & Display" />
