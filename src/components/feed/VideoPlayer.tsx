@@ -2,6 +2,7 @@ import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
+import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
 import { useEventListener } from 'expo';
@@ -12,7 +13,6 @@ import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Dimensions,
-    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -27,13 +27,6 @@ function safeCount(value: unknown): number {
 }
 
 const POSTER_BG = '#1a1a1a';
-
-function prefetchThumbnail(url: string | undefined) {
-    if (!url) {
-        return;
-    }
-    void Image.prefetch(url);
-}
 
 function VideoPoster({ thumbnail }: { thumbnail?: string }) {
     return (
@@ -56,7 +49,7 @@ function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string;
     const thumbnail = item.media?.thumbnail;
 
     useEffect(() => {
-        prefetchThumbnail(thumbnail);
+        prefetchThumbnails([thumbnail]);
         if (ANDROID_VIDEO_SAFE_MODE) {
             return;
         }
@@ -72,7 +65,7 @@ function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string;
     );
 }
 
-export default function VideoPlayer({
+function VideoPlayer({
     item,
     isActive,
     shouldPreload = true,
@@ -123,6 +116,8 @@ export default function VideoPlayer({
     );
 }
 
+export default React.memo(VideoPlayer);
+
 function VideoPlayerCore({
     item,
     isActive,
@@ -149,10 +144,10 @@ function VideoPlayerCore({
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
     const [showControls, setShowControls] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [videoReady, setVideoReady] = useState(false);
     const manualControlRef = useRef(false);
     const isMountedRef = useRef(true);
     const wasActiveRef = useRef(false);
+    const everActiveRef = useRef(false);
     const router = useRouter();
     const [playSensitive, setPlaySensitive] = useState(false);
     const controlsTimeoutRef = useRef(null);
@@ -168,14 +163,21 @@ function VideoPlayerCore({
             takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
     }
     const player = playerRef.current;
+    const [videoReady, setVideoReady] = useState(() => player?.status === 'readyToPlay');
 
     useEffect(() => {
-        setVideoReady(false);
-        prefetchThumbnail(thumbnail);
-    }, [srcUrl, thumbnail]);
+        setVideoReady(player?.status === 'readyToPlay');
+        prefetchThumbnails([thumbnail]);
+    }, [srcUrl, thumbnail, player]);
 
     useEventListener(player, 'statusChange', ({ status }) => {
         if (status === 'readyToPlay' && isMountedRef.current) {
+            setVideoReady(true);
+        }
+    });
+
+    useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
+        if (playing && isMountedRef.current) {
             setVideoReady(true);
         }
     });
@@ -215,8 +217,11 @@ function VideoPlayerCore({
 
             const shouldPlay = isActive && screenFocused && !(item.is_sensitive && !playSensitive);
 
-            if (isActive && !wasActiveRef.current) {
+            if (isActive && !wasActiveRef.current && everActiveRef.current) {
                 player.currentTime = 0;
+            }
+            if (isActive) {
+                everActiveRef.current = true;
             }
 
             if (shouldPlay && isMountedRef.current) {

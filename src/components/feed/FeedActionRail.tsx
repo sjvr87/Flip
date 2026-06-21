@@ -3,7 +3,7 @@ import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps } from 'react';
+import { ComponentProps, memo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -59,7 +59,7 @@ function FeedActionIcon({
     );
 }
 
-export default function FeedActionRail({
+function FeedActionRail({
     avatarUrl,
     profileLabel,
     isLiked,
@@ -102,7 +102,8 @@ export default function FeedActionRail({
                             width={40}
                             borderWidth={0}
                             placeholder={{ color: '#3a3a3a' }}
-                            transition={150}
+                            transition={0}
+                            cachePolicy="memory-disk"
                         />
                     </View>
                 </LinearGradient>
@@ -207,6 +208,8 @@ export default function FeedActionRail({
         </View>
     );
 }
+
+export default memo(FeedActionRail);
 
 const styles = StyleSheet.create({
     rightActions: {

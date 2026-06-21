@@ -23,8 +23,8 @@ import {
     softRefreshFeed,
 } from '@/utils/feedCache';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
+import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrls } from '@/utils/videoPrefetch';
-import { Image } from 'expo-image';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -39,6 +39,7 @@ import {
     videoUnlike,
     videoUnrepost,
 } from '@/atproto';
+import type { FlipVideo } from '@/atproto/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -49,6 +50,8 @@ import {
     AppState,
     Dimensions,
     FlatList,
+    InteractionManager,
+    Platform,
     RefreshControl,
     StyleSheet,
     Text,
@@ -66,6 +69,81 @@ const PREFETCH_AHEAD = feedPrefetchAhead;
 const MAX_EMPTY_DEDUPE_FETCHES = 2;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = feedPlayerPreloadDistance;
+
+type FeedVideoCellProps = {
+    item: FlipVideo;
+    index: number;
+    activeIndex: number;
+    bottomInset: number;
+    tabBarHeight: number;
+    feedOverlayBottom: number;
+    actionRailBottom: number;
+    screenFocused: boolean;
+    commentsOpen: boolean;
+    shareOpen: boolean;
+    otherOpen: boolean;
+    videoPlaybackRates: Record<string, number>;
+    navigation: unknown;
+    onLike: (videoId: string, liked: boolean) => void;
+    onComment: (video: FlipVideo) => void;
+    onShare: (video: FlipVideo) => void;
+    onBookmark: (videoId: string, bookmarked: boolean) => void;
+    onRepost: (videoId: string, reposted: boolean) => void;
+    onOther: (video: FlipVideo) => void;
+    onNavigate: () => void;
+};
+
+const FeedVideoCell = React.memo(function FeedVideoCell({
+    item,
+    index,
+    activeIndex,
+    bottomInset,
+    tabBarHeight,
+    feedOverlayBottom,
+    actionRailBottom,
+    screenFocused,
+    commentsOpen,
+    shareOpen,
+    otherOpen,
+    videoPlaybackRates,
+    navigation,
+    onLike,
+    onComment,
+    onShare,
+    onBookmark,
+    onRepost,
+    onOther,
+    onNavigate,
+}: FeedVideoCellProps) {
+    const isActive = index === activeIndex;
+    const shouldPreload =
+        isActive || Math.abs(index - activeIndex) <= PLAYER_PRELOAD_DISTANCE;
+
+    return (
+        <VideoPlayer
+            item={item}
+            isActive={isActive}
+            shouldPreload={shouldPreload}
+            onLike={onLike}
+            onComment={onComment}
+            onShare={onShare}
+            onBookmark={onBookmark}
+            onRepost={onRepost}
+            onOther={onOther}
+            bottomInset={bottomInset}
+            commentsOpen={commentsOpen}
+            shareOpen={shareOpen}
+            otherOpen={otherOpen}
+            screenFocused={screenFocused}
+            videoPlaybackRates={videoPlaybackRates}
+            navigation={navigation}
+            onNavigate={onNavigate}
+            tabBarHeight={tabBarHeight}
+            overlayBottom={feedOverlayBottom}
+            actionRailBottom={actionRailBottom}
+        />
+    );
+});
 
 const fetchVideos = async ({
     pageParam = null,
@@ -476,17 +554,21 @@ export default function LoopsFeed({ navigation }) {
         if (viewableItems.length > 0) {
             const newIndex = viewableItems[0].index || 0;
             const newVideo = videosRef.current[newIndex];
+            const prevVideo = currentVideoRef.current;
+            const prevWatchStart = watchStartTimeRef.current;
 
             maybeLoadMoreVideos(newIndex);
-
-            if (currentVideoRef.current && watchStartTimeRef.current) {
-                const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
-                recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
-            }
 
             setCurrentIndex(newIndex);
             currentVideoRef.current = newVideo;
             watchStartTimeRef.current = Date.now();
+
+            if (prevVideo && prevWatchStart) {
+                InteractionManager.runAfterInteractions(() => {
+                    const watchDuration = (Date.now() - prevWatchStart) / 1000;
+                    recordVideoImpressionRef.current(prevVideo, watchDuration);
+                });
+            }
         }
     }).current;
 
@@ -509,14 +591,17 @@ export default function LoopsFeed({ navigation }) {
         }
         prefetchVideoUrls(ahead);
 
-        // Thumbnail prefetch works on Android (unlike expo-video player prefetch).
-        const thumbAhead = 3;
-        for (let i = -1; i <= thumbAhead; i++) {
-            const thumb = videos[currentIndex + i]?.media?.thumbnail;
-            if (thumb) {
-                void Image.prefetch(thumb);
+        const urls: string[] = [];
+        for (let i = -1; i <= 3; i++) {
+            const video = videos[currentIndex + i];
+            if (video?.media?.thumbnail) {
+                urls.push(video.media.thumbnail);
+            }
+            if (video?.account?.avatar) {
+                urls.push(video.account.avatar);
             }
         }
+        prefetchThumbnails(urls);
     }, [currentIndex, videos]);
 
     useEffect(() => {
@@ -525,35 +610,35 @@ export default function LoopsFeed({ navigation }) {
         }
     }, [activeTab, videos.length]);
 
-    const handleLike = (videoId, liked) => {
+    const handleLike = useCallback((videoId: string, liked: boolean) => {
         const dir = liked ? 'like' : 'unlike';
         videoLikeMutation.mutate({ type: dir, id: videoId });
-    };
+    }, [videoLikeMutation]);
 
-    const handleBookmark = (videoId, bookmarked) => {
+    const handleBookmark = useCallback((videoId: string, bookmarked: boolean) => {
         const dir = bookmarked ? 'bookmark' : 'unbookmark';
         videoBookmarkMutation.mutate({ type: dir, id: videoId });
-    };
+    }, [videoBookmarkMutation]);
 
-    const handleRepost = (videoId, reposted) => {
+    const handleRepost = useCallback((videoId: string, reposted: boolean) => {
         const dir = reposted ? 'repost' : 'unrepost';
         videoRepostMutation.mutate({ type: dir, id: videoId });
-    };
+    }, [videoRepostMutation]);
 
-    const handleComment = (video) => {
+    const handleComment = useCallback((video: FlipVideo) => {
         setSelectedVideo(video);
         setShowComments(true);
-    };
+    }, []);
 
-    const handleShare = (video) => {
+    const handleShare = useCallback((video: FlipVideo) => {
         setSelectedVideo(video);
         setShowShare(true);
-    };
+    }, []);
 
-    const handleOther = (video) => {
+    const handleOther = useCallback((video: FlipVideo) => {
         setSelectedVideo(video);
         setShowOther(true);
-    };
+    }, []);
 
     const handlePlaybackSpeedChange = (speed) => {
         if (selectedVideo) {
@@ -564,11 +649,11 @@ export default function LoopsFeed({ navigation }) {
         }
     };
 
-    const handleNavigate = () => {
+    const handleNavigate = useCallback(() => {
         setShowComments(false);
         setShowShare(false);
         setShowOther(false);
-    };
+    }, []);
 
     const renderItem = useCallback(
         ({ item, index }) => {
@@ -598,14 +683,10 @@ export default function LoopsFeed({ navigation }) {
             }
 
             return (
-                <VideoPlayer
-                    key={item.id}
+                <FeedVideoCell
                     item={item}
-                    isActive={index === currentIndex}
-                    shouldPreload={
-                        index === currentIndex ||
-                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE
-                    }
+                    index={index}
+                    activeIndex={currentIndex}
                     onLike={handleLike}
                     onComment={handleComment}
                     onShare={handleShare}
@@ -616,13 +697,12 @@ export default function LoopsFeed({ navigation }) {
                     commentsOpen={showComments && selectedVideo?.id === item.id}
                     shareOpen={showShare && selectedVideo?.id === item.id}
                     otherOpen={showOther && selectedVideo?.id === item.id}
-                    onMorePress={handleComment}
                     screenFocused={screenFocused}
                     videoPlaybackRates={videoPlaybackRates}
                     navigation={navigation}
                     onNavigate={handleNavigate}
                     tabBarHeight={tabBarMetrics.contentHeight}
-                    overlayBottom={tabBarMetrics.feedOverlayBottom}
+                    feedOverlayBottom={tabBarMetrics.feedOverlayBottom}
                     actionRailBottom={tabBarMetrics.actionRailBottom}
                 />
             );
@@ -631,17 +711,25 @@ export default function LoopsFeed({ navigation }) {
             activeTab,
             currentIndex,
             feedError,
-            insets.bottom,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
+            tabBarMetrics.contentHeight,
             tabBarMetrics.feedOverlayBottom,
+            handleLike,
+            handleComment,
+            handleShare,
+            handleBookmark,
+            handleRepost,
+            handleOther,
+            handleNavigate,
             showComments,
             showShare,
             showOther,
             selectedVideo,
             screenFocused,
             videoPlaybackRates,
+            navigation,
         ],
     );
 
@@ -761,7 +849,7 @@ export default function LoopsFeed({ navigation }) {
                 onEndReached={handleEndReached}
                 onEndReachedThreshold={0.5}
                 getItemLayout={getItemLayout}
-                removeClippedSubviews={true}
+                removeClippedSubviews={Platform.OS !== 'android'}
                 maxToRenderPerBatch={feedMaxToRenderPerBatch}
                 windowSize={feedFlatListWindowSize}
                 initialNumToRender={feedInitialNumToRender}
