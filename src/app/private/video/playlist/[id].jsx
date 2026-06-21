@@ -13,6 +13,7 @@ import {
     videoUnlike,
 } from '@/utils/requests';
 import { decodeRouteParam } from '@/utils/profileNavigation';
+import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import { parseCount } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
@@ -230,43 +231,45 @@ export default function PlaylistFeed({ navigation }) {
                     <ActivityIndicator size="large" color="#fff" />
                 </View>
             ) : (
-                <FlatList
-                    ref={flatListRef}
-                    data={videos}
-                    renderItem={renderItem}
-                    keyExtractor={(item, index) => `${item.id}-${index}`}
-                    pagingEnabled
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={feedHeight}
-                    snapToAlignment="start"
-                    decelerationRate="fast"
-                    viewabilityConfig={viewabilityConfig.current}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    onEndReached={handleEndReached}
-                    onEndReachedThreshold={0.5}
-                    getItemLayout={(data, index) => ({
-                        length: feedHeight,
-                        offset: feedHeight * index,
-                        index,
-                    })}
-                    removeClippedSubviews={false}
-                    maxToRenderPerBatch={1}
-                    windowSize={3}
-                    initialNumToRender={1}
-                    updateCellsBatchingPeriod={100}
-                    onScrollToIndexFailed={({ index }) => {
-                        setTimeout(() => {
-                            flatListRef.current?.scrollToIndex({ index, animated: false });
-                        }, 100);
-                    }}
-                    ListFooterComponent={
-                        isFetchingNextPage ? (
-                            <View style={[styles.footer, { height: feedHeight }]}>
-                                <ActivityIndicator size="large" color="#fff" />
-                            </View>
-                        ) : null
-                    }
-                />
+                <FeedScrollGestureRoot>
+                    <FlatList
+                        ref={flatListRef}
+                        data={videos}
+                        renderItem={renderItem}
+                        keyExtractor={(item, index) => `${item.id}-${index}`}
+                        pagingEnabled
+                        showsVerticalScrollIndicator={false}
+                        snapToInterval={feedHeight}
+                        snapToAlignment="start"
+                        decelerationRate="fast"
+                        viewabilityConfig={viewabilityConfig.current}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        onEndReached={handleEndReached}
+                        onEndReachedThreshold={0.5}
+                        getItemLayout={(data, index) => ({
+                            length: feedHeight,
+                            offset: feedHeight * index,
+                            index,
+                        })}
+                        removeClippedSubviews={false}
+                        maxToRenderPerBatch={1}
+                        windowSize={3}
+                        initialNumToRender={1}
+                        updateCellsBatchingPeriod={100}
+                        onScrollToIndexFailed={({ index }) => {
+                            setTimeout(() => {
+                                flatListRef.current?.scrollToIndex({ index, animated: false });
+                            }, 100);
+                        }}
+                        ListFooterComponent={
+                            isFetchingNextPage ? (
+                                <View style={[styles.footer, { height: feedHeight }]}>
+                                    <ActivityIndicator size="large" color="#fff" />
+                                </View>
+                            ) : null
+                        }
+                    />
+                </FeedScrollGestureRoot>
             )}
 
             {!isLoading && feedHeight > 0 && videos.length > 0 && (

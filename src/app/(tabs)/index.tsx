@@ -25,6 +25,7 @@ import {
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrls } from '@/utils/videoPrefetch';
+import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -832,43 +833,45 @@ export default function LoopsFeed({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            <FlatList
-                key={activeTab}
-                ref={flatListRef}
-                data={videosWithEnd}
-                extraData={currentIndex}
-                renderItem={renderItem}
-                keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                pagingEnabled
-                showsVerticalScrollIndicator={false}
-                snapToInterval={SCREEN_HEIGHT}
-                snapToAlignment="start"
-                decelerationRate="fast"
-                viewabilityConfig={viewabilityConfig.current}
-                onViewableItemsChanged={onViewableItemsChanged}
-                onEndReached={handleEndReached}
-                onEndReachedThreshold={0.5}
-                getItemLayout={getItemLayout}
-                removeClippedSubviews={Platform.OS !== 'android'}
-                maxToRenderPerBatch={feedMaxToRenderPerBatch}
-                windowSize={feedFlatListWindowSize}
-                initialNumToRender={feedInitialNumToRender}
-                updateCellsBatchingPeriod={50}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        progressViewOffset={insets.top + 60}
-                    />
-                }
-                ListFooterComponent={
-                    isFetchingNextPage ? (
-                        <View style={styles.footer}>
-                            <ActivityIndicator size="large" color="#fff" />
-                        </View>
-                    ) : null
-                }
-            />
+            <FeedScrollGestureRoot>
+                <FlatList
+                    key={activeTab}
+                    ref={flatListRef}
+                    data={videosWithEnd}
+                    extraData={currentIndex}
+                    renderItem={renderItem}
+                    keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
+                    pagingEnabled
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={SCREEN_HEIGHT}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    viewabilityConfig={viewabilityConfig.current}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.5}
+                    getItemLayout={getItemLayout}
+                    removeClippedSubviews={Platform.OS !== 'android'}
+                    maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                    windowSize={feedFlatListWindowSize}
+                    initialNumToRender={feedInitialNumToRender}
+                    updateCellsBatchingPeriod={50}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            progressViewOffset={insets.top + 60}
+                        />
+                    }
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <View style={styles.footer}>
+                                <ActivityIndicator size="large" color="#fff" />
+                            </View>
+                        ) : null
+                    }
+                />
+            </FeedScrollGestureRoot>
 
             <CommentsModal
                 visible={showComments}

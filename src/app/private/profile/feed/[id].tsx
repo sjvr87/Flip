@@ -28,6 +28,7 @@ import {
     videoUnlike,
 } from '@/utils/requests';
 import { decodeRouteParam, parseRepoDidFromAtUri, postAtUriToBskyUrl, toProfilePath } from '@/utils/profileNavigation';
+import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -327,45 +328,47 @@ export default function ProfileFeed({ navigation }) {
                     </TouchableOpacity>
                 </View>
             ) : (
-                <FlatList
-                    key={`${profileId}-${id}`}
-                    ref={flatListRef}
-                    data={videos}
-                    renderItem={renderItem}
-                    keyExtractor={(item, index) => `${item.id}-${index}`}
-                    pagingEnabled
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={feedHeight}
-                    snapToAlignment="start"
-                    decelerationRate="fast"
-                    viewabilityConfig={viewabilityConfig.current}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    onEndReached={handleEndReached}
-                    onEndReachedThreshold={0.5}
-                    getItemLayout={(data, index) => ({
-                        length: feedHeight,
-                        offset: feedHeight * index,
-                        index,
-                    })}
-                    removeClippedSubviews={false}
-                    maxToRenderPerBatch={3}
-                    windowSize={5}
-                    initialNumToRender={Math.min(Math.max(targetIndex + 1, 1), 5)}
-                    initialScrollIndex={targetIndex > 0 ? targetIndex : undefined}
-                    onScrollToIndexFailed={({ index }) => {
-                        setTimeout(() => {
-                            flatListRef.current?.scrollToIndex({ index, animated: false });
-                        }, 100);
-                    }}
-                    updateCellsBatchingPeriod={100}
-                    ListFooterComponent={
-                        isFetchingNextPage ? (
-                            <View style={[styles.footer, { height: feedHeight }]}>
-                                <ActivityIndicator size="large" color="#fff" />
-                            </View>
-                        ) : null
-                    }
-                />
+                <FeedScrollGestureRoot>
+                    <FlatList
+                        key={`${profileId}-${id}`}
+                        ref={flatListRef}
+                        data={videos}
+                        renderItem={renderItem}
+                        keyExtractor={(item, index) => `${item.id}-${index}`}
+                        pagingEnabled
+                        showsVerticalScrollIndicator={false}
+                        snapToInterval={feedHeight}
+                        snapToAlignment="start"
+                        decelerationRate="fast"
+                        viewabilityConfig={viewabilityConfig.current}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        onEndReached={handleEndReached}
+                        onEndReachedThreshold={0.5}
+                        getItemLayout={(data, index) => ({
+                            length: feedHeight,
+                            offset: feedHeight * index,
+                            index,
+                        })}
+                        removeClippedSubviews={false}
+                        maxToRenderPerBatch={3}
+                        windowSize={5}
+                        initialNumToRender={Math.min(Math.max(targetIndex + 1, 1), 5)}
+                        initialScrollIndex={targetIndex > 0 ? targetIndex : undefined}
+                        onScrollToIndexFailed={({ index }) => {
+                            setTimeout(() => {
+                                flatListRef.current?.scrollToIndex({ index, animated: false });
+                            }, 100);
+                        }}
+                        updateCellsBatchingPeriod={100}
+                        ListFooterComponent={
+                            isFetchingNextPage ? (
+                                <View style={[styles.footer, { height: feedHeight }]}>
+                                    <ActivityIndicator size="large" color="#fff" />
+                                </View>
+                            ) : null
+                        }
+                    />
+                </FeedScrollGestureRoot>
             )}
 
             <CommentsModal

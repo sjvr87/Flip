@@ -4,6 +4,7 @@ import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
+import { useFeedScrollGesture } from '@/utils/feedScrollGesture';
 import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { canUseFlipCamera } from '@/utils/runtime';
@@ -26,11 +27,12 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
+    Extrapolation,
+    interpolate,
     runOnJS,
     useAnimatedStyle,
     useSharedValue,
     withSpring,
-    withTiming,
 } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -401,51 +403,54 @@ function VideoPlayerCore({
         }
     }, [flashPauseHint, isActive, isPlaying, item.id, player, setManuallyPaused]);
 
+    const feedScrollGesture = useFeedScrollGesture();
     const zoomScale = useSharedValue(1);
     const zoomStartScale = useSharedValue(1);
-    const captionOverlayOpacity = useSharedValue(1);
 
     useEffect(() => {
         if (!isActive) {
             zoomScale.value = 1;
             zoomStartScale.value = 1;
-            captionOverlayOpacity.value = 1;
         }
-    }, [isActive, captionOverlayOpacity, zoomScale, zoomStartScale]);
+    }, [isActive, zoomScale, zoomStartScale]);
 
     const videoGestures = useMemo(() => {
         const pinch = Gesture.Pinch()
-            .onBegin(() => {
-                captionOverlayOpacity.value = withTiming(0, { duration: 120 });
-            })
             .onStart(() => {
+                'worklet';
                 zoomStartScale.value = zoomScale.value;
             })
             .onUpdate((event) => {
+                'worklet';
                 const next = zoomStartScale.value * event.scale;
                 zoomScale.value = Math.min(MAX_VIDEO_ZOOM, Math.max(1, next));
             })
-            .onEnd(() => {
+            .onFinalize(() => {
+                'worklet';
                 zoomScale.value = withSpring(1, ZOOM_RESET_SPRING);
                 zoomStartScale.value = 1;
-                captionOverlayOpacity.value = withTiming(1, { duration: 200 });
             });
+
+        if (feedScrollGesture) {
+            pinch.blocksExternalGesture(feedScrollGesture);
+        }
 
         const tap = Gesture.Tap()
             .maxDuration(250)
+            .maxPointers(1)
             .onEnd(() => {
                 runOnJS(togglePlayPause)();
             });
 
-        return Gesture.Simultaneous(pinch, tap);
-    }, [captionOverlayOpacity, togglePlayPause, zoomScale, zoomStartScale]);
+        return Gesture.Exclusive(pinch, tap);
+    }, [feedScrollGesture, togglePlayPause, zoomScale, zoomStartScale]);
 
     const zoomedVideoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: zoomScale.value }],
     }));
 
     const captionOverlayStyle = useAnimatedStyle(() => ({
-        opacity: captionOverlayOpacity.value,
+        opacity: interpolate(zoomScale.value, [1, 1.05], [1, 0], Extrapolation.CLAMP),
     }));
 
     const handleUseAudio = () => {
@@ -482,7 +487,11 @@ function VideoPlayerCore({
                 ? `Reference audio from @${source.username} will play while you record. Audio credit is attached to your post when you publish.`
                 : `Audio credit from @${source.username} will be attached to your post. Record your video with this sound in mind.`,
             [
-                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Cancel',
+                    style: 'cancel',
+                    onPress: () => usePendingAudioReuseStore.getState().clearPending(),
+                },
                 {
                     text: 'Record remix',
                     onPress: () => router.push('/(tabs)/create'),
@@ -553,8 +562,8 @@ function VideoPlayerCore({
     const hidePoster = videoReady && isActive;
 
     return (
-        <View style={styles.videoContainer}>
-            <GestureDetector gesture={videoGestures}>
+        <GestureDetector gesture={videoGestures}>
+            <View style={styles.videoContainer}>
                 <Reanimated.View style={[styles.videoWrapper, zoomedVideoStyle]}>
                     {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                     <VideoView
@@ -578,19 +587,18 @@ function VideoPlayerCore({
                         </View>
                     )}
                 </Reanimated.View>
-            </GestureDetector>
 
-            <Reanimated.View
-                pointerEvents="none"
-                style={[styles.gradientOverlay, captionOverlayStyle]}>
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                    style={StyleSheet.absoluteFillObject}
+                <Reanimated.View
                     pointerEvents="none"
-                />
-            </Reanimated.View>
+                    style={[styles.gradientOverlay, captionOverlayStyle]}>
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                        style={StyleSheet.absoluteFillObject}
+                        pointerEvents="none"
+                    />
+                </Reanimated.View>
 
-            <FeedActionRail
+                <FeedActionRail
                 avatarUrl={item.account?.avatar}
                 profileLabel={`View ${item.account.username}'s profile`}
                 isLiked={isLiked}
@@ -615,11 +623,11 @@ function VideoPlayerCore({
                 onMuteToggle={toggleFeedMuted}
                 onUseAudio={handleUseAudio}
                 onOther={() => onOther(item)}
-            />
+                />
 
-            <Reanimated.View
-                style={[styles.bottomInfo, { bottom: captionBottom }, captionOverlayStyle]}
-                pointerEvents="box-none">
+                <Reanimated.View
+                    style={[styles.bottomInfo, { bottom: captionBottom }, captionOverlayStyle]}
+                    pointerEvents="box-none">
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
@@ -705,8 +713,9 @@ function VideoPlayerCore({
                         </View>
                     </View>
                 )}
-            </Reanimated.View>
-        </View>
+                </Reanimated.View>
+            </View>
+        </GestureDetector>
     );
 }
 
