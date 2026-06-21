@@ -62,7 +62,7 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
             {state === 'messages' ? (
                 <EnvelopeAccent />
             ) : state === 'likes' ? (
-                <FoldedHeartGroup x={0.85} y={10.9} scale={0.36} />
+                <FoldedHeartGroup x={0.75} y={10.75} scale={0.42} />
             ) : state === 'follows' ? (
                 <FollowPeopleGroup
                     x={1.2}

@@ -1,4 +1,5 @@
 import Avatar from '@/components/Avatar';
+import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +10,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 const ICON_SIZE = 30;
+const LIKE_ICON_SIZE = 26;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 
@@ -55,6 +57,18 @@ function FeedActionIcon({
     return (
         <View style={styles.iconShadow}>
             <Ionicons name={iconName} size={ICON_SIZE} color={iconColor} />
+        </View>
+    );
+}
+
+function LikeActionIcon({ active }: { active: boolean }) {
+    return (
+        <View style={styles.iconShadow}>
+            <FoldedHeartIcon
+                size={LIKE_ICON_SIZE}
+                variant={active ? 'filled' : 'outline'}
+                color={ICON_COLOR}
+            />
         </View>
     );
 }
@@ -118,11 +132,7 @@ function FeedActionRail({
                 }
                 accessibilityRole="button"
                 accessibilityState={{ selected: isLiked }}>
-                <FeedActionIcon
-                    name="heart-outline"
-                    activeName="heart"
-                    active={isLiked}
-                />
+                <LikeActionIcon active={isLiked} />
                 <Text style={styles.actionText} accessibilityElementsHidden>
                     {likeCount}
                 </Text>
