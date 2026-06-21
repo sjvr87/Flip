@@ -25,7 +25,6 @@ import {
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrls } from '@/utils/videoPrefetch';
-import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -50,6 +49,7 @@ import {
     ActivityIndicator,
     AppState,
     Dimensions,
+    FlatList,
     InteractionManager,
     Platform,
     RefreshControl,
@@ -58,7 +58,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { FlatList } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -837,8 +836,7 @@ export default function LoopsFeed({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            <FeedScrollGestureRoot>
-                <FlatList
+            <FlatList
                     key={activeTab}
                     ref={flatListRef}
                     data={videosWithEnd}
@@ -875,7 +873,6 @@ export default function LoopsFeed({ navigation }) {
                         ) : null
                     }
                 />
-            </FeedScrollGestureRoot>
 
             <CommentsModal
                 visible={showComments}

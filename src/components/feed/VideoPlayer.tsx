@@ -19,12 +19,12 @@ import {
     Alert,
     Dimensions,
     Platform,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Pressable as GesturePressable } from 'react-native-gesture-handler';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -519,7 +519,7 @@ function VideoPlayerCore({
     const hidePoster = videoReady && isActive;
 
     const videoBody = (
-            <View style={styles.videoContainer} pointerEvents="box-none">
+            <View style={styles.videoContainer}>
                 <View style={styles.videoWrapper}>
                     {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                     <VideoView
@@ -538,25 +538,16 @@ function VideoPlayerCore({
 
                 {/* DO NOT wrap tap Pressable in pinch GestureDetector — Android steals single-finger touches. */}
                 {/* Pinch zoom disabled on feed until tap pause is reliable on all Android devices. */}
-                <View
+                <Pressable
                     style={styles.tapOverlay}
+                    onPress={handleTapOverlay}
                     collapsable={false}
-                    pointerEvents="box-none"
-                    onStartShouldSetResponder={() => Platform.OS === 'android'}
-                    onResponderRelease={
-                        Platform.OS === 'android' ? handleTapOverlay : undefined
-                    }
-                    onResponderTerminationRequest={() => false}>
-                    <GesturePressable
-                        style={StyleSheet.absoluteFillObject}
-                        onPress={Platform.OS === 'ios' ? handleTapOverlay : undefined}
-                        android_ripple={{ color: 'transparent' }}
-                        accessible={true}
-                        accessibilityLabel="Video"
-                        accessibilityHint="Tap to pause or play"
-                        accessibilityRole="button"
-                    />
-                </View>
+                    android_ripple={{ color: 'transparent' }}
+                    accessible={true}
+                    accessibilityLabel="Video"
+                    accessibilityHint="Tap to pause or play"
+                    accessibilityRole="button"
+                />
 
                 {showPauseHint && (
                     <View style={styles.controlsOverlay} pointerEvents="none">
