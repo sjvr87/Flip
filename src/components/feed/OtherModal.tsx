@@ -191,16 +191,7 @@ export default function OtherModal({
         },
     ].filter((option) => option.show);
 
-    if (item.permissions?.can_download) {
-        // options.unshift({
-        //     icon: 'download-outline',
-        //     label: 'Download',
-        //     onPress: handleDownload,
-        //     show: true,
-        // })
-    }
-
-    // if (item.permissions.can_duet) {
+    // if (item.permissions?.can_duet) {
     //     options.unshift({
     //         icon: 'duplicate-outline',
     //         label: 'Duet',

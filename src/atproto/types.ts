@@ -20,6 +20,12 @@ export type FlipMedia = {
   duration?: number
 }
 
+export type FlipPermissions = {
+  can_comment?: boolean
+  can_download?: boolean
+  can_duet?: boolean
+}
+
 export type FlipVideo = {
   id: string
   cid: string
@@ -46,6 +52,7 @@ export type FlipVideo = {
     start_index: number
     end_index: number
   }>
+  permissions?: FlipPermissions
 }
 
 export type FlipFeedPage = {

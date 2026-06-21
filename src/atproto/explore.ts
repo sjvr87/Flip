@@ -78,7 +78,7 @@ export async function getExploreTags(): Promise<ExploreTag[]> {
       if (tags.length >= EXPLORE_TAGS_LIMIT) break
     }
   } catch (error) {
-    console.warn('[explore] getTrendingTopics failed:', error)
+    console.log('[explore] getTrendingTopics failed:', error)
   }
 
   if (tags.length > 0) return tags

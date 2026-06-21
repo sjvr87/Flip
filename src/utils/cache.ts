@@ -80,13 +80,13 @@ function createMmkvStorage(): AppStorage {
 
 function createNativeStorage(): AppStorage {
   if (useSafeNativeShims) {
-    console.warn('[storage] Expo Go / safe mode — using in-memory storage')
+    console.log('[storage] Expo Go / safe mode — using in-memory storage')
     return createMemoryStorage()
   }
 
   try {
     const storage = createMmkvStorage()
-    console.warn('[storage] Using MMKV')
+    console.log('[storage] Using MMKV')
     return storage
   } catch (error) {
     console.warn('[storage] MMKV unavailable, using in-memory storage', error)

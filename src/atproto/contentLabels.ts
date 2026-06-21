@@ -1,7 +1,5 @@
 import type { AppBskyFeedDefs } from '@atproto/api'
 
-import { useAuthStore } from '@/utils/authStore'
-
 /** Bluesky global label values for adult / graphic content. */
 export const ADULT_CONTENT_LABELS = new Set([
   'porn',
@@ -59,5 +57,7 @@ export function isSensitivePost(post: AppBskyFeedDefs.PostView): boolean {
 }
 
 export function shouldHideAdultContent(): boolean {
+  // Lazy import breaks authStore → adapters → contentLabels require cycle.
+  const { useAuthStore } = require('@/utils/authStore') as typeof import('@/utils/authStore')
   return useAuthStore.getState().hideAdultContent ?? true
 }

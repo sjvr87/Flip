@@ -98,10 +98,15 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     mode: 'light',
     theme: lightTheme,
     setMode: (mode) => {
-        Storage.set('theme_mode', mode);
-        set({
-            mode,
-            theme: mode === 'light' ? lightTheme : darkTheme,
+        set((state) => {
+            if (state.mode === mode) {
+                return state;
+            }
+            Storage.set('theme_mode', mode);
+            return {
+                mode,
+                theme: mode === 'light' ? lightTheme : darkTheme,
+            };
         });
     },
     toggleMode: () => {

@@ -98,6 +98,11 @@ function baseFlipItem(
     has_bookmarked: !!post.viewer?.bookmarked,
     has_reposted: !!post.viewer?.repost,
     created_at: (post.record as { createdAt?: string }).createdAt || new Date().toISOString(),
+    permissions: {
+      can_comment: true,
+      can_download: false,
+      can_duet: false,
+    },
   }
 }
 

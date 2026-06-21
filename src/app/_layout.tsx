@@ -15,7 +15,18 @@ const SPLASH_FAILSAFE_MS = 10_000;
 const EXPO_GO_BANNER_MS = 4000;
 
 if (isExpoGo) {
-    LogBox.ignoreLogs(['[startup]']);
+    LogBox.ignoreLogs(['[startup]', '[auth]', '[storage]']);
+}
+
+if (__DEV__) {
+    LogBox.ignoreLogs([
+        'The latest version of React Native DevTools',
+        '[@atproto/lex-data]',
+        'Falling back to ponyfill',
+        'Falling back to file-based resolution',
+        'shadow*',
+        '[expo-notifications] Listening to push token changes',
+    ]);
 }
 
 if (Platform.OS !== 'web' && !isExpoGo) {
@@ -30,12 +41,12 @@ if (Platform.OS !== 'web' && !isExpoGo) {
             }),
         });
     } catch (error) {
-        console.warn('[startup] Notifications handler setup failed:', error);
+        console.log('[startup] Notifications handler setup failed:', error);
     }
 }
 
 void SplashScreen.preventAutoHideAsync().catch((error) => {
-    console.warn('[startup] SplashScreen.preventAutoHideAsync failed:', error);
+    console.log('[startup] SplashScreen.preventAutoHideAsync failed:', error);
 });
 
 const queryClient = new QueryClient({
@@ -58,7 +69,7 @@ function KeyboardWrapper({ children }: PropsWithChildren) {
         const { KeyboardProvider } = require('react-native-keyboard-controller');
         return <KeyboardProvider>{children}</KeyboardProvider>;
     } catch (error) {
-        console.warn('[startup] KeyboardProvider unavailable:', error);
+        console.log('[startup] KeyboardProvider unavailable:', error);
         return <>{children}</>;
     }
 }
@@ -95,7 +106,7 @@ function useNotificationObserver() {
                 subscription.remove();
             };
         } catch (error) {
-            console.warn('[startup] Notification observer setup failed:', error);
+            console.log('[startup] Notification observer setup failed:', error);
         }
     }, []);
 }
@@ -113,7 +124,7 @@ function ExpoGoAppContent() {
     const [showBanner, setShowBanner] = useState(true);
 
     useLayoutEffect(() => {
-        console.warn('[startup] Expo Go — rehydrate prefs then restore session');
+        console.log('[startup] Expo Go — rehydrate prefs then restore session');
         void useAuthStore.persist.rehydrate().finally(() => {
             useAuthStore.getState().setHasHydrated(true);
         });
@@ -239,7 +250,7 @@ export default function RootLayout() {
 
     useEffect(() => {
         const splashFailsafe = setTimeout(() => {
-            console.warn('[startup] Splash fail-safe fired');
+            console.log('[startup] Splash fail-safe fired');
             hideSplash();
             if (!useAuthStore.getState()._hasHydrated) {
                 useAuthStore.getState().setHasHydrated(true);
@@ -250,10 +261,10 @@ export default function RootLayout() {
             return () => clearTimeout(splashFailsafe);
         }
 
-        console.warn('[startup] RootLayout mount — starting auth rehydrate');
+        console.log('[startup] RootLayout mount — starting auth rehydrate');
 
         void useAuthStore.persist.rehydrate().catch((error) => {
-            console.warn('[startup] persist.rehydrate failed:', error);
+            console.log('[startup] persist.rehydrate failed:', error);
             useAuthStore.getState().setHasHydrated(true);
         });
 

@@ -158,17 +158,64 @@ function VideoPlayerCore({
     const srcUrl = item.media?.src_url;
     const thumbnail = item.media?.thumbnail;
     const playerRef = useRef<ReturnType<typeof createVideoPlayer> | null>(null);
-    if (!playerRef.current && srcUrl) {
-        playerRef.current =
-            takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
-    }
-    const player = playerRef.current;
-    const [videoReady, setVideoReady] = useState(() => player?.status === 'readyToPlay');
+    const boundSrcRef = useRef<string | undefined>(undefined);
+    const [player, setPlayer] = useState<ReturnType<typeof createVideoPlayer> | null>(null);
+    const [videoReady, setVideoReady] = useState(false);
 
     useEffect(() => {
-        setVideoReady(player?.status === 'readyToPlay');
+        if (!srcUrl) {
+            if (playerRef.current) {
+                try {
+                    playerRef.current.release?.();
+                } catch {
+                    // already released
+                }
+                playerRef.current = null;
+            }
+            boundSrcRef.current = undefined;
+            setPlayer(null);
+            setVideoReady(false);
+            return;
+        }
+
+        if (boundSrcRef.current === srcUrl && playerRef.current) {
+            setPlayer(playerRef.current);
+            setVideoReady(playerRef.current.status === 'readyToPlay');
+            return;
+        }
+
+        if (playerRef.current) {
+            try {
+                playerRef.current.release?.();
+            } catch {
+                // already released
+            }
+            playerRef.current = null;
+        }
+
+        const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
+        nextPlayer.loop = true;
+        playerRef.current = nextPlayer;
+        boundSrcRef.current = srcUrl;
+        setPlayer(nextPlayer);
+        setVideoReady(nextPlayer.status === 'readyToPlay');
+
+        return () => {
+            try {
+                nextPlayer.release?.();
+            } catch {
+                // already released
+            }
+            if (playerRef.current === nextPlayer) {
+                playerRef.current = null;
+                boundSrcRef.current = undefined;
+            }
+        };
+    }, [srcUrl]);
+
+    useEffect(() => {
         prefetchThumbnails([thumbnail]);
-    }, [srcUrl, thumbnail, player]);
+    }, [thumbnail]);
 
     useEventListener(player, 'statusChange', ({ status }) => {
         if (status === 'readyToPlay' && isMountedRef.current) {
@@ -184,19 +231,10 @@ function VideoPlayerCore({
 
     useEffect(() => {
         isMountedRef.current = true;
-        if (player) {
-            player.loop = true;
-        }
         return () => {
             isMountedRef.current = false;
-            try {
-                playerRef.current?.release?.();
-            } catch {
-                // already released
-            }
-            playerRef.current = null;
         };
-    }, [player]);
+    }, []);
 
     useEffect(() => {
         if (!player) return;

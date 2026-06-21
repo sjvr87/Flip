@@ -17,6 +17,7 @@ export default function PhotoFeedSlide({
     onComment,
     onShare,
     onBookmark,
+    onRepost,
     onOther,
     bottomInset,
     tabBarHeight = 20,
@@ -25,10 +26,15 @@ export default function PhotoFeedSlide({
     const router = useRouter();
     const [isLiked, setIsLiked] = useState(item.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
+    const [isReposted, setIsReposted] = useState(!!item.has_reposted);
 
     const likeCount = safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
     const bookmarkCount =
         safeCount(item.bookmarks) + (isBookmarked && !item.has_bookmarked ? 1 : 0);
+    const repostCount =
+        safeCount(item.shares) +
+        (isReposted && !item.has_reposted ? 1 : 0) -
+        (!isReposted && item.has_reposted ? 1 : 0);
 
     const handleLike = () => {
         setIsLiked(!isLiked);
@@ -38,6 +44,11 @@ export default function PhotoFeedSlide({
     const handleBookmark = () => {
         setIsBookmarked(!isBookmarked);
         onBookmark(item.id, !isBookmarked);
+    };
+
+    const handleRepost = () => {
+        setIsReposted(!isReposted);
+        onRepost?.(item.id, !isReposted);
     };
 
     return (
@@ -61,10 +72,11 @@ export default function PhotoFeedSlide({
                 profileLabel={`View ${item.account.username}'s profile`}
                 isLiked={isLiked}
                 isBookmarked={isBookmarked}
+                isReposted={isReposted}
                 likeCount={likeCount}
                 commentCount={safeCount(item.comments)}
                 bookmarkCount={bookmarkCount}
-                shareCount={safeCount(item.shares)}
+                repostCount={repostCount}
                 canComment={item.permissions?.can_comment !== false}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
@@ -72,6 +84,7 @@ export default function PhotoFeedSlide({
                 onLike={handleLike}
                 onComment={() => onComment(item)}
                 onBookmark={handleBookmark}
+                onRepost={handleRepost}
                 onShare={() => onShare(item)}
                 onOther={() => onOther(item)}
             />

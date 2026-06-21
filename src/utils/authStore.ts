@@ -333,7 +333,7 @@ export const useAuthStore = create(
         }
 
         sessionRestoreAttempted = true
-        console.warn('[auth] restoring session in background')
+        console.log('[auth] restoring session in background')
 
         set({ authReady: false })
 
@@ -347,7 +347,7 @@ export const useAuthStore = create(
             if (ok || isAuthenticated()) {
               get().syncAuthState()
               void get().syncPreferencesFromServer().catch(() => {})
-              console.warn(
+              console.log(
                 `[auth] session restore complete (restored=${ok || isAuthenticated()})`,
               )
               return ok || isAuthenticated()
@@ -359,7 +359,7 @@ export const useAuthStore = create(
               rememberLogin && requireBiometric && (await canUseBiometrics())
 
             if (savedCreds && rememberLogin && !needsBiometric) {
-              console.warn('[auth] attempting silent re-login with saved credentials')
+              console.log('[auth] attempting silent re-login with saved credentials')
               const reloginOk = await withTimeout(
                 trySilentRelogin(),
                 SESSION_RESTORE_TIMEOUT_MS,
@@ -369,7 +369,7 @@ export const useAuthStore = create(
               if (reloginOk) {
                 get().syncAuthState()
                 void get().syncPreferencesFromServer().catch(() => {})
-                console.warn('[auth] session restore complete (silent re-login=true)')
+                console.log('[auth] session restore complete (silent re-login=true)')
                 return true
               }
             }
@@ -393,7 +393,7 @@ export const useAuthStore = create(
             if (isAuthenticated()) {
               get().syncAuthState()
               void get().syncPreferencesFromServer().catch(() => {})
-              console.warn('[auth] session restore complete (timeout, session still valid)')
+              console.log('[auth] session restore complete (timeout, session still valid)')
               return true
             }
 
@@ -453,9 +453,9 @@ export const useAuthStore = create(
         }) as UserState,
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.warn('[auth] store rehydrate failed:', error)
+          console.log('[auth] store rehydrate failed:', error)
         } else {
-          console.warn('[auth] store rehydrate complete')
+          console.log('[auth] store rehydrate complete')
         }
         const store = state ?? useAuthStore.getState()
         store.setHasHydrated(true)
