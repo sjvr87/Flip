@@ -56,7 +56,7 @@ class FlipCamerawesomeModule : Module() {
       mapOf(
         "platform" to "android",
         "engine" to "CameraX",
-        "resolution" to "${FlipCameraSession.TARGET_WIDTH}x${FlipCameraSession.TARGET_HEIGHT}",
+        "resolution" to "${FlipCameraSession.PREVIEW_TARGET_WIDTH}x${FlipCameraSession.PREVIEW_TARGET_HEIGHT}",
         "targetFps" to FlipCameraSession.TARGET_FPS,
         "videoStabilization" to true,
         "quality" to "UHD",
