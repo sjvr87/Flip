@@ -68,7 +68,14 @@ function finalizeFirstPage(page: FlipFeedPage, refreshEpoch: number): FlipFeedPa
 const MIN_VIDEOS_PER_PAGE = 3
 
 const FOLLOWING_DIDS_CACHE_MS = 5 * 60_000
-let followingDidsCache: { dids: Set<string>; fetchedAt: number } | null = null
+type FollowingDidsCache = {
+  actorDid: string
+  dids: Set<string>
+  fetchedAt: number
+  /** Set on pull-to-refresh — refetch follows but keep dids as fallback if the API fails. */
+  stale: boolean
+}
+let followingDidsCache: FollowingDidsCache | null = null
 
 const DISCOVERY_SEARCH_QUERIES = ['video', 'flip video', 'short video', 'bsky video'] as const
 
@@ -95,8 +102,15 @@ function logFeedFetch(
   )
 }
 
-/** Clear cached follows (pull-to-refresh / hard refresh). */
+/** Mark follows cache stale (pull-to-refresh). Keeps last-known dids as fallback. */
 export function invalidateFollowingDidsCache() {
+  if (followingDidsCache) {
+    followingDidsCache = { ...followingDidsCache, stale: true }
+  }
+}
+
+/** Drop follows cache entirely (logout / account switch). */
+export function clearFollowingDidsCache() {
   followingDidsCache = null
 }
 
@@ -104,18 +118,29 @@ function pickDiscoverySearchQuery(refreshEpoch: number): string {
   return DISCOVERY_SEARCH_QUERIES[refreshEpoch % DISCOVERY_SEARCH_QUERIES.length]!
 }
 
+function followingFilterFromCache(cache: FollowingDidsCache): FollowingFilter {
+  return { dids: cache.dids, active: true }
+}
+
 /** Paginated follows list — cached briefly so discovery filters stay fast. */
 async function getViewerFollowingFilter(): Promise<FollowingFilter> {
-  if (
-    followingDidsCache &&
-    Date.now() - followingDidsCache.fetchedAt < FOLLOWING_DIDS_CACHE_MS
-  ) {
-    return { dids: followingDidsCache.dids, active: true }
-  }
-
+  await restoreSessionFromStorageIfEmpty()
   const actor = getAgent().session?.did
   if (!actor) {
     return { dids: new Set(), active: false }
+  }
+
+  if (
+    followingDidsCache &&
+    followingDidsCache.actorDid === actor &&
+    !followingDidsCache.stale &&
+    Date.now() - followingDidsCache.fetchedAt < FOLLOWING_DIDS_CACHE_MS
+  ) {
+    return followingFilterFromCache(followingDidsCache)
+  }
+
+  if (followingDidsCache && followingDidsCache.actorDid !== actor) {
+    followingDidsCache = null
   }
 
   const loadFollows = async (): Promise<Set<string>> => {
@@ -139,14 +164,45 @@ async function getViewerFollowingFilter(): Promise<FollowingFilter> {
     return dids
   }
 
+  const loadWithRetry = async (): Promise<Set<string>> => {
+    try {
+      return await loadFollows()
+    } catch (firstError) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      return await loadFollows()
+    }
+  }
+
   try {
-    const dids = await loadFollows()
-    followingDidsCache = { dids, fetchedAt: Date.now() }
+    const dids = await loadWithRetry()
+    followingDidsCache = { actorDid: actor, dids, fetchedAt: Date.now(), stale: false }
     return { dids, active: true }
   } catch (error) {
-    console.warn('[feed] getFollows failed, discovery filter disabled:', error)
+    console.warn('[feed] getFollows failed:', error)
+    if (followingDidsCache?.actorDid === actor) {
+      return followingFilterFromCache(followingDidsCache)
+    }
     return { dids: new Set(), active: false }
   }
+}
+
+/** Drop followed authors from a discovery page (final guard after merges). */
+function stripFollowedVideos(videos: FlipVideo[], followingDids: Set<string>): FlipVideo[] {
+  return videos.filter((video) => {
+    const authorDid = video.account?.id
+    return !authorDid || !followingDids.has(authorDid)
+  })
+}
+
+function applyDiscoveryFollowingFilter(
+  page: FlipFeedPage,
+  followingFilter: FollowingFilter,
+): FlipFeedPage {
+  if (!followingFilter.active) {
+    return page
+  }
+  const data = stripFollowedVideos(page.data, followingFilter.dids)
+  return { ...page, data, meta: { ...page.meta, per_page: data.length } }
 }
 
 function partitionByFollowing(
@@ -262,12 +318,21 @@ async function supplementDiscoveryPage(
   followingFilter: FollowingFilter,
   refreshEpoch: number,
 ): Promise<FlipFeedPage> {
-  if (!followingFilter.active) {
-    return page
+  let filter = followingFilter
+  if (!filter.active && getAgent().session?.did) {
+    followingDidsCache = null
+    filter = await getViewerFollowingFilter()
   }
 
-  const nonFollowCount = countNonFollowVideos(page.data, followingFilter.dids)
-  if (nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS) {
+  if (filter.active) {
+    page = applyDiscoveryFollowingFilter(page, filter)
+  }
+
+  const nonFollowCount = filter.active
+    ? countNonFollowVideos(page.data, filter.dids)
+    : 0
+
+  if (filter.active && nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS) {
     return page
   }
 
@@ -286,7 +351,7 @@ async function supplementDiscoveryPage(
           query,
         }),
       false,
-      followingFilter,
+      filter,
     )
 
     const merged = [
@@ -297,15 +362,66 @@ async function supplementDiscoveryPage(
       ...page.data,
     ]
 
-    return {
-      ...page,
-      data: merged.slice(0, DISCOVERY_SEARCH_LIMIT),
-    }
+    return applyDiscoveryFollowingFilter(
+      {
+        ...page,
+        data: merged.slice(0, DISCOVERY_SEARCH_LIMIT),
+      },
+      filter,
+    )
   } catch (error) {
     if (__DEV__) {
       console.warn('[feed] discovery supplement search failed:', error)
     }
     return page
+  }
+}
+
+/** First-page discovery: supplement when sparse, strip follows, optional shuffle. */
+async function finalizeDiscoveryFirstPage(
+  page: FlipFeedPage,
+  followingFilter: FollowingFilter,
+  refreshEpoch: number,
+  options?: { mergeSuggestions?: boolean },
+): Promise<FlipFeedPage> {
+  let result = await supplementDiscoveryPage(page, followingFilter, refreshEpoch)
+  if (options?.mergeSuggestions) {
+    result = await mergeForYouSuggestions(result, followingFilter)
+    result = applyDiscoveryFollowingFilter(result, followingFilter)
+  }
+  return finalizeFirstPage(result, refreshEpoch)
+}
+
+/** Logged-in discovery when follows list could not be loaded — search-only, no generators. */
+async function fetchSearchOnlyDiscovery(
+  refreshEpoch: number,
+  followingFilter: FollowingFilter,
+  pageParam: PageParam,
+  context: 'for you feed' | 'local feed',
+): Promise<{ page: FlipFeedPage; sourceId: 'search-latest' | 'search-top' }> {
+  const sort = refreshEpoch % 2 === 0 ? ('latest' as const) : ('top' as const)
+  const sourceId = sort === 'latest' ? 'search-latest' : 'search-top'
+  const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
+    (apiCursor) =>
+      fetchSingleVideoSearchPage(apiCursor ?? false, {
+        sort,
+        context,
+        query: pickDiscoverySearchQuery(refreshEpoch),
+      }),
+    pageParam,
+    followingFilter,
+  )
+
+  return {
+    sourceId,
+    page: {
+      data: videos,
+      meta: {
+        path: 'atproto',
+        per_page: videos.length,
+        next_cursor: nextCursor,
+      },
+    },
   }
 }
 
@@ -685,7 +801,7 @@ export async function fetchForYouFeed({
     sourceId = decoded.sourceId as ForYouSourceId
     cursor = decoded.cursor
   } else if (decoded.cursor) {
-    sourceId = 'thevids'
+    sourceId = 'search-latest'
     cursor = decoded.cursor
   } else {
     sourceId = pickForYouSource(refreshEpoch, customUri)
@@ -696,26 +812,59 @@ export async function fetchForYouFeed({
     fetchForYouBySource(sourceId, apiCursor, customUri)
 
   try {
-    const followingFilter = await getViewerFollowingFilter()
+    let followingFilter = await getViewerFollowingFilter()
+
+    // Logged in but follows list failed — avoid follow-heavy generators; use global search.
+    if (!followingFilter.active && getAgent().session?.did && isFirstFeedPage(pageParam)) {
+      const { page, sourceId: searchSource } = await fetchSearchOnlyDiscovery(
+        refreshEpoch,
+        followingFilter,
+        pageParam,
+        'for you feed',
+      )
+      followingFilter = await getViewerFollowingFilter()
+      let result = page
+      if (firstPage) {
+        result = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
+          mergeSuggestions: true,
+        })
+      } else {
+        result = applyDiscoveryFollowingFilter(result, followingFilter)
+      }
+      logFeedFetch('forYou', searchSource, result.data, refreshEpoch, followingFilter)
+      return {
+        ...result,
+        meta: {
+          ...result.meta,
+          next_cursor: result.meta.next_cursor
+            ? encodeFeedPageParam(searchSource, result.meta.next_cursor)
+            : null,
+        },
+      }
+    }
+
     const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
       fetchByCursor,
       pageParam,
       followingFilter,
     )
 
-    let page: FlipFeedPage = {
-      data: videos,
-      meta: {
-        path: 'atproto',
-        per_page: videos.length,
-        next_cursor: nextCursor,
+    let page: FlipFeedPage = applyDiscoveryFollowingFilter(
+      {
+        data: videos,
+        meta: {
+          path: 'atproto',
+          per_page: videos.length,
+          next_cursor: nextCursor,
+        },
       },
-    }
+      followingFilter,
+    )
 
     if (firstPage) {
-      page = await supplementDiscoveryPage(page, followingFilter, refreshEpoch)
-      page = await mergeForYouSuggestions(page, followingFilter)
-      page = finalizeFirstPage(page, refreshEpoch)
+      page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
+        mergeSuggestions: true,
+      })
     }
 
     logFeedFetch('forYou', sourceId, page.data, refreshEpoch, followingFilter)
@@ -747,19 +896,22 @@ export async function fetchForYouFeed({
         followingFilter,
       )
 
-      let page: FlipFeedPage = {
-        data: videos,
-        meta: {
-          path: 'atproto',
-          per_page: videos.length,
-          next_cursor: nextCursor,
+      let page: FlipFeedPage = applyDiscoveryFollowingFilter(
+        {
+          data: videos,
+          meta: {
+            path: 'atproto',
+            per_page: videos.length,
+            next_cursor: nextCursor,
+          },
         },
-      }
+        followingFilter,
+      )
 
       if (firstPage) {
-        page = await supplementDiscoveryPage(page, followingFilter, refreshEpoch)
-        page = await mergeForYouSuggestions(page, followingFilter)
-        page = finalizeFirstPage(page, refreshEpoch)
+        page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
+          mergeSuggestions: true,
+        })
       }
 
       logFeedFetch('forYou', 'search-fallback', page.data, refreshEpoch, followingFilter)
@@ -784,17 +936,19 @@ export async function fetchForYouFeed({
         pageParam,
         followingFilter,
       )
-      let page: FlipFeedPage = {
-        data: videos,
-        meta: {
-          path: 'atproto',
-          per_page: videos.length,
-          next_cursor: nextCursor,
+      let page: FlipFeedPage = applyDiscoveryFollowingFilter(
+        {
+          data: videos,
+          meta: {
+            path: 'atproto',
+            per_page: videos.length,
+            next_cursor: nextCursor,
+          },
         },
-      }
+        followingFilter,
+      )
       if (firstPage) {
-        page = await supplementDiscoveryPage(page, followingFilter, refreshEpoch)
-        page = finalizeFirstPage(page, refreshEpoch)
+        page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch)
       }
       logFeedFetch('forYou', 'whats-hot-fallback', page.data, refreshEpoch, followingFilter)
       return {
@@ -831,17 +985,19 @@ export async function fetchLocalFeed({
         pageParam,
         followingFilter,
       )
-      let page: FlipFeedPage = {
-        data: videos,
-        meta: {
-          path: 'atproto',
-          per_page: videos.length,
-          next_cursor: nextCursor,
+      let page: FlipFeedPage = applyDiscoveryFollowingFilter(
+        {
+          data: videos,
+          meta: {
+            path: 'atproto',
+            per_page: videos.length,
+            next_cursor: nextCursor,
+          },
         },
-      }
+        followingFilter,
+      )
       if (firstPage) {
-        page = await supplementDiscoveryPage(page, followingFilter, refreshEpoch)
-        page = finalizeFirstPage(page, refreshEpoch)
+        page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch)
       }
       logFeedFetch('local', 'custom', page.data, refreshEpoch, followingFilter)
       return {
@@ -865,7 +1021,7 @@ export async function fetchLocalFeed({
     sourceId = decoded.sourceId as LocalSourceId
     cursor = decoded.cursor
   } else if (decoded.cursor) {
-    sourceId = 'thevids'
+    sourceId = 'search-latest'
     cursor = decoded.cursor
   } else {
     sourceId = pickLocalSource(refreshEpoch)
@@ -878,66 +1034,83 @@ export async function fetchLocalFeed({
   let page: FlipFeedPage
   let followingFilter = await getViewerFollowingFilter()
 
-  try {
-    const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
-      fetchByCursor,
-      pageParam,
+  if (!followingFilter.active && getAgent().session?.did && isFirstFeedPage(pageParam)) {
+    const searchOnly = await fetchSearchOnlyDiscovery(
+      refreshEpoch,
       followingFilter,
+      pageParam,
+      'local feed',
     )
-    page = {
-      data: videos,
-      meta: {
-        path: 'atproto',
-        per_page: videos.length,
-        next_cursor: nextCursor,
-      },
-    }
-  } catch (error) {
-    if (error instanceof SessionExpiredError) {
-      feedLoadError('local feed', error)
-    }
-    console.warn('[feed] local discovery failed, trying video search once:', error)
+    followingFilter = await getViewerFollowingFilter()
+    page = searchOnly.page
+    sourceId = searchOnly.sourceId
+  } else {
     try {
-      followingFilter = await getViewerFollowingFilter()
       const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
-        (apiCursor) =>
-          fetchSingleVideoSearchPage(apiCursor ?? false, {
-            sort: 'latest',
-            context: 'local feed',
-            query: pickDiscoverySearchQuery(refreshEpoch),
-          }),
-        false,
+        fetchByCursor,
+        pageParam,
         followingFilter,
       )
-      page = {
-        data: videos,
-        meta: {
-          path: 'atproto',
-          per_page: videos.length,
-          next_cursor: nextCursor,
+      page = applyDiscoveryFollowingFilter(
+        {
+          data: videos,
+          meta: {
+            path: 'atproto',
+            per_page: videos.length,
+            next_cursor: nextCursor,
+          },
         },
+        followingFilter,
+      )
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        feedLoadError('local feed', error)
       }
-      sourceId = 'search-latest'
-    } catch (fallbackError) {
-      if (fallbackError instanceof SessionExpiredError) {
-        feedLoadError('local feed', fallbackError)
-      }
-      return {
-        data: [],
-        meta: {
-          path: 'atproto',
-          per_page: 0,
-          next_cursor: null,
-          error:
-            'Could not load local videos. Configure flipLocalFeed for a geo feed, or try again later.',
-        },
+      console.warn('[feed] local discovery failed, trying video search once:', error)
+      try {
+        followingFilter = await getViewerFollowingFilter()
+        const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
+          (apiCursor) =>
+            fetchSingleVideoSearchPage(apiCursor ?? false, {
+              sort: 'latest',
+              context: 'local feed',
+              query: pickDiscoverySearchQuery(refreshEpoch),
+            }),
+          false,
+          followingFilter,
+        )
+        page = applyDiscoveryFollowingFilter(
+          {
+            data: videos,
+            meta: {
+              path: 'atproto',
+              per_page: videos.length,
+              next_cursor: nextCursor,
+            },
+          },
+          followingFilter,
+        )
+        sourceId = 'search-latest'
+      } catch (fallbackError) {
+        if (fallbackError instanceof SessionExpiredError) {
+          feedLoadError('local feed', fallbackError)
+        }
+        return {
+          data: [],
+          meta: {
+            path: 'atproto',
+            per_page: 0,
+            next_cursor: null,
+            error:
+              'Could not load local videos. Configure flipLocalFeed for a geo feed, or try again later.',
+          },
+        }
       }
     }
   }
 
   if (firstPage) {
-    page = await supplementDiscoveryPage(page, followingFilter, refreshEpoch)
-    page = finalizeFirstPage(page, refreshEpoch)
+    page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch)
   }
 
   logFeedFetch('local', sourceId, page.data, refreshEpoch, followingFilter)

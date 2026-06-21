@@ -1,4 +1,5 @@
 import { profileToFlipUser } from './adapters'
+import { clearFollowingDidsCache } from './feeds'
 import {
   clearSession,
   ensureFreshSession,
@@ -71,6 +72,7 @@ export async function loginWithPassword(
 ): Promise<FlipSessionUser> {
   // Drop stale tokens so login does not race with a broken refreshSession.
   clearSession()
+  clearFollowingDidsCache()
 
   if (service) {
     setServiceUrl(service)
@@ -180,6 +182,7 @@ export async function trySilentRelogin(): Promise<boolean> {
 
 export function logout(): void {
   clearSession()
+  clearFollowingDidsCache()
   void clearCredentials()
   Storage.delete(PROFILE_KEY)
   Storage.delete('app.token')

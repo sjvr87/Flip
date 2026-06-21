@@ -13,6 +13,7 @@ export {
   fetchAccountFavorites,
   recordImpression,
   invalidateFollowingDidsCache,
+  clearFollowingDidsCache,
 } from './feeds'
 
 export {
