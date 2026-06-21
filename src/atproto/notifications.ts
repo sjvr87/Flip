@@ -2,6 +2,8 @@ import type { AppBskyNotificationDefs } from '@atproto/api'
 import { AppBskyEmbedVideo, AppBskyFeedLike, AppBskyFeedRepost } from '@atproto/api'
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
+
+const REPLY_NOTIFICATION_REASONS = new Set(['reply', 'quote', 'mention'])
 import { parseRepoDidFromAtUri } from '@/utils/profileNavigation'
 
 export type FlipNotification = {
@@ -79,6 +81,10 @@ export function getNotificationSubjectUri(
     if (notification.reasonSubject?.includes('app.bsky.feed.post')) {
       return notification.reasonSubject
     }
+    // Like/repost record URI — resolved to the post in fetchUserVideoCursor.
+    if (notification.reasonSubject) {
+      return notification.reasonSubject
+    }
     return undefined
   }
 
@@ -130,9 +136,22 @@ function extractVideoMeta(
     videoThumbnail = (embed.media as AppBskyEmbedVideo.View).thumbnail || undefined
   }
 
+  const subjectRepoDid = parseRepoDidFromAtUri(subject)
+  let video_pid = subjectRepoDid
+
+  // Reply/quote subjects live in the actor's repo; the media post belongs to the recipient.
+  if (REPLY_NOTIFICATION_REASONS.has(notification.reason)) {
+    const recipientDid = getAgent().session?.did
+    if (recipientDid) {
+      video_pid = recipientDid
+    }
+  } else if (!subject.includes('app.bsky.feed.post')) {
+    video_pid = undefined
+  }
+
   return {
     video_id: subject,
-    video_pid: parseRepoDidFromAtUri(subject),
+    video_pid,
     video_thumbnail: videoThumbnail,
   }
 }

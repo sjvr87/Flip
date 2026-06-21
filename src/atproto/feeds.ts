@@ -10,7 +10,7 @@ import {
   shuffleFeedVideos,
   videoDedupeKey,
 } from '@/utils/feedCache'
-import { postsToFeedPage, postsToMediaPage, isMediaPost } from './adapters'
+import { postsToFeedPage, postsToMediaPage, isMediaPost, postToFlipItem } from './adapters'
 import { getAgent, restoreSessionFromStorageIfEmpty, SessionExpiredError, withAuthenticatedFetch } from './agent'
 import type { FlipFeedPage, FlipVideo } from './types'
 
@@ -1214,6 +1214,36 @@ async function normalizeToPostUri(
   return uri
 }
 
+async function resolveMediaPostViaThread(
+  agent: ReturnType<typeof getAgent>,
+  uri: string,
+): Promise<AppBskyFeedDefs.PostView | null> {
+  try {
+    const res = await agent.getPostThread({ uri, depth: 0, parentHeight: 12 })
+    const thread = res.data.thread
+    if (thread.$type !== 'app.bsky.feed.defs#threadViewPost') {
+      return null
+    }
+
+    let node: AppBskyFeedDefs.ThreadViewPost | undefined = thread
+    while (node) {
+      if (isMediaPost(node.post)) {
+        return node.post
+      }
+
+      const parent = node.parent
+      if (!parent || parent.$type !== 'app.bsky.feed.defs#threadViewPost') {
+        break
+      }
+      node = parent
+    }
+  } catch {
+    // Fall through to caller.
+  }
+
+  return null
+}
+
 async function resolveMediaPostView(
   agent: ReturnType<typeof getAgent>,
   uri: string,
@@ -1230,10 +1260,18 @@ async function resolveMediaPostView(
 
     if (isMediaPost(post)) return post
 
-    const record = post.record as { reply?: { parent?: { uri?: string } } }
+    const record = post.record as {
+      reply?: { parent?: { uri?: string }; root?: { uri?: string } }
+    }
     const parentUri = record?.reply?.parent?.uri
     if (parentUri) {
       currentUri = parentUri
+      continue
+    }
+
+    const rootUri = record?.reply?.root?.uri
+    if (rootUri && rootUri !== currentUri) {
+      currentUri = rootUri
       continue
     }
 
@@ -1251,7 +1289,39 @@ async function resolveMediaPostView(
     return null
   }
 
-  return null
+  return resolveMediaPostViaThread(agent, uri)
+}
+
+function mediaPageWithResolvedPost(
+  resolvedPost: AppBskyFeedDefs.PostView,
+  feedItems: AppBskyFeedDefs.FeedViewPost[],
+  feedCursor?: string,
+): FlipFeedPage {
+  const resolvedUri = resolvedPost.uri
+  const hasTarget = feedItems.some((item) => item.post.uri === resolvedUri)
+
+  const items = !hasTarget
+    ? [{ post: resolvedPost, reply: undefined }, ...feedItems]
+    : feedItems
+
+  const page = postsToMediaPage(items, feedCursor)
+  if (page.data.length > 0) {
+    return page
+  }
+
+  const single = postToFlipItem({ post: resolvedPost, reply: undefined })
+  if (!single) {
+    return page
+  }
+
+  return {
+    data: [single],
+    meta: {
+      path: 'atproto',
+      per_page: 1,
+      next_cursor: feedCursor && feedCursor.length > 0 ? feedCursor : null,
+    },
+  }
 }
 
 const EMPTY_FEED_PAGE: FlipFeedPage = {
@@ -1310,16 +1380,7 @@ export async function fetchUserVideoCursor({
         return postsToMediaPage(feedItems, feedCursor)
       }
 
-      const resolvedUri = resolvedPost.uri
-      const hasTarget = feedItems.some(
-        (item) => item.post.uri === resolvedUri || item.post.uri === normalizedUri,
-      )
-
-      const items = !hasTarget
-        ? [{ post: resolvedPost, reply: undefined }, ...feedItems]
-        : feedItems
-
-      return postsToMediaPage(items, feedCursor)
+      return mediaPageWithResolvedPost(resolvedPost, feedItems, feedCursor)
     })
   }
 
