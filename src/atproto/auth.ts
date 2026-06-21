@@ -28,10 +28,23 @@ export async function loginWithPassword(
   }
 
   const agent = getAgent()
-  const result = await agent.login({ identifier, password })
+  let result: Awaited<ReturnType<typeof agent.login>>
+  try {
+    result = await agent.login({ identifier, password })
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Could not reach Bluesky. Check your connection and try again.'
+    throw new Error(message)
+  }
 
   if (!result.success || !agent.session) {
-    throw new Error('Login failed')
+    const message =
+      typeof (result as { data?: { message?: string } }).data?.message === 'string'
+        ? (result as { data: { message: string } }).data.message
+        : 'Invalid handle or app password.'
+    throw new Error(message)
   }
 
   await persistSession(agent.session)

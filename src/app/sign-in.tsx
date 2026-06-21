@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -50,6 +51,7 @@ export default function SignInScreen() {
   const [service, setService] = useState('bsky.social')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState('Signing you in...')
   const biometricAttempted = useRef(false)
 
@@ -84,6 +86,11 @@ export default function SignInScreen() {
 
   useEffect(() => {
     if (!hasHydrated || isLoggedIn) return
+
+    const loadingFailsafe = setTimeout(() => {
+      setMode((current) => (current === 'loading' ? 'full' : current))
+      setIsLoading(false)
+    }, 4000)
 
     let cancelled = false
 
@@ -125,6 +132,7 @@ export default function SignInScreen() {
 
     return () => {
       cancelled = true
+      clearTimeout(loadingFailsafe)
     }
   }, [hasHydrated, isLoggedIn, rememberLogin, requireBiometric, unlockWithSavedCredentials])
 
@@ -135,18 +143,32 @@ export default function SignInScreen() {
   }, [mode, isLoading, runBiometricUnlock])
 
   const handleLogin = async () => {
-    if (!identifier.trim() || !password.trim()) return
+    const loginIdentifier = (identifier.trim() || savedHandle?.trim() || '')
+    if (!loginIdentifier || !password.trim()) {
+      Alert.alert(
+        'Missing information',
+        'Enter your Bluesky handle and app password to continue.',
+      )
+      return
+    }
 
+    setLoginError(null)
     setIsLoading(true)
+    setStatusMessage('Signing you in...')
     try {
       const success = await loginWithBluesky(
-        identifier.trim(),
+        loginIdentifier,
         password.trim(),
         service.trim() || undefined,
       )
-      if (success) {
-        router.replace('/(tabs)')
+      if (!success) {
+        setLoginError('Login failed. Check your handle and app password.')
       }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Login failed. Please try again.'
+      setLoginError(message)
+      Alert.alert('Login failed', message)
     } finally {
       setIsLoading(false)
     }
@@ -304,10 +326,12 @@ export default function SignInScreen() {
         style={[
           styles.button,
           isDark && styles.buttonDark,
-          (!identifier || !password || isLoading) && styles.buttonDisabled,
+          (!identifier && !savedHandle) || !password || isLoading
+            ? styles.buttonDisabled
+            : null,
         ]}
         onPress={() => void handleLogin()}
-        disabled={!identifier || !password || isLoading}
+        disabled={(!identifier && !savedHandle) || !password || isLoading}
       >
         {isLoading ? (
           <ActivityIndicator color={isDark ? '#fff' : LOOP_ACCENT} />
@@ -315,6 +339,10 @@ export default function SignInScreen() {
           <Text style={[styles.buttonText, isDark && styles.buttonTextDark]}>Sign in</Text>
         )}
       </Pressable>
+
+      {loginError ? (
+        <Text style={[styles.errorText, isDark && styles.errorTextDark]}>{loginError}</Text>
+      ) : null}
 
       {savedHandle || mode === 'password' ? (
         <>
@@ -555,6 +583,15 @@ const styles = StyleSheet.create({
   },
   buttonTextDark: {
     color: '#ffffff',
+  },
+  errorText: {
+    color: '#fecaca',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  errorTextDark: {
+    color: '#f87171',
   },
   footer: {
     color: 'rgba(255,255,255,0.6)',

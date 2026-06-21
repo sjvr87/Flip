@@ -52,6 +52,7 @@ type UserState = {
   completeOnboarding: () => void
   resetOnboarding: () => void
   setHasHydrated: (value: boolean) => void
+  restoreSessionInBackground: () => Promise<boolean> | null
   setUser: (user: FlipSessionUser, server: string) => void
   clearUser: () => void
   syncAuthState: () => void
@@ -67,6 +68,7 @@ type UserState = {
 }
 
 let sessionRestorePromise: Promise<boolean> | null = null
+let loginInFlight = false
 
 const SESSION_RESTORE_TIMEOUT_MS = 8_000
 
@@ -110,6 +112,7 @@ export const useAuthStore = create(
       requireBiometric: false,
 
       loginWithBluesky: async (identifier, password, service) => {
+        loginInFlight = true
         try {
           const user = await loginWithPassword(identifier, password, service)
           const { rememberLogin } = get()
@@ -139,6 +142,8 @@ export const useAuthStore = create(
             error instanceof Error ? error.message : 'Check your handle and app password.',
           )
           return false
+        } finally {
+          loginInFlight = false
         }
       },
 
@@ -289,10 +294,24 @@ export const useAuthStore = create(
           return
         }
 
-        if (get()._hasHydrated) return
-        if (sessionRestorePromise) return
+        if (get()._hasHydrated) {
+          if (!sessionRestorePromise) {
+            void get().restoreSessionInBackground()
+          }
+          return
+        }
 
-        console.warn('[auth] restoring session before routing')
+        // Unblock routing immediately; session restore must not delay feed mount.
+        set((state) => ({ ...state, _hasHydrated: true }))
+        void get().restoreSessionInBackground()
+      },
+
+      restoreSessionInBackground: () => {
+        if (sessionRestorePromise) {
+          return sessionRestorePromise
+        }
+
+        console.warn('[auth] restoring session in background')
 
         sessionRestorePromise = (async () => {
           try {
@@ -342,7 +361,7 @@ export const useAuthStore = create(
               if (!get().isLoggedIn) {
                 set({ isLoggedIn: true })
               }
-            } else if (get().isLoggedIn) {
+            } else if (get().isLoggedIn && !isAuthenticated() && !loginInFlight) {
               get().clearUser()
             }
 
@@ -372,16 +391,16 @@ export const useAuthStore = create(
               }
               return true
             }
-            if (get().isLoggedIn) {
+            if (get().isLoggedIn && !isAuthenticated() && !loginInFlight) {
               get().clearUser()
             }
             return false
           } finally {
-            set((state) => ({ ...state, _hasHydrated: true }))
             sessionRestorePromise = null
           }
         })()
         trackSessionRestore(sessionRestorePromise)
+        return sessionRestorePromise
       },
     }),
     {

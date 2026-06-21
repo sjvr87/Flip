@@ -1,6 +1,7 @@
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 
-const MAX_PREFETCH_PLAYERS = 8;
+/** Keep low — each player holds ExoPlayer + Hermes event listeners (OOM/SIGSEGV on Samsung). */
+const MAX_PREFETCH_PLAYERS = 2;
 const prefetched = new Map<string, VideoPlayer>();
 
 function releasePrefetch(url: string) {
@@ -50,10 +51,9 @@ export async function prefetchVideoUrl(url: string | undefined | null): Promise<
         player.muted = true;
         prefetched.set(url, player);
         trimPrefetchCache();
+        // replaceAsync warms the HLS manifest only — play()/pause() races EventEmitter
+        // callbacks and SIGSEGVs Hermes when the player is transferred or released.
         await player.replaceAsync(url);
-        // Start segment download without audible playback.
-        player.play();
-        player.pause();
     } catch {
         releasePrefetch(url);
     }

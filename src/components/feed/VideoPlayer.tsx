@@ -127,10 +127,11 @@ function VideoPlayerCore({
 
     const playbackRate = videoPlaybackRates[item.id] || 1.0;
 
+    const srcUrl = item.media?.src_url;
     const playerRef = useRef<ReturnType<typeof createVideoPlayer> | null>(null);
-    if (!playerRef.current) {
+    if (!playerRef.current && srcUrl) {
         playerRef.current =
-            takePrefetchedPlayer(item.media.src_url) ?? createVideoPlayer(item.media.src_url);
+            takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
     }
     const player = playerRef.current;
 
@@ -280,6 +281,10 @@ function VideoPlayerCore({
         safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
     const bookmarkCount =
         safeCount(item.bookmarks) + (isBookmarked && !item.has_bookmarked ? 1 : 0);
+
+    if (!player) {
+        return <VideoSlidePlaceholder item={item} />;
+    }
 
     if (item.is_sensitive && !playSensitive) {
         return (

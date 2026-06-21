@@ -50,7 +50,7 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 /** Start loading next page when this many videos from the end (TikTok-style). */
 const LOAD_MORE_THRESHOLD = 4;
 /** Preload HLS for the next N videos beyond the FlatList render window. */
-const PREFETCH_AHEAD = 5;
+const PREFETCH_AHEAD = 2;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
 const MAX_EMPTY_DEDUPE_FETCHES = 2;
 /** Only mount expo-video players within this distance of the active slide. */
