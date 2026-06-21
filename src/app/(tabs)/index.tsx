@@ -279,12 +279,16 @@ export default function LoopsFeed({ navigation }) {
     fetchNextPageRef.current = fetchNextPage;
     const emptyDedupeFetchCountRef = useRef(0);
     const lastRawCountRef = useRef(0);
+    const autoFetchInFlightRef = useRef(false);
+    const dedupeExhaustedRef = useRef(false);
 
     useEffect(() => {
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
+        autoFetchInFlightRef.current = false;
+        dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
-    }, [activeTab]);
+    }, [activeTab, feedEpoch]);
 
     const maybeLoadMoreVideos = useCallback((visibleIndex: number) => {
         const total = videosRef.current.length;
@@ -310,7 +314,7 @@ export default function LoopsFeed({ navigation }) {
     const refreshFeedIfStale = useCallback(
         (tab: string, epoch: number) => {
             const state = queryClient.getQueryState(['videos', tab, epoch]);
-            if (!state?.data) {
+            if (!state?.data || state.fetchStatus === 'fetching') {
                 return;
             }
             const age = Date.now() - (state.dataUpdatedAt ?? 0);
@@ -324,14 +328,17 @@ export default function LoopsFeed({ navigation }) {
     );
 
     const onRefresh = useCallback(() => {
+        const tab = activeTabRef.current;
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         setCurrentIndex(0);
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
+        autoFetchInFlightRef.current = false;
+        dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
-        bumpFeedEpoch(activeTab);
-        hardRefreshFeed(queryClient, activeTab);
-    }, [activeTab, bumpFeedEpoch, queryClient]);
+        bumpFeedEpoch(tab);
+        hardRefreshFeed(queryClient, tab);
+    }, [bumpFeedEpoch, queryClient]);
 
     useFocusEffect(
         useCallback(() => {
@@ -365,6 +372,8 @@ export default function LoopsFeed({ navigation }) {
         if (videos.length > 0) {
             emptyDedupeFetchCountRef.current = 0;
             lastRawCountRef.current = rawVideos.length;
+            autoFetchInFlightRef.current = false;
+            dedupeExhaustedRef.current = false;
             setDedupeExhausted(false);
             return;
         }
@@ -373,7 +382,9 @@ export default function LoopsFeed({ navigation }) {
             isLoading ||
             isFetchingNextPage ||
             !hasNextPage ||
-            rawVideos.length === 0
+            rawVideos.length === 0 ||
+            dedupeExhaustedRef.current ||
+            autoFetchInFlightRef.current
         ) {
             return;
         }
@@ -393,19 +404,23 @@ export default function LoopsFeed({ navigation }) {
         }
 
         if (emptyDedupeFetchCountRef.current >= MAX_EMPTY_DEDUPE_FETCHES) {
+            dedupeExhaustedRef.current = true;
             setDedupeExhausted(true);
             return;
         }
 
-        void fetchNextPage();
+        autoFetchInFlightRef.current = true;
+        void fetchNextPageRef.current().finally(() => {
+            autoFetchInFlightRef.current = false;
+        });
     }, [
         isLoading,
         isFetchingNextPage,
         hasNextPage,
         videos.length,
         rawVideos.length,
-        fetchNextPage,
         currentIndex,
+        feedEpoch,
     ]);
 
     const videosWithEnd = React.useMemo(() => {
@@ -443,10 +458,10 @@ export default function LoopsFeed({ navigation }) {
         return () => {
             if (currentVideoRef.current && watchStartTimeRef.current) {
                 const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
-                recordVideoImpression(currentVideoRef.current, watchDuration);
+                recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
             }
         };
-    }, [activeTab, recordVideoImpression]);
+    }, [activeTab]);
 
     useEffect(() => {
         if (videos.length === 0) {

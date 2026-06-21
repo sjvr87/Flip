@@ -14,6 +14,10 @@ export const FEED_GC_MS = 2 * 60_000;
 export const DISCOVERY_SEARCH_LIMIT = 30;
 /** Timeline chain depth for Following only. */
 export const FOLLOWING_MAX_CHAIN_FETCHES = 12;
+/** Discovery tabs — chain pages until enough non-follow videos. */
+export const DISCOVERY_MAX_CHAIN_FETCHES = 10;
+/** Minimum non-followed authors per discovery page when possible. */
+export const DISCOVERY_MIN_NON_FOLLOW_VIDEOS = 4;
 
 export const FEED_TABS = ['following', 'local', 'forYou'] as const;
 export type FeedTab = (typeof FEED_TABS)[number];
