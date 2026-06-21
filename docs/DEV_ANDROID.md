@@ -1,6 +1,6 @@
 # Android development (Flip dev build)
 
-> **Flip does not use Expo Go.** Use the **Flip** app (`social.flip.app`) installed via `npm run android:dev`.  
+> **Flip does not use Expo Go.** Use the **Flip** app (`social.flip.app`) installed via `npm run android:build` or `npm run android:dev:setup`.  
 > **Start here:** [DEV_BUILD_ANDROID.md](./DEV_BUILD_ANDROID.md)
 
 This document is kept for **network troubleshooting** when Metro cannot be reached. All setup and daily workflow live in **DEV_BUILD_ANDROID.md**.
@@ -9,7 +9,7 @@ Flip uses **Expo SDK 56** with **`expo-dev-client`**. Metro runs with `--dev-cli
 
 ## What works where
 
-| Feature | Expo Go (not supported) | Flip dev build (`npm run android:dev`) |
+| Feature | Expo Go (not supported) | Flip dev build (`npm run android:build`) |
 |---------|-------------------------|----------------------------------------|
 | Feed, sign-in, profile, explore | — | Yes |
 | Android camera (CameraX) | — | Yes |
@@ -244,7 +244,7 @@ Native gallery code lives in `modules/flip-camerawesome`. After pulling changes,
 
 ```powershell
 cd C:\Users\tomas\Documents\Flip
-npm.cmd run android:dev
+npm.cmd run android:build
 ```
 
 Verify Samsung Gallery opens:
@@ -272,5 +272,7 @@ You should see `Resolved Samsung handler` or `Using direct package intent` when 
 | `npm run start:clear` | Clear Metro cache, start dev server |
 | `npm run start:lan` | Force LAN URL in QR code |
 | `npm run start:tunnel` | Route through Expo tunnel (best for Windows + phone) |
-| `npm run android:dev` | Build and install Flip dev APK on connected device |
-| `npm run android:dev:setup` | Prebuild + install (first-time setup) |
+| `npm run android:build` | Gradle debug APK + `adb install` (native rebuild) |
+| `npm run android:gradle` | Alias for `android:build` |
+| `npm run android:dev` | Alias for `android:build` |
+| `npm run android:dev:setup` | Prebuild + `android:build` (first-time setup) |

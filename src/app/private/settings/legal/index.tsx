@@ -8,7 +8,7 @@ import tw from 'twrnc';
 
 export default function LegalScreen() {
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     return (
         <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
@@ -16,7 +16,7 @@ export default function LegalScreen() {
                 options={{
                     title: 'Terms and Policies',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}

@@ -21,7 +21,17 @@ After the first install you will:
 2. Run `adb reverse tcp:8081 tcp:8081` (USB) or use same Wi‑Fi.
 3. Open the **Flip** app on the phone (home screen icon, `social.flip.app`).
 
-You only re-run `npx expo run:android` when native code or `app.json` plugins change — not for everyday JS edits.
+You only re-run `npm run android:build` when native code or `app.json` plugins change — not for everyday JS edits.
+
+### Daily dev vs native rebuild
+
+| When | PowerShell (project root) |
+|------|---------------------------|
+| **Every day** (JS/TS only) | `npm.cmd start` → `adb reverse tcp:8081 tcp:8081` → open **Flip** on phone |
+| **Native change** (plugins, `flip-camerawesome`, `app.json`) | `npm run android:build` |
+| **First time** (no `android/` yet) | `npm run android:dev:setup` |
+
+Metro always uses `--dev-client` (`expo-dev-client` package). You never need Expo Go or `expo run:android`.
 
 ---
 
@@ -216,19 +226,15 @@ To regenerate from scratch later:
 npx expo prebuild --platform android --clean
 ```
 
-### Step 3 — Build, install, and launch on the phone
+### Step 3 — Build and install on the phone
 
 With the phone connected (`adb devices` shows `device`):
 
 ```powershell
-npx expo run:android
+npm run android:build
 ```
 
-Or use the npm shortcut:
-
-```powershell
-npm run android:dev
-```
+This runs Gradle directly (`gradlew :app:assembleDebug`) and installs the APK with `adb` — no Expo CLI build step.
 
 ### What to expect (first build)
 
@@ -269,10 +275,10 @@ npm run start:clear
 npm run start:tunnel
 ```
 
-**Terminal 2 — only when changing native code:**
+**Terminal 2 — only when changing native code** (`app.json` plugins, `modules/flip-camerawesome`, new native deps):
 
 ```powershell
-npm run android:dev
+npm run android:build
 ```
 
 **On the phone:**
@@ -302,8 +308,10 @@ New-NetFirewallRule -DisplayName "Expo Metro 8081" -Direction Inbound -Protocol 
 | Command | Purpose |
 |---------|---------|
 | `npm run android:prebuild` | Generate / refresh `android/` from Expo config |
-| `npm run android:dev` | Build debug APK and install on connected device |
-| `npm run android:dev:setup` | Prebuild + run (first-time shortcut) |
+| `npm run android:build` | **Primary rebuild:** Gradle debug APK + `adb install` (no `expo run`) |
+| `npm run android:gradle` | Alias for `android:build` |
+| `npm run android:dev` | Alias for `android:build` (legacy name) |
+| `npm run android:dev:setup` | Prebuild + `android:build` (first-time shortcut) |
 | `npm.cmd start` | Start Metro for the Flip dev build (`--dev-client`) |
 | `npm run start:clear` | Metro with cache cleared |
 | `npm run start:tunnel` | Metro via Expo tunnel (slow; use if LAN fails) |
@@ -323,7 +331,7 @@ New-NetFirewallRule -DisplayName "Expo Metro 8081" -Direction Inbound -Protocol 
 ### `No Android connected device found`
 
 - Run `adb devices` — must show `device`, not `offline` / `unauthorized`.
-- Only one device: `npx expo run:android --device` and pick from the list.
+- Multiple devices: set `ANDROID_SERIAL` or unplug extras, then `npm run android:build`.
 
 ### `JAVA_HOME` / Java version errors
 
@@ -336,7 +344,7 @@ New-NetFirewallRule -DisplayName "Expo Metro 8081" -Direction Inbound -Protocol 
 cd C:\Users\tomas\Documents\Flip\android
 .\gradlew.bat clean
 cd ..
-npx expo run:android
+npm run android:build
 ```
 
 - Ensure **NDK** and **CMake** are installed in SDK Manager.
@@ -354,7 +362,7 @@ The Android NDK install is incomplete or corrupted.
 
 ```powershell
 cd C:\Users\tomas\Documents\Flip
-npm run android:dev
+npm run android:build
 ```
 
 This project pins NDK **27.1.12297006** in `android/build.gradle`.
@@ -374,15 +382,15 @@ adb reverse tcp:8081 tcp:8081
 ### Create tab still shows placeholder
 
 - You opened the wrong app — use **Flip** (`social.flip.app`), not Expo Go.
-- `expo-dev-client` was added — rebuild once: `npm run android:dev`.
-- Native binary is stale — rebuild: `npm run android:dev`.
+- `expo-dev-client` was added — rebuild once: `npm run android:build`.
+- Native binary is stale — rebuild: `npm run android:build`.
 - Confirm autolinking: `npx expo-modules-autolinking resolve --platform android` should list `flip-camerawesome`.
 
 ### Metro says "Using Expo Go" or "Press s to switch to Expo Go"
 
 - Run `npm install` (installs `expo-dev-client`), then `npm.cmd start`.
 - All `npm start` scripts pass `--dev-client`. After install, Metro defaults to dev build mode.
-- Rebuild the app after adding `expo-dev-client`: `npm run android:dev`.
+- Rebuild the app after adding `expo-dev-client`: `npm run android:build`.
 
 ### `SDK location not found`
 
@@ -422,9 +430,9 @@ If build fails with `[CXX1101] NDK at ... did not have a source.properties file`
 
 (Install [command-line tools](https://developer.android.com/studio#command-line-tools-only) first if `sdkmanager` is missing.)
 
-### Build succeeded but Expo install step failed
+### Build succeeded but install step failed
 
-If Gradle prints `BUILD SUCCESSFUL` but `expo run:android` exits with an error, install the APK manually:
+If Gradle prints `BUILD SUCCESSFUL` but `adb install` fails, install the APK manually:
 
 ```powershell
 adb install -r android\app\build\outputs\apk\debug\app-debug.apk
@@ -488,7 +496,7 @@ adb devices
 cd C:\Users\tomas\Documents\Flip
 npm install
 npx expo prebuild --platform android
-npx expo run:android
+npm run android:build
 ```
 
 Then in a **second** PowerShell window:

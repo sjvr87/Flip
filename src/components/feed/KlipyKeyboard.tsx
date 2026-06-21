@@ -52,8 +52,7 @@ interface KlipyKeyboardProps {
 
 export default function KlipyKeyboard({ visible, onClose, onSelect }: KlipyKeyboardProps) {
     const insets = useSafeAreaInsets();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<KlipyMediaType>('gifs');
     const [searchInput, setSearchInput] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');

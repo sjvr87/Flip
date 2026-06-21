@@ -373,7 +373,7 @@ export default function NotificationScreen() {
 
             {isLoading || isFetching ? (
                 <YStack flex={1} alignItems="center" justifyContent="center">
-                    <ActivityIndicator size="large" />
+                    <ActivityIndicator size="large" color={isDark ? '#fff' : '#F02C56'} />
                 </YStack>
             ) : (
                 <ScrollView>

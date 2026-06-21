@@ -39,8 +39,9 @@ Sign in with your Bluesky handle and an app password (not your account password)
 
 Flip uses a **development build** (`social.flip.app`) — **not Expo Go**. Camera and native modules require the Flip app icon on your home screen.
 
-1. First-time setup: `npm run android:dev:setup` (builds and installs Flip on your phone).
+1. First-time setup: `npm run android:dev:setup` (prebuild + Gradle build + install).
 2. Daily dev: `npm.cmd start` on PC, `adb reverse tcp:8081 tcp:8081`, open **Flip** on the phone.
+3. Native rebuild only: `npm run android:build` (Gradle + adb — not needed for JS-only edits).
 
 Full guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**.
 
@@ -79,8 +80,9 @@ Full quality audit, S26 Ultra gaps, and future targets: **[docs/CAMERA.md](docs/
 ```bash
 cd flip-app
 npm install
-npm run android:dev:setup   # first time only
+npm run android:dev:setup   # first time only (prebuild + build)
 npm.cmd start               # daily; adb reverse tcp:8081 tcp:8081; open Flip app
+npm run android:build       # native changes only (Gradle + adb install)
 ```
 
 iOS continues to use `react-native-vision-camera` via `create.ios.tsx`.

@@ -7,8 +7,7 @@ import tw from 'twrnc';
 
 export const StarterKitsCTA = () => {
     const router = useRouter();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
 
     const cardBg = isDark ? '#111111' : '#f9fafb';
     const border = isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb';

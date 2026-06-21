@@ -7,7 +7,9 @@ import {
   persistSession,
   resumeSession,
   setServiceUrl,
+  tryRefreshSession,
 } from './agent'
+import { clearCredentials, getSavedCredentials } from './credentialVault'
 import type { FlipAppConfig, FlipUserProfile } from './types'
 import { Storage } from '@/utils/cache'
 
@@ -57,17 +59,7 @@ export async function hydrateSession(): Promise<boolean> {
 }
 
 export async function refreshSession(): Promise<boolean> {
-  try {
-    const agent = getAgent()
-    if (!agent.session) return false
-    await agent.refreshSession()
-    if (agent.session) {
-      await persistSession(agent.session)
-    }
-    return true
-  } catch {
-    return false
-  }
+  return tryRefreshSession()
 }
 
 export function getCurrentUser(): FlipSessionUser | null {
@@ -89,8 +81,22 @@ export function getCurrentServer(): string {
   }
 }
 
+export async function trySilentRelogin(): Promise<boolean> {
+  const creds = await getSavedCredentials()
+  if (!creds) return false
+
+  try {
+    await loginWithPassword(creds.identifier, creds.password, creds.service)
+    return true
+  } catch (error) {
+    console.warn('[auth] silent re-login failed:', error)
+    return false
+  }
+}
+
 export function logout(): void {
   clearSession()
+  void clearCredentials()
   Storage.delete(PROFILE_KEY)
   Storage.delete('app.token')
   Storage.delete('app.instance')

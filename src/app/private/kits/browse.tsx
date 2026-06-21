@@ -183,8 +183,7 @@ const KitCard = ({
 
 export default function StarterKitsExploreScreen() {
     const router = useRouter();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
 
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
 

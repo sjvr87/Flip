@@ -74,8 +74,8 @@ function SectionHeader({
     onPress: () => void;
     showViewAll?: boolean;
 }) {
-    const { colorScheme } = useTheme();
-    const subtleIcon = colorScheme === 'dark' ? '#9ca3af' : '#6b7280';
+    const { isDark } = useTheme();
+    const subtleIcon = isDark ? '#9ca3af' : '#6b7280';
 
     return (
         <TouchableOpacity onPress={onPress} style={tw`flex-row items-center justify-between mb-3`}>
@@ -101,8 +101,8 @@ function ProfileLinksCard({
     isLoading: boolean;
     onViewAll: () => void;
 }) {
-    const { colorScheme } = useTheme();
-    const subtleIcon = colorScheme === 'dark' ? '#9ca3af' : '#6b7280';
+    const { isDark } = useTheme();
+    const subtleIcon = isDark ? '#9ca3af' : '#6b7280';
 
     return (
         <View style={tw`bg-white dark:bg-zinc-950 px-4 pt-5 pb-4 mt-3`}>
@@ -190,8 +190,8 @@ function PostsCard({
     onPostPress: (hid: string, pid: string) => void;
 }) {
     const router = useRouter();
-    const { colorScheme } = useTheme();
-    const subtleIcon = colorScheme === 'dark' ? '#9ca3af' : '#6b7280';
+    const { isDark } = useTheme();
+    const subtleIcon = isDark ? '#9ca3af' : '#6b7280';
 
     return (
         <View style={tw`bg-white dark:bg-zinc-950 px-4 pt-5 pb-5 mt-3`}>
@@ -308,8 +308,7 @@ function StatCard({
 
 export default function StudioScreen() {
     const router = useRouter();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
     const subtleIcon = isDark ? '#9ca3af' : '#6b7280';
 
     const { data, isPending } = useQuery({

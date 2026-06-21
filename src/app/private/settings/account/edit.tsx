@@ -59,7 +59,7 @@ const ProfileItem = ({
 
 export default function EditProfileScreen() {
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const { data: user, isLoading: userLoading } = useQuery({
         queryKey: ['fetchSelfAccount', 'self'],
@@ -174,7 +174,7 @@ export default function EditProfileScreen() {
                 options={{
                     title: 'Edit Profile',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackVisible: false,
                     headerShown: true,
                     headerLeft: () => (
@@ -190,7 +190,7 @@ export default function EditProfileScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     ),

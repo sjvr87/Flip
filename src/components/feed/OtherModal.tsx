@@ -21,7 +21,7 @@ export default function OtherModal({
 }) {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const [showPlaybackSpeed, setShowPlaybackSpeed] = useState(false);
     const [showReport, setShowReport] = useState(false);
     const queryClient = useQueryClient();
@@ -29,9 +29,10 @@ export default function OtherModal({
     const deleteMutation = useMutation({
         mutationFn: videoDelete,
         onSuccess: async () => {
-            queryClient.invalidateQueries(['videos', 'forYou']);
-            queryClient.invalidateQueries(['videos', 'following']);
-            queryClient.invalidateQueries(['profileVideoFeed', item?.account.id, item?.id]);
+            queryClient.invalidateQueries({ queryKey: ['videos', 'forYou'] });
+            queryClient.invalidateQueries({ queryKey: ['videos', 'following'] });
+            queryClient.invalidateQueries({ queryKey: ['videos', 'local'] });
+            queryClient.invalidateQueries({ queryKey: ['profileVideoFeed', item?.account.id, item?.id] });
         },
     });
 
@@ -143,13 +144,13 @@ export default function OtherModal({
                                 <Text
                                     style={tw`text-base flex-1 ${
                                         currentPlaybackRate === speed.value
-                                            ? 'text-[#007AFF] font-semibold'
+                                            ? 'text-[#F02C56] font-semibold'
                                             : 'text-black dark:text-white'
                                     }`}>
                                     {speed.label}
                                 </Text>
                                 {currentPlaybackRate === speed.value && (
-                                    <Ionicons name="checkmark" size={24} color="#007AFF" />
+                                    <Ionicons name="checkmark" size={24} color="#F02C56" />
                                 )}
                             </TouchableOpacity>
                         ))}
@@ -157,7 +158,9 @@ export default function OtherModal({
                         <TouchableOpacity
                             style={tw`mt-3 py-4 items-center border-t border-gray-100 dark:border-gray-800`}
                             onPress={() => setShowPlaybackSpeed(false)}>
-                            <Text style={tw`text-base font-semibold text-[#007AFF]`}>Cancel</Text>
+                            <Text style={tw`text-base font-semibold text-gray-600 dark:text-gray-400`}>
+                                Cancel
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -243,7 +246,7 @@ export default function OtherModal({
                                         color={
                                             option.danger
                                                 ? '#FF3B30'
-                                                : colorScheme === 'dark'
+                                                : isDark
                                                   ? '#fff'
                                                   : '#000'
                                         }

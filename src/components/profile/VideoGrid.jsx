@@ -20,7 +20,7 @@ export default function VideoGrid({ video, onPress }) {
                     </View>
                 ) : (
                     <Image
-                        source={{ uri: video.media.thumbnail }}
+                        source={{ uri: video.media.thumbnail || video.media.src_url }}
                         style={{
                             width: '100%',
                             height: '100%',
@@ -28,6 +28,22 @@ export default function VideoGrid({ video, onPress }) {
                         }}
                         resizeMode="cover"
                     />
+                )}
+
+                {video.is_photo && (
+                    <YStack
+                        position="absolute"
+                        top={8}
+                        right={8}
+                        flexDirection="row"
+                        alignItems="center"
+                        gap={1}
+                        backgroundColor="rgba(0,0,0,0.55)"
+                        paddingY={1}
+                        paddingX={2}
+                        style={{ borderRadius: 4 }}>
+                        <Ionicons name="image-outline" size={12} color="white" />
+                    </YStack>
                 )}
 
                 <LinearGradient

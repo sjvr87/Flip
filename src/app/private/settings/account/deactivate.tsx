@@ -24,7 +24,7 @@ export default function DisableAccountScreen() {
     const [passwordError, setPasswordError] = useState('');
     const notificationStore = useNotificationStore();
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const performLogOut = async () => {
         queryClient.clear();
@@ -95,7 +95,7 @@ export default function DisableAccountScreen() {
                 options={{
                     title: 'Deactivate Account',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Account',
                     headerShown: true,
                 }}

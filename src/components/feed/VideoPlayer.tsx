@@ -1,11 +1,12 @@
-import Avatar from '@/components/Avatar';
+import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
-import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { toProfilePath } from '@/utils/profileNavigation';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Dimensions,
@@ -23,7 +24,72 @@ function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string; src_url?: string } } }) {
+    useEffect(() => {
+        void prefetchVideoUrl(item.media?.src_url);
+    }, [item.media?.src_url]);
+
+    return (
+        <View style={styles.videoContainer}>
+            <View style={styles.videoWrapper}>
+                {item.media?.thumbnail ? (
+                    <Image
+                        source={{ uri: item.media.thumbnail }}
+                        style={styles.video}
+                        contentFit="contain"
+                    />
+                ) : null}
+            </View>
+        </View>
+    );
+}
+
 export default function VideoPlayer({
+    item,
+    isActive,
+    shouldPreload = true,
+    onLike,
+    onComment,
+    onShare,
+    onBookmark,
+    onOther,
+    bottomInset,
+    commentsOpen,
+    screenFocused,
+    videoPlaybackRates,
+    shareOpen,
+    otherOpen,
+    navigation,
+    onNavigate,
+    tabBarHeight = 60,
+}) {
+    if (!isActive && !shouldPreload) {
+        return <VideoSlidePlaceholder item={item} />;
+    }
+
+    return (
+        <VideoPlayerCore
+            item={item}
+            isActive={isActive}
+            onLike={onLike}
+            onComment={onComment}
+            onShare={onShare}
+            onBookmark={onBookmark}
+            onOther={onOther}
+            bottomInset={bottomInset}
+            commentsOpen={commentsOpen}
+            screenFocused={screenFocused}
+            videoPlaybackRates={videoPlaybackRates}
+            shareOpen={shareOpen}
+            otherOpen={otherOpen}
+            navigation={navigation}
+            onNavigate={onNavigate}
+            tabBarHeight={tabBarHeight}
+        />
+    );
+}
+
+function VideoPlayerCore({
     item,
     isActive,
     onLike,
@@ -54,18 +120,28 @@ export default function VideoPlayer({
 
     const playbackRate = videoPlaybackRates[item.id] || 1.0;
 
-    const player = useVideoPlayer(item.media.src_url, (player) => {
-        player.loop = true;
-        player.playbackRate = playbackRate;
-    });
+    const playerRef = useRef<ReturnType<typeof createVideoPlayer> | null>(null);
+    if (!playerRef.current) {
+        playerRef.current =
+            takePrefetchedPlayer(item.media.src_url) ?? createVideoPlayer(item.media.src_url);
+    }
+    const player = playerRef.current;
 
     useEffect(() => {
         isMountedRef.current = true;
-
+        if (player) {
+            player.loop = true;
+        }
         return () => {
             isMountedRef.current = false;
+            try {
+                playerRef.current?.release?.();
+            } catch {
+                // already released
+            }
+            playerRef.current = null;
         };
-    }, []);
+    }, [player]);
 
     useEffect(() => {
         if (!player) return;
@@ -112,6 +188,14 @@ export default function VideoPlayer({
         item.is_sensitive,
         playSensitive,
     ]);
+
+    useEffect(() => {
+        const url = item.media?.src_url;
+        if (!url || isActive) {
+            return;
+        }
+        void prefetchVideoUrl(url);
+    }, [item.media?.src_url, isActive]);
 
     useEffect(() => {
         if (!isActive) {
@@ -273,93 +357,25 @@ export default function VideoPlayer({
                 pointerEvents="none"
             />
 
-            <View style={[styles.rightActions, { bottom: bottomInset + tabBarHeight + 20 }]}>
-                <PressableHaptics
-                    style={styles.actionButton}
-                    onPress={() => router.push(toProfilePath(item.account.id))}
-                    accessible={true}
-                    accessibilityLabel={`View ${item.account.username}'s profile`}
-                    accessibilityRole="button">
-                    <View style={styles.avatarContainer}>
-                        <Avatar url={item.account?.avatar} />
-                    </View>
-                </PressableHaptics>
-
-                <PressableHaptics
-                    style={styles.actionButton}
-                    onPress={handleLike}
-                    accessible={true}
-                    accessibilityLabel={
-                        isLiked ? `Unlike. ${likeCount} likes` : `Like. ${likeCount} likes`
-                    }
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isLiked }}>
-                    <Ionicons name={'heart'} size={35} color={isLiked ? '#F02C56' : 'white'} />
-                    <Text style={styles.actionText} accessibilityElementsHidden={true}>
-                        {likeCount}
-                    </Text>
-                </PressableHaptics>
-
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => onComment(item)}
-                    accessible={true}
-                    accessibilityLabel={
-                        item.permissions?.can_comment
-                            ? `Comments. ${safeCount(item.comments)} comments`
-                            : 'Comments are disabled'
-                    }
-                    accessibilityRole="button">
-                    <Ionicons name="chatbubble" size={32} color="white" />
-                    {item.permissions?.can_comment && (
-                        <Text style={styles.actionText} accessibilityElementsHidden={true}>
-                            {safeCount(item.comments)}
-                        </Text>
-                    )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={handleBookmark}
-                    accessible={true}
-                    accessibilityLabel={
-                        isBookmarked
-                            ? `Remove bookmark. ${bookmarkCount} bookmarks`
-                            : `Bookmark. ${bookmarkCount} bookmarks`
-                    }
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isBookmarked }}>
-                    <Ionicons
-                        name="bookmark"
-                        size={32}
-                        color={isBookmarked ? '#F02C56' : 'white'}
-                    />
-                    <Text style={styles.actionText} accessibilityElementsHidden={true}>
-                        {bookmarkCount}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => onShare(item)}
-                    accessible={true}
-                    accessibilityLabel={`Share. ${safeCount(item.shares)} shares`}
-                    accessibilityRole="button">
-                    <Ionicons name="arrow-redo" size={32} color="white" />
-                    <Text style={styles.actionText} accessibilityElementsHidden={true}>
-                        {safeCount(item.shares)}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => onOther(item)}
-                    accessible={true}
-                    accessibilityLabel="More options"
-                    accessibilityRole="button">
-                    <MaterialCommunityIcons name="dots-horizontal" size={32} color="white" />
-                </TouchableOpacity>
-            </View>
+            <FeedActionRail
+                avatarUrl={item.account?.avatar}
+                profileLabel={`View ${item.account.username}'s profile`}
+                isLiked={isLiked}
+                isBookmarked={isBookmarked}
+                likeCount={likeCount}
+                commentCount={safeCount(item.comments)}
+                bookmarkCount={bookmarkCount}
+                shareCount={safeCount(item.shares)}
+                canComment={item.permissions?.can_comment}
+                bottomInset={bottomInset}
+                tabBarHeight={tabBarHeight}
+                onProfilePress={() => router.push(toProfilePath(item.account.id))}
+                onLike={handleLike}
+                onComment={() => onComment(item)}
+                onBookmark={handleBookmark}
+                onShare={() => onShare(item)}
+                onOther={() => onOther(item)}
+            />
 
             <View style={[styles.bottomInfo, { bottom: bottomInset + tabBarHeight + 10 }]}>
                 <TouchableOpacity
@@ -514,53 +530,6 @@ const styles = StyleSheet.create({
         color: '#000',
         fontSize: 16,
         fontWeight: '700',
-    },
-    rightActions: {
-        position: 'absolute',
-        right: 12,
-        gap: 20,
-        zIndex: 5,
-        elevation: 5,
-    },
-    actionButton: {
-        alignItems: 'center',
-        ...Platform.select({
-            ios: {
-                borderRadius: 50,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 3,
-            },
-            android: {
-                filter: [
-                    {
-                        dropShadow: {
-                            offsetX: 0,
-                            offsetY: 2,
-                            standardDeviation: '3px',
-                            color: '#0000004D',
-                        },
-                    },
-                ],
-            },
-        }),
-    },
-    avatarContainer: {
-        borderWidth: 2,
-        borderColor: 'white',
-        borderRadius: 24,
-        overflow: 'hidden',
-    },
-    actionText: {
-        color: 'white',
-        fontWeight: '600',
-        marginTop: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 4,
     },
     bottomInfo: {
         position: 'absolute',

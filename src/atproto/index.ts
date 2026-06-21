@@ -71,6 +71,8 @@ export {
   unblockAccount,
 } from './profile'
 
+export { fetchReportRules, submitReport } from './moderation'
+
 export { uploadMediaPost } from './upload'
 export type { AtprotoUploadOptions, AtprotoUploadResult } from './upload'
 

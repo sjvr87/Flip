@@ -9,6 +9,7 @@ import {
     uploadVideo,
     usesAtprotoBackend,
 } from '@/utils/requests';
+import { invalidateFeedAfterPost } from '@/utils/feedCache';
 import { prettyCount } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -212,7 +213,7 @@ export default function CaptionScreen() {
     const [isSensitive, setIsSensitive] = useState(false);
     const [isAd, setIsAd] = useState(false);
     const [isAi, setIsAi] = useState(false);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const [cursorPosition, setCursorPosition] = useState(0);
     const [autocompleteType, setAutocompleteType] = useState<'hashtag' | 'mention' | null>(null);
@@ -385,12 +386,17 @@ export default function CaptionScreen() {
 
     const postMutation = useMutation({
         mutationFn: uploadLoop,
-        onSuccess: async () => {
+        onSuccess: async (_result, variables) => {
             setOverlayMessage('Done!');
-            await queryClient.invalidateQueries({ queryKey: ['videos'] });
-            await queryClient.invalidateQueries({ queryKey: ['userSelfVideos'] });
+            await invalidateFeedAfterPost(queryClient);
             setOverlayVisible(false);
-            router.replace('/');
+            if (variables?.isPhotoPost) {
+                Alert.alert('Posted to Bluesky', 'Your photo is on your profile.');
+                router.replace('/(tabs)/profile');
+            } else {
+                Alert.alert('Posted to Bluesky', 'Your video is on your profile. It may take a moment to appear in feeds while processing.');
+                router.replace('/(tabs)/profile');
+            }
         },
         onError: (err: any) => {
             setOverlayVisible(false);
@@ -514,7 +520,7 @@ export default function CaptionScreen() {
                     <Ionicons
                         name="chevron-back"
                         size={32}
-                        color={colorScheme === 'dark' ? '#fff' : '#000'}
+                        color={isDark ? '#fff' : '#000'}
                     />
                 </TouchableOpacity>
                 <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -535,7 +541,7 @@ export default function CaptionScreen() {
                             onChangeText={handleCaptionChange}
                             onSelectionChange={handleSelectionChange}
                             placeholder="Add an optional caption..."
-                            placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
+                            placeholderTextColor={isDark ? '#666' : '#999'}
                             multiline
                             maxLength={MAX_CAPTION_LENGTH}
                         />
@@ -645,7 +651,7 @@ export default function CaptionScreen() {
                                 <Ionicons
                                     name={selectedVisibility.icon}
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#999' : '#999'}
+                                    color={isDark ? '#999' : '#999'}
                                 />
                             </View>
                             <YStack style={tw`flex-1`}>
@@ -658,7 +664,7 @@ export default function CaptionScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#999' : '#999'}
+                            color={isDark ? '#999' : '#999'}
                         />
                     </TouchableOpacity>
 
@@ -670,7 +676,7 @@ export default function CaptionScreen() {
                                 <Ionicons
                                     name="accessibility-outline"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#999' : '#999'}
+                                    color={isDark ? '#999' : '#999'}
                                 />
                             </View>
                             <YStack style={tw`flex-1`}>
@@ -697,7 +703,7 @@ export default function CaptionScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#999' : '#999'}
+                            color={isDark ? '#999' : '#999'}
                         />
                     </TouchableOpacity>
 
@@ -709,7 +715,7 @@ export default function CaptionScreen() {
                                 <Ionicons
                                     name="language-outline"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#999' : '#999'}
+                                    color={isDark ? '#999' : '#999'}
                                 />
                             </View>
                             <YStack>
@@ -726,7 +732,7 @@ export default function CaptionScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#999' : '#999'}
+                            color={isDark ? '#999' : '#999'}
                         />
                     </TouchableOpacity>
 
@@ -738,7 +744,7 @@ export default function CaptionScreen() {
                                 <Ionicons
                                     name="ellipsis-horizontal"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#666' : '#666'}
+                                    color={isDark ? '#666' : '#666'}
                                 />
                             </View>
                             <YStack>
@@ -754,7 +760,7 @@ export default function CaptionScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#999' : '#999'}
+                            color={isDark ? '#999' : '#999'}
                         />
                     </TouchableOpacity>
                 </View>
@@ -784,7 +790,7 @@ export default function CaptionScreen() {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -807,7 +813,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="chatbubble-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -826,7 +832,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="download-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -845,7 +851,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="people-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -864,7 +870,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="cut-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -892,7 +898,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="eye-off-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -915,7 +921,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="bag-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -938,7 +944,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="information-circle-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -960,7 +966,7 @@ export default function CaptionScreen() {
                                     <Ionicons
                                         name="download-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#999' : '#999'}
+                                        color={isDark ? '#999' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -995,7 +1001,7 @@ export default function CaptionScreen() {
                                 <Ionicons
                                     name="close"
                                     size={28}
-                                    color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                    color={isDark ? '#fff' : '#000'}
                                 />
                             </TouchableOpacity>
                             <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -1029,7 +1035,7 @@ export default function CaptionScreen() {
                                         }
                                     }}
                                     placeholder="Describe what's happening in your video..."
-                                    placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
+                                    placeholderTextColor={isDark ? '#666' : '#999'}
                                     multiline
                                     maxLength={MAX_ALT_TEXT_LENGTH}
                                     autoFocus
@@ -1060,7 +1066,7 @@ export default function CaptionScreen() {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -1112,7 +1118,7 @@ export default function CaptionScreen() {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -1173,7 +1179,7 @@ export default function CaptionScreen() {
                         style={tw`w-[72%] rounded-2xl py-5.5 px-4.5 bg-white dark:bg-gray-900 items-center gap-2`}>
                         <ActivityIndicator
                             size="large"
-                            color={colorScheme === 'dark' ? '#fff' : '#000'}
+                            color={isDark ? '#fff' : '#000'}
                         />
                         <Text
                             style={tw`mt-1.5 text-base font-bold text-gray-900 dark:text-gray-100 text-center`}>

@@ -66,7 +66,7 @@ const LibraryCard = React.memo(
 LibraryCard.displayName = 'LibraryCard';
 
 export default function OpenSourceScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const [selectedLicense, setSelectedLicense] = useState<License | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
@@ -155,7 +155,7 @@ export default function OpenSourceScreen() {
             <Stack.Screen
                 options={{
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     title: 'Open Source Software Notices',
                 }}
             />

@@ -55,7 +55,7 @@ const ActionButton = ({ icon, label, onPress, variant = 'default', disabled = fa
 };
 
 export default function EmailSettingsScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const queryClient = useQueryClient();
     const { data, isLoading, error } = useQuery({
         queryKey: ['emailSettings'],
@@ -86,12 +86,12 @@ export default function EmailSettingsScreen() {
 
     if (isLoading) {
         return (
-            <View style={tw`flex-1 bg-white`}>
+            <View style={tw`flex-1 bg-white dark:bg-black`}>
                 <Stack.Screen
                     options={{
                         title: 'Email',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Account',
                         headerShown: true,
                     }}
@@ -105,12 +105,12 @@ export default function EmailSettingsScreen() {
 
     if (error) {
         return (
-            <View style={tw`flex-1 bg-white`}>
+            <View style={tw`flex-1 bg-white dark:bg-black`}>
                 <Stack.Screen
                     options={{
                         title: 'Email',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Account',
                         headerShown: true,
                     }}
@@ -134,7 +134,7 @@ export default function EmailSettingsScreen() {
                 options={{
                     title: 'Email',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Account',
                     headerShown: true,
                 }}

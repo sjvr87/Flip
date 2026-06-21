@@ -41,3 +41,14 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Android native module build output
+modules/**/android/build/
+
+# Local Android build logs and test bundles
+dist-test-android/
+compile-out.txt
+android-dev-build.log
+assemble-debug.log
+assemble2.log
+kotlin-compile.log

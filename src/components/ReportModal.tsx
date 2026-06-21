@@ -21,9 +21,38 @@ import tw from 'twrnc';
 
 const REASONS_REQUIRING_DETAILS = ['1012', '1015', '1018', '1021', '1023', '1025', '1026'];
 
+type FeedInfiniteData = {
+    pages?: Array<{ data?: Array<{ id?: string }> }>;
+    pageParams?: unknown[];
+};
+
+function removeVideoFromFeedQueries(queryClient: ReturnType<typeof useQueryClient>, videoId: string) {
+    queryClient.setQueriesData<FeedInfiniteData>({ queryKey: ['videos'] }, (old) => {
+        if (!old?.pages?.length) return old;
+        return {
+            ...old,
+            pages: old.pages.map((page) => ({
+                ...page,
+                data: (page.data ?? []).filter((video) => video.id !== videoId),
+            })),
+        };
+    });
+
+    queryClient.setQueriesData<FeedInfiniteData>({ queryKey: ['explore'] }, (old) => {
+        if (!old?.pages?.length) return old;
+        return {
+            ...old,
+            pages: old.pages.map((page) => ({
+                ...page,
+                data: (page.data ?? []).filter((video) => video.id !== videoId),
+            })),
+        };
+    });
+}
+
 export function ReportModal({ visible, onClose, onCommunityGuidelines, item, reportType }) {
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const [step, setStep] = useState('select');
     const [selectedReason, setSelectedReason] = useState(null);
     const [hideContent, setHideContent] = useState(false);
@@ -39,6 +68,9 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
     const mutation = useMutation({
         mutationFn: submitReport,
         onSuccess: () => {
+            if (item?.id && reportType === 'video') {
+                removeVideoFromFeedQueries(queryClient, item.id);
+            }
             setStep('success');
         },
         onError: (error) => {
@@ -72,6 +104,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
         } else {
             mutation.mutate({
                 id: item.id,
+                cid: item.cid,
                 key: reason.key,
                 type: reportType,
                 comment: '',
@@ -83,6 +116,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
         if (!selectedReason) return;
         mutation.mutate({
             id: item.id,
+            cid: item.cid,
             key: selectedReason.key,
             type: reportType,
             comment: additionalDetails,
@@ -121,7 +155,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                     style={tw`bg-white dark:bg-gray-900 rounded-t-3xl p-6 items-center min-h-[200px] justify-center`}>
                     <ActivityIndicator
                         size="large"
-                        color={colorScheme === 'dark' ? '#fff' : '#000'}
+                        color={isDark ? '#fff' : '#000'}
                     />
                 </View>
             );
@@ -141,7 +175,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                             <Ionicons
                                 name="close"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     </View>
@@ -158,7 +192,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                                 <Ionicons
                                     name="chevron-forward"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#666' : '#C7C7CC'}
+                                    color={isDark ? '#666' : '#C7C7CC'}
                                 />
                             </TouchableOpacity>
                         ))}
@@ -184,7 +218,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                             <Ionicons
                                 name="close"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     </View>
@@ -203,7 +237,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                                 style={tw`text-base min-h-[120px] text-gray-900 dark:text-white`}
                                 placeholder="Add optional details here..."
                                 placeholderTextColor={
-                                    colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'
+                                    isDark ? '#6B7280' : '#9CA3AF'
                                 }
                                 multiline
                                 maxLength={500}
@@ -243,7 +277,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                         <Ionicons
                             name="close"
                             size={24}
-                            color={colorScheme === 'dark' ? '#fff' : '#000'}
+                            color={isDark ? '#fff' : '#000'}
                         />
                     </TouchableOpacity>
                 </View>
@@ -262,7 +296,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                     </Text>
                     <Text
                         style={tw`text-center text-gray-600 dark:text-gray-400 text-base leading-6`}>
-                        We'll review your report...
+                        We'll review your report. This post has been removed from your feed.
                     </Text>
 
                     <View style={tw`h-px bg-gray-200 dark:bg-gray-700 my-6`} />
@@ -281,7 +315,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                                     value={hideContent}
                                     onValueChange={handleHideContentChange}
                                     trackColor={{
-                                        false: colorScheme === 'dark' ? '#374151' : '#E5E5EA',
+                                        false: isDark ? '#374151' : '#E5E5EA',
                                         true: '#34C759',
                                     }}
                                     thumbColor="#fff"

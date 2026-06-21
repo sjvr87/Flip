@@ -11,7 +11,7 @@ import {
     fetchAccountLikes,
     fetchAccountPlaylists,
 } from '@/utils/requests';
-import { toProfileFeedPath } from '@/utils/profileNavigation';
+import { toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
@@ -193,7 +193,8 @@ export default function ProfileScreen() {
 
     const handlePlaylistPress = useCallback(
         (playlist) => {
-            router.push(`/private/video/playlist/${playlist.id}?playlistName=${playlist.name}`);
+            const route = toPlaylistFeedRoute(playlist);
+            if (route) router.push(route);
         },
         [router],
     );
@@ -236,7 +237,7 @@ export default function ProfileScreen() {
     const renderEmpty = () => (
         <YStack paddingY="$8" flex={1} alignItems="center" justifyContent="center">
             <StackText fontSize="$4" textColor="text-gray-700 dark:text-gray-300">
-                {activeTab === 'videos' && 'No videos yet'}
+                {activeTab === 'videos' && 'No posts yet'}
                 {activeTab === 'favorites' && 'No favorites yet'}
                 {activeTab === 'likes' && 'No likes yet'}
                 {activeTab === 'reblogs' && 'No reblogs'}
@@ -337,7 +338,7 @@ export default function ProfileScreen() {
                 ListEmptyComponent={
                     isLoading || isFetching ? (
                         <YStack style={tw`my-6`} alignItems="center">
-                            <ActivityIndicator size="large" />
+                            <ActivityIndicator size="large" color={isDark ? '#fff' : '#F02C56'} />
                         </YStack>
                     ) : (
                         renderEmpty()
@@ -346,7 +347,7 @@ export default function ProfileScreen() {
                 ListFooterComponent={
                     isFetchingNextPage ? (
                         <YStack paddingVertical="$6" alignItems="center">
-                            <ActivityIndicator />
+                            <ActivityIndicator color={isDark ? '#fff' : '#F02C56'} />
                         </YStack>
                     ) : null
                 }
@@ -356,6 +357,7 @@ export default function ProfileScreen() {
                 onRefresh={handleRefresh}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ flexGrow: 1 }}
+                keyboardShouldPersistTaps="handled"
             />
         </View>
     );

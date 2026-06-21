@@ -5,7 +5,6 @@ import tw from 'twrnc';
 
 export default function AppearanceScreen() {
     const { colorScheme, isDark, setColorScheme } = useTheme();
-    const systemTheme = colorScheme === 'device';
 
     const handleThemeSelect = (theme: ColorScheme) => {
         setColorScheme(theme);
@@ -65,17 +64,11 @@ export default function AppearanceScreen() {
             />
 
             <ScrollView style={tw`flex-1`}>
-                <View
-                    style={
-                        systemTheme
-                            ? tw`bg-white dark:bg-black py-8 px-4 opacity-40`
-                            : tw`bg-white dark:bg-black py-8 px-4`
-                    }>
+                <View style={tw`bg-white dark:bg-black py-8 px-4`}>
                     <View style={tw`flex-row justify-around items-start mb-6`}>
                         <TouchableOpacity
                             style={tw`items-center`}
-                            onPress={() => handleThemeSelect('light')}
-                            disabled={systemTheme}>
+                            onPress={() => handleThemeSelect('light')}>
                             <ThemeMockup theme="light" />
                             <Text
                                 style={tw`text-base font-semibold mt-4 mb-3 text-gray-900 dark:text-white`}>
@@ -86,8 +79,7 @@ export default function AppearanceScreen() {
 
                         <TouchableOpacity
                             style={tw`items-center`}
-                            onPress={() => handleThemeSelect('dark')}
-                            disabled={systemTheme}>
+                            onPress={() => handleThemeSelect('dark')}>
                             <ThemeMockup theme="dark" />
                             <Text
                                 style={tw`text-base font-semibold mt-4 mb-3 text-gray-900 dark:text-white`}>

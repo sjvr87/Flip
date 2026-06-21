@@ -1,7 +1,10 @@
+import { useThemeStore } from '@/components/ui/useThemeStore';
+import { getLoopsColors, type LoopsThemeColors } from '@/constants/loopsPalette';
 import { Storage } from '@/utils/cache';
 import React, {
     PropsWithChildren,
     createContext,
+    useCallback,
     useContext,
     useEffect,
     useMemo,
@@ -19,19 +22,30 @@ type ThemeContextType = {
     colorScheme: ColorScheme;
     resolvedColorScheme: ResolvedColorScheme;
     isDark: boolean;
+    colors: LoopsThemeColors;
     toggleTheme: () => void;
     setColorScheme: (scheme: ColorScheme) => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+function readPersistedColorScheme(): ColorScheme {
+    const saved = storage.getString('colorScheme');
+    if (saved === 'light' || saved === 'dark' || saved === 'device') {
+        return saved;
+    }
+    return 'device';
+}
+
 export const ThemeProvider = (props: PropsWithChildren) => {
+    const initialColorScheme = useMemo(() => readPersistedColorScheme(), []);
+
     useDeviceContext(tw, {
         observeDeviceColorSchemeChanges: true,
-        initialColorScheme: 'device',
+        initialColorScheme,
     });
 
-    const [colorScheme, toggleColorScheme, setColorScheme] = useAppColorScheme(tw);
+    const [colorScheme, toggleColorScheme, setTwrncColorScheme] = useAppColorScheme(tw);
     const systemColorScheme = useSystemColorScheme();
 
     const resolvedColorScheme = useMemo<ResolvedColorScheme>(() => {
@@ -42,30 +56,31 @@ export const ThemeProvider = (props: PropsWithChildren) => {
     }, [colorScheme, systemColorScheme]);
 
     const isDark = resolvedColorScheme === 'dark';
-    const hasRestoredTheme = useRef(false);
-    const skipNextPersist = useRef(false);
+    const colors = useMemo(() => getLoopsColors(isDark), [isDark]);
+    const skipFirstPersist = useRef(true);
 
-    useEffect(() => {
-        const saved = storage.getString('colorScheme') as ColorScheme | undefined;
-        if (saved && saved !== colorScheme) {
-            skipNextPersist.current = true;
-            setColorScheme(saved);
-        }
-        hasRestoredTheme.current = true;
-    }, []);
+    const setColorScheme = useCallback(
+        (scheme: ColorScheme) => {
+            setTwrncColorScheme(scheme);
+        },
+        [setTwrncColorScheme],
+    );
 
-    const toggleTheme = () => {
+    const toggleTheme = useCallback(() => {
         toggleColorScheme();
-    };
+    }, [toggleColorScheme]);
 
     useEffect(() => {
-        if (!hasRestoredTheme.current) return;
-        if (skipNextPersist.current) {
-            skipNextPersist.current = false;
+        if (skipFirstPersist.current) {
+            skipFirstPersist.current = false;
             return;
         }
         storage.set('colorScheme', colorScheme as string);
     }, [colorScheme]);
+
+    useEffect(() => {
+        useThemeStore.getState().setMode(resolvedColorScheme);
+    }, [resolvedColorScheme]);
 
     return (
         <ThemeContext.Provider
@@ -73,6 +88,7 @@ export const ThemeProvider = (props: PropsWithChildren) => {
                 colorScheme: colorScheme as ColorScheme,
                 resolvedColorScheme,
                 isDark,
+                colors,
                 toggleTheme,
                 setColorScheme,
             }}>

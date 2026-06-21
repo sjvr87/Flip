@@ -44,6 +44,14 @@ export function truncate(text: string, limit: number, opts?: { suffix?: string }
  * prettyCount(999) -> "999"
  * prettyCount(1_235_000) -> "1.2M"
  */
+/** Parse route params / API counts without producing NaN. */
+export function parseCount(value: unknown): number {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (raw == null || raw === '') return 0;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
 export function prettyCount(
     n: number | string,
     opts?: { precision?: number; rounding?: 'round' | 'floor' | 'ceil' },

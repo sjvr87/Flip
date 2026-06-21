@@ -7,10 +7,13 @@ import {
   loginWithPassword,
   logout as atprotoLogout,
   refreshSession,
+  trySilentRelogin,
   updatePreferences,
   type FlipSessionUser,
 } from '@/atproto/auth'
-import { hasStoredSession } from '@/atproto/agent'
+import { hasStoredSession, trackSessionRestore, tryRefreshSession } from '@/atproto/agent'
+import { clearCredentials, getSavedCredentials, saveCredentials } from '@/atproto/credentialVault'
+import { canUseBiometrics } from '@/utils/biometricAuth'
 import { setAuthFailureHandler } from '@/utils/authEvents'
 import { resetAuthFailureFlag } from '@/utils/requests'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -26,12 +29,15 @@ type UserState = {
   user: FlipSessionUser | null
   server: string | null
   hideForYouFeed: boolean
+  hideAdultContent: boolean
   defaultFeed: 'following' | 'local' | 'forYou'
   autoplayVideos: boolean
   loopVideos: boolean
   muteOnOpen: boolean
   autoExpandCw: boolean
   appearance: 'light' | 'dark' | 'system'
+  rememberLogin: boolean
+  requireBiometric: boolean
   loginWithBluesky: (
     identifier: string,
     password: string,
@@ -51,11 +57,16 @@ type UserState = {
   syncAuthState: () => void
   syncPreferencesFromServer: () => Promise<void>
   setHideForYouFeed: (value: boolean) => Promise<void>
+  setHideAdultContent: (value: boolean) => void
   setDefaultFeed: (feed: 'following' | 'local' | 'forYou') => Promise<void>
   updatePreference: (key: string, value: unknown) => Promise<void>
+  setRememberLogin: (value: boolean) => Promise<void>
+  setRequireBiometric: (value: boolean) => void
+  unlockWithSavedCredentials: () => Promise<boolean>
+  clearSavedLogin: () => Promise<void>
 }
 
-let sessionRestorePromise: Promise<void> | null = null
+let sessionRestorePromise: Promise<boolean> | null = null
 
 const SESSION_RESTORE_TIMEOUT_MS = 8_000
 
@@ -88,16 +99,31 @@ export const useAuthStore = create(
       user: null,
       server: null,
       hideForYouFeed: false,
+      hideAdultContent: true,
       defaultFeed: 'following',
       autoplayVideos: true,
       loopVideos: true,
       muteOnOpen: false,
       autoExpandCw: false,
       appearance: 'system',
+      rememberLogin: true,
+      requireBiometric: false,
 
       loginWithBluesky: async (identifier, password, service) => {
         try {
           const user = await loginWithPassword(identifier, password, service)
+          const { rememberLogin } = get()
+
+          if (rememberLogin) {
+            await saveCredentials(identifier, password, service || 'bsky.social')
+            const biometricsAvailable = await canUseBiometrics()
+            if (biometricsAvailable && !get().requireBiometric) {
+              set({ requireBiometric: true })
+            }
+          } else {
+            await clearCredentials()
+          }
+
           set((state) => ({
             ...state,
             isLoggedIn: true,
@@ -138,8 +164,6 @@ export const useAuthStore = create(
         const success = await refreshSession()
         if (success) {
           get().syncAuthState()
-        } else {
-          get().logOut()
         }
         return success
       },
@@ -196,8 +220,38 @@ export const useAuthStore = create(
         await get().updatePreference('hideForYouFeed', value)
       },
 
+      setHideAdultContent: (value) => {
+        set({ hideAdultContent: value })
+      },
+
       setDefaultFeed: async (feed) => {
         await get().updatePreference('defaultFeed', feed)
+      },
+
+      unlockWithSavedCredentials: async () => {
+        const ok = await trySilentRelogin()
+        if (ok) {
+          get().syncAuthState()
+          resetAuthFailureFlag()
+        }
+        return ok
+      },
+
+      clearSavedLogin: async () => {
+        await clearCredentials()
+        set({ requireBiometric: false })
+      },
+
+      setRememberLogin: async (value) => {
+        set({ rememberLogin: value })
+        if (!value) {
+          await clearCredentials()
+          set({ requireBiometric: false })
+        }
+      },
+
+      setRequireBiometric: (value) => {
+        set({ requireBiometric: value })
       },
 
       setUser: (user, server) => {
@@ -217,6 +271,7 @@ export const useAuthStore = create(
           _hasHydrated: true,
           user: null,
           server: null,
+          requireBiometric: false,
         })
       },
 
@@ -237,17 +292,7 @@ export const useAuthStore = create(
         if (get()._hasHydrated) return
         if (sessionRestorePromise) return
 
-        // Unblock routing and splash immediately; restore session in the background.
-        set((state) => ({ ...state, _hasHydrated: true }))
-        console.warn('[auth] store ready — restoring session in background')
-
-        setAuthFailureHandler((reason) => {
-          get().logOut()
-          Alert.alert(
-            'Session expired',
-            reason || 'Please sign in again.',
-          )
-        })
+        console.warn('[auth] restoring session before routing')
 
         sessionRestorePromise = (async () => {
           try {
@@ -262,20 +307,81 @@ export const useAuthStore = create(
                 get().syncPreferencesFromServer(),
                 SESSION_RESTORE_TIMEOUT_MS,
                 'syncPreferencesFromServer',
-              )
-            } else if (get().isLoggedIn && !(await hasStoredSession())) {
+              ).catch(() => {})
+              console.warn('[auth] session restore complete (restored=true)')
+              return true
+            }
+
+            const savedCreds = await getSavedCredentials()
+            const { rememberLogin, requireBiometric } = get()
+            const needsBiometric =
+              rememberLogin && requireBiometric && (await canUseBiometrics())
+
+            if (savedCreds && rememberLogin && !needsBiometric) {
+              console.warn('[auth] attempting silent re-login with saved credentials')
+              const reloginOk = await withTimeout(
+                trySilentRelogin(),
+                SESSION_RESTORE_TIMEOUT_MS,
+                'trySilentRelogin',
+              ).catch(() => false)
+
+              if (reloginOk) {
+                get().syncAuthState()
+                await withTimeout(
+                  get().syncPreferencesFromServer(),
+                  SESSION_RESTORE_TIMEOUT_MS,
+                  'syncPreferencesFromServer',
+                ).catch(() => {})
+                console.warn('[auth] session restore complete (silent re-login=true)')
+                return true
+              }
+            }
+
+            const stored = await hasStoredSession()
+            if (stored) {
+              if (!get().isLoggedIn) {
+                set({ isLoggedIn: true })
+              }
+            } else if (get().isLoggedIn) {
               get().clearUser()
             }
-            console.warn(`[auth] session restore complete (restored=${ok})`)
+
+            console.warn(
+              `[auth] session restore complete (restored=false, savedCreds=${!!savedCreds})`,
+            )
+            return stored
           } catch (error) {
             console.warn('[auth] session restore failed:', error)
-            if (get().isLoggedIn && !(await hasStoredSession())) {
+            const savedCreds = await getSavedCredentials()
+            const { rememberLogin, requireBiometric } = get()
+            const needsBiometric =
+              rememberLogin && requireBiometric && (await canUseBiometrics())
+
+            if (savedCreds && rememberLogin && !needsBiometric) {
+              const reloginOk = await trySilentRelogin().catch(() => false)
+              if (reloginOk) {
+                get().syncAuthState()
+                return true
+              }
+            }
+
+            const stored = await hasStoredSession()
+            if (stored) {
+              if (!get().isLoggedIn) {
+                set({ isLoggedIn: true })
+              }
+              return true
+            }
+            if (get().isLoggedIn) {
               get().clearUser()
             }
+            return false
           } finally {
+            set((state) => ({ ...state, _hasHydrated: true }))
             sessionRestorePromise = null
           }
         })()
+        trackSessionRestore(sessionRestorePromise)
       },
     }),
     {
@@ -287,6 +393,7 @@ export const useAuthStore = create(
           user: state.user,
           server: state.server,
           hideForYouFeed: state.hideForYouFeed,
+          hideAdultContent: state.hideAdultContent,
           defaultFeed: state.defaultFeed,
           autoplayVideos: state.autoplayVideos,
           loopVideos: state.loopVideos,
@@ -294,6 +401,8 @@ export const useAuthStore = create(
           autoExpandCw: state.autoExpandCw,
           appearance: state.appearance,
           hasCompletedOnboarding: state.hasCompletedOnboarding,
+          rememberLogin: state.rememberLogin,
+          requireBiometric: state.requireBiometric,
         }) as UserState,
       onRehydrateStorage: () => (state, error) => {
         if (error) {
@@ -308,3 +417,36 @@ export const useAuthStore = create(
     },
   ),
 )
+
+setAuthFailureHandler(async (reason) => {
+  const refreshed = await tryRefreshSession()
+  if (refreshed) {
+    useAuthStore.getState().syncAuthState()
+    resetAuthFailureFlag()
+    return
+  }
+
+  const { rememberLogin, requireBiometric } = useAuthStore.getState()
+  const savedCreds = await getSavedCredentials()
+  const needsBiometric =
+    rememberLogin && requireBiometric && (await canUseBiometrics())
+
+  if (savedCreds && rememberLogin && !needsBiometric) {
+    const reloginOk = await trySilentRelogin()
+    if (reloginOk) {
+      useAuthStore.getState().syncAuthState()
+      resetAuthFailureFlag()
+      return
+    }
+  }
+
+  const hasStored = await hasStoredSession()
+  if (hasStored) {
+    console.warn('[auth] auth failure ignored — stored session kept:', reason)
+    resetAuthFailureFlag()
+    return
+  }
+
+  useAuthStore.getState().logOut()
+  Alert.alert('Session expired', reason || 'Please sign in again.')
+})

@@ -13,7 +13,7 @@ export default function AccountScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const notificationStore = useNotificationStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const performLogOut = () => {
         queryClient.clear();
@@ -42,7 +42,7 @@ export default function AccountScreen() {
                 options={{
                     title: 'Account',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}

@@ -108,8 +108,7 @@ export default function ManagePlaylistScreen() {
   const route = useRoute()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { colorScheme } = useTheme();
-  const isDark = colorScheme === 'dark';
+  const { isDark } = useTheme();
   const { id: playlistId, name: playlistName } = route.params ?? {}
 
   const [mode, setMode] = useState('current')
@@ -364,7 +363,7 @@ export default function ManagePlaylistScreen() {
                 headerTitleStyle: {
                     fontSize: 22,
                     fontWeight: 'bold',
-                    color: colorScheme === 'dark' ? '#fff' : '#000',
+                    color: isDark ? '#fff' : '#000',
                 },
                 headerShadowVisible: false,
                 headerBackTitle: 'Playlists',

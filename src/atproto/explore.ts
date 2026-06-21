@@ -1,12 +1,14 @@
 import type { AppBskyFeedDefs } from '@atproto/api'
 
+import {
+  EXPLORE_DEFAULT_TAG,
+  EXPLORE_FEED_PAGE_SIZE,
+  EXPLORE_MAX_EMPTY_FETCHES,
+} from '@/utils/exploreCache'
+
 import { isVideoPost, postToFlipVideo, profileToFlipUser } from './adapters'
 import { getAgent } from './agent'
-import { extractTagsFromRecord } from './mentions'
 import type { FlipFeedPage } from './types'
-
-const WHATS_HOT =
-  'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'
 
 const FALLBACK_TAGS = ['flip', 'video', 'music', 'comedy', 'art', 'gaming', 'sports']
 
@@ -79,28 +81,7 @@ export async function getExploreTags(): Promise<ExploreTag[]> {
 
   if (tags.length > 0) return tags
 
-  const tagCounts = new Map<string, number>()
-
-  try {
-    const res = await agent.app.bsky.feed.getFeed({ feed: WHATS_HOT, limit: 50 })
-    for (const item of res.data.feed) {
-      if (!isVideoPost(item.post)) continue
-      const record = item.post.record as { text?: string; facets?: unknown }
-      for (const tag of extractTagsFromRecord(record)) {
-        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
-      }
-    }
-  } catch (error) {
-    console.warn('[explore] failed to derive tags from discover feed:', error)
-  }
-
-  if (tagCounts.size > 0) {
-    return [...tagCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
-      .map(([name, count]) => ({ id: hashTagId(name), name, count }))
-  }
-
+  // Skip scanning whats-hot — that feed fetch blocked first paint on slow networks.
   return FALLBACK_TAGS.map((name, index) => ({ id: index + 1, name, count: 0 }))
 }
 
@@ -132,8 +113,6 @@ export async function getExploreAccounts(): Promise<ExploreAccount[]> {
   })
 }
 
-const MAX_EMPTY_PAGE_FETCHES = 5
-
 export async function getExploreTagsFeed({
   queryKey,
   pageParam = false,
@@ -141,7 +120,7 @@ export async function getExploreTagsFeed({
   queryKey?: unknown[]
   pageParam?: string | false
 } = {}): Promise<FlipFeedPage> {
-  const tag = String(queryKey?.[2] ?? '').replace(/^#/, '')
+  const tag = String(queryKey?.[2] ?? EXPLORE_DEFAULT_TAG).replace(/^#/, '')
   if (!tag) {
     return { data: [], meta: { path: 'atproto', per_page: 0, next_cursor: null } }
   }
@@ -151,12 +130,12 @@ export async function getExploreTagsFeed({
   const videos: FlipFeedPage['data'] = []
   let nextCursor: string | null = null
 
-  for (let attempt = 0; attempt < MAX_EMPTY_PAGE_FETCHES; attempt++) {
+  for (let attempt = 0; attempt < EXPLORE_MAX_EMPTY_FETCHES; attempt++) {
     const res = await agent.app.bsky.feed.searchPosts({
       q: tag,
       tag,
       sort: 'latest',
-      limit: 50,
+      limit: EXPLORE_FEED_PAGE_SIZE,
       cursor,
     })
 

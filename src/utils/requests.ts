@@ -5,7 +5,9 @@ import {
     fetchActivityNotifications as atprotoFetchActivityNotifications,
     fetchFollowerNotifications as atprotoFetchFollowerNotifications,
     fetchNotifications as atprotoFetchNotifications,
+    blockAccount as atprotoBlockAccount,
     followAccount as atprotoFollowAccount,
+    fetchReportRules as atprotoFetchReportRules,
     getExploreAccounts as atprotoGetExploreAccounts,
     getExploreTags as atprotoGetExploreTags,
     getExploreTagsFeed as atprotoGetExploreTagsFeed,
@@ -13,6 +15,8 @@ import {
     notificationTypeMarkAllAsRead as atprotoNotificationTypeMarkAllAsRead,
     postExploreAccountHideSuggestion as atprotoPostExploreAccountHideSuggestion,
     searchContent as atprotoSearchContent,
+    submitReport as atprotoSubmitReport,
+    unblockAccount as atprotoUnblockAccount,
     unfollowAccount as atprotoUnfollowAccount,
 } from '@/atproto';
 import { triggerAuthFailure } from '@/utils/authEvents';
@@ -877,10 +881,16 @@ export async function fetchAccountSuggested({
 }
 
 export async function blockAccount(id): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoBlockAccount(id);
+    }
     return await _selfPost(`api/v1/account/block/${id}`);
 }
 
 export async function unblockAccount(id): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoUnblockAccount(id);
+    }
     return await _selfPost(`api/v1/account/unblock/${id}`);
 }
 
@@ -928,20 +938,28 @@ export async function deletePlaylist(id) {
 // ============================================================================
 
 export async function fetchReportRules(): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchReportRules();
+    }
     return await _selfAnonGet('api/v1/web/report-rules');
 }
 
 export async function submitReport({
     id,
+    cid,
     key,
     type,
     comment,
 }: {
     id: string;
+    cid?: string | null;
     key: string;
     type: string;
     comment?: string | null;
 }) {
+    if (usesAtprotoBackend()) {
+        return atprotoSubmitReport({ id, cid, key, type, comment });
+    }
     return await _selfPost('api/v1/report', {
         type,
         id,

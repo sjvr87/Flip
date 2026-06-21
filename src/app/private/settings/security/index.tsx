@@ -3,8 +3,11 @@ import {
     SectionHeader,
     SettingsItem,
     SettingsStatusItem,
+    SettingsToggleItemDescription,
 } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
+import { canUseBiometrics, getBiometricLabel } from '@/utils/biometricAuth';
+import { useAuthStore } from '@/utils/authStore';
 import { fetchAccountSecurityConfig, openLocalLink } from '@/utils/requests';
 import { useQuery } from '@tanstack/react-query';
 import * as MediaLibrary from 'expo-media-library';
@@ -17,7 +20,13 @@ import tw from 'twrnc';
 export default function SecurityScreen() {
     const router = useRouter();
     const [twoFactor, setTwoFactor] = useState(false);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
+    const rememberLogin = useAuthStore((s) => s.rememberLogin);
+    const requireBiometric = useAuthStore((s) => s.requireBiometric);
+    const setRememberLogin = useAuthStore((s) => s.setRememberLogin);
+    const setRequireBiometric = useAuthStore((s) => s.setRequireBiometric);
+    const [biometricLabel, setBiometricLabel] = useState('Fingerprint');
+    const [biometricsAvailable, setBiometricsAvailable] = useState(false);
 
     const [cameraPermission, setCameraPermission] = useState(null);
     const [microphonePermission, setMicrophonePermission] = useState(null);
@@ -33,6 +42,23 @@ export default function SecurityScreen() {
             setTwoFactor(data.data.two_factor_enabled);
         }
     }, [data]);
+
+    useEffect(() => {
+        void (async () => {
+            const available = await canUseBiometrics();
+            setBiometricsAvailable(available);
+            if (available) {
+                setBiometricLabel(await getBiometricLabel());
+            }
+        })();
+    }, []);
+
+    const handleRememberLoginChange = async (value: boolean) => {
+        await setRememberLogin(value);
+        if (!value && requireBiometric) {
+            setRequireBiometric(false);
+        }
+    };
 
     const handleTwoFactorSetup = async () => {
         await openLocalLink('/dashboard/account/security');
@@ -177,13 +203,43 @@ export default function SecurityScreen() {
                 options={{
                     title: 'Security & permissions',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}
             />
 
             <ScrollView style={tw`flex-1`}>
+                <SectionHeader title="Sign in" />
+                <SettingsToggleItemDescription
+                    icon="save-outline"
+                    label="Remember login"
+                    description="Stay signed in on this device. Your app password is stored securely."
+                    value={rememberLogin}
+                    onValueChange={(value) => void handleRememberLoginChange(value)}
+                />
+                {biometricsAvailable ? (
+                    <>
+                        <Divider />
+                        <SettingsToggleItemDescription
+                            icon="finger-print-outline"
+                            label={`Require ${biometricLabel}`}
+                            description={
+                                rememberLogin
+                                    ? `Ask for ${biometricLabel.toLowerCase()} when reopening Flip after your session expires.`
+                                    : 'Enable Remember login to use biometric unlock.'
+                            }
+                            value={requireBiometric && rememberLogin}
+                            onValueChange={(value) => {
+                                if (value && !rememberLogin) {
+                                    void setRememberLogin(true);
+                                }
+                                setRequireBiometric(value);
+                            }}
+                        />
+                    </>
+                ) : null}
+
                 <SectionHeader title="Security" />
                 <SettingsItem
                     icon="key-outline"

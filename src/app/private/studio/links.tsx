@@ -143,8 +143,7 @@ function SkeletonRow({ isDark }: { isDark: boolean }) {
 
 export default function ProfileLinksScreen() {
     const router = useRouter();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
 
     const linksQuery = useQuery<LinksResponse>({
         queryKey: ['profile-links'],
@@ -379,7 +378,7 @@ export default function ProfileLinksScreen() {
                     headerTitleStyle: {
                         fontSize: 22,
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerBackTitle: 'Studio',
                 }}

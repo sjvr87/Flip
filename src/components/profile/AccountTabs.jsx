@@ -6,9 +6,9 @@ import { Dimensions, Modal, Pressable, Text, View } from 'react-native';
 import tw from 'twrnc';
 
 function GridIconWithChevron({ isActive, showMenu }) {
-    const { colorScheme } = useTheme();
-    const activeColor = colorScheme === 'dark' ? '#fff' : '#161823';
-    const inactiveColor = colorScheme === 'dark' ? '#666' : '#bbb';
+    const { isDark } = useTheme();
+    const activeColor = isDark ? '#fff' : '#161823';
+    const inactiveColor = isDark ? '#666' : '#bbb';
 
     const color = isActive ? activeColor : inactiveColor;
 
@@ -55,9 +55,9 @@ export default function AccountTabs({
     const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
     const videosTabRef = useRef(null);
     const mounted = useRef(true);
-    const { colorScheme } = useTheme();
-    const activeColor = colorScheme === 'dark' ? '#fff' : '#161823';
-    const inactiveColor = colorScheme === 'dark' ? '#666' : '#bbb';
+    const { isDark } = useTheme();
+    const activeColor = isDark ? '#fff' : '#161823';
+    const inactiveColor = isDark ? '#666' : '#bbb';
 
     useEffect(() => {
         return () => {

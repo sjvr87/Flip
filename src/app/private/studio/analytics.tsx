@@ -94,15 +94,15 @@ interface TabPillProps {
     tab: Tab;
     active: boolean;
     onPress: () => void;
-    colorScheme: 'light' | 'dark';
+    isDark: boolean;
 }
 
-const TabPill = ({ tab, active, onPress, colorScheme }: TabPillProps) => {
+const TabPill = ({ tab, active, onPress, isDark }: TabPillProps) => {
     const iconColor = active
-        ? colorScheme === 'dark'
+        ? isDark
             ? '#000'
             : '#FFF'
-        : colorScheme === 'dark'
+        : isDark
           ? '#9CA3AF'
           : '#6B7280';
 
@@ -164,7 +164,7 @@ const RangeSelector = ({ value, onChange }: { value: number; onChange: (v: numbe
 );
 
 export default function AnalyticsScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<MetricId>('views');
     const [range, setRange] = useState<number>(30);
     const [activeIndex, setActiveIndex] = useState<number>(-1);
@@ -238,10 +238,10 @@ export default function AnalyticsScreen() {
           ? `Last ${chartData.length} days`
           : '';
 
-    const axisLabelColor = colorScheme === 'dark' ? '#6B7280' : '#9CA3AF';
-    const axisLineColor = colorScheme === 'dark' ? '#1F2937' : '#F3F4F6';
-    const headlineColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
-    const subtitleColor = colorScheme === 'dark' ? '#9CA3AF' : '#6B7280';
+    const axisLabelColor = isDark ? '#6B7280' : '#9CA3AF';
+    const axisLineColor = isDark ? '#1F2937' : '#F3F4F6';
+    const headlineColor = isDark ? '#FFFFFF' : '#000000';
+    const subtitleColor = isDark ? '#9CA3AF' : '#6B7280';
 
     const activeTabLabel = TABS.find((t) => t.id === activeTab)?.label ?? '';
 
@@ -252,11 +252,11 @@ export default function AnalyticsScreen() {
                     headerTitle: 'Analytics',
                     title: 'Analytics',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerTitleStyle: {
                         fontSize: 22,
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerBackTitle: 'Studio',
                     headerShadowVisible: false,
@@ -276,7 +276,7 @@ export default function AnalyticsScreen() {
                             tab={item}
                             active={item.id === activeTab}
                             onPress={() => setActiveTab(item.id)}
-                            colorScheme={colorScheme}
+                            isDark={isDark}
                         />
                     )}
                 />

@@ -19,8 +19,7 @@ const PlaylistIcon = memo(({ color, bgColor, size = 19 }) => (
 ));
 
 const ProfilePlaylists = memo(({ playlists, isLoading, onPlaylistPress }) => {
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
 
     const iconColor = isDark ? '#e5e7eb' : '#1f2937';
     const iconBg = isDark ? '#1f2937' : '#f3f4f6';
@@ -38,12 +37,14 @@ const ProfilePlaylists = memo(({ playlists, isLoading, onPlaylistPress }) => {
     return (
         <ScrollView
             horizontal
+            nestedScrollEnabled
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={tw`px-4 py-3`}>
             {playlists.map((playlist) => (
                 <Pressable
                     key={playlist.id?.toString()}
                     onPress={() => onPlaylistPress?.(playlist)}
+                    disabled={!onPlaylistPress || playlist.id == null}
                     style={({ pressed }) => [
                         tw`flex-row items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-2.5 mr-2`,
                         pressed && tw`opacity-70`,

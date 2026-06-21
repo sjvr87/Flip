@@ -16,7 +16,7 @@ import {
 import tw from 'twrnc';
 
 export default function PasswordChangeScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -107,7 +107,7 @@ export default function PasswordChangeScreen() {
                 options={{
                     title: 'Change Password',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}
@@ -141,7 +141,7 @@ export default function PasswordChangeScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 placeholder="Enter current password"
-                                placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
+                                placeholderTextColor={isDark ? '#666' : '#999'}
                             />
                             <Pressable
                                 onPress={() => setShowCurrent(!showCurrent)}
@@ -182,7 +182,7 @@ export default function PasswordChangeScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 placeholder="Enter new password"
-                                placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
+                                placeholderTextColor={isDark ? '#666' : '#999'}
                             />
                             <Pressable
                                 onPress={() => setShowNew(!showNew)}
@@ -226,7 +226,7 @@ export default function PasswordChangeScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 placeholder="Confirm new password"
-                                placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
+                                placeholderTextColor={isDark ? '#666' : '#999'}
                             />
                             <Pressable
                                 onPress={() => setShowConfirm(!showConfirm)}

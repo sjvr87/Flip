@@ -39,7 +39,7 @@ const formatCount = (n: number) =>
     n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 
 export default function StarterKitInviteScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const router = useRouter();
     const { id } = useLocalSearchParams();
 
@@ -48,7 +48,6 @@ export default function StarterKitInviteScreen() {
     const [decisionMade, setDecisionMade] = useState(false)
     const [decision, setDecision] = useState(null)
 
-    const isDark = colorScheme === 'dark'
 
     const bg             = isDark ? '#0A0A0A' : '#ffffff'
     const border         = isDark ? 'rgba(255,255,255,0.07)' : '#f3f4f6'
@@ -124,7 +123,7 @@ export default function StarterKitInviteScreen() {
                     headerTitle: 'Starter Kits',
                     headerBackTitle: 'Back',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerLeft: () => (
                         <TouchableOpacity
                             onPress={() => {
@@ -138,7 +137,7 @@ export default function StarterKitInviteScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     )

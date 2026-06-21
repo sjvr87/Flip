@@ -26,7 +26,7 @@ export default function ActivityNotificationsScreen() {
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
     const { refetchBadgeCount } = useNotificationStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const [filter, setFilter] = useState<NotificationFilter>('activity');
     const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -199,7 +199,7 @@ export default function ActivityNotificationsScreen() {
                     headerTitle: activeFilterLabel,
                     headerBackTitle: 'Back',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerLeft: () => (
                         <TouchableOpacity
                             onPress={() => {
@@ -213,7 +213,7 @@ export default function ActivityNotificationsScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     ),
@@ -224,7 +224,7 @@ export default function ActivityNotificationsScreen() {
                             <Ionicons
                                 name="settings-outline"
                                 size={22}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </PressableHaptics>
                     ),

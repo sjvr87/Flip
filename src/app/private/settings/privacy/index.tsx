@@ -11,7 +11,7 @@ export default function PrivacyScreen() {
     const [suggestAccount, setSuggestAccount] = useState(true);
     const queryClient = useQueryClient();
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['privacySettings'],
@@ -61,7 +61,7 @@ export default function PrivacyScreen() {
                 options={{
                     title: 'Privacy',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}

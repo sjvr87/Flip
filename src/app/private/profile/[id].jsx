@@ -27,7 +27,7 @@ import {
     unfollowAccount,
     usesAtprotoBackend,
 } from '@/utils/requests';
-import { decodeRouteParam, toProfileFeedPath } from '@/utils/profileNavigation';
+import { decodeRouteParam, toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -49,7 +49,7 @@ import tw from 'twrnc';
 const EmptyVideos = memo(({ activeTab }) => (
     <YStack paddingY="$8" alignItems="center" justifyContent="center">
         <StackText fontSize="$4" style={tw`dark:text-gray-400`}>
-            {activeTab === 'videos' && 'No videos yet'}
+            {activeTab === 'videos' && 'No posts yet'}
             {activeTab === 'favorites' && 'No favorites yet'}
             {activeTab === 'reblogs' && 'No reblogs yet'}
         </StackText>
@@ -78,7 +78,7 @@ export default function ProfileScreen() {
     const [showMenuModal, setShowMenuModal] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
     const [sortBy, setSortBy] = useState('Latest');
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const {
         data: user,
@@ -248,7 +248,8 @@ export default function ProfileScreen() {
 
     const handlePlaylistPress = useCallback(
         (playlist) => {
-            router.push(`/private/video/playlist/${playlist.id}?playlistName=${playlist.name}`);
+            const route = toPlaylistFeedRoute(playlist);
+            if (route) router.push(route);
         },
         [router],
     );
@@ -330,7 +331,7 @@ export default function ProfileScreen() {
                     options={{
                         title: user?.name || 'Profile',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerShadowVisible: false,
                         headerShown: true,
                         headerLeft: () => (
@@ -346,7 +347,7 @@ export default function ProfileScreen() {
                                 <Ionicons
                                     name="chevron-back"
                                     size={24}
-                                    color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                    color={isDark ? '#fff' : '#000'}
                                 />
                             </TouchableOpacity>
                         ),
@@ -373,7 +374,7 @@ export default function ProfileScreen() {
                 options={{
                     title: user?.name || 'Profile',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerShadowVisible: false,
                     headerShown: true,
                     headerLeft: () => (
@@ -389,7 +390,7 @@ export default function ProfileScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     ),
@@ -433,7 +434,8 @@ export default function ProfileScreen() {
                 onEndReached={handleEndReached}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ flexGrow: 1 }}
-                removeClippedSubviews={true}
+                keyboardShouldPersistTaps="handled"
+                removeClippedSubviews={false}
                 maxToRenderPerBatch={9}
                 initialNumToRender={9}
                 windowSize={5}

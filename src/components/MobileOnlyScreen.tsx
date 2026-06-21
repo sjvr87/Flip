@@ -23,7 +23,7 @@ export default function MobileOnlyScreen({ title }: { title: string }) {
                         <Text style={styles.emphasis}>Flip</Text> app from your home screen (package{' '}
                         <Text style={styles.mono}>social.flip.app</Text>). If you just added native
                         modules, rebuild once:{' '}
-                        <Text style={styles.mono}>npm run android:dev</Text>. See docs/DEV_BUILD_ANDROID.md.
+                        <Text style={styles.mono}>npm run android:build</Text>. See docs/DEV_BUILD_ANDROID.md.
                     </Text>
                 )}
             </View>

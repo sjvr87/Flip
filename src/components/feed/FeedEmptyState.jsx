@@ -10,7 +10,24 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
     const router = useRouter();
 
     const content = useMemo(() => {
+        const sessionExpired =
+            typeof error === 'string' &&
+            (error.toLowerCase().includes('session expired') ||
+                error.toLowerCase().includes('sign in again'));
+
         if (error) {
+            if (sessionExpired) {
+                return {
+                    icon: 'log-in-outline',
+                    title: 'Session expired',
+                    subtitle: 'Sign in again to load your feeds.',
+                    primary: {
+                        label: 'Sign in',
+                        onPress: () => router.push('/sign-in'),
+                    },
+                };
+            }
+
             return {
                 icon: 'alert-circle-outline',
                 title: tab === 'local' ? 'Local feed unavailable' : 'Feed unavailable',
@@ -31,6 +48,17 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
                         onPress: () => router.push('/explore'),
                     },
                 };
+            case 'following-end':
+                return {
+                    icon: 'checkmark-circle-outline',
+                    title: "You're all caught up",
+                    subtitle:
+                        'Follow more creators for new Flips, or pull down to refresh.',
+                    primary: {
+                        label: 'Find creators',
+                        onPress: () => router.push('/explore'),
+                    },
+                };
             case 'local':
                 return {
                     icon: 'planet-outline',
@@ -42,12 +70,27 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
                         onPress: () => router.push('/private/camera'),
                     },
                 };
+            case 'local-end':
+                return {
+                    icon: 'checkmark-circle-outline',
+                    title: "You're all caught up",
+                    subtitle: 'Pull down to refresh for more Flips nearby.',
+                    primary: { label: 'Refresh', onPress: onRefresh },
+                };
             case 'forYou':
-            default:
                 return {
                     icon: 'sparkles-outline',
+                    title: 'No Flips to show',
+                    subtitle:
+                        'Pull down to refresh — we load trending videos from across the network.',
+                    primary: { label: 'Refresh', onPress: onRefresh },
+                };
+            case 'forYou-end':
+            default:
+                return {
+                    icon: 'checkmark-circle-outline',
                     title: "You're all caught up",
-                    subtitle: "We're curating more Flips for you. Check back soon.",
+                    subtitle: 'Pull down to refresh for new Flips.',
                     primary: { label: 'Refresh', onPress: onRefresh },
                 };
         }
@@ -67,8 +110,8 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
                     onPress={content.primary.onPress}
                     accessibilityRole="button"
                     accessibilityLabel={content.primary.label}
-                    style={tw`px-6 py-3 rounded-full bg-white`}>
-                    <Text style={tw`font-semibold text-base text-black`}>
+                    style={tw`px-6 py-3 rounded-full bg-[#F02C56]`}>
+                    <Text style={tw`font-semibold text-base text-white`}>
                         {content.primary.label}
                     </Text>
                 </TouchableOpacity>

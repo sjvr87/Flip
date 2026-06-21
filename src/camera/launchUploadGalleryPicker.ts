@@ -31,7 +31,7 @@ export async function launchUploadGalleryPicker(): Promise<UploadGalleryPickResu
     if (isSamsungAndroid()) {
       Alert.alert(
         'Gallery unavailable',
-        'Samsung Gallery could not be opened. Rebuild the Flip dev app (npm run android:dev) so the native gallery module is included.',
+        'Samsung Gallery could not be opened. Rebuild the Flip dev app (npm run android:build) so the native gallery module is included.',
       )
       return { canceled: true }
     }

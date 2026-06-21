@@ -9,7 +9,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from '
 import tw from 'twrnc';
 
 export default function BirthdateSettingsScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const queryClient = useQueryClient();
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date(2025, 0, 1));
@@ -95,12 +95,12 @@ export default function BirthdateSettingsScreen() {
 
     if (isLoading) {
         return (
-            <View style={tw`flex-1 bg-white`}>
+            <View style={tw`flex-1 bg-white dark:bg-black`}>
                 <Stack.Screen
                     options={{
                         title: 'Birthdate',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Account',
                         headerShown: true,
                     }}
@@ -114,12 +114,12 @@ export default function BirthdateSettingsScreen() {
 
     if (error) {
         return (
-            <View style={tw`flex-1 bg-white`}>
+            <View style={tw`flex-1 bg-white dark:bg-black`}>
                 <Stack.Screen
                     options={{
                         title: 'Birthdate',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Account',
                         headerShown: true,
                     }}
@@ -142,7 +142,7 @@ export default function BirthdateSettingsScreen() {
                 options={{
                     title: 'Birthdate',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Account',
                     headerShown: true,
                 }}
@@ -192,7 +192,7 @@ export default function BirthdateSettingsScreen() {
                                             maximumDate={new Date()}
                                             minimumDate={new Date(1900, 0, 1)}
                                             style={{ height: 200, width: '100%' }}
-                                            textColor={colorScheme === 'dark' ? '#fff' : '#000'}
+                                            textColor={isDark ? '#fff' : '#000'}
                                             themeVariant="light"
                                         />
                                     </View>

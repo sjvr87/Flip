@@ -154,7 +154,7 @@ export default function StarterKitShow() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const insets = useSafeAreaInsets();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const {
         data: kit,
@@ -207,7 +207,7 @@ export default function StarterKitShow() {
                     options={{
                         title: 'Starter Kit',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerShadowVisible: false,
                         headerShown: true,
                         headerLeft: () => (
@@ -223,7 +223,7 @@ export default function StarterKitShow() {
                                 <Ionicons
                                     name="chevron-back"
                                     size={24}
-                                    color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                    color={isDark ? '#fff' : '#000'}
                                 />
                             </TouchableOpacity>
                         ),
@@ -240,10 +240,10 @@ export default function StarterKitShow() {
                 options={{
                     title: 'Starter Kit',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerTitleStyle: {
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerBackTitle: 'Back',
                     headerShadowVisible: false,

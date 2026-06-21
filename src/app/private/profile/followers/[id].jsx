@@ -37,7 +37,7 @@ export default function Screen() {
     const [loadingUserId, setLoadingUserId] = useState(null);
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -304,10 +304,10 @@ export default function Screen() {
                     title: 'User',
                     headerTitleStyle: {
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Back',
                     headerShadowVisible: false,
                     headerBackTitleVisible: true,

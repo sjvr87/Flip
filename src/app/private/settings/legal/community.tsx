@@ -11,7 +11,7 @@ import tw from 'twrnc';
 
 export default function CommunityScreen() {
     const { width } = useWindowDimensions();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const { data, isLoading } = useQuery({
         queryKey: ['getInstanceCommunityGuidelines', 'self'],
@@ -30,7 +30,7 @@ export default function CommunityScreen() {
                     options={{
                         title: 'Community Guidelines',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Back',
                         headerShown: true,
                     }}
@@ -53,7 +53,7 @@ export default function CommunityScreen() {
 
     const tagsStyles = {
         body: {
-            color: colorScheme === 'dark' ? '#fff' : '#1f2937',
+            color: isDark ? '#fff' : '#1f2937',
             fontSize: 16,
             lineHeight: 24,
         },
@@ -88,7 +88,7 @@ export default function CommunityScreen() {
             marginBottom: 6,
         },
         a: {
-            color: colorScheme === 'dark' ? '#6994ef' : '#2563eb',
+            color: isDark ? '#6994ef' : '#2563eb',
             textDecorationLine: 'underline',
         },
     };
@@ -99,7 +99,7 @@ export default function CommunityScreen() {
                 options={{
                     title: 'Community Guidelines',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Back',
                     headerShown: true,
                 }}

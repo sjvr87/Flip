@@ -18,7 +18,7 @@ export default function EditNameScreen() {
     const params = useLocalSearchParams();
     const [name, setName] = useState(params.name || '');
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const mutation = useMutation({
         mutationFn: async (data) => {
@@ -49,7 +49,7 @@ export default function EditNameScreen() {
                 options={{
                     title: 'Edit Name',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Account',
                     headerShown: true,
                     headerRight: () => (

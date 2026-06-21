@@ -28,6 +28,8 @@ export type FlipVideo = {
   url: string
   is_owner: boolean
   is_sensitive: boolean
+  is_photo?: boolean
+  media_type?: 'video' | 'photo'
   media: FlipMedia
   likes: number
   shares: number

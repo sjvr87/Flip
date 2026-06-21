@@ -47,7 +47,7 @@ type CommentReplyLikePayload = {
 
 export default function ShareModal({ visible, item, onClose }) {
     const insets = useSafeAreaInsets();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     if (!item) return null;
 
@@ -90,7 +90,7 @@ export default function ShareModal({ visible, item, onClose }) {
                 <Pressable style={tw`absolute inset-0`} onPress={onClose} />
                 <View
                     style={[
-                        tw`bg-white dark:bg-gray-900 rounded-t-[20px] pt-3`,
+                        tw`bg-white dark:bg-black rounded-t-[20px] pt-3`,
                         { paddingBottom: insets.bottom + 20 },
                     ]}>
                     <View
@@ -112,7 +112,7 @@ export default function ShareModal({ visible, item, onClose }) {
                                     <Ionicons
                                         name={option.icon}
                                         size={28}
-                                        color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                        color={isDark ? '#fff' : '#000'}
                                     />
                                 </View>
                                 <Text style={tw`text-xs text-black dark:text-white text-center`}>
@@ -125,7 +125,9 @@ export default function ShareModal({ visible, item, onClose }) {
                     <TouchableOpacity
                         style={tw`mt-3 py-4 items-center border-t border-gray-100 dark:border-gray-800`}
                         onPress={onClose}>
-                        <Text style={tw`text-base font-semibold text-[#007AFF]`}>Cancel</Text>
+                        <Text style={tw`text-base font-semibold text-gray-600 dark:text-gray-400`}>
+                            Cancel
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>

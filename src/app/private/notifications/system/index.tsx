@@ -52,7 +52,7 @@ const SystemNotificationItem = ({
 }) => {
     const isUnread = !item.read_at;
     const categoryInfo = getCategoryInfo(item.systemType);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     return (
         <View
@@ -64,7 +64,7 @@ const SystemNotificationItem = ({
                         <Ionicons
                             name={categoryInfo.icon}
                             size={18}
-                            color={colorScheme === 'dark' ? '#ccc' : '#3C3C43'}
+                            color={isDark ? '#ccc' : '#3C3C43'}
                         />
                     </View>
                     <StackText
@@ -122,7 +122,7 @@ export default function SystemNotificationsScreen() {
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
     const { refetchBadgeCount } = useNotificationStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const {
         data,
@@ -209,7 +209,7 @@ export default function SystemNotificationsScreen() {
                     headerTitle: 'System Notifications',
                     headerBackTitle: 'Back',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerLeft: () => (
                         <TouchableOpacity
                             onPress={() => {
@@ -223,7 +223,7 @@ export default function SystemNotificationsScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     ),

@@ -5,6 +5,17 @@ import ShareModal from '@/components/feed/ShareModal';
 import VideoPlayer from '@/components/feed/VideoPlayer';
 import { useAuthStore } from '@/utils/authStore';
 import {
+    FEED_GC_MS,
+    dedupeFeedVideos,
+    getFeedSoftRefreshMs,
+    getFeedStaleMs,
+    hardRefreshFeed,
+    resetSessionSeen,
+    softRefreshFeed,
+    trimFeedToFirstPage,
+} from '@/utils/feedCache';
+import { prefetchVideoUrls } from '@/utils/videoPrefetch';
+import {
     fetchFollowingFeed,
     fetchForYouFeed,
     fetchLocalFeed,
@@ -19,7 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     AppState,
@@ -35,10 +46,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_HEIGHT = 60;
-const LOAD_MORE_THRESHOLD = 2;
-const FEED_STALE_MS = 25_000;
-const FEED_SOFT_REFRESH_MS = FEED_STALE_MS / 2;
-const FEED_GC_MS = 3 * 60_000;
+/** Start loading next page when this many videos from the end (TikTok-style). */
+const LOAD_MORE_THRESHOLD = 4;
+/** Preload HLS for the next N videos beyond the FlatList render window. */
+const PREFETCH_AHEAD = 5;
+/** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
+const MAX_EMPTY_DEDUPE_FETCHES = 2;
+/** Only mount expo-video players within this distance of the active slide. */
+const PLAYER_PRELOAD_DISTANCE = 2;
 
 const fetchVideos = async ({ pageParam = null, tab }) => {
     if (tab === 'local') {
@@ -59,6 +74,7 @@ export default function LoopsFeed({ navigation }) {
     activeTabRef.current = activeTab;
     const skipFeedTabRefreshRef = useRef(true);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [dedupeExhausted, setDedupeExhausted] = useState(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
     const [showShare, setShowShare] = useState(false);
@@ -127,11 +143,11 @@ export default function LoopsFeed({ navigation }) {
             return cursor && cursor.length > 0 ? cursor : undefined;
         },
         initialPageParam: null,
-        staleTime: FEED_STALE_MS,
+        staleTime: getFeedStaleMs(activeTab),
         gcTime: FEED_GC_MS,
-        refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
-        maxPages: 10,
+        refetchOnMount: true,
+        refetchOnWindowFocus: false,
+        maxPages: 25,
     });
 
     const videoLikeMutation = useMutation({
@@ -164,7 +180,35 @@ export default function LoopsFeed({ navigation }) {
         onError: (error) => {},
     });
 
-    const videos = data?.pages?.flatMap((page) => page.data) || [];
+    const rawVideos = useMemo(
+        () => data?.pages?.flatMap((page) => page.data) ?? [],
+        [data?.pages],
+    );
+    const videos = useMemo(
+        () => dedupeFeedVideos(rawVideos, activeTab),
+        [rawVideos, activeTab],
+    );
+    const feedTrulyEmpty =
+        !isLoading && !isFetching && rawVideos.length === 0;
+    const feedExhausted =
+        !isLoading &&
+        !isFetchingNextPage &&
+        !hasNextPage &&
+        videos.length > 0;
+    const feedDedupeExhausted =
+        !isLoading &&
+        !isFetchingNextPage &&
+        hasNextPage &&
+        rawVideos.length > 0 &&
+        videos.length === 0 &&
+        dedupeExhausted;
+    const feedCaughtUp =
+        !isLoading &&
+        !isFetching &&
+        !isFetchingNextPage &&
+        rawVideos.length > 0 &&
+        videos.length === 0 &&
+        (!hasNextPage || feedDedupeExhausted);
     const feedError = isError
         ? queryError instanceof Error
             ? queryError.message
@@ -179,6 +223,14 @@ export default function LoopsFeed({ navigation }) {
     isFetchingNextPageRef.current = isFetchingNextPage;
     const fetchNextPageRef = useRef(fetchNextPage);
     fetchNextPageRef.current = fetchNextPage;
+    const emptyDedupeFetchCountRef = useRef(0);
+    const lastRawCountRef = useRef(0);
+
+    useEffect(() => {
+        emptyDedupeFetchCountRef.current = 0;
+        lastRawCountRef.current = 0;
+        setDedupeExhausted(false);
+    }, [activeTab]);
 
     const maybeLoadMoreVideos = useCallback((visibleIndex: number) => {
         const total = videosRef.current.length;
@@ -186,57 +238,53 @@ export default function LoopsFeed({ navigation }) {
             return;
         }
         if (hasNextPageRef.current && !isFetchingNextPageRef.current) {
-            fetchNextPageRef.current();
+            void fetchNextPageRef.current();
         }
     }, []);
 
     const recordVideoImpressionRef = useRef(recordVideoImpression);
     recordVideoImpressionRef.current = recordVideoImpression;
 
-    const trimFeedToFirstPage = useCallback(
+    const trimActiveFeedToFirstPage = useCallback(
         (tab: string) => {
-            queryClient.setQueryData(['videos', tab], (old) => {
-                if (!old?.pages?.length) {
-                    return old;
-                }
-                return {
-                    pages: old.pages.slice(0, 1),
-                    pageParams: old.pageParams.slice(0, 1),
-                };
-            });
+            trimFeedToFirstPage(queryClient, tab);
         },
         [queryClient],
     );
 
     const refreshFeed = useCallback(
         (tab: string, mode: 'soft' | 'hard' = 'soft') => {
-            const queryKey = ['videos', tab] as const;
             if (mode === 'hard') {
-                trimFeedToFirstPage(tab);
-                void queryClient.refetchQueries({ queryKey, type: 'active' });
+                hardRefreshFeed(queryClient, tab);
                 return;
             }
-            void queryClient.invalidateQueries({ queryKey });
+            softRefreshFeed(queryClient, tab);
         },
-        [queryClient, trimFeedToFirstPage],
+        [queryClient],
     );
 
     const onRefresh = useCallback(async () => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         setCurrentIndex(0);
-        trimFeedToFirstPage(activeTab);
+        resetSessionSeen(activeTab);
+        emptyDedupeFetchCountRef.current = 0;
+        lastRawCountRef.current = 0;
+        setDedupeExhausted(false);
+        trimActiveFeedToFirstPage(activeTab);
         await refetch();
-    }, [activeTab, refetch, trimFeedToFirstPage]);
+    }, [activeTab, refetch, trimActiveFeedToFirstPage]);
 
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
 
+            const staleMs = getFeedStaleMs(activeTab);
+            const softMs = getFeedSoftRefreshMs(activeTab);
             const state = queryClient.getQueryState(['videos', activeTab]);
             const age = Date.now() - (state?.dataUpdatedAt ?? 0);
-            if (!state?.data || age >= FEED_STALE_MS) {
+            if (!state?.data || age >= staleMs) {
                 refreshFeed(activeTab, 'hard');
-            } else if (age >= FEED_SOFT_REFRESH_MS) {
+            } else if (age >= softMs) {
                 refreshFeed(activeTab, 'soft');
             }
 
@@ -263,22 +311,80 @@ export default function LoopsFeed({ navigation }) {
             if (nextState !== 'active') {
                 return;
             }
-            const tab = activeTabRef.current;
-            const state = queryClient.getQueryState(['videos', tab]);
-            const age = Date.now() - (state?.dataUpdatedAt ?? 0);
-            if (age >= FEED_SOFT_REFRESH_MS) {
-                refreshFeed(tab, age >= FEED_STALE_MS ? 'hard' : 'soft');
+            for (const tab of ['following', 'local', 'forYou'] as const) {
+                const state = queryClient.getQueryState(['videos', tab]);
+                const age = Date.now() - (state?.dataUpdatedAt ?? 0);
+                const staleMs = getFeedStaleMs(tab);
+                const softMs = getFeedSoftRefreshMs(tab);
+                if (!state?.data || age >= staleMs) {
+                    refreshFeed(tab, 'hard');
+                } else if (age >= softMs) {
+                    refreshFeed(tab, 'soft');
+                }
             }
         });
         return () => subscription.remove();
     }, [queryClient, refreshFeed]);
 
+    useEffect(() => {
+        if (videos.length > 0) {
+            emptyDedupeFetchCountRef.current = 0;
+            lastRawCountRef.current = rawVideos.length;
+            setDedupeExhausted(false);
+            return;
+        }
+
+        if (
+            isLoading ||
+            isFetchingNextPage ||
+            !hasNextPage ||
+            rawVideos.length === 0
+        ) {
+            return;
+        }
+
+        const nearEnd =
+            videosRef.current.length === 0 ||
+            currentIndex >= videosRef.current.length - LOAD_MORE_THRESHOLD;
+        if (!nearEnd) {
+            return;
+        }
+
+        if (rawVideos.length === lastRawCountRef.current) {
+            emptyDedupeFetchCountRef.current += 1;
+        } else {
+            emptyDedupeFetchCountRef.current = 0;
+            lastRawCountRef.current = rawVideos.length;
+        }
+
+        if (emptyDedupeFetchCountRef.current >= MAX_EMPTY_DEDUPE_FETCHES) {
+            setDedupeExhausted(true);
+            return;
+        }
+
+        void fetchNextPage();
+    }, [
+        isLoading,
+        isFetchingNextPage,
+        hasNextPage,
+        videos.length,
+        rawVideos.length,
+        fetchNextPage,
+        currentIndex,
+    ]);
+
     const videosWithEnd = React.useMemo(() => {
-        if (!isLoading && !isFetching && videos.length === 0) {
+        if (feedTrulyEmpty) {
             return [{ id: 'feed-empty', isEmptyMarker: true }];
         }
+        if (feedCaughtUp) {
+            return [{ id: 'feed-end', isEndMarker: true }];
+        }
+        if (feedExhausted) {
+            return [...videos, { id: 'feed-end', isEndMarker: true }];
+        }
         return videos;
-    }, [videos, isLoading, isFetching]);
+    }, [videos, feedTrulyEmpty, feedCaughtUp, feedExhausted]);
 
     const onViewableItemsChanged = useRef(({ viewableItems }) => {
         if (viewableItems.length > 0) {
@@ -306,6 +412,23 @@ export default function LoopsFeed({ navigation }) {
             }
         };
     }, [activeTab, recordVideoImpression]);
+
+    useEffect(() => {
+        if (videos.length === 0) {
+            return;
+        }
+        const ahead = [];
+        for (let i = 0; i <= PREFETCH_AHEAD; i++) {
+            ahead.push(videos[currentIndex + i]?.media?.src_url);
+        }
+        prefetchVideoUrls(ahead);
+    }, [currentIndex, videos]);
+
+    useEffect(() => {
+        if (videos.length > 0 && currentIndex === 0) {
+            prefetchVideoUrls(videos.slice(1, PREFETCH_AHEAD + 2).map((v) => v.media?.src_url));
+        }
+    }, [activeTab, videos.length]);
 
     const handleLike = (videoId, liked) => {
         const dir = liked ? 'like' : 'unlike';
@@ -359,11 +482,27 @@ export default function LoopsFeed({ navigation }) {
                 );
             }
 
+            if (item.isEndMarker) {
+                const endTab =
+                    activeTab === 'forYou'
+                        ? 'forYou-end'
+                        : activeTab === 'local'
+                          ? 'local-end'
+                          : 'following-end';
+                return (
+                    <FeedEmptyState
+                        tab={endTab}
+                        onRefresh={onRefresh}
+                    />
+                );
+            }
+
             return (
                 <VideoPlayer
                     key={item.id}
                     item={item}
                     isActive={index === currentIndex}
+                    shouldPreload={Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE}
                     onLike={handleLike}
                     onComment={handleComment}
                     onShare={handleShare}
@@ -497,7 +636,7 @@ export default function LoopsFeed({ navigation }) {
                 ref={flatListRef}
                 data={videosWithEnd}
                 renderItem={renderItem}
-                keyExtractor={(item, index) => `${item.id}-${index}`}
+                keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                 pagingEnabled
                 showsVerticalScrollIndicator={false}
                 snapToInterval={SCREEN_HEIGHT}
@@ -509,10 +648,10 @@ export default function LoopsFeed({ navigation }) {
                 onEndReachedThreshold={0.5}
                 getItemLayout={getItemLayout}
                 removeClippedSubviews={true}
-                maxToRenderPerBatch={1}
-                windowSize={3}
-                initialNumToRender={1}
-                updateCellsBatchingPeriod={100}
+                maxToRenderPerBatch={3}
+                windowSize={7}
+                initialNumToRender={3}
+                updateCellsBatchingPeriod={50}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -586,7 +725,7 @@ const styles = StyleSheet.create({
     },
     activeTab: {
         borderBottomWidth: 2,
-        borderBottomColor: 'white',
+        borderBottomColor: '#F02C56',
     },
     tabText: {
         color: 'rgba(255,255,255,0.6)',
@@ -595,6 +734,7 @@ const styles = StyleSheet.create({
     },
     activeTabText: {
         color: 'white',
+        fontWeight: '700',
     },
     searchButton: {
         position: 'absolute',

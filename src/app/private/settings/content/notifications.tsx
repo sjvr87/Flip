@@ -51,7 +51,7 @@ async function registerForPushNotifications() {
 }
 
 export default function PushNotificationsSettingsScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const queryClient = useQueryClient();
 
     const { data, isLoading, error } = useQuery({
@@ -100,7 +100,7 @@ export default function PushNotificationsSettingsScreen() {
                     options={{
                         title: 'Push Notifications',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Back',
                         headerShown: true,
                     }}
@@ -119,7 +119,7 @@ export default function PushNotificationsSettingsScreen() {
                     options={{
                         title: 'Push Notifications',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Back',
                         headerShown: true,
                     }}
@@ -140,7 +140,7 @@ export default function PushNotificationsSettingsScreen() {
                 options={{
                     title: 'Push Notifications',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Back',
                     headerShown: true,
                 }}

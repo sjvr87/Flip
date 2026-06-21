@@ -12,7 +12,7 @@ import tw from 'twrnc';
 import ExpandableBio from './ExpandableBio';
 
 export default function AccountHeader(props) {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const isOwner = props?.is_owner || props.user?.is_owner;
 
@@ -165,7 +165,7 @@ export default function AccountHeader(props) {
                             <MaterialIcons
                                 name="keyboard-arrow-down"
                                 size={26}
-                                color={colorScheme === 'dark' ? '#ccc' : '#333'}
+                                color={isDark ? '#ccc' : '#333'}
                             />
                         </Pressable>
                     </XStack>

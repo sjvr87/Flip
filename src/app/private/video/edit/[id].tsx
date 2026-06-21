@@ -160,7 +160,7 @@ const VISIBILITY = [
 ];
 
 export default function EditScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -405,7 +405,7 @@ export default function EditScreen() {
                     <Ionicons
                         name="chevron-back"
                         size={32}
-                        color={colorScheme === 'dark' ? '#fff' : '#000'}
+                        color={isDark ? '#fff' : '#000'}
                     />
                 </TouchableOpacity>
                 <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>Edit Loop</Text>
@@ -424,7 +424,7 @@ export default function EditScreen() {
                             onChangeText={handleCaptionChange}
                             onSelectionChange={handleSelectionChange}
                             placeholder="Add an optional caption..."
-                            placeholderTextColor={colorScheme === 'dark' ? '#6b7280' : '#999'}
+                            placeholderTextColor={isDark ? '#6b7280' : '#999'}
                             multiline
                             maxLength={MAX_CAPTION_LENGTH}
                         />
@@ -530,7 +530,7 @@ export default function EditScreen() {
                                 <Ionicons
                                     name={selectedVisibility.icon}
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                    color={isDark ? '#9ca3af' : '#999'}
                                 />
                             </View>
                             <YStack style={tw`flex-1`}>
@@ -543,7 +543,7 @@ export default function EditScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                            color={isDark ? '#9ca3af' : '#999'}
                         />
                     </TouchableOpacity>
 
@@ -555,7 +555,7 @@ export default function EditScreen() {
                                 <Ionicons
                                     name="accessibility-outline"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                    color={isDark ? '#9ca3af' : '#999'}
                                 />
                             </View>
                             <YStack style={tw`flex-1`}>
@@ -581,7 +581,7 @@ export default function EditScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                            color={isDark ? '#9ca3af' : '#999'}
                         />
                     </TouchableOpacity>
 
@@ -593,7 +593,7 @@ export default function EditScreen() {
                                 <Ionicons
                                     name="language-outline"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                    color={isDark ? '#9ca3af' : '#999'}
                                 />
                             </View>
                             <YStack>
@@ -610,7 +610,7 @@ export default function EditScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                            color={isDark ? '#9ca3af' : '#999'}
                         />
                     </TouchableOpacity>
 
@@ -622,7 +622,7 @@ export default function EditScreen() {
                                 <Ionicons
                                     name="ellipsis-horizontal"
                                     size={20}
-                                    color={colorScheme === 'dark' ? '#6b7280' : '#666'}
+                                    color={isDark ? '#6b7280' : '#666'}
                                 />
                             </View>
                             <YStack>
@@ -639,7 +639,7 @@ export default function EditScreen() {
                         <Ionicons
                             name="chevron-forward-outline"
                             size={20}
-                            color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                            color={isDark ? '#9ca3af' : '#999'}
                         />
                     </TouchableOpacity>
                 </View>
@@ -668,7 +668,7 @@ export default function EditScreen() {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
@@ -691,7 +691,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="pin-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -717,7 +717,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="chatbubble-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -736,7 +736,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="download-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -755,7 +755,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="people-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -774,7 +774,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="cut-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -802,7 +802,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="eye-off-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -831,7 +831,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="bag-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -856,7 +856,7 @@ export default function EditScreen() {
                                     <Ionicons
                                         name="information-circle-outline"
                                         size={20}
-                                        color={colorScheme === 'dark' ? '#9ca3af' : '#999'}
+                                        color={isDark ? '#9ca3af' : '#999'}
                                     />
                                 </View>
                                 <YStack>
@@ -895,7 +895,7 @@ export default function EditScreen() {
                                 <Ionicons
                                     name="close"
                                     size={28}
-                                    color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                    color={isDark ? '#fff' : '#000'}
                                 />
                             </TouchableOpacity>
                             <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
@@ -930,7 +930,7 @@ export default function EditScreen() {
                                     }}
                                     placeholder="Describe what's happening in your video..."
                                     placeholderTextColor={
-                                        colorScheme === 'dark' ? '#6b7280' : '#999'
+                                        isDark ? '#6b7280' : '#999'
                                     }
                                     multiline
                                     maxLength={MAX_ALT_TEXT_LENGTH}
@@ -963,7 +963,7 @@ export default function EditScreen() {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
@@ -1015,7 +1015,7 @@ export default function EditScreen() {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>

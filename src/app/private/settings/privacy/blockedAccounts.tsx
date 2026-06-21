@@ -22,7 +22,7 @@ export default function BlockedAccountsScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const isSearching = debouncedSearch.trim().length > 0;
 
@@ -144,7 +144,7 @@ export default function BlockedAccountsScreen() {
                 options={{
                     title: 'Blocked accounts',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}

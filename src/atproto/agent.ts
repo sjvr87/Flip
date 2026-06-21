@@ -1,5 +1,6 @@
 import { BskyAgent, type AtpSessionData } from '@atproto/api'
 
+import { triggerAuthFailure } from '@/utils/authEvents'
 import { Storage } from '@/utils/cache'
 
 import { isWeb } from '@/utils/runtime'
@@ -20,6 +21,159 @@ const DEFAULT_SERVICE = 'https://bsky.social'
 
 let agent: BskyAgent | null = null
 
+let pendingSessionRestore: Promise<boolean> | null = null
+
+/** Set when the server definitively rejects the refresh token (not transient/network). */
+let lastRefreshRejected = false
+
+/** Buffer before JWT expiry to refresh proactively (seconds). */
+const TOKEN_EXPIRY_BUFFER_SEC = 60
+
+export class SessionExpiredError extends Error {
+  constructor(message = 'Session expired — sign in again') {
+    super(message)
+    this.name = 'SessionExpiredError'
+  }
+}
+
+export function trackSessionRestore(promise: Promise<boolean>): void {
+  pendingSessionRestore = promise.finally(() => {
+    pendingSessionRestore = null
+  })
+}
+
+async function awaitSessionRestore(): Promise<void> {
+  if (pendingSessionRestore) {
+    await pendingSessionRestore
+  }
+}
+
+function parseJwtPayload(token: string): { exp?: number } | null {
+  try {
+    const part = token.split('.')[1]
+    if (!part) return null
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    const json = globalThis.atob(padded)
+    return JSON.parse(json) as { exp?: number }
+  } catch {
+    return null
+  }
+}
+
+export function isAccessTokenExpired(accessJwt: string | undefined | null): boolean {
+  if (!accessJwt) return true
+  const payload = parseJwtPayload(accessJwt)
+  if (!payload?.exp) return false
+  return Date.now() / 1000 >= payload.exp - TOKEN_EXPIRY_BUFFER_SEC
+}
+
+export function isAuthTokenError(error: unknown): boolean {
+  if (!error) return false
+  if (error instanceof SessionExpiredError) return true
+
+  const err = error as { error?: string; status?: number }
+  return (
+    err.error === 'ExpiredToken' ||
+    err.error === 'InvalidToken' ||
+    err.error === 'AuthMissing' ||
+    err.status === 401
+  )
+}
+
+export function isRefreshTokenRejected(error: unknown): boolean {
+  if (!error) return false
+  const err = error as { error?: string; status?: number }
+  if (err.error === 'ExpiredToken' || err.error === 'InvalidToken' || err.error === 'AuthMissing') {
+    return true
+  }
+  return err.status === 400 || err.status === 401
+}
+
+export function wasRefreshTokenRejected(): boolean {
+  return lastRefreshRejected
+}
+
+export async function tryRefreshSession(): Promise<boolean> {
+  lastRefreshRejected = false
+  const a = getAgent()
+  if (!a.session?.refreshJwt) return false
+
+  try {
+    await a.refreshSession()
+    if (a.session) {
+      await persistSession(a.session)
+      return true
+    }
+    return false
+  } catch (error) {
+    console.warn('[auth] refreshSession failed:', error)
+    if (isRefreshTokenRejected(error)) {
+      lastRefreshRejected = true
+      return false
+    }
+    // Transient/offline — keep stored session for retry later.
+    return !!a.session
+  }
+}
+
+/**
+ * Ensure the agent has a non-expired access token before authenticated API calls.
+ */
+export async function ensureFreshSession(): Promise<boolean> {
+  await awaitSessionRestore()
+
+  const a = getAgent()
+  if (!a.session) return false
+  if (!isAccessTokenExpired(a.session.accessJwt)) return true
+
+  return tryRefreshSession()
+}
+
+function failExpiredSession(reason?: string): never {
+  const message = reason ?? 'Session expired — sign in again'
+  if (wasRefreshTokenRejected()) {
+    triggerAuthFailure(message)
+  }
+  throw new SessionExpiredError(message)
+}
+
+/**
+ * Run an authenticated ATProto call with proactive refresh and one retry on token errors.
+ */
+export async function withAuthenticatedFetch<T>(fn: () => Promise<T>): Promise<T> {
+  const fresh = await ensureFreshSession()
+  if (!fresh) {
+    if (!(await hasStoredSession())) {
+      failExpiredSession()
+    }
+    throw new SessionExpiredError('Not authenticated')
+  }
+
+  try {
+    return await fn()
+  } catch (error) {
+    if (!isAuthTokenError(error)) throw error
+
+    const refreshed = await tryRefreshSession()
+    if (!refreshed) {
+      if (wasRefreshTokenRejected()) {
+        failExpiredSession()
+      }
+      throw new SessionExpiredError('Not authenticated')
+    }
+
+    try {
+      return await fn()
+    } catch (retryError) {
+      if (isAuthTokenError(retryError) && wasRefreshTokenRejected()) {
+        failExpiredSession()
+      }
+      throw retryError
+    }
+  }
+}
+
 
 
 function createAgent(service: string): BskyAgent {
@@ -29,17 +183,11 @@ function createAgent(service: string): BskyAgent {
     service,
 
     persistSession: (_event, session) => {
-
+      // Only persist positive session updates. BskyAgent may emit null on transient
+      // refresh failures — never wipe stored tokens unless logout() calls clearSession().
       if (session) {
-
         void persistSession(session)
-
-      } else {
-
-        clearSession()
-
       }
-
     },
 
   })
@@ -99,6 +247,8 @@ export async function persistSession(session: AtpSessionData): Promise<void> {
   if (!isWeb) {
 
     await SecureStore.setItemAsync(SESSION_KEY, json)
+
+    console.warn('[auth] session persisted (MMKV + SecureStore)')
 
   }
 
@@ -176,6 +326,8 @@ export async function resumeSession(): Promise<boolean> {
 
   if (!raw) return false
 
+  console.warn('[auth] session loaded from storage')
+
 
 
   let session: AtpSessionData
@@ -197,26 +349,27 @@ export async function resumeSession(): Promise<boolean> {
   const a = getAgent()
 
   try {
-
     await a.resumeSession(session)
-
   } catch (error) {
-
     // @atproto/api sets session before refresh; rejection means refresh failed (often offline).
-
     console.warn('[auth] resumeSession refresh failed:', error)
-
   }
-
-
 
   if (!a.session) return false
 
+  if (isAccessTokenExpired(a.session.accessJwt)) {
+    const refreshed = await tryRefreshSession()
+    if (!refreshed && isAccessTokenExpired(a.session.accessJwt)) {
+      // Keep stored session for offline retry; caller may still show feeds after refresh at request time.
+      console.warn('[auth] access token still expired after resume')
+    }
+  }
 
+  if (a.session) {
+    await persistSession(a.session)
+  }
 
-  await persistSession(a.session)
-
-  return true
+  return !!a.session
 
 }
 

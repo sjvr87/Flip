@@ -113,8 +113,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     const [reportContent, setReportContent] = useState();
     const { user } = useAuthStore();
     const canComment = item?.permissions?.can_comment !== false;
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
     const [showKlipy, setShowKlipy] = useState(false);
     const hasKlipy = useFeatureFlag('hasKlipy');
 
@@ -694,7 +693,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                                         color={isDark ? '#666' : '#999'}
                                     />
                                 ) : (
-                                    <Text style={tw`text-[13px] font-semibold text-[#007AFF]`}>
+                                    <Text style={tw`text-[13px] font-semibold text-[#F02C56]`}>
                                         Load more replies
                                     </Text>
                                 )}
@@ -749,7 +748,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     <View style={tw`flex-row mt-2 gap-4`}>
                         {comment.replies > 0 && (
                             <PressableHaptics onPress={() => toggleReplies(comment.id)}>
-                                <Text style={tw`text-[13px] font-semibold text-[#007AFF]`}>
+                                <Text style={tw`text-[13px] font-semibold text-[#F02C56]`}>
                                     {expandedComments.has(comment.id)
                                         ? 'Hide replies'
                                         : `View ${comment.replies} ${comment.replies === 1 ? 'reply' : 'replies'}`}
@@ -839,7 +838,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                 <View style={tw`flex-1 justify-end`}>
                     <Pressable style={tw`absolute inset-0`} onPress={onClose} />
                     <View
-                        style={tw.style(`bg-white dark:bg-gray-900 rounded-t-2xl pt-3`, {
+                        style={tw.style(`bg-white dark:bg-black rounded-t-2xl pt-3`, {
                             minHeight: 400,
                             paddingBottom: insets.bottom + 20,
                         })}>
@@ -939,7 +938,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         )}>
                         <Avatar url={user?.avatar} size={32} />
                         <TextInput
-                            style={tw`flex-1 bg-white dark:bg-gray-800 text-black dark:text-white rounded-2xl border border-gray-300 dark:border-gray-600 px-4 py-3 max-h-[100px] text-[15px]`}
+                            style={tw`flex-1 bg-white dark:bg-[#1c1c1e] text-black dark:text-white rounded-2xl border border-gray-300 dark:border-gray-600 px-4 py-3 max-h-[100px] text-[15px]`}
                             placeholder="Add a comment..."
                             placeholderTextColor={isDark ? '#666' : '#ccc'}
                             value={comment}
@@ -962,7 +961,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <Feather
                                 name="send"
                                 size={24}
-                                color={comment.trim() ? '#007AFF' : isDark ? '#555' : '#CCC'}
+                                color={comment.trim() ? '#F02C56' : isDark ? '#555' : '#CCC'}
                             />
                         </TouchableOpacity>
                     </View>

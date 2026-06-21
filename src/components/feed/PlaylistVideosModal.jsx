@@ -12,10 +12,10 @@ const getThumb = (v) =>
 const getTitle = (v) => v?.caption || v?.title || v?.description || null;
 
 const VideoRow = memo(function VideoRow({ video, index, isCurrent, onPress }) {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const thumb = getThumb(video);
     const title = getTitle(video) || `Part ${index + 1}`;
-    const placeholderColor = colorScheme === 'dark' ? '#6b7280' : '#9ca3af';
+    const placeholderColor = isDark ? '#6b7280' : '#9ca3af';
 
     return (
         <Pressable
@@ -68,8 +68,7 @@ const PlaylistVideosModal = memo(function PlaylistVideosModal({
     onClose,
 }) {
     const { height } = useWindowDimensions();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
 
     const iconColor = isDark ? '#ffffff' : '#1f2937';
     const iconBg = isDark ? '#171717' : '#ffffff';

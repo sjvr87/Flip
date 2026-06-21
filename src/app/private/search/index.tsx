@@ -38,7 +38,7 @@ export default function SearchScreen() {
     const params = useLocalSearchParams<{ query?: string; type?: string }>();
     const router = useRouter();
     const { user } = useAuthStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const queryClient = useQueryClient();
 
     const searchInputRef = useRef(null);
@@ -226,7 +226,7 @@ export default function SearchScreen() {
                                 size="small"
                                 color={
                                     isFollowing
-                                        ? colorScheme === 'dark'
+                                        ? isDark
                                             ? '#fff'
                                             : '#000'
                                         : '#fff'
@@ -334,7 +334,7 @@ export default function SearchScreen() {
             <Ionicons
                 name="search-outline"
                 size={72}
-                color={colorScheme === 'dark' ? '#374151' : '#E5E7EB'}
+                color={isDark ? '#374151' : '#E5E7EB'}
             />
             <Text style={tw`text-gray-500 dark:text-gray-400 mt-4 text-base`}>
                 {searchQuery ? 'No results found' : 'Search for videos, users, and more'}
@@ -479,7 +479,7 @@ export default function SearchScreen() {
                         <Ionicons
                             name="chevron-back"
                             size={26}
-                            color={colorScheme === 'dark' ? 'white' : 'black'}
+                            color={isDark ? 'white' : 'black'}
                         />
                     </TouchableOpacity>
 
@@ -525,7 +525,7 @@ export default function SearchScreen() {
                         <Ionicons
                             name="ellipsis-horizontal"
                             size={26}
-                            color={colorScheme === 'dark' ? 'white' : 'black'}
+                            color={isDark ? 'white' : 'black'}
                         />
                     </TouchableOpacity>
                 </View>

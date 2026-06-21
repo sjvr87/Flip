@@ -12,20 +12,21 @@ import {
     videoUnbookmark,
     videoUnlike,
 } from '@/utils/requests';
+import { decodeRouteParam } from '@/utils/profileNavigation';
+import { parseCount } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 export default function PlaylistFeed({ navigation }) {
     const params = useLocalSearchParams();
-    const profileId = params.profileId;
-    const playlistName = params.playlistName;
-    const id = params.id;
+    const playlistName = decodeRouteParam(params.playlistName) || 'Playlist';
+    const id = decodeRouteParam(params.id);
 
     const [showPlaylistVideos, setShowPlaylistVideos] = useState(false);
 
@@ -97,21 +98,28 @@ export default function PlaylistFeed({ navigation }) {
         onError: (error) => {},
     });
 
-    const videos = data?.pages?.flatMap((page) => page.data) || [];
-    const rawVideoCount = params.videoCount;
-    const parsedVideoCount =
-        rawVideoCount != null && rawVideoCount !== ''
-            ? Number(Array.isArray(rawVideoCount) ? rawVideoCount[0] : rawVideoCount)
-            : NaN;
-    const partsCount = Number.isFinite(parsedVideoCount) && parsedVideoCount > 0
-        ? parsedVideoCount
-        : videos.length;
+    const videos = useMemo(
+        () => data?.pages?.flatMap((page) => page?.data ?? []) ?? [],
+        [data],
+    );
 
-    const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    const partsCount = useMemo(() => {
+        const fromParam = parseCount(params.videoCount);
+        if (fromParam > 0) return fromParam;
+
+        const firstMeta = data?.pages?.[0]?.meta;
+        const fromMeta = parseCount(firstMeta?.total ?? firstMeta?.count);
+        if (fromMeta > 0) return fromMeta;
+
+        return videos.length;
+    }, [params.videoCount, data, videos.length]);
+
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
         if (viewableItems.length > 0) {
-            setCurrentIndex(viewableItems[0].index || 0);
+            const idx = viewableItems[0].index;
+            setCurrentIndex(typeof idx === 'number' && Number.isFinite(idx) ? idx : 0);
         }
-    }, []);
+    }).current;
 
     const handleLike = (videoId, liked) => {
         const dir = liked ? 'like' : 'unlike';

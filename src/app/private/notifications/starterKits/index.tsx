@@ -21,7 +21,7 @@ export default function StarterKitNotificationsScreen() {
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
     const { refetchBadgeCount } = useNotificationStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const {
         data,
@@ -197,7 +197,7 @@ export default function StarterKitNotificationsScreen() {
                     headerTitle: 'Starter Kits',
                     headerBackTitle: 'Back',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerLeft: () => (
                         <TouchableOpacity
                             onPress={() => {
@@ -211,7 +211,7 @@ export default function StarterKitNotificationsScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     ),

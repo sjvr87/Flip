@@ -95,15 +95,15 @@ interface TabPillProps {
     tab: Tab;
     active: boolean;
     onPress: () => void;
-    colorScheme: 'light' | 'dark';
+    isDark: boolean;
 }
 
-const TabPill = ({ tab, active, onPress, colorScheme }: TabPillProps) => {
+const TabPill = ({ tab, active, onPress, isDark }: TabPillProps) => {
     const iconColor = active
-        ? colorScheme === 'dark'
+        ? isDark
             ? '#000'
             : '#FFF'
-        : colorScheme === 'dark'
+        : isDark
           ? '#9CA3AF'
           : '#6B7280';
 
@@ -271,8 +271,7 @@ function SkeletonRow({ isDark }: { isDark: boolean }) {
 
 export default function StudioPostsScreen() {
     const router = useRouter();
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<MetricId>('all');
 
     const [search, setSearch] = useState('');
@@ -345,7 +344,7 @@ export default function StudioPostsScreen() {
                         tab={item}
                         active={item.id === activeTab}
                         onPress={() => setActiveTab(item.id)}
-                        colorScheme={colorScheme}
+                        isDark={isDark}
                     />
                 )}
             />
@@ -517,7 +516,7 @@ export default function StudioPostsScreen() {
                     headerTitleStyle: {
                         fontSize: 22,
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerShadowVisible: false,
                     headerBackTitle: 'Studio',

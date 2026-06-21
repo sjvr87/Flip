@@ -47,10 +47,12 @@ const RadioOption = ({
 
 export default function FeedsSettingsScreen() {
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
+    const hideAdultContent = useAuthStore((state) => state.hideAdultContent);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
     const setHideForYouFeed = useAuthStore((state) => state.setHideForYouFeed);
+    const setHideAdultContent = useAuthStore((state) => state.setHideAdultContent);
     const setDefaultFeed = useAuthStore((state) => state.setDefaultFeed);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const queryClient = useQueryClient();
 
     const { data: appConfig } = useQuery({
@@ -116,7 +118,7 @@ export default function FeedsSettingsScreen() {
                 options={{
                     title: 'Feeds',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}
@@ -135,6 +137,19 @@ export default function FeedsSettingsScreen() {
                         <Divider />
                     </>
                 )}
+
+                <SettingsToggleItemDescription
+                    icon="eye-off-outline"
+                    label="Hide adult content"
+                    description="Filter posts labeled porn, sexual, nudity, or graphic from Following, Local, For You, and Explore."
+                    value={hideAdultContent}
+                    onValueChange={(value) => {
+                        setHideAdultContent(value);
+                        queryClient.invalidateQueries({ queryKey: ['videos'] });
+                        queryClient.invalidateQueries({ queryKey: ['explore'] });
+                    }}
+                />
+                <Divider />
 
                 <SettingsToggleItemDescription
                     icon="sparkles-outline"
@@ -156,7 +171,7 @@ export default function FeedsSettingsScreen() {
                                 <Ionicons
                                     name="phone-portrait-outline"
                                     size={24}
-                                    color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                    color={isDark ? '#fff' : '#000'}
                                     style={tw`mr-4`}
                                 />
                                 <YStack>

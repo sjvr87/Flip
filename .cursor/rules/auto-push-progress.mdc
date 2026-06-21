@@ -1,0 +1,14 @@
+﻿---
+description: After completing Flip upgrade tasks, commit and push progress to GitHub unless the user says not to.
+alwaysApply: false
+---
+
+# Auto-push Flip progress
+
+When you finish a meaningful batch of Flip work (features, fixes, refactors, or config updates):
+
+1. Stage **source and config only** — `src/`, `package.json`, `app.json`, `modules/flip-camerawesome/` source (not `android/build/`), docs, scripts. Do **not** commit `node_modules/`, `dist/`, `.expo/`, build logs, `dist-test-android/`, or secrets (`.env*`).
+2. Write a clear commit message summarizing the session.
+3. **Commit and `git push`** to `origin` so work is saved on GitHub.
+
+Skip commit/push only when the user explicitly asks not to push, or when there are no committable changes.

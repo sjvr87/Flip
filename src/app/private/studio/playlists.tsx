@@ -90,8 +90,7 @@ function PlaylistRow({ item, onPress }) {
 
 export default function PlaylistsScreen() {
   const router = useRouter()
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
   const [searchInput, setSearchInput] = useState('')
   const [sortIndex, setSortIndex] = useState(0)
   const search = useDebouncedValue(searchInput.trim())
@@ -204,7 +203,7 @@ export default function PlaylistsScreen() {
                 headerTitleStyle: {
                     fontSize: 22,
                     fontWeight: 'bold',
-                    color: colorScheme === 'dark' ? '#fff' : '#000',
+                    color: isDark ? '#fff' : '#000',
                 },
                 headerShadowVisible: false,
                 headerBackTitle: 'Studio',

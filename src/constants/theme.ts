@@ -5,25 +5,27 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+import { LOOP_ACCENT } from './loopsPalette';
+
+const tintColorLight = LOOP_ACCENT;
+const tintColorDark = '#ffffff';
 
 export const Colors = {
     light: {
         text: '#11181C',
-        background: '#fff',
+        background: '#ffffff',
         tint: tintColorLight,
         icon: '#687076',
-        tabIconDefault: '#687076',
-        tabIconSelected: tintColorLight,
+        tabIconDefault: '#999999',
+        tabIconSelected: '#000000',
     },
     dark: {
-        text: '#ECEDEE',
-        background: '#151718',
+        text: '#ffffff',
+        background: '#000000',
         tint: tintColorDark,
-        icon: '#9BA1A6',
-        tabIconDefault: '#9BA1A6',
-        tabIconSelected: tintColorDark,
+        icon: '#a1a1a6',
+        tabIconDefault: '#555555',
+        tabIconSelected: '#ffffff',
     },
 };
 

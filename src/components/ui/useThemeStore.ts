@@ -116,12 +116,10 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     },
 }));
 
-if (typeof window !== 'undefined') {
-    const savedMode = Storage.getString('theme_mode') as ThemeMode | undefined;
-    if (savedMode === 'light' || savedMode === 'dark') {
-        useThemeStore.setState({
-            mode: savedMode,
-            theme: savedMode === 'light' ? lightTheme : darkTheme,
-        });
-    }
+const savedMode = Storage.getString('theme_mode') as ThemeMode | undefined;
+if (savedMode === 'light' || savedMode === 'dark') {
+    useThemeStore.setState({
+        mode: savedMode,
+        theme: savedMode === 'light' ? lightTheme : darkTheme,
+    });
 }

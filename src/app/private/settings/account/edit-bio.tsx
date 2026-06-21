@@ -18,7 +18,7 @@ import {
 import tw from 'twrnc';
 
 export default function EditBioScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const params = useLocalSearchParams();
     const [bio, setBio] = useState(params.bio || '');
     const MAX_LENGTH = 80;
@@ -55,7 +55,7 @@ export default function EditBioScreen() {
                 options={{
                     title: 'Edit Bio',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Account',
                     headerShown: true,
                     headerLeft: () => (
@@ -71,7 +71,7 @@ export default function EditBioScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </PressableHaptics>
                     ),

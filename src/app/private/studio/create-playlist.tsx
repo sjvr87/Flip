@@ -29,8 +29,7 @@ const VISIBILITY = [
 
 export default function CreatePlaylistScreen() {
   const router = useRouter()
-  const { colorScheme } = useTheme()
-  const isDark = colorScheme === 'dark'
+  const { isDark } = useTheme()
   const qc = useQueryClient()
 
   const [name, setName] = useState('')
@@ -95,7 +94,7 @@ export default function CreatePlaylistScreen() {
                 headerTitleStyle: {
                     fontSize: 22,
                     fontWeight: 'bold',
-                    color: colorScheme === 'dark' ? '#fff' : '#000',
+                    color: isDark ? '#fff' : '#000',
                 },
                 headerShadowVisible: false,
                 headerBackTitle: 'Playlists',

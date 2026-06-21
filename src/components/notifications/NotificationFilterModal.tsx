@@ -45,8 +45,7 @@ export function NotificationFilterModal({
     onMarkAllRead,
     markAllDisabled,
 }: Props) {
-    const { colorScheme } = useTheme();
-    const isDark = colorScheme === 'dark';
+    const { isDark } = useTheme();
     const iconColor = isDark ? '#e5e5e5' : '#1f1f1f';
 
     return (

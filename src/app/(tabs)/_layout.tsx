@@ -1,14 +1,45 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { useNotificationStore } from '@/utils/notificationStore';
-import Feather from '@expo/vector-icons/Feather';
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useMemo } from 'react';
-import { Platform } from 'react-native';
+import { ComponentProps, useMemo } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
+
+const ICON_SIZE = 26;
+
+function TabIcon({
+    focused,
+    activeName,
+    inactiveName,
+    color,
+    size = ICON_SIZE,
+}: {
+    focused: boolean;
+    activeName: IoniconName;
+    inactiveName: IoniconName;
+    color: string;
+    size?: number;
+}) {
+    return <Ionicons name={focused ? activeName : inactiveName} size={size} color={color} />;
+}
+
+function CreateTabIcon({ isDark }: { isDark: boolean }) {
+    const backgroundColor = isDark ? '#ffffff' : '#000000';
+    const iconColor = isDark ? '#000000' : '#ffffff';
+
+    return (
+        <View style={[styles.createButton, { backgroundColor }]}>
+            <Ionicons name="add" size={24} color={iconColor} />
+        </View>
+    );
+}
 
 export default function TabsLayout() {
     const { badgeCount } = useNotificationStore();
-    const { isDark } = useTheme();
+    const { colors, isDark } = useTheme();
 
     const displayBadgeCount = useMemo(() => {
         if (!badgeCount || badgeCount <= 0) return undefined;
@@ -23,22 +54,20 @@ export default function TabsLayout() {
             initialRouteName="index"
             screenOptions={{
                 backBehavior: 'order',
-                tabBarActiveTintColor: isDark ? '#fff' : '#000',
-                tabBarInactiveTintColor: isDark ? '#555' : '#999',
+                tabBarActiveTintColor: colors.accent,
+                tabBarInactiveTintColor: colors.tabIconInactive,
                 tabBarStyle: {
-                    backgroundColor: isDark ? '#000' : '#fff',
-                    borderTopWidth: 1,
-                    borderTopColor: isDark ? '#1e2939' : '#eee',
-                    height: Platform.OS === 'ios' ? 94 : 94,
-                    paddingTop: Platform.OS === 'ios' ? 11 : 5,
-                    paddingBottom: Platform.OS === 'ios' ? 8 : 5,
+                    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder,
+                    height: Platform.OS === 'ios' ? 88 : 64,
+                    paddingTop: 10,
+                    paddingBottom: Platform.OS === 'ios' ? 28 : 10,
                     elevation: 0,
-                    shadowColor: '#666',
                     shadowOpacity: 0,
-                    shadowOffset: {
-                        height: 0,
-                    },
-                    shadowRadius: 0,
+                },
+                tabBarItemStyle: {
+                    paddingTop: 2,
                 },
             }}>
             <Tabs.Screen
@@ -48,7 +77,14 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Home',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: ({ color }) => <Feather size={28} name="home" color={color} />,
+                    tabBarIcon: ({ color, focused }) => (
+                        <TabIcon
+                            focused={focused}
+                            activeName="home"
+                            inactiveName="home-outline"
+                            color={color}
+                        />
+                    ),
                 }}
             />
             <Tabs.Screen
@@ -58,7 +94,14 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Explore',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: ({ color }) => <Feather size={28} name="compass" color={color} />,
+                    tabBarIcon: ({ color, focused }) => (
+                        <TabIcon
+                            focused={focused}
+                            activeName="search"
+                            inactiveName="search-outline"
+                            color={color}
+                        />
+                    ),
                 }}
             />
             <Tabs.Screen
@@ -68,7 +111,7 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Create',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: ({ color }) => <Feather size={28} name="video" color={color} />,
+                    tabBarIcon: () => <CreateTabIcon isDark={isDark} />,
                 }}
             />
             <Tabs.Screen
@@ -80,10 +123,21 @@ export default function TabsLayout() {
                     ...(Platform.OS !== 'web' && displayBadgeCount
                         ? {
                               tabBarBadge: displayBadgeCount,
-                              tabBarBadgeStyle: { fontSize: 12 },
+                              tabBarBadgeStyle: {
+                                  fontSize: 11,
+                                  fontWeight: '600',
+                                  backgroundColor: colors.accent,
+                              },
                           }
                         : {}),
-                    tabBarIcon: ({ color }) => <Feather size={28} name="inbox" color={color} />,
+                    tabBarIcon: ({ color, focused }) => (
+                        <TabIcon
+                            focused={focused}
+                            activeName="heart"
+                            inactiveName="heart-outline"
+                            color={color}
+                        />
+                    ),
                 }}
             />
             <Tabs.Screen
@@ -93,9 +147,26 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Profile',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: ({ color }) => <Feather size={28} name="user" color={color} />,
+                    tabBarIcon: ({ color, focused }) => (
+                        <TabIcon
+                            focused={focused}
+                            activeName="person-circle"
+                            inactiveName="person-circle-outline"
+                            color={color}
+                        />
+                    ),
                 }}
             />
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    createButton: {
+        width: 48,
+        height: 30,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+});

@@ -1,5 +1,6 @@
 import CommentsModal from '@/components/feed/CommentsModal';
 import OtherModal from '@/components/feed/OtherModal';
+import PhotoFeedSlide from '@/components/feed/PhotoFeedSlide';
 import ShareModal from '@/components/feed/ShareModal';
 import VideoPlayer from '@/components/feed/VideoPlayer';
 import {
@@ -31,7 +32,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -44,6 +45,7 @@ export default function ProfileFeed({ navigation }) {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('forYou');
     const [currentIndex, setCurrentIndex] = useState(0);
+    const hasScrolledToTarget = useRef(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
     const [showShare, setShowShare] = useState(false);
@@ -118,13 +120,44 @@ export default function ProfileFeed({ navigation }) {
         onError: (error) => {},
     });
 
-    const videos = data?.pages?.flatMap((page) => page.data) || [];
+    const videos = useMemo(
+        () => data?.pages?.flatMap((page) => page.data) ?? [],
+        [data?.pages],
+    );
 
-    const onViewableItemsChanged = useCallback(({ viewableItems }) => {
-        if (viewableItems.length > 0) {
-            setCurrentIndex(viewableItems[0].index || 0);
+    const targetIndex = useMemo(() => {
+        const normalizedId = decodeRouteParam(id);
+        const idx = videos.findIndex((v) => decodeRouteParam(v.id) === normalizedId);
+        return idx >= 0 ? idx : 0;
+    }, [videos, id]);
+
+    useEffect(() => {
+        hasScrolledToTarget.current = false;
+        setCurrentIndex(targetIndex);
+    }, [id, profileId, targetIndex]);
+
+    useEffect(() => {
+        if (hasScrolledToTarget.current || feedHeight === 0 || videos.length === 0) {
+            return;
         }
-    }, []);
+
+        if (targetIndex <= 0) {
+            hasScrolledToTarget.current = true;
+            return;
+        }
+
+        hasScrolledToTarget.current = true;
+        requestAnimationFrame(() => {
+            flatListRef.current?.scrollToIndex({ index: targetIndex, animated: false });
+        });
+    }, [feedHeight, videos.length, targetIndex, id, profileId]);
+
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
+        if (viewableItems.length > 0) {
+            const idx = viewableItems[0].index;
+            setCurrentIndex(typeof idx === 'number' && Number.isFinite(idx) ? idx : 0);
+        }
+    }).current;
 
     const handleLike = (videoId, liked) => {
         const dir = liked ? 'like' : 'unlike';
@@ -167,28 +200,42 @@ export default function ProfileFeed({ navigation }) {
     };
 
     const renderItem = useCallback(
-        ({ item, index }) => (
-            <VideoPlayer
-                key={item.id}
-                item={item}
-                isActive={index === currentIndex}
-                itemHeight={feedHeight}
-                onLike={handleLike}
-                onComment={handleComment}
-                onShare={handleShare}
-                onOther={handleOther}
-                onBookmark={handleBookmark}
-                bottomInset={insets.bottom}
-                commentsOpen={showComments && selectedVideo?.id === item.id}
-                shareOpen={showShare && selectedVideo?.id === item.id}
-                otherOpen={showOther && selectedVideo?.id === item.id}
-                screenFocused={screenFocused}
-                videoPlaybackRates={videoPlaybackRates}
-                navigation={navigation}
-                onNavigate={handleNavigate}
-                tabBarHeight={20}
-            />
-        ),
+        ({ item, index }) => {
+            const sharedProps = {
+                key: item.id,
+                item,
+                bottomInset: insets.bottom,
+                onLike: handleLike,
+                onComment: handleComment,
+                onShare: handleShare,
+                onOther: handleOther,
+                onBookmark: handleBookmark,
+                tabBarHeight: 20,
+                onNavigate: handleNavigate,
+            };
+
+            if (item.is_photo || item.media_type === 'photo') {
+                return (
+                    <View style={{ height: feedHeight }}>
+                        <PhotoFeedSlide {...sharedProps} />
+                    </View>
+                );
+            }
+
+            return (
+                <VideoPlayer
+                    {...sharedProps}
+                    isActive={index === currentIndex}
+                    itemHeight={feedHeight}
+                    commentsOpen={showComments && selectedVideo?.id === item.id}
+                    shareOpen={showShare && selectedVideo?.id === item.id}
+                    otherOpen={showOther && selectedVideo?.id === item.id}
+                    screenFocused={screenFocused}
+                    videoPlaybackRates={videoPlaybackRates}
+                    navigation={navigation}
+                />
+            );
+        },
         [
             currentIndex,
             feedHeight,
@@ -227,6 +274,7 @@ export default function ProfileFeed({ navigation }) {
                 </View>
             ) : (
                 <FlatList
+                    key={`${profileId}-${id}`}
                     ref={flatListRef}
                     data={videos}
                     renderItem={renderItem}
@@ -246,9 +294,15 @@ export default function ProfileFeed({ navigation }) {
                         index,
                     })}
                     removeClippedSubviews={false}
-                    maxToRenderPerBatch={1}
-                    windowSize={3}
-                    initialNumToRender={1}
+                    maxToRenderPerBatch={3}
+                    windowSize={5}
+                    initialNumToRender={Math.min(Math.max(targetIndex + 1, 1), 5)}
+                    initialScrollIndex={targetIndex > 0 ? targetIndex : undefined}
+                    onScrollToIndexFailed={({ index }) => {
+                        setTimeout(() => {
+                            flatListRef.current?.scrollToIndex({ index, animated: false });
+                        }, 100);
+                    }}
                     updateCellsBatchingPeriod={100}
                     ListFooterComponent={
                         isFetchingNextPage ? (

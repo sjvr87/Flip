@@ -19,7 +19,7 @@ import {
 import tw from 'twrnc';
 
 export default function EditLinksScreen() {
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const [newLinkUrl, setNewLinkUrl] = useState('');
     const [urlError, setUrlError] = useState('');
 
@@ -137,7 +137,7 @@ export default function EditLinksScreen() {
                     options={{
                         title: 'Edit Links',
                         headerStyle: tw`bg-white dark:bg-black`,
-                        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                        headerTintColor: isDark ? '#fff' : '#000',
                         headerBackTitle: 'Account',
                         headerShown: true,
                         headerLeft: () => (
@@ -153,7 +153,7 @@ export default function EditLinksScreen() {
                                 <Ionicons
                                     name="chevron-back"
                                     size={24}
-                                    color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                    color={isDark ? '#fff' : '#000'}
                                 />
                             </PressableHaptics>
                         ),
@@ -163,7 +163,7 @@ export default function EditLinksScreen() {
                     <Ionicons
                         name="link-outline"
                         size={64}
-                        color={colorScheme === 'dark' ? '#666' : '#ccc'}
+                        color={isDark ? '#666' : '#ccc'}
                     />
                     <Text
                         style={tw`text-lg font-semibold text-gray-800 dark:text-gray-200 mt-4 text-center`}>
@@ -191,7 +191,7 @@ export default function EditLinksScreen() {
                 options={{
                     title: 'Edit Links',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Account',
                     headerShown: true,
                     headerLeft: () => (
@@ -207,7 +207,7 @@ export default function EditLinksScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </PressableHaptics>
                     ),
@@ -221,7 +221,7 @@ export default function EditLinksScreen() {
                     <View style={tw`flex-1 items-center justify-center`}>
                         <ActivityIndicator
                             size="large"
-                            color={colorScheme === 'dark' ? '#fff' : '#000'}
+                            color={isDark ? '#fff' : '#000'}
                         />
                     </View>
                 ) : (
@@ -247,7 +247,7 @@ export default function EditLinksScreen() {
                                         <Ionicons
                                             name="people-outline"
                                             size={24}
-                                            color={colorScheme === 'dark' ? '#60a5fa' : '#3b82f6'}
+                                            color={isDark ? '#60a5fa' : '#3b82f6'}
                                             style={tw`mr-3 mt-0.5`}
                                         />
                                         <View style={tw`flex-1`}>
@@ -281,7 +281,7 @@ export default function EditLinksScreen() {
                                             <Ionicons
                                                 name="link"
                                                 size={20}
-                                                color={colorScheme === 'dark' ? '#888' : '#666'}
+                                                color={isDark ? '#888' : '#666'}
                                                 style={tw`mr-3`}
                                             />
                                             <Text
@@ -331,7 +331,7 @@ export default function EditLinksScreen() {
                                             } rounded-xl px-4 py-3.5 text-gray-800 dark:text-gray-200 text-base`}
                                             placeholder="https://example.com"
                                             placeholderTextColor={
-                                                colorScheme === 'dark' ? '#666' : '#999'
+                                                isDark ? '#666' : '#999'
                                             }
                                             value={newLinkUrl}
                                             onChangeText={handleUrlChange}
@@ -386,7 +386,7 @@ export default function EditLinksScreen() {
                                         <Ionicons
                                             name="information-circle"
                                             size={20}
-                                            color={colorScheme === 'dark' ? '#fbbf24' : '#d97706'}
+                                            color={isDark ? '#fbbf24' : '#d97706'}
                                             style={tw`mr-3 mt-0.5`}
                                         />
                                         <View style={tw`flex-1`}>
