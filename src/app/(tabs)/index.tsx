@@ -6,14 +6,15 @@ import VideoPlayer from '@/components/feed/VideoPlayer';
 import { useAuthStore } from '@/utils/authStore';
 import {
     FEED_GC_MS,
+    FEED_TABS,
     dedupeFeedVideos,
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
     resetSessionSeen,
     softRefreshFeed,
-    trimFeedToFirstPage,
 } from '@/utils/feedCache';
+import { TAB_BAR_CONTENT_HEIGHT } from '@/utils/tabBarLayout';
 import { prefetchVideoUrls } from '@/utils/videoPrefetch';
 import {
     fetchFollowingFeed,
@@ -45,7 +46,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = 60;
 /** Start loading next page when this many videos from the end (TikTok-style). */
 const LOAD_MORE_THRESHOLD = 4;
 /** Preload HLS for the next N videos beyond the FlatList render window. */
@@ -55,21 +55,29 @@ const MAX_EMPTY_DEDUPE_FETCHES = 2;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = 2;
 
-const fetchVideos = async ({ pageParam = null, tab }) => {
+const fetchVideos = async ({ pageParam = null, tab, refreshEpoch = 0 }) => {
     if (tab === 'local') {
-        return await fetchLocalFeed({ pageParam });
+        return await fetchLocalFeed({ pageParam, refreshEpoch });
     }
     if (tab === 'forYou') {
-        return await fetchForYouFeed({ pageParam });
+        return await fetchForYouFeed({ pageParam, refreshEpoch });
     }
-    return await fetchFollowingFeed({ pageParam });
+    return await fetchFollowingFeed({ pageParam, refreshEpoch });
 };
+
+const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0])) as Record<
+    (typeof FEED_TABS)[number],
+    number
+>;
 
 export default function LoopsFeed({ navigation }) {
     const insets = useSafeAreaInsets();
+    const overlayTabBarHeight = TAB_BAR_CONTENT_HEIGHT;
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
+    const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
     const [activeTab, setActiveTab] = useState(defaultFeed);
+    const feedEpoch = feedEpochs[activeTab] ?? 0;
     const activeTabRef = useRef(activeTab);
     activeTabRef.current = activeTab;
     const skipFeedTabRefreshRef = useRef(true);
@@ -134,10 +142,10 @@ export default function LoopsFeed({ navigation }) {
         isLoading,
         isFetching,
         isRefetching,
-        refetch,
     } = useInfiniteQuery({
-        queryKey: ['videos', activeTab],
-        queryFn: ({ pageParam }) => fetchVideos({ pageParam, tab: activeTab }),
+        queryKey: ['videos', activeTab, feedEpoch],
+        queryFn: ({ pageParam }) =>
+            fetchVideos({ pageParam, tab: activeTab, refreshEpoch: feedEpoch }),
         getNextPageParam: (lastPage) => {
             const cursor = lastPage.meta?.next_cursor;
             return cursor && cursor.length > 0 ? cursor : undefined;
@@ -145,7 +153,7 @@ export default function LoopsFeed({ navigation }) {
         initialPageParam: null,
         staleTime: getFeedStaleMs(activeTab),
         gcTime: FEED_GC_MS,
-        refetchOnMount: true,
+        refetchOnMount: 'always',
         refetchOnWindowFocus: false,
         maxPages: 25,
     });
@@ -245,34 +253,35 @@ export default function LoopsFeed({ navigation }) {
     const recordVideoImpressionRef = useRef(recordVideoImpression);
     recordVideoImpressionRef.current = recordVideoImpression;
 
-    const trimActiveFeedToFirstPage = useCallback(
-        (tab: string) => {
-            trimFeedToFirstPage(queryClient, tab);
-        },
-        [queryClient],
-    );
+    const bumpFeedEpoch = useCallback((tab: string) => {
+        setFeedEpochs((prev) => ({
+            ...prev,
+            [tab]: (prev[tab as keyof typeof prev] ?? 0) + 1,
+        }));
+        resetSessionSeen(tab);
+    }, []);
 
     const refreshFeed = useCallback(
         (tab: string, mode: 'soft' | 'hard' = 'soft') => {
             if (mode === 'hard') {
+                bumpFeedEpoch(tab);
                 hardRefreshFeed(queryClient, tab);
                 return;
             }
             softRefreshFeed(queryClient, tab);
         },
-        [queryClient],
+        [bumpFeedEpoch, queryClient],
     );
 
-    const onRefresh = useCallback(async () => {
+    const onRefresh = useCallback(() => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         setCurrentIndex(0);
-        resetSessionSeen(activeTab);
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
         setDedupeExhausted(false);
-        trimActiveFeedToFirstPage(activeTab);
-        await refetch();
-    }, [activeTab, refetch, trimActiveFeedToFirstPage]);
+        bumpFeedEpoch(activeTab);
+        hardRefreshFeed(queryClient, activeTab);
+    }, [activeTab, bumpFeedEpoch, queryClient]);
 
     useFocusEffect(
         useCallback(() => {
@@ -280,7 +289,7 @@ export default function LoopsFeed({ navigation }) {
 
             const staleMs = getFeedStaleMs(activeTab);
             const softMs = getFeedSoftRefreshMs(activeTab);
-            const state = queryClient.getQueryState(['videos', activeTab]);
+            const state = queryClient.getQueryState(['videos', activeTab, feedEpoch]);
             const age = Date.now() - (state?.dataUpdatedAt ?? 0);
             if (!state?.data || age >= staleMs) {
                 refreshFeed(activeTab, 'hard');
@@ -295,7 +304,7 @@ export default function LoopsFeed({ navigation }) {
                     recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
                 }
             };
-        }, [activeTab, queryClient, refreshFeed]),
+        }, [activeTab, feedEpoch, queryClient, refreshFeed]),
     );
 
     useEffect(() => {
@@ -311,8 +320,9 @@ export default function LoopsFeed({ navigation }) {
             if (nextState !== 'active') {
                 return;
             }
-            for (const tab of ['following', 'local', 'forYou'] as const) {
-                const state = queryClient.getQueryState(['videos', tab]);
+            for (const tab of FEED_TABS) {
+                const epoch = feedEpochs[tab] ?? 0;
+                const state = queryClient.getQueryState(['videos', tab, epoch]);
                 const age = Date.now() - (state?.dataUpdatedAt ?? 0);
                 const staleMs = getFeedStaleMs(tab);
                 const softMs = getFeedSoftRefreshMs(tab);
@@ -324,7 +334,7 @@ export default function LoopsFeed({ navigation }) {
             }
         });
         return () => subscription.remove();
-    }, [queryClient, refreshFeed]);
+    }, [feedEpochs, queryClient, refreshFeed]);
 
     useEffect(() => {
         if (videos.length > 0) {
@@ -517,7 +527,7 @@ export default function LoopsFeed({ navigation }) {
                     videoPlaybackRates={videoPlaybackRates}
                     navigation={navigation}
                     onNavigate={handleNavigate}
-                    tabBarHeight={TAB_BAR_HEIGHT}
+                    tabBarHeight={overlayTabBarHeight}
                 />
             );
         },
@@ -527,6 +537,7 @@ export default function LoopsFeed({ navigation }) {
             feedError,
             insets.bottom,
             onRefresh,
+            overlayTabBarHeight,
             showComments,
             showShare,
             showOther,

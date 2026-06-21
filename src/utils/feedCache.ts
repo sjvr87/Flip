@@ -3,11 +3,11 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { FlipVideo } from '@/atproto/types';
 
 /** For You — refresh sooner so reopen feels algorithmically fresh. */
-export const FEED_FYP_STALE_MS = 12_000;
+export const FEED_FYP_STALE_MS = 8_000;
 /** Following — timeline can stay warm longer; soft refresh is non-destructive. */
-export const FEED_FOLLOWING_STALE_MS = 20_000;
-export const FEED_LOCAL_STALE_MS = 25_000;
-export const FEED_GC_MS = 3 * 60_000;
+export const FEED_FOLLOWING_STALE_MS = 15_000;
+export const FEED_LOCAL_STALE_MS = 12_000;
+export const FEED_GC_MS = 2 * 60_000;
 
 export const FEED_TABS = ['following', 'local', 'forYou'] as const;
 export type FeedTab = (typeof FEED_TABS)[number];
@@ -43,9 +43,9 @@ export function getFeedStaleMs(tab: string): number {
 export function getFeedSoftRefreshMs(tab: string): number {
     switch (tab) {
         case 'forYou':
-            return 6_000;
+            return 4_000;
         case 'following':
-            return 45_000;
+            return 30_000;
         default:
             return FEED_LOCAL_STALE_MS / 2;
     }
@@ -64,6 +64,24 @@ export function videoDedupeKey(video: FlipVideo): string | null {
         return `src:${src}`;
     }
     return null;
+}
+
+/** Deterministic shuffle — same seed yields same order within a session page. */
+export function shuffleFeedVideos(videos: FlipVideo[], seed: number): FlipVideo[] {
+    if (videos.length <= 1 || seed === 0) {
+        return videos;
+    }
+    const arr = [...videos];
+    let state = (seed >>> 0) || 1;
+    const rand = () => {
+        state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+        return state / 0x1_0000_0000;
+    };
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
 }
 
 /**
@@ -96,34 +114,36 @@ export function markVideoSeenInSession(tab: string, video: FlipVideo) {
 }
 
 export function trimFeedToFirstPage(queryClient: QueryClient, tab: string) {
-    queryClient.setQueryData(['videos', tab], (old: { pages?: unknown[]; pageParams?: unknown[] } | undefined) => {
-        if (!old?.pages?.length) {
-            return old;
-        }
-        return {
-            pages: old.pages.slice(0, 1),
-            pageParams: old.pageParams!.slice(0, 1),
-        };
-    });
+    queryClient.setQueriesData(
+        { queryKey: ['videos', tab], exact: false },
+        (old: { pages?: unknown[]; pageParams?: unknown[] } | undefined) => {
+            if (!old?.pages?.length) {
+                return old;
+            }
+            return {
+                pages: old.pages.slice(0, 1),
+                pageParams: old.pageParams!.slice(0, 1),
+            };
+        },
+    );
 }
 
 /** Soft refresh: refetch page 0 only — keeps scrolled pagination intact. */
 export function softRefreshFeed(queryClient: QueryClient, tab: string) {
-    void queryClient.refetchQueries({
+    void queryClient.invalidateQueries({
         queryKey: ['videos', tab],
-        type: 'active',
+        refetchType: 'active',
         refetchPage: (_page, index) => index === 0,
     });
 }
 
-/** Hard refresh: trim to first page then refetch (cold open / pull refresh). */
+/**
+ * Hard refresh: drop cached pages so the next fetch starts at cursor null
+ * with a new feed epoch (caller bumps epoch in query key).
+ */
 export function hardRefreshFeed(queryClient: QueryClient, tab: string) {
     resetSessionSeen(tab);
-    trimFeedToFirstPage(queryClient, tab);
-    void queryClient.refetchQueries({
-        queryKey: ['videos', tab],
-        type: 'active',
-    });
+    queryClient.removeQueries({ queryKey: ['videos', tab], exact: false });
 }
 
 /** After a new post: trim pagination, invalidate, and refetch feeds + profile. */

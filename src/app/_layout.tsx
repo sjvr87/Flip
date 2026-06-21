@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { type PropsWithChildren, useEffect, useLayoutEffect, useState } from 'react';
 import { AppState, LogBox, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const SPLASH_FAILSAFE_MS = 10_000;
 const EXPO_GO_BANNER_MS = 4000;
@@ -199,10 +200,23 @@ function useGlobalStartupErrorHandler() {
     }, []);
 }
 
+function useAndroidSystemBars() {
+    useEffect(() => {
+        if (Platform.OS !== 'android') {
+            return;
+        }
+
+        void import('expo-system-ui').then((SystemUI) => {
+            void SystemUI.setBackgroundColorAsync('#000000');
+        });
+    }, []);
+}
+
 export default function RootLayout() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
 
     useGlobalStartupErrorHandler();
+    useAndroidSystemBars();
 
     useLayoutEffect(() => {
         if (hasHydrated) {
@@ -235,15 +249,17 @@ export default function RootLayout() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <StartupErrorBoundary label="Flip">
-                <ThemeProvider>
-                    <QueryClientProvider client={queryClient}>
-                        <KeyboardWrapper>
-                            {isExpoGo ? <ExpoGoAppContent /> : <NativeAppContent />}
-                        </KeyboardWrapper>
-                    </QueryClientProvider>
-                </ThemeProvider>
-            </StartupErrorBoundary>
+            <SafeAreaProvider>
+                <StartupErrorBoundary label="Flip">
+                    <ThemeProvider>
+                        <QueryClientProvider client={queryClient}>
+                            <KeyboardWrapper>
+                                {isExpoGo ? <ExpoGoAppContent /> : <NativeAppContent />}
+                            </KeyboardWrapper>
+                        </QueryClientProvider>
+                    </ThemeProvider>
+                </StartupErrorBoundary>
+            </SafeAreaProvider>
         </GestureHandlerRootView>
     );
 }

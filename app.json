@@ -25,6 +25,12 @@
                 "backgroundImage": "./assets/images/android-icon-background.png",
                 "monochromeImage": "./assets/images/android-icon-monochrome.png"
             },
+            "edgeToEdgeEnabled": true,
+            "navigationBar": {
+                "backgroundColor": "#000000",
+                "barStyle": "light-content"
+            },
+            "softwareKeyboardLayoutMode": "resize",
             "predictiveBackGestureEnabled": false,
             "package": "social.flip.app",
             "permissions": [
