@@ -4,7 +4,10 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { getSavedCredentials } from '@/atproto/credentialVault'
 import { openBrowser } from '@/atproto/auth'
 import { authenticateWithBiometric, canUseBiometrics, getBiometricLabel } from '@/utils/biometricAuth'
-import { skipBiometricAutoPromptOnLaunch } from '@/utils/androidVideoSafeMode'
+import {
+  skipBiometricAutoPromptOnLaunch,
+  skipSilentAutoReloginOnLaunch,
+} from '@/utils/androidVideoSafeMode'
 import { useAuthStore } from '@/utils/authStore'
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
@@ -40,6 +43,7 @@ export default function SignInScreen() {
   const rememberLogin = useAuthStore((s) => s.rememberLogin)
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
+  const authReady = useAuthStore((s) => s.authReady)
   const cachedUser = useAuthStore((s) => s.user)
   const { isDark, colors } = useTheme()
 
@@ -57,10 +61,9 @@ export default function SignInScreen() {
   const biometricAttempted = useRef(false)
 
   useEffect(() => {
-    if (hasHydrated && isLoggedIn) {
-      router.replace('/(tabs)')
-    }
-  }, [hasHydrated, isLoggedIn])
+    if (!hasHydrated || !authReady || !isLoggedIn) return
+    router.replace('/(tabs)')
+  }, [hasHydrated, authReady, isLoggedIn])
 
   const runBiometricUnlock = useCallback(async () => {
     setIsLoading(true)
@@ -68,6 +71,7 @@ export default function SignInScreen() {
     try {
       const ok = await authenticateWithBiometric('Unlock Flip')
       if (!ok) {
+        setLoginError('Biometric unlock failed. Use your app password.')
         setMode('password')
         return false
       }
@@ -78,6 +82,7 @@ export default function SignInScreen() {
         router.replace('/(tabs)')
         return true
       }
+      setLoginError('Could not sign in with saved credentials. Enter your app password.')
       setMode('password')
       return false
     } finally {
@@ -86,7 +91,7 @@ export default function SignInScreen() {
   }, [unlockWithSavedCredentials])
 
   useEffect(() => {
-    if (!hasHydrated || isLoggedIn) return
+    if (!hasHydrated || !authReady || isLoggedIn) return
 
     const loadingFailsafe = setTimeout(() => {
       setMode((current) => (current === 'loading' ? 'full' : current))
@@ -112,7 +117,7 @@ export default function SignInScreen() {
 
         if (requireBiometric && bioAvailable) {
           setMode('unlock')
-        } else if (!requireBiometric) {
+        } else if (!requireBiometric && !skipSilentAutoReloginOnLaunch) {
           setIsLoading(true)
           setStatusMessage('Signing you in...')
           const success = await unlockWithSavedCredentials()
@@ -121,10 +126,13 @@ export default function SignInScreen() {
             router.replace('/(tabs)')
             return
           }
+          setLoginError('Saved sign-in failed. Enter your app password.')
           setMode('password')
           setIsLoading(false)
+        } else if (creds) {
+          setMode(requireBiometric && bioAvailable ? 'unlock' : 'password')
         } else {
-          setMode('password')
+          setMode('full')
         }
       } else {
         setMode('full')
@@ -135,7 +143,7 @@ export default function SignInScreen() {
       cancelled = true
       clearTimeout(loadingFailsafe)
     }
-  }, [hasHydrated, isLoggedIn, rememberLogin, requireBiometric, unlockWithSavedCredentials])
+  }, [hasHydrated, authReady, isLoggedIn, rememberLogin, requireBiometric, unlockWithSavedCredentials])
 
   useEffect(() => {
     if (mode !== 'unlock' || biometricAttempted.current || isLoading) return
@@ -163,7 +171,9 @@ export default function SignInScreen() {
         password.trim(),
         service.trim() || undefined,
       )
-      if (!success) {
+      if (success) {
+        router.replace('/(tabs)')
+      } else {
         setLoginError('Login failed. Check your handle and app password.')
       }
     } catch (error) {

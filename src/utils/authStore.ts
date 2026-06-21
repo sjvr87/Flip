@@ -11,9 +11,10 @@ import {
   updatePreferences,
   type FlipSessionUser,
 } from '@/atproto/auth'
-import { hasStoredSession, trackSessionRestore, tryRefreshSession } from '@/atproto/agent'
+import { ensureFreshSession, hasStoredSession, trackSessionRestore, tryRefreshSession } from '@/atproto/agent'
 import { clearCredentials, getSavedCredentials, saveCredentials } from '@/atproto/credentialVault'
 import { canUseBiometrics } from '@/utils/biometricAuth'
+import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode'
 import { setAuthFailureHandler } from '@/utils/authEvents'
 import { resetAuthFailureFlag } from '@/utils/requests'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -26,6 +27,7 @@ type UserState = {
   shouldCreateAccount: boolean
   hasCompletedOnboarding: boolean
   _hasHydrated: boolean
+  authReady: boolean
   user: FlipSessionUser | null
   server: string | null
   hideForYouFeed: boolean
@@ -98,6 +100,7 @@ export const useAuthStore = create(
       shouldCreateAccount: false,
       hasCompletedOnboarding: true,
       _hasHydrated: false,
+      authReady: false,
       user: null,
       server: null,
       hideForYouFeed: false,
@@ -119,9 +122,11 @@ export const useAuthStore = create(
 
           if (rememberLogin) {
             await saveCredentials(identifier, password, service || 'bsky.social')
-            const biometricsAvailable = await canUseBiometrics()
-            if (biometricsAvailable && !get().requireBiometric) {
-              set({ requireBiometric: true })
+            if (!ANDROID_VIDEO_SAFE_MODE) {
+              const biometricsAvailable = await canUseBiometrics()
+              if (biometricsAvailable && !get().requireBiometric) {
+                set({ requireBiometric: true })
+              }
             }
           } else {
             await clearCredentials()
@@ -132,6 +137,7 @@ export const useAuthStore = create(
             isLoggedIn: true,
             user,
             server: getCurrentServer(),
+            authReady: true,
           }))
           resetAuthFailureFlag()
           return true
@@ -236,8 +242,14 @@ export const useAuthStore = create(
       unlockWithSavedCredentials: async () => {
         const ok = await trySilentRelogin()
         if (ok) {
+          const sessionOk = await ensureFreshSession()
+          if (!sessionOk) {
+            console.warn('[auth] silent re-login succeeded but session not fresh')
+            return false
+          }
           get().syncAuthState()
           resetAuthFailureFlag()
+          set({ authReady: true })
         }
         return ok
       },
@@ -264,7 +276,7 @@ export const useAuthStore = create(
       },
 
       clearUser: () => {
-        set({ user: null, server: null, isLoggedIn: false })
+        set({ user: null, server: null, isLoggedIn: false, authReady: true })
       },
 
       logOut: () => {
@@ -301,8 +313,8 @@ export const useAuthStore = create(
           return
         }
 
-        // Unblock routing immediately; session restore must not delay feed mount.
-        set((state) => ({ ...state, _hasHydrated: true }))
+        // Unblock routing; feed waits on authReady until session restore finishes.
+        set((state) => ({ ...state, _hasHydrated: true, authReady: false }))
         void get().restoreSessionInBackground()
       },
 
@@ -312,6 +324,8 @@ export const useAuthStore = create(
         }
 
         console.warn('[auth] restoring session in background')
+
+        set({ authReady: false })
 
         sessionRestorePromise = (async () => {
           try {
@@ -357,18 +371,14 @@ export const useAuthStore = create(
             }
 
             const stored = await hasStoredSession()
-            if (stored) {
-              if (!get().isLoggedIn) {
-                set({ isLoggedIn: true })
-              }
-            } else if (get().isLoggedIn && !isAuthenticated() && !loginInFlight) {
+            if (stored && !isAuthenticated() && !loginInFlight) {
               get().clearUser()
             }
 
             console.warn(
               `[auth] session restore complete (restored=false, savedCreds=${!!savedCreds})`,
             )
-            return stored
+            return isAuthenticated()
           } catch (error) {
             console.warn('[auth] session restore failed:', error)
             const savedCreds = await getSavedCredentials()
@@ -385,17 +395,16 @@ export const useAuthStore = create(
             }
 
             const stored = await hasStoredSession()
-            if (stored) {
-              if (!get().isLoggedIn) {
-                set({ isLoggedIn: true })
-              }
-              return true
+            if (stored && !isAuthenticated() && !loginInFlight) {
+              get().clearUser()
             }
+            return isAuthenticated()
+          } finally {
+            get().syncAuthState()
             if (get().isLoggedIn && !isAuthenticated() && !loginInFlight) {
               get().clearUser()
             }
-            return false
-          } finally {
+            set({ authReady: true })
             sessionRestorePromise = null
           }
         })()

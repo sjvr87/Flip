@@ -150,11 +150,12 @@ function ExpoGoAppContent() {
 function NativeAppContent() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
+    const authReady = useAuthStore((s) => s.authReady);
     const shouldCreateAccount = useAuthStore((s) => s.shouldCreateAccount);
 
     useNotificationObserver();
 
-    if (!hasHydrated) {
+    if (!hasHydrated || !authReady) {
         return null;
     }
 

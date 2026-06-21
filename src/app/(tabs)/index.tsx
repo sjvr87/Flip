@@ -102,11 +102,12 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 export default function LoopsFeed({ navigation }) {
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
+    const authReady = useAuthStore((state) => state.authReady);
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
     const hasHydrated = useAuthStore((state) => state._hasHydrated);
     const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
-    const feedQueryEnabled = hasHydrated && isLoggedIn;
+    const feedQueryEnabled = hasHydrated && isLoggedIn && authReady;
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
     const [activeTab, setActiveTab] = useState(defaultFeed);
     const feedEpoch = feedEpochs[activeTab] ?? 0;

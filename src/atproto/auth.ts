@@ -1,6 +1,7 @@
 import { profileToFlipUser } from './adapters'
 import {
   clearSession,
+  ensureFreshSession,
   getAgent,
   getServiceUrl,
   isAuthenticated,
@@ -23,6 +24,9 @@ export async function loginWithPassword(
   password: string,
   service?: string,
 ): Promise<FlipSessionUser> {
+  // Drop stale tokens so login does not race with a broken refreshSession.
+  clearSession()
+
   if (service) {
     setServiceUrl(service)
   }
@@ -48,6 +52,11 @@ export async function loginWithPassword(
   }
 
   await persistSession(agent.session)
+
+  const sessionOk = await ensureFreshSession()
+  if (!sessionOk) {
+    throw new Error('Signed in but session could not be verified. Try again.')
+  }
 
   // Bluesky login — drop stale Loops REST credentials so routing uses ATProto.
   Storage.delete('app.token')

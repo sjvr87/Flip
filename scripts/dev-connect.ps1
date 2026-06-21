@@ -44,6 +44,14 @@ function Test-MetroHealthy {
   }
 }
 
+function Write-MetroNotRunningBanner {
+  Write-Host ""
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host "  METRO NOT RUNNING - app will crash or not load JS" -ForegroundColor Red
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host ""
+}
+
 function Stop-MetroOnPort([int]$Port = 8081) {
   $metroPid = Get-MetroListenPid $Port
   if (-not $metroPid) { return $false }
@@ -51,6 +59,60 @@ function Stop-MetroOnPort([int]$Port = 8081) {
   Stop-Process -Id $metroPid -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 2
   return -not (Test-PortListening $Port)
+}
+
+function Start-MetroInNewWindow {
+  Write-Host "  Starting Metro (dev-client, clear cache) in new window..."
+  $npm = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
+  $metroArgs = if ($Lan) { "run start:lan" } else { "run start:clear" }
+  $envBlock = "`$env:CI=`$null; Remove-Item Env:CI -ErrorAction SilentlyContinue; Remove-Item Env:EXPO_NO_INTERACTIVE -ErrorAction SilentlyContinue; Set-Location '$Root'; & '$npm' $metroArgs"
+  Start-Process powershell -ArgumentList "-NoExit", "-Command", $envBlock -WorkingDirectory $Root
+}
+
+function Wait-MetroHealthy([int]$TimeoutSec = 45) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 2
+    if (Test-MetroHealthy) { return $true }
+  }
+  return $false
+}
+
+function Ensure-MetroRunning([switch]$ForceRecycle) {
+  $healthy = Test-MetroHealthy
+  $portInUse = Test-PortListening 8081
+
+  if ($ForceRecycle -or (-not $healthy -and $portInUse)) {
+    if ($portInUse) {
+      if ($ForceRecycle) {
+        Write-Host "  -RestartMetro: recycling Metro on 8081..." -ForegroundColor Yellow
+      } else {
+        Write-Host "  Metro unhealthy but port 8081 in use - auto-recycling (same as -RestartMetro)..." -ForegroundColor Yellow
+      }
+      Stop-MetroOnPort 8081 | Out-Null
+    }
+    $healthy = $false
+  }
+
+  if ($healthy) {
+    Write-Host "  Metro already running (packager-status:running)." -ForegroundColor Green
+    return $true
+  }
+
+  if (Test-PortListening 8081) {
+    Write-Host "  Port 8081 still in use without healthy /status - stopping stale listener..." -ForegroundColor Yellow
+    Stop-MetroOnPort 8081 | Out-Null
+  }
+
+  Start-MetroInNewWindow
+  if (Wait-MetroHealthy) {
+    Write-Host "  Metro started OK." -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host "  Metro not responding on http://127.0.0.1:8081/status - check the Metro window." -ForegroundColor Red
+  Write-MetroNotRunningBanner
+  return $false
 }
 
 Write-Host "[2/6] adb devices"
@@ -83,60 +145,22 @@ if ($serials.Count -eq 0) {
 }
 
 Write-Host "[4/6] Metro on port 8081"
-$metroHealthy = Test-MetroHealthy
-$portInUse = Test-PortListening 8081
-
 if ($env:CI -eq "true" -or $env:CI -eq "1") {
   Write-Host "  WARN: CI=$env:CI disables Metro watch/reload. Unset CI for local dev." -ForegroundColor Yellow
 }
 
-if ($RestartMetro) {
-  if ($portInUse) {
-    Write-Host "  -RestartMetro: recycling Metro on 8081..." -ForegroundColor Yellow
-    Stop-MetroOnPort 8081 | Out-Null
-  }
-  $metroHealthy = $false
-  $portInUse = Test-PortListening 8081
-} elseif (-not $metroHealthy -and $portInUse) {
-  Write-Host "  Port 8081 in use but /status not healthy - recycling..." -ForegroundColor Yellow
-  Stop-MetroOnPort 8081 | Out-Null
-  $metroHealthy = $false
-  $portInUse = Test-PortListening 8081
-}
-
-if ($metroHealthy -and -not $RestartMetro) {
-  Write-Host "  Metro already running (packager-status:running)." -ForegroundColor Green
-} elseif ($portInUse) {
-  Write-Host "  Port 8081 in use; assuming Metro is running. Use -RestartMetro to force a fresh server." -ForegroundColor Yellow
-  $metroHealthy = Test-MetroHealthy
-} else {
-  Write-Host "  Starting Metro (dev-client, clear cache) in new window..."
-  $npm = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
-  $metroArgs = if ($Lan) { "run start:lan" } else { "run start:clear" }
-  $envBlock = "`$env:CI=`$null; Remove-Item Env:CI -ErrorAction SilentlyContinue; Remove-Item Env:EXPO_NO_INTERACTIVE -ErrorAction SilentlyContinue; Set-Location '$Root'; & '$npm' $metroArgs"
-  Start-Process powershell -ArgumentList "-NoExit", "-Command", $envBlock -WorkingDirectory $Root
-  $deadline = (Get-Date).AddSeconds(45)
-  while ((Get-Date) -lt $deadline) {
-    Start-Sleep -Seconds 2
-    if (Test-MetroHealthy) { $metroHealthy = $true; break }
-  }
-  if (-not $metroHealthy) {
-    Write-Host "  Metro not responding yet on http://127.0.0.1:8081/status - check the Metro window." -ForegroundColor Yellow
-  } else {
-    Write-Host "  Metro started OK." -ForegroundColor Green
-  }
+$metroHealthy = Ensure-MetroRunning -ForceRecycle:$RestartMetro.IsPresent
+if (-not $metroHealthy) {
+  Write-Host "ERROR: Metro must be running before launching the app. Not starting Flip on device." -ForegroundColor Red
+  exit 1
 }
 
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
-  if (-not (Test-MetroHealthy)) {
-    Write-Host "  Skipped launch — Metro is not running on :8081. Start Metro or use -RestartMetro." -ForegroundColor Red
-  } else {
-    foreach ($serial in $serials) {
-      & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
-      $start = & $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1
-      Write-Host "  $serial : $start"
-    }
+  foreach ($serial in $serials) {
+    & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
+    $start = & $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1
+    Write-Host "  $serial : $start"
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -151,11 +175,13 @@ if (-not $lanIp) {
     Select-Object -First 1).IPAddress
 }
 
+$finalMetroHealthy = Test-MetroHealthy
+
 Write-Host ""
 Write-Host "=== Status ===" -ForegroundColor Cyan
 Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
 Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped (no device)" } else { "FAILED" }))
-Write-Host ("Metro /status: {0}" -f $(if (Test-MetroHealthy) { "running" } else { "NOT running" }))
+Write-Host ("Metro /status: {0}" -f $(if ($finalMetroHealthy) { "running" } else { "NOT running" }))
 Write-Host "USB URL: exp://127.0.0.1:8081 (requires adb reverse)"
 if ($lanIp) { Write-Host "LAN URL: exp://${lanIp}:8081 (npm run start:lan + same Wi-Fi)" }
 Write-Host ""
@@ -165,3 +191,11 @@ Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run npm run start:c
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
 Write-Host "- LAN: npm run start:lan, phone on same Wi-Fi as PC ($lanIp), allow Node through Windows Firewall on 8081"
 Write-Host "- Dev client only (not Expo Go); package social.flip.app"
+
+if (-not $finalMetroHealthy) {
+  Write-MetroNotRunningBanner
+  Write-Host "ERROR: Metro /status is NOT running. Re-run dev:connect after Metro is healthy." -ForegroundColor Red
+  exit 1
+}
+
+exit 0
