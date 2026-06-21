@@ -1,3 +1,4 @@
+import CreateCameraTabIcon from '@/components/icons/CreateCameraTabIcon';
 import ExploreTabIcon from '@/components/icons/ExploreTabIcon';
 import HomeTabIcon from '@/components/icons/HomeTabIcon';
 import MailboxTabIcon from '@/components/icons/MailboxTabIcon';
@@ -8,35 +9,19 @@ import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarLayout';
-import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tabs } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 /** Fixed square slot so every tab icon shares the same footprint and center. */
-const TAB_ICON_SLOT_SIZE = 40;
-const ICON_SIZE = 37;
+const TAB_ICON_SLOT_SIZE = 42;
+const ICON_SIZE = 40;
 /** Mailbox SVG uses a 30×30 viewBox; other tab icons use 26×26. */
 const MAILBOX_ICON_SIZE = Math.round(ICON_SIZE * (30 / 26));
-const CREATE_BUTTON_HEIGHT = Math.round(TAB_ICON_SLOT_SIZE * (30 / 48));
-const CREATE_ADD_SIZE = Math.round(CREATE_BUTTON_HEIGHT * (24 / 30));
 
 function TabIconSlot({ children }: { children: ReactNode }) {
     return <View style={styles.tabIconSlot}>{children}</View>;
-}
-
-function CreateTabIcon({ isDark }: { isDark: boolean }) {
-    const backgroundColor = isDark ? '#ffffff' : '#000000';
-    const iconColor = isDark ? '#000000' : '#ffffff';
-
-    return (
-        <TabIconSlot>
-            <View style={[styles.createButton, { backgroundColor }]}>
-                <Ionicons name="add" size={CREATE_ADD_SIZE} color={iconColor} />
-            </View>
-        </TabIconSlot>
-    );
 }
 
 export default function TabsLayout() {
@@ -130,7 +115,11 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Create',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: () => <CreateTabIcon isDark={isDark} />,
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconSlot>
+                            <CreateCameraTabIcon focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
+                    ),
                 }}
             />
             <Tabs.Screen
@@ -183,13 +172,6 @@ const styles = StyleSheet.create({
     tabIconSlot: {
         width: TAB_ICON_SLOT_SIZE,
         height: TAB_ICON_SLOT_SIZE,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    createButton: {
-        width: TAB_ICON_SLOT_SIZE,
-        height: CREATE_BUTTON_HEIGHT,
-        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
     },

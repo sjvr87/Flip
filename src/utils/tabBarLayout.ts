@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Flip tab icon row — layout chrome only; system nav uses `insets.bottom`. */
-export const TAB_BAR_PADDING_TOP = 2;
+export const TAB_BAR_PADDING_TOP = 0;
 /** Matches `TAB_ICON_SLOT_SIZE` in `(tabs)/_layout.tsx`. */
-export const TAB_BAR_ICON_ROW_HEIGHT = 40;
+export const TAB_BAR_ICON_ROW_HEIGHT = 42;
 
 /** @deprecated Prefer `useFlipTabBarMetrics().contentHeight` */
 export const TAB_BAR_CONTENT_HEIGHT = TAB_BAR_ICON_ROW_HEIGHT;
