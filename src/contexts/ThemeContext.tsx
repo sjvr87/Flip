@@ -1,6 +1,7 @@
 import { useThemeStore } from '@/components/ui/useThemeStore';
 import { getLoopsColors, type LoopsThemeColors } from '@/constants/loopsPalette';
 import { Storage } from '@/utils/cache';
+import { isWeb } from '@/utils/runtime';
 import React, {
     PropsWithChildren,
     createContext,
@@ -41,7 +42,8 @@ export const ThemeProvider = (props: PropsWithChildren) => {
     const initialColorScheme = useMemo(() => readPersistedColorScheme(), []);
 
     useDeviceContext(tw, {
-        observeDeviceColorSchemeChanges: true,
+        // Web: observing system theme changes can re-trigger twrnc and loop ContextNavigator.
+        observeDeviceColorSchemeChanges: !isWeb,
         initialColorScheme,
     });
 

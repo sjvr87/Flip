@@ -7,7 +7,7 @@ import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-
 import { router, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { type PropsWithChildren, useEffect, useLayoutEffect, useState } from 'react';
-import { AppState, LogBox, Platform } from 'react-native';
+import { AppState, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
@@ -119,6 +119,8 @@ function ThemedStatusBar() {
     return <StatusBar style={isDark ? 'light' : 'dark'} />;
 }
 
+const STARTUP_PLACEHOLDER = <View style={{ flex: 1, backgroundColor: '#000' }} />;
+
 /** Expo Go: no Stack.Protected — sign-in or tabs only. */
 function ExpoGoAppContent() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
@@ -160,6 +162,41 @@ function ExpoGoAppContent() {
     );
 }
 
+/**
+ * Web: Stack.Protected re-evaluates guards every render and can loop ContextNavigator
+ * (Maximum update depth exceeded). Use a flat Stack + router.replace like Expo Go.
+ */
+function WebAppContent() {
+    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+    const hasHydrated = useAuthStore((s) => s._hasHydrated);
+    const authReady = useAuthStore((s) => s.authReady);
+
+    useEffect(() => {
+        if (!hasHydrated || !authReady) return;
+        hideSplash();
+        router.replace(isLoggedIn ? '/(tabs)' : '/sign-in');
+    }, [isLoggedIn, hasHydrated, authReady]);
+
+    if (!hasHydrated || !authReady) {
+        return STARTUP_PLACEHOLDER;
+    }
+
+    return (
+        <>
+            <ThemedStatusBar />
+            <Stack
+                screenOptions={{ headerShown: false }}
+                initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
+                <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="private" />
+                <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="create-account" />
+            </Stack>
+        </>
+    );
+}
+
 function NativeAppContent() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
@@ -169,7 +206,7 @@ function NativeAppContent() {
     useNotificationObserver();
 
     if (!hasHydrated || !authReady) {
-        return null;
+        return STARTUP_PLACEHOLDER;
     }
 
     return (
@@ -280,7 +317,13 @@ export default function RootLayout() {
                     <ThemeProvider>
                         <QueryClientProvider client={queryClient}>
                             <KeyboardWrapper>
-                                {isExpoGo ? <ExpoGoAppContent /> : <NativeAppContent />}
+                                {isExpoGo ? (
+                                    <ExpoGoAppContent />
+                                ) : isWeb ? (
+                                    <WebAppContent />
+                                ) : (
+                                    <NativeAppContent />
+                                )}
                             </KeyboardWrapper>
                         </QueryClientProvider>
                     </ThemeProvider>

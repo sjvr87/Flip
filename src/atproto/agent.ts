@@ -100,7 +100,11 @@ export function wasRefreshTokenRejected(): boolean {
 
 /** @atproto/api 0.20+: refreshSession lives on CredentialSession, not AtpAgent. */
 async function refreshAgentSession(a: BskyAgent): Promise<void> {
-  await a.sessionManager.refreshSession()
+  const refresh = a.sessionManager?.refreshSession
+  if (typeof refresh !== 'function') {
+    throw new TypeError('sessionManager.refreshSession is not a function')
+  }
+  await refresh.call(a.sessionManager)
 }
 
 export async function tryRefreshSession(): Promise<boolean> {

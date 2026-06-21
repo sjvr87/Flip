@@ -12,6 +12,12 @@ import tw from 'twrnc';
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_HEIGHT = 60;
 
+const DEFAULT_PERMISSIONS = {
+    can_comment: true,
+    can_download: false,
+    can_duet: false,
+};
+
 export default function OtherModal({
     visible,
     item,
@@ -191,7 +197,7 @@ export default function OtherModal({
         },
     ].filter((option) => option.show);
 
-    // if (item.permissions?.can_duet) {
+    // if ((item.permissions ?? DEFAULT_PERMISSIONS).can_duet) {
     //     options.unshift({
     //         icon: 'duplicate-outline',
     //         label: 'Duet',
