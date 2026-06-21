@@ -14,7 +14,7 @@ import { Tabs } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-const ICON_SIZE = 30;
+const ICON_SIZE = 34;
 const CREATE_ADD_SIZE = Math.round(ICON_SIZE * (24 / 26));
 
 function CreateTabIcon({ isDark }: { isDark: boolean }) {
