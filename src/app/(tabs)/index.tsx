@@ -3,6 +3,13 @@ import FeedEmptyState from '@/components/feed/FeedEmptyState';
 import OtherModal from '@/components/feed/OtherModal';
 import ShareModal from '@/components/feed/ShareModal';
 import VideoPlayer from '@/components/feed/VideoPlayer';
+import {
+    feedFlatListWindowSize,
+    feedInitialNumToRender,
+    feedMaxToRenderPerBatch,
+    feedPlayerPreloadDistance,
+    feedPrefetchAhead,
+} from '@/utils/androidVideoSafeMode';
 import { useAuthStore } from '@/utils/authStore';
 import {
     FEED_GC_MS,
@@ -50,11 +57,11 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 /** Start loading next page when this many videos from the end (TikTok-style). */
 const LOAD_MORE_THRESHOLD = 4;
 /** Preload HLS for the next N videos beyond the FlatList render window. */
-const PREFETCH_AHEAD = 2;
+const PREFETCH_AHEAD = feedPrefetchAhead;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
 const MAX_EMPTY_DEDUPE_FETCHES = 2;
 /** Only mount expo-video players within this distance of the active slide. */
-const PLAYER_PRELOAD_DISTANCE = 2;
+const PLAYER_PRELOAD_DISTANCE = feedPlayerPreloadDistance;
 
 const fetchVideos = async ({
     pageParam = null,
@@ -97,6 +104,9 @@ export default function LoopsFeed({ navigation }) {
     const tabBarMetrics = useFlipTabBarMetrics();
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
+    const hasHydrated = useAuthStore((state) => state._hasHydrated);
+    const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+    const feedQueryEnabled = hasHydrated && isLoggedIn;
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
     const [activeTab, setActiveTab] = useState(defaultFeed);
     const feedEpoch = feedEpochs[activeTab] ?? 0;
@@ -127,6 +137,7 @@ export default function LoopsFeed({ navigation }) {
     const { data: appConfig, isLoading: isConfigLoading } = useQuery({
         queryKey: ['appConfig'],
         queryFn: getConfiguration,
+        enabled: feedQueryEnabled,
     });
 
     const forYouEnabled = appConfig?.fyf === true && !hideForYouFeed;
@@ -140,6 +151,9 @@ export default function LoopsFeed({ navigation }) {
     }, [isConfigLoading, appConfig, forYouEnabled, activeTab]);
 
     useEffect(() => {
+        if (!feedQueryEnabled) {
+            return;
+        }
         const epochs = feedEpochsRef.current;
         const prefetchTab = (tab: (typeof FEED_TABS)[number]) => {
             if (tab === 'forYou' && !forYouEnabled) {
@@ -159,7 +173,7 @@ export default function LoopsFeed({ navigation }) {
                 prefetchTab(tab);
             }
         }
-    }, [forYouEnabled, queryClient]);
+    }, [feedQueryEnabled, forYouEnabled, queryClient]);
 
     const recordVideoImpression = useCallback(
         async (video, duration) => {
@@ -202,6 +216,7 @@ export default function LoopsFeed({ navigation }) {
         refetchOnMount: true,
         refetchOnWindowFocus: false,
         maxPages: 25,
+        enabled: feedQueryEnabled,
     });
 
     const videoLikeMutation = useMutation({
@@ -552,7 +567,10 @@ export default function LoopsFeed({ navigation }) {
                     key={item.id}
                     item={item}
                     isActive={index === currentIndex}
-                    shouldPreload={Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE}
+                    shouldPreload={
+                        index === currentIndex ||
+                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE
+                    }
                     onLike={handleLike}
                     onComment={handleComment}
                     onShare={handleShare}
@@ -592,7 +610,7 @@ export default function LoopsFeed({ navigation }) {
     );
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
-    const showInitialLoader = isLoading && !hasFeedData;
+    const showInitialLoader = !feedQueryEnabled || (isLoading && !hasFeedData);
 
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
@@ -708,9 +726,9 @@ export default function LoopsFeed({ navigation }) {
                 onEndReachedThreshold={0.5}
                 getItemLayout={getItemLayout}
                 removeClippedSubviews={true}
-                maxToRenderPerBatch={3}
-                windowSize={7}
-                initialNumToRender={3}
+                maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                windowSize={feedFlatListWindowSize}
+                initialNumToRender={feedInitialNumToRender}
                 updateCellsBatchingPeriod={50}
                 refreshControl={
                     <RefreshControl

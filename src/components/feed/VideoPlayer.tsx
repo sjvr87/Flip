@@ -1,6 +1,7 @@
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
+import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -26,6 +27,9 @@ function safeCount(value: unknown): number {
 
 function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string; src_url?: string } } }) {
     useEffect(() => {
+        if (ANDROID_VIDEO_SAFE_MODE) {
+            return;
+        }
         void prefetchVideoUrl(item.media?.src_url);
     }, [item.media?.src_url]);
 
@@ -65,6 +69,10 @@ export default function VideoPlayer({
     overlayBottom,
     actionRailBottom,
 }) {
+    if (ANDROID_VIDEO_SAFE_MODE && !isActive) {
+        return <VideoSlidePlaceholder item={item} />;
+    }
+
     if (!isActive && !shouldPreload) {
         return <VideoSlidePlaceholder item={item} />;
     }
@@ -198,6 +206,9 @@ function VideoPlayerCore({
     ]);
 
     useEffect(() => {
+        if (ANDROID_VIDEO_SAFE_MODE) {
+            return;
+        }
         const url = item.media?.src_url;
         if (!url || isActive) {
             return;

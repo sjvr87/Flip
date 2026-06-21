@@ -129,10 +129,14 @@ if ($metroHealthy -and -not $RestartMetro) {
 
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
-  foreach ($serial in $serials) {
-    & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
-    $start = & $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1
-    Write-Host "  $serial : $start"
+  if (-not (Test-MetroHealthy)) {
+    Write-Host "  Skipped launch — Metro is not running on :8081. Start Metro or use -RestartMetro." -ForegroundColor Red
+  } else {
+    foreach ($serial in $serials) {
+      & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
+      $start = & $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1
+      Write-Host "  $serial : $start"
+    }
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow

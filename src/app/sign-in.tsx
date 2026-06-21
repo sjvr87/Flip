@@ -4,6 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { getSavedCredentials } from '@/atproto/credentialVault'
 import { openBrowser } from '@/atproto/auth'
 import { authenticateWithBiometric, canUseBiometrics, getBiometricLabel } from '@/utils/biometricAuth'
+import { skipBiometricAutoPromptOnLaunch } from '@/utils/androidVideoSafeMode'
 import { useAuthStore } from '@/utils/authStore'
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
@@ -138,6 +139,7 @@ export default function SignInScreen() {
 
   useEffect(() => {
     if (mode !== 'unlock' || biometricAttempted.current || isLoading) return
+    if (skipBiometricAutoPromptOnLaunch) return
     biometricAttempted.current = true
     void runBiometricUnlock()
   }, [mode, isLoading, runBiometricUnlock])

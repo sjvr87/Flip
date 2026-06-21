@@ -1,4 +1,8 @@
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
+import { Platform } from 'react-native';
+
+/** Disabled on Android — prefetch players SIGSEGV Hermes on Samsung / Android 17 beta. */
+const prefetchEnabled = Platform.OS !== 'android';
 
 /** Keep low — each player holds ExoPlayer + Hermes event listeners (OOM/SIGSEGV on Samsung). */
 const MAX_PREFETCH_PLAYERS = 2;
@@ -42,7 +46,7 @@ export function takePrefetchedPlayer(url: string | undefined | null): VideoPlaye
 
 /** Warm HLS cache for a URL without mounting a visible VideoPlayer. */
 export async function prefetchVideoUrl(url: string | undefined | null): Promise<void> {
-    if (!url || prefetched.has(url)) {
+    if (!prefetchEnabled || !url || prefetched.has(url)) {
         return;
     }
 
@@ -60,6 +64,9 @@ export async function prefetchVideoUrl(url: string | undefined | null): Promise<
 }
 
 export function prefetchVideoUrls(urls: (string | undefined | null)[]): void {
+    if (!prefetchEnabled) {
+        return;
+    }
     for (const url of urls) {
         void prefetchVideoUrl(url);
     }
