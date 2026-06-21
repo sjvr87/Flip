@@ -1,5 +1,5 @@
 import type { AppBskyNotificationDefs } from '@atproto/api'
-import { AppBskyEmbedVideo } from '@atproto/api'
+import { AppBskyEmbedVideo, AppBskyFeedLike, AppBskyFeedRepost } from '@atproto/api'
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
 import { parseRepoDidFromAtUri } from '@/utils/profileNavigation'
@@ -45,17 +45,63 @@ function actorFromNotification(
   }
 }
 
-function reasonToType(reason: string, reasonSubject?: string): string {
+/**
+ * Match Bluesky social-app getSubjectUri — reasonSubject alone is wrong for
+ * reposts (points at the repost record) and reply/quote/mention (use notif.uri).
+ */
+export function getNotificationSubjectUri(
+  notification: AppBskyNotificationDefs.Notification,
+): string | undefined {
+  const reason = notification.reason
+
+  if (
+    reason === 'reply' ||
+    reason === 'quote' ||
+    reason === 'mention' ||
+    reason === 'subscribed-post'
+  ) {
+    return notification.uri
+  }
+
+  if (
+    reason === 'like' ||
+    reason === 'repost' ||
+    reason === 'like-via-repost' ||
+    reason === 'repost-via-repost'
+  ) {
+    const record = notification.record
+    if (AppBskyFeedRepost.isRecord(record) || AppBskyFeedLike.isRecord(record)) {
+      const subjectUri = record.subject?.uri
+      if (typeof subjectUri === 'string' && subjectUri.length > 0) {
+        return subjectUri
+      }
+    }
+    if (notification.reasonSubject?.includes('app.bsky.feed.post')) {
+      return notification.reasonSubject
+    }
+    return undefined
+  }
+
+  if (notification.reasonSubject?.includes('app.bsky.feed.post')) {
+    return notification.reasonSubject
+  }
+
+  return notification.reasonSubject || undefined
+}
+
+function reasonToType(reason: string, subjectUri?: string): string {
   switch (reason) {
     case 'follow':
       return 'new_follower'
     case 'like':
-      return reasonSubject?.includes('app.bsky.feed.post') ? 'video.like' : 'comment.like'
+    case 'like-via-repost':
+      return subjectUri?.includes('app.bsky.feed.post') ? 'video.like' : 'comment.like'
     case 'reply':
       return 'video.comment'
     case 'quote':
       return 'video.comment'
     case 'repost':
+    case 'repost-via-repost':
       return 'video.share'
     case 'mention':
       return 'video.mention'
@@ -67,7 +113,7 @@ function reasonToType(reason: string, reasonSubject?: string): string {
 function extractVideoMeta(
   notification: AppBskyNotificationDefs.Notification,
 ): Pick<FlipNotification, 'video_id' | 'video_pid' | 'video_thumbnail'> {
-  const subject = notification.reasonSubject
+  const subject = getNotificationSubjectUri(notification)
   if (!subject) return {}
 
   let videoThumbnail: string | undefined
@@ -92,11 +138,12 @@ function extractVideoMeta(
 }
 
 function mapNotification(notification: AppBskyNotificationDefs.Notification): FlipNotification {
+  const subjectUri = getNotificationSubjectUri(notification)
   const videoMeta = extractVideoMeta(notification)
 
   return {
     id: notification.uri,
-    type: reasonToType(notification.reason, notification.reasonSubject),
+    type: reasonToType(notification.reason, subjectUri),
     ...videoMeta,
     actor: actorFromNotification(notification.author),
     read_at: notification.isRead ? notification.indexedAt : null,

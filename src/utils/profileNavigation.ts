@@ -18,6 +18,13 @@ export function parseRepoDidFromAtUri(uri: string): string | undefined {
   return match?.[1]
 }
 
+/** Web URL for an ATProto post URI (works with DID or handle in path). */
+export function postAtUriToBskyUrl(uri: string): string | undefined {
+  const match = uri.match(/^at:\/\/([^/]+)\/app\.bsky\.feed\.post\/([^/]+)/)
+  if (!match) return undefined
+  return `https://bsky.app/profile/${match[1]}/post/${match[2]}`
+}
+
 export function toProfilePath(profileId: string) {
   return {
     pathname: '/private/profile/[id]' as const,

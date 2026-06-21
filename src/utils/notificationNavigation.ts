@@ -36,7 +36,7 @@ export function getNotificationRoute(item: NotificationNavItem): NotificationRou
     }
 
     if (item.video_id) {
-        const profileId = item.video_pid || parseRepoDidFromAtUri(item.video_id)
+        const profileId = parseRepoDidFromAtUri(item.video_id) || item.video_pid
         if (profileId) {
             return toProfileFeedPath(item.video_id, profileId, {
                 openComments: COMMENT_ACTIVITY_TYPES.has(item.type),

@@ -27,13 +27,13 @@ import {
     videoUnbookmark,
     videoUnlike,
 } from '@/utils/requests';
-import { decodeRouteParam, parseRepoDidFromAtUri } from '@/utils/profileNavigation';
+import { decodeRouteParam, parseRepoDidFromAtUri, postAtUriToBskyUrl, toProfilePath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileFeed({ navigation }) {
@@ -273,6 +273,17 @@ export default function ProfileFeed({ navigation }) {
     };
 
     const showEmptyFeed = !isLoading && feedHeight > 0 && videos.length === 0;
+    const bskyPostUrl = postAtUriToBskyUrl(id);
+
+    const handleOpenOnBsky = () => {
+        if (bskyPostUrl) {
+            Linking.openURL(bskyPostUrl);
+            return;
+        }
+        if (profileId) {
+            router.push(toProfilePath(profileId));
+        }
+    };
 
     return (
         <View style={styles.container} onLayout={onContainerLayout}>
@@ -292,8 +303,26 @@ export default function ProfileFeed({ navigation }) {
                 </View>
             ) : showEmptyFeed ? (
                 <View style={styles.loadingContainer}>
-                    <Text style={styles.emptyText}>This post could not be loaded.</Text>
-                    <TouchableOpacity style={styles.emptyBackButton} onPress={() => router.back()}>
+                    <Text style={styles.emptyText}>
+                        {bskyPostUrl
+                            ? 'This post is text-only or could not be shown in the video feed.'
+                            : 'This post could not be loaded.'}
+                    </Text>
+                    {bskyPostUrl ? (
+                        <TouchableOpacity style={styles.emptyBackButton} onPress={handleOpenOnBsky}>
+                            <Text style={styles.emptyBackText}>View on Bluesky</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    {profileId ? (
+                        <TouchableOpacity
+                            style={[styles.emptyBackButton, bskyPostUrl ? styles.emptySecondaryButton : null]}
+                            onPress={() => router.push(toProfilePath(profileId))}>
+                            <Text style={styles.emptyBackText}>View profile</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                        style={[styles.emptyBackButton, styles.emptySecondaryButton]}
+                        onPress={() => router.back()}>
                         <Text style={styles.emptyBackText}>Go back</Text>
                     </TouchableOpacity>
                 </View>
@@ -411,6 +440,10 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 8,
         backgroundColor: 'rgba(255,255,255,0.15)',
+        marginBottom: 10,
+    },
+    emptySecondaryButton: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     emptyBackText: {
         color: '#fff',

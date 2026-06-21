@@ -1,4 +1,5 @@
 import type { AppBskyFeedDefs } from '@atproto/api'
+import { AppBskyFeedLike, AppBskyFeedRepost, AtUri } from '@atproto/api'
 import Constants from 'expo-constants'
 import { decodeRouteParam } from '@/utils/profileNavigation'
 import {
@@ -1182,15 +1183,47 @@ export async function fetchUserVideos({
   return postsToMediaPage(res.data.feed, res.data.cursor)
 }
 
+async function normalizeToPostUri(
+  agent: ReturnType<typeof getAgent>,
+  uri: string,
+): Promise<string> {
+  if (uri.includes('app.bsky.feed.post')) {
+    return uri
+  }
+
+  try {
+    const atUri = new AtUri(uri)
+    if (atUri.collection === 'app.bsky.feed.repost' || atUri.collection === 'app.bsky.feed.like') {
+      const record = await agent.com.atproto.repo.getRecord({
+        repo: atUri.host,
+        collection: atUri.collection,
+        rkey: atUri.rkey,
+      })
+      const value = record.data.value
+      if (AppBskyFeedRepost.isRecord(value) || AppBskyFeedLike.isRecord(value)) {
+        const subjectUri = value.subject?.uri
+        if (typeof subjectUri === 'string' && subjectUri.length > 0) {
+          return subjectUri
+        }
+      }
+    }
+  } catch {
+    // Fall through to caller resolution chain.
+  }
+
+  return uri
+}
+
 async function resolveMediaPostView(
   agent: ReturnType<typeof getAgent>,
   uri: string,
 ): Promise<import('@atproto/api').AppBskyFeedDefs.PostView | null> {
-  let currentUri: string | undefined = uri
+  let currentUri: string | undefined = await normalizeToPostUri(agent, uri)
   const visited = new Set<string>()
 
   for (let depth = 0; depth < 8 && currentUri && !visited.has(currentUri); depth++) {
     visited.add(currentUri)
+    currentUri = await normalizeToPostUri(agent, currentUri)
     const res = await agent.getPosts({ uris: [currentUri] })
     const post = res.data.posts[0]
     if (!post) return null
@@ -1241,12 +1274,17 @@ export async function fetchUserVideoCursor({
 
     return withAuthenticatedFetch(async () => {
       const agent = getAgent()
-      const postRes = await agent.getPosts({ uris: [videoUri] })
+      const normalizedUri = await normalizeToPostUri(agent, videoUri)
+      const postRes = await agent.getPosts({ uris: [normalizedUri] })
       const targetPost = postRes.data.posts[0]
 
       let resolvedPost = targetPost && isMediaPost(targetPost) ? targetPost : null
       if (!resolvedPost) {
-        resolvedPost = await resolveMediaPostView(agent, videoUri)
+        resolvedPost = await resolveMediaPostView(agent, normalizedUri)
+      }
+
+      if (resolvedPost && !isMediaPost(resolvedPost)) {
+        resolvedPost = await resolveMediaPostView(agent, resolvedPost.uri)
       }
 
       let feedItems: AppBskyFeedDefs.FeedViewPost[] = []
@@ -1274,7 +1312,7 @@ export async function fetchUserVideoCursor({
 
       const resolvedUri = resolvedPost.uri
       const hasTarget = feedItems.some(
-        (item) => item.post.uri === resolvedUri || item.post.uri === videoUri,
+        (item) => item.post.uri === resolvedUri || item.post.uri === normalizedUri,
       )
 
       const items = !hasTarget
