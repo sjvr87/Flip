@@ -15,8 +15,8 @@ type MailboxTabIconProps = {
 const ACCENT = '#FFB800';
 
 /**
- * US mailbox on a post — pure react-native-svg line art at 30px.
- * Body/post use tab tint; unread accents (#FFB800) are separated by real gaps.
+ * US mailbox on a post — filled two-tone SVG at 30px (viewBox 30×30).
+ * Body/post use tab tint; unread accents (#FFB800) are gapped by real negative space.
  * Priority when multiple unread: messages > likes > follows.
  */
 const MailboxTabIcon = memo(function MailboxTabIcon({
@@ -25,72 +25,51 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
     focused = false,
     state = 'allRead',
 }: MailboxTabIconProps) {
-    const sw = focused ? 1.75 : 1.3;
     const opacity = focused ? 1 : 0.72;
     const flagUp = state !== 'allRead';
 
-    const stroke = {
-        stroke: color,
-        strokeWidth: sw,
-        strokeOpacity: opacity,
-        strokeLinecap: 'round' as const,
-        strokeLinejoin: 'round' as const,
-        fill: 'none' as const,
-    };
+    // ── Layout (30×30) — traced from user reference ─────────────────────────
+    const bodyL = 7.8;
+    const bodyR = 22.6;
+    const bodyTop = 13.1;
+    const bodyBot = 22.5;
+    const doorTop = 15.4;
+    const doorBot = 20.6;
 
-    // ── Layout (26×26 viewBox) ──────────────────────────────────────────────
-    const bodyL = 5.55;
-    const bodyR = 19.85;
-    const bodyBot = 19.15;
-    const doorTop = 12.35;
-    const doorBot = 17.65;
+    const fill = { fill: color, opacity };
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-            {/* Thick post — centered under body */}
-            <Rect
-                x={11.55}
-                y={19.55}
-                width={2.9}
-                height={5.85}
-                rx={0.65}
-                fill={color}
-                opacity={opacity}
-            />
+        <Svg width={size} height={size} viewBox="0 0 30 30" fill="none">
+            {/* Post — thick stake, centered under body */}
+            <Rect x={13.2} y={22.7} width={3.6} height={6.7} rx={0.75} {...fill} />
 
-            {/* Left-slot overlay: envelope / heart / people (never with flag-down) */}
+            {/* Slot overlay: envelope / heart / people */}
             {state === 'messages' ? (
                 <EnvelopeAccent />
             ) : state === 'likes' ? (
-                <FoldedHeartGroup x={0.75} y={10.75} scale={0.42} />
+                <FoldedHeartGroup x={1.0} y={12.6} scale={0.42} />
             ) : state === 'follows' ? (
                 <FollowPeopleGroup
-                    x={1.2}
-                    y={11.6}
+                    x={1.4}
+                    y={13.4}
                     scale={0.44}
                     color={color}
                     strokeWidth={focused ? 1.2 : 1.05}
                 />
             ) : null}
 
-            {/* Mailbox body — domed top, open left; right edge breaks for flag halo */}
-            <Path d={`M ${bodyL} ${bodyBot} H ${bodyR}`} {...stroke} />
-            {flagUp ? (
-                <>
-                    <Path d={`M ${bodyR} ${bodyBot} V 18.55`} {...stroke} />
-                    <Path d={`M ${bodyR} 16.15 V 11.15`} {...stroke} />
-                </>
-            ) : (
-                <Path d={`M ${bodyR} ${bodyBot} V 11.15`} {...stroke} />
-            )}
-            <Path d={`M ${bodyR} 11.15 A 7.55 4.05 0 0 0 ${bodyL} 11.15`} {...stroke} />
-
-            {/* Left wall segments — door opening is negative space between them */}
-            <Path d={`M ${bodyL} 11.15 V ${doorTop}`} {...stroke} />
-            <Path d={`M ${bodyL} ${doorBot} V ${bodyBot}`} {...stroke} />
+            {/* Mailbox body — domed top, open-mouth bite on left */}
             <Path
-                d={`M ${bodyL + 0.05} ${doorTop - 0.05} C ${bodyL - 1.05} ${doorTop + 1.55} ${bodyL - 1.1} ${doorBot - 1.55} ${bodyL + 0.05} ${doorBot + 0.05}`}
-                {...stroke}
+                d={[
+                    `M ${bodyL} ${bodyBot}`,
+                    `H ${bodyR}`,
+                    `V ${bodyTop}`,
+                    `A 8.85 4.75 0 0 0 ${bodyL} ${bodyTop}`,
+                    `V ${doorTop}`,
+                    `C ${bodyL - 1.65} ${doorTop + 1.55} ${bodyL - 1.7} ${doorBot - 1.55} ${bodyL} ${doorBot}`,
+                    'Z',
+                ].join(' ')}
+                {...fill}
             />
 
             {flagUp ? <FlagUpAccent bodyRight={bodyR} /> : <FlagDown bodyRight={bodyR} color={color} opacity={opacity} />}
@@ -98,49 +77,53 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
     );
 });
 
-/** Goldenrod envelope — spaced left of opening; V flap uses transparent notch. */
+/** Goldenrod envelope — gapped left of opening; V flap leaves transparent groove. */
 function EnvelopeAccent() {
-    const l = 1.25;
-    const r = 6.45;
-    const bodyTop = 15.05;
-    const bodyBot = 17.15;
-    const flapBase = 14.8;
-    const flapTip = 13.05;
+    const l = 1.4;
+    const r = 5.6;
+    const bot = 19.3;
+    const top = 16.9;
+    const flapBase = 16.65;
+    const flapTip = 14.6;
     const mid = (l + r) / 2;
 
     return (
         <>
-            <Path d={`M ${l} ${bodyBot} H ${r} V ${bodyTop} H ${l} Z`} fill={ACCENT} />
+            <Path d={`M ${l} ${bot} H ${r} V ${top} H ${l} Z`} fill={ACCENT} />
             <Path d={`M ${l} ${flapBase} L ${l} ${flapTip} L ${mid} ${flapBase} Z`} fill={ACCENT} />
             <Path d={`M ${r} ${flapBase} L ${r} ${flapTip} L ${mid} ${flapBase} Z`} fill={ACCENT} />
         </>
     );
 }
 
-/** Flag up — pole + hinge pill + swallowtail; halo gap keeps pole off body stroke. */
+/** Flag up — pole + hinge pill + right swallowtail; gapped from body right edge. */
 function FlagUpAccent({ bodyRight }: { bodyRight: number }) {
-    const poleL = bodyRight + 0.75;
-    const poleW = 0.95;
-    const poleTop = 6.85;
-    const poleBot = 16.05;
-    const pillL = bodyRight + 0.55;
-    const pillW = 2.35;
-    const pillY = 16.2;
-    const pillH = 1.2;
+    const gap = 1.05;
+    const poleL = bodyRight + gap;
+    const poleW = 1.1;
+    const poleTop = 7.9;
+    const poleBot = 19.6;
+    const pillL = bodyRight + 0.2;
+    const pillW = 2.55;
+    const pillY = 19.75;
+    const pillH = 1.35;
+    const pennantL = poleL + poleW / 2;
+    const pennantR = 28.8;
+    const notchX = 27.2;
 
     return (
         <>
-            <Rect x={poleL} y={poleTop} width={poleW} height={poleBot - poleTop} rx={0.48} fill={ACCENT} />
+            <Rect x={poleL} y={poleTop} width={poleW} height={poleBot - poleTop} rx={0.55} fill={ACCENT} />
             <Rect x={pillL} y={pillY} width={pillW} height={pillH} rx={pillH / 2} fill={ACCENT} />
             <Path
-                d={`M ${poleL + poleW / 2 - 0.05} ${poleTop - 0.15} H 25.05 L 23.55 8.45 25.05 10.25 H ${poleL + poleW / 2 - 0.05} Z`}
+                d={`M ${pennantL} ${poleTop - 0.2} H ${pennantR} L ${notchX} ${poleTop + 1.05} L ${pennantR} ${poleTop + 2.3} H ${pennantL} Z`}
                 fill={ACCENT}
             />
         </>
     );
 }
 
-/** Flag down — horizontal stem + left swallowtail; tab tint, no accent. */
+/** Flag down — horizontal stem + left swallowtail; tab tint when all read. */
 function FlagDown({
     bodyRight,
     color,
@@ -150,25 +133,33 @@ function FlagDown({
     color: string;
     opacity: number;
 }) {
-    const stemL = 10.85;
-    const stemR = bodyRight - 0.35;
-    const stemY = 17.35;
-    const stemH = 1.15;
+    const stemL = 12.5;
+    const stemR = bodyRight - 0.4;
+    const stemY = 20.0;
+    const stemH = 1.3;
 
     return (
         <>
             <Rect
-                x={bodyRight - 1.95}
-                y={16.95}
-                width={2.15}
-                height={1.25}
-                rx={0.62}
+                x={bodyRight - 2.25}
+                y={19.55}
+                width={2.5}
+                height={1.45}
+                rx={0.72}
                 fill={color}
                 opacity={opacity}
             />
-            <Rect x={stemL} y={stemY} width={stemR - stemL} height={stemH} rx={stemH / 2} fill={color} opacity={opacity} />
+            <Rect
+                x={stemL}
+                y={stemY}
+                width={stemR - stemL}
+                height={stemH}
+                rx={stemH / 2}
+                fill={color}
+                opacity={opacity}
+            />
             <Path
-                d={`M ${stemL} ${stemY - 0.8} V ${stemY + stemH + 0.8} H ${stemL - 3.75} L ${stemL - 2.2} ${stemY + stemH / 2} ${stemL - 3.75} ${stemY - 0.8} Z`}
+                d={`M ${stemL} ${stemY - 0.9} V ${stemY + stemH + 0.9} H ${stemL - 4.3} L ${stemL - 2.55} ${stemY + stemH / 2} ${stemL - 4.3} ${stemY - 0.9} Z`}
                 fill={color}
                 opacity={opacity}
             />
