@@ -4,7 +4,6 @@ import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
-import { useFeedScrollGesture } from '@/utils/feedScrollGesture';
 import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { canUseFlipCamera } from '@/utils/runtime';
@@ -15,26 +14,17 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
     Platform,
-    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Reanimated, {
-    Extrapolation,
-    interpolate,
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-} from 'react-native-reanimated';
+import { Pressable as GesturePressable } from 'react-native-gesture-handler';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -43,8 +33,6 @@ function safeCount(value: unknown): number {
 }
 
 const POSTER_BG = '#1a1a1a';
-const MAX_VIDEO_ZOOM = 2.5;
-const ZOOM_RESET_SPRING = { damping: 18, stiffness: 180 };
 
 type ExpoVideoPlayer = ReturnType<typeof createVideoPlayer>;
 
@@ -404,79 +392,12 @@ function VideoPlayerCore({
         }
     }, [flashPauseHint, isActive, isPlaying, item.id, player, setManuallyPaused]);
 
-    const feedScrollGesture = useFeedScrollGesture();
-    const zoomScale = useSharedValue(1);
-    const zoomStartScale = useSharedValue(1);
-
-    useEffect(() => {
-        if (!isActive) {
-            zoomScale.value = 1;
-            zoomStartScale.value = 1;
+    const handleTapOverlay = useCallback(() => {
+        if (__DEV__) {
+            console.log('[VideoPlayer] tap overlay', { id: item.id, isActive });
         }
-    }, [isActive, zoomScale, zoomStartScale]);
-
-    // Tap must use RNGH Gesture.Tap (not Pressable) when composed with pinch: a pinch-only
-    // GestureDetector steals single-finger touches on Android before Pressable onPress fires.
-    const videoGestures = useMemo(() => {
-        try {
-            const pinchFactory = Gesture?.Pinch;
-            const tapFactory = Gesture?.Tap;
-            const simultaneousFactory = Gesture?.Simultaneous;
-
-            if (typeof tapFactory !== 'function') {
-                return null;
-            }
-
-            const tap = tapFactory()
-                .maxDuration(250)
-                .maxPointers(1)
-                .onEnd(() => {
-                    runOnJS(togglePlayPause)();
-                });
-
-            if (typeof pinchFactory !== 'function' || typeof simultaneousFactory !== 'function') {
-                return tap;
-            }
-
-            const pinch = pinchFactory()
-                .onStart(() => {
-                    'worklet';
-                    zoomStartScale.value = zoomScale.value;
-                })
-                .onUpdate((event) => {
-                    'worklet';
-                    const next = zoomStartScale.value * event.scale;
-                    zoomScale.value = Math.min(MAX_VIDEO_ZOOM, Math.max(1, next));
-                })
-                .onFinalize(() => {
-                    'worklet';
-                    zoomScale.value = withSpring(1, ZOOM_RESET_SPRING);
-                    zoomStartScale.value = 1;
-                });
-
-            if (
-                feedScrollGesture &&
-                typeof pinch.blocksExternalGesture === 'function'
-            ) {
-                pinch.blocksExternalGesture(feedScrollGesture);
-            }
-
-            // Simultaneous (not Exclusive): Exclusive pinch waits for a 2nd finger and
-            // captures the first pointer, preventing single-finger tap from firing.
-            return simultaneousFactory(pinch, tap);
-        } catch (error) {
-            console.warn('[VideoPlayer] gesture setup failed:', error);
-            return null;
-        }
-    }, [feedScrollGesture, togglePlayPause, zoomScale, zoomStartScale]);
-
-    const zoomedVideoStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: zoomScale.value }],
-    }));
-
-    const captionOverlayStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(zoomScale.value, [1, 1.05], [1, 0], Extrapolation.CLAMP),
-    }));
+        togglePlayPause();
+    }, [isActive, item.id, togglePlayPause]);
 
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
@@ -598,8 +519,8 @@ function VideoPlayerCore({
     const hidePoster = videoReady && isActive;
 
     const videoBody = (
-            <View style={styles.videoContainer}>
-                <Reanimated.View style={[styles.videoWrapper, zoomedVideoStyle]}>
+            <View style={styles.videoContainer} pointerEvents="box-none">
+                <View style={styles.videoWrapper}>
                     {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                     <VideoView
                         style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
@@ -613,28 +534,29 @@ function VideoPlayerCore({
                         accessibilityHint="Tap to pause or play"
                         contentFit="contain"
                     />
-                </Reanimated.View>
+                </View>
 
-                {videoGestures ? (
-                    <GestureDetector gesture={videoGestures}>
-                        <View
-                            style={styles.tapOverlay}
-                            accessible={true}
-                            accessibilityLabel="Video"
-                            accessibilityHint="Tap to pause or play"
-                            accessibilityRole="button"
-                        />
-                    </GestureDetector>
-                ) : (
-                    <Pressable
-                        style={styles.tapOverlay}
-                        onPress={togglePlayPause}
+                {/* DO NOT wrap tap Pressable in pinch GestureDetector — Android steals single-finger touches. */}
+                {/* Pinch zoom disabled on feed until tap pause is reliable on all Android devices. */}
+                <View
+                    style={styles.tapOverlay}
+                    collapsable={false}
+                    pointerEvents="box-none"
+                    onStartShouldSetResponder={() => Platform.OS === 'android'}
+                    onResponderRelease={
+                        Platform.OS === 'android' ? handleTapOverlay : undefined
+                    }
+                    onResponderTerminationRequest={() => false}>
+                    <GesturePressable
+                        style={StyleSheet.absoluteFillObject}
+                        onPress={Platform.OS === 'ios' ? handleTapOverlay : undefined}
+                        android_ripple={{ color: 'transparent' }}
                         accessible={true}
                         accessibilityLabel="Video"
                         accessibilityHint="Tap to pause or play"
                         accessibilityRole="button"
                     />
-                )}
+                </View>
 
                 {showPauseHint && (
                     <View style={styles.controlsOverlay} pointerEvents="none">
@@ -644,15 +566,13 @@ function VideoPlayerCore({
                     </View>
                 )}
 
-                <Reanimated.View
-                    pointerEvents="none"
-                    style={[styles.gradientOverlay, captionOverlayStyle]}>
+                <View pointerEvents="none" style={styles.gradientOverlay}>
                     <LinearGradient
                         colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
                         style={StyleSheet.absoluteFillObject}
                         pointerEvents="none"
                     />
-                </Reanimated.View>
+                </View>
 
                 <FeedActionRail
                 avatarUrl={item.account?.avatar}
@@ -681,8 +601,8 @@ function VideoPlayerCore({
                 onOther={() => onOther(item)}
                 />
 
-                <Reanimated.View
-                    style={[styles.bottomInfo, { bottom: captionBottom }, captionOverlayStyle]}
+                <View
+                    style={[styles.bottomInfo, { bottom: captionBottom }]}
                     pointerEvents="box-none">
                 <TouchableOpacity
                     onPress={() => {
@@ -769,7 +689,7 @@ function VideoPlayerCore({
                         </View>
                     </View>
                 )}
-                </Reanimated.View>
+                </View>
             </View>
     );
 
@@ -809,6 +729,7 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         zIndex: 4,
         elevation: 4,
+        backgroundColor: 'transparent',
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
