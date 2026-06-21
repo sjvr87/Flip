@@ -1,0 +1,34 @@
+---
+description: Run independent work in parallel via concurrent subagents; don't serialize when tasks don't depend on each other.
+alwaysApply: true
+---
+
+# Auto parallel work
+
+When the user has **multiple independent requests** or setup can run **parallel to implementation**, launch multiple background subagents **concurrently in ONE message** — don't serialize unnecessarily.
+
+## When to parallelize
+
+- **Independent requests** — e.g. feed fix + nav fix as separate agents if they don't share files or root cause
+- **Setup + implementation** — e.g. `git pull` + rule/doc update in parallel when neither needs the other's output
+- **Push while user tests** — commit/push can run while the user validates on device; don't block one on the other unless results matter
+
+## When to use ONE agent
+
+Prefer a **single agent** when tasks share context:
+
+- Same files or modules
+- Same bug root cause
+- Later work needs earlier work's output (types, API shape, investigation findings)
+
+## How to launch
+
+- Send **one message** with multiple `Task` tool calls when subagents are appropriate
+- Set `run_in_background: true` when work can proceed without blocking the parent
+- **Don't wait** for subagent A to finish before starting B if B doesn't depend on A's output
+
+## Pair with other Flip rules
+
+- **[auto-dev-workflow.mdc](auto-dev-workflow.mdc)** — pull + Metro prep can overlap with unrelated implementation when safe
+- **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt for parallel shell work
+- **[auto-push-progress.mdc](auto-push-progress.mdc)** — push progress without serializing unrelated fixes that are already done
