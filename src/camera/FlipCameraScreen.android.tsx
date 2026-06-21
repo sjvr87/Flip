@@ -3,6 +3,7 @@ import { launchUploadGalleryPicker } from '@/camera/launchUploadGalleryPicker'
 import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions'
 import { useRecentGalleryThumb } from '@/camera/useRecentGalleryThumb'
 import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer'
+import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability'
 import { PressableHaptics } from '@/components/ui/PressableHaptics'
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore'
 import { FlipCamerawesomeView } from 'flip-camerawesome'
@@ -281,10 +282,11 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      {isCameraReady && remixReferenceUrl ? (
+      {remixReferenceUrl ? (
         <ReferenceAudioPlayer
           url={remixReferenceUrl}
-          active={isFocused && isCameraActive}
+          active={isCameraReady && isFocused && isCameraActive}
+          recordingActive={isRecording}
         />
       ) : null}
       <GestureDetector gesture={cameraGestures}>
@@ -337,7 +339,9 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             <Ionicons name="musical-notes" size={14} color="#22D3EE" />
             <Text style={styles.remixBannerText} numberOfLines={1}>
               Remix @{pendingRemix.username}
-              {remixReferenceUrl ? ' · reference playing' : ' · credit attached'}
+              {remixReferenceUrl
+                ? remixReferenceBannerSuffix(remixReferenceUrl)
+                : ' · credit attached'}
             </Text>
             <PressableHaptics
               onPress={handleRemoveRemix}

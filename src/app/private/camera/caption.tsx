@@ -1,6 +1,7 @@
 import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer';
+import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { uploadMediaPost } from '@/atproto/upload';
@@ -588,7 +589,7 @@ export default function CaptionScreen() {
                         <Ionicons name="musical-notes" size={16} color="#22D3EE" />
                         <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300 flex-shrink`}>
                             Remix · audio credit @{reusedAudioSource.username}
-                            {reusedAudioSource.referenceVideoUrl ? ' · reference playing' : ''}
+                            {remixReferenceBannerSuffix(reusedAudioSource.referenceVideoUrl)}
                         </Text>
                         <TouchableOpacity
                             onPress={handleRemoveRemix}

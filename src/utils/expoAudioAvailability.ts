@@ -9,6 +9,17 @@ export function isExpoAudioAvailable(): boolean {
   return getExpoAudioModule() != null;
 }
 
+/** Banner suffix for remix flows when a reference clip URL is attached. */
+export function remixReferenceBannerSuffix(referenceVideoUrl: string | undefined): string {
+  if (!referenceVideoUrl) {
+    return '';
+  }
+  if (!isExpoAudioAvailable()) {
+    return ' · rebuild app to hear reference';
+  }
+  return ' · reference playing';
+}
+
 /** Lazy-load expo-audio only when the native module is present (avoids startup crash). */
 export function getExpoAudioModule(): ExpoAudioExports | null {
   if (cachedModule !== undefined) {
