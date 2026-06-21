@@ -97,7 +97,13 @@ export default function FeedActionRail({
                     end={{ x: 1, y: 0 }}
                     style={styles.avatarRing}>
                     <View style={styles.avatarInner}>
-                        <Avatar url={avatarUrl} width={40} borderWidth={0} />
+                        <Avatar
+                            url={avatarUrl}
+                            width={40}
+                            borderWidth={0}
+                            placeholder={{ color: '#3a3a3a' }}
+                            transition={150}
+                        />
                     </View>
                 </LinearGradient>
             </PressableHaptics>
@@ -273,7 +279,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#000',
+        backgroundColor: '#3a3a3a',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',

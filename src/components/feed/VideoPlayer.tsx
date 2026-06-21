@@ -4,6 +4,7 @@ import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
+import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -25,24 +26,47 @@ function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+const POSTER_BG = '#1a1a1a';
+
+function prefetchThumbnail(url: string | undefined) {
+    if (!url) {
+        return;
+    }
+    void Image.prefetch(url);
+}
+
+function VideoPoster({ thumbnail }: { thumbnail?: string }) {
+    return (
+        <View style={styles.posterLayer} pointerEvents="none">
+            {thumbnail ? (
+                <Image
+                    source={{ uri: thumbnail }}
+                    style={styles.posterImage}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                    transition={0}
+                    placeholder={{ color: POSTER_BG }}
+                />
+            ) : null}
+        </View>
+    );
+}
+
 function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string; src_url?: string } } }) {
+    const thumbnail = item.media?.thumbnail;
+
     useEffect(() => {
+        prefetchThumbnail(thumbnail);
         if (ANDROID_VIDEO_SAFE_MODE) {
             return;
         }
         void prefetchVideoUrl(item.media?.src_url);
-    }, [item.media?.src_url]);
+    }, [item.media?.src_url, thumbnail]);
 
     return (
         <View style={styles.videoContainer}>
             <View style={styles.videoWrapper}>
-                {item.media?.thumbnail ? (
-                    <Image
-                        source={{ uri: item.media.thumbnail }}
-                        style={styles.video}
-                        contentFit="contain"
-                    />
-                ) : null}
+                <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>
     );
@@ -70,10 +94,6 @@ export default function VideoPlayer({
     overlayBottom,
     actionRailBottom,
 }) {
-    if (ANDROID_VIDEO_SAFE_MODE && !isActive) {
-        return <VideoSlidePlaceholder item={item} />;
-    }
-
     if (!isActive && !shouldPreload) {
         return <VideoSlidePlaceholder item={item} />;
     }
@@ -129,6 +149,7 @@ function VideoPlayerCore({
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
     const [showControls, setShowControls] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [videoReady, setVideoReady] = useState(false);
     const manualControlRef = useRef(false);
     const isMountedRef = useRef(true);
     const wasActiveRef = useRef(false);
@@ -140,12 +161,24 @@ function VideoPlayerCore({
     const playbackRate = videoPlaybackRates[item.id] || 1.0;
 
     const srcUrl = item.media?.src_url;
+    const thumbnail = item.media?.thumbnail;
     const playerRef = useRef<ReturnType<typeof createVideoPlayer> | null>(null);
     if (!playerRef.current && srcUrl) {
         playerRef.current =
             takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
     }
     const player = playerRef.current;
+
+    useEffect(() => {
+        setVideoReady(false);
+        prefetchThumbnail(thumbnail);
+    }, [srcUrl, thumbnail]);
+
+    useEventListener(player, 'statusChange', ({ status }) => {
+        if (status === 'readyToPlay' && isMountedRef.current) {
+            setVideoReady(true);
+        }
+    });
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -344,11 +377,14 @@ function VideoPlayerCore({
         );
     }
 
+    const hidePoster = videoReady && isActive;
+
     return (
         <View style={styles.videoContainer}>
             <View style={styles.videoWrapper}>
+                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                 <VideoView
-                    style={styles.video}
+                    style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
                     player={player}
                     allowsPictureInPicture={false}
                     nativeControls={false}
@@ -498,12 +534,25 @@ const styles = StyleSheet.create({
     },
     videoWrapper: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: POSTER_BG,
+    },
+    posterLayer: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: POSTER_BG,
+        zIndex: 0,
+    },
+    posterImage: {
+        width: '100%',
+        height: '100%',
     },
     video: {
         width: '100%',
         height: '100%',
-        backgroundColor: '#000',
+        backgroundColor: 'transparent',
+        zIndex: 1,
+    },
+    videoHiddenUntilReady: {
+        opacity: 0,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,

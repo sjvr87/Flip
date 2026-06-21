@@ -24,6 +24,7 @@ import {
 } from '@/utils/feedCache';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchVideoUrls } from '@/utils/videoPrefetch';
+import { Image } from 'expo-image';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -507,6 +508,15 @@ export default function LoopsFeed({ navigation }) {
             ahead.push(videos[currentIndex + i]?.media?.src_url);
         }
         prefetchVideoUrls(ahead);
+
+        // Thumbnail prefetch works on Android (unlike expo-video player prefetch).
+        const thumbAhead = 3;
+        for (let i = -1; i <= thumbAhead; i++) {
+            const thumb = videos[currentIndex + i]?.media?.thumbnail;
+            if (thumb) {
+                void Image.prefetch(thumb);
+            }
+        }
     }, [currentIndex, videos]);
 
     useEffect(() => {
