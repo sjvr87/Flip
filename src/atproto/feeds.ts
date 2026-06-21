@@ -10,7 +10,7 @@ import {
   videoDedupeKey,
 } from '@/utils/feedCache'
 import { postsToFeedPage, postsToMediaPage } from './adapters'
-import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
+import { getAgent, restoreSessionFromStorageIfEmpty, SessionExpiredError, withAuthenticatedFetch } from './agent'
 import type { FlipFeedPage, FlipVideo } from './types'
 
 type PageParam = string | false | null | undefined
@@ -85,34 +85,40 @@ async function getViewerFollowingDids(): Promise<Set<string>> {
     return followingDidsCache.dids
   }
 
-  const agent = getAgent()
-  const actor = agent.session?.did
+  const actor = getAgent().session?.did
   if (!actor) {
     return new Set()
   }
 
-  const dids = new Set<string>()
-  let cursor: string | undefined
+  const loadFollows = async (): Promise<Set<string>> => {
+    const dids = new Set<string>()
+    let cursor: string | undefined
 
-  try {
     do {
-      const res = await agent.app.bsky.graph.getFollows({
-        actor,
-        limit: 100,
-        cursor,
-      })
+      const res = await withAuthenticatedFetch(() =>
+        getAgent().app.bsky.graph.getFollows({
+          actor,
+          limit: 100,
+          cursor,
+        }),
+      )
       for (const follow of res.data.follows) {
         dids.add(follow.did)
       }
       cursor = res.data.cursor
     } while (cursor)
+
+    return dids
+  }
+
+  try {
+    const dids = await loadFollows()
+    followingDidsCache = { dids, fetchedAt: Date.now() }
+    return dids
   } catch (error) {
     console.warn('[feed] getFollows failed, discovery filter disabled:', error)
     return followingDidsCache?.dids ?? new Set()
   }
-
-  followingDidsCache = { dids, fetchedAt: Date.now() }
-  return dids
 }
 
 function partitionByFollowing(
@@ -203,19 +209,22 @@ async function mergeForYouSuggestions(
   followingDids: Set<string>,
 ): Promise<FlipFeedPage> {
   try {
-    const agent = getAgent()
-    const res = await agent.app.bsky.actor.getSuggestions({ limit: 10 })
+    const res = await withAuthenticatedFetch(() =>
+      getAgent().app.bsky.actor.getSuggestions({ limit: 10 }),
+    )
     const boostVideos: FlipVideo[] = []
 
     for (const actor of res.data.actors) {
       if (followingDids.has(actor.did)) {
         continue
       }
-      const feedRes = await agent.app.bsky.feed.getAuthorFeed({
-        actor: actor.did,
-        filter: 'posts_with_media',
-        limit: 20,
-      })
+      const feedRes = await withAuthenticatedFetch(() =>
+        getAgent().app.bsky.feed.getAuthorFeed({
+          actor: actor.did,
+          filter: 'posts_with_media',
+          limit: 20,
+        }),
+      )
       const candidate = postsToFeedPage(feedRes.data.feed, undefined).data[0]
       if (candidate) {
         boostVideos.push(candidate)
@@ -430,6 +439,7 @@ export async function fetchFollowingFeed({
   pageParam = false,
   refreshEpoch = 0,
 }: FeedFetchOptions = {}): Promise<FlipFeedPage> {
+  await restoreSessionFromStorageIfEmpty()
   const firstPage = isFirstFeedPage(pageParam)
 
   try {
@@ -553,6 +563,7 @@ export async function fetchForYouFeed({
   pageParam = false,
   refreshEpoch = 0,
 }: FeedFetchOptions = {}): Promise<FlipFeedPage> {
+  await restoreSessionFromStorageIfEmpty()
   const customUri = getForYouFeedUri()
   const decoded = decodeFeedPageParam(pageParam)
   const firstPage = isFirstFeedPage(pageParam)
@@ -693,6 +704,7 @@ export async function fetchLocalFeed({
   pageParam = false,
   refreshEpoch = 0,
 }: FeedFetchOptions = {}): Promise<FlipFeedPage> {
+  await restoreSessionFromStorageIfEmpty()
   const customUri = getLocalFeedUri()
   const decoded = decodeFeedPageParam(pageParam)
   const firstPage = isFirstFeedPage(pageParam)

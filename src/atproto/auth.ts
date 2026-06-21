@@ -8,6 +8,7 @@ import {
   resumeSession,
   setServiceUrl,
   tryRefreshSession,
+  withAuthenticatedFetch,
 } from './agent'
 import { clearCredentials, getSavedCredentials } from './credentialVault'
 import type { FlipAppConfig, FlipUserProfile } from './types'
@@ -47,8 +48,10 @@ export async function hydrateSession(): Promise<boolean> {
   if (!ok) return false
 
   try {
-    const agent = getAgent()
-    const profile = await agent.getProfile({ actor: agent.session!.did })
+    const profile = await withAuthenticatedFetch(async () => {
+      const agent = getAgent()
+      return agent.getProfile({ actor: agent.session!.did })
+    })
     const user = profileToFlipUser(profile.data, true)
     Storage.set(PROFILE_KEY, JSON.stringify(user))
     return true

@@ -13,7 +13,9 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
         const sessionExpired =
             typeof error === 'string' &&
             (error.toLowerCase().includes('session expired') ||
-                error.toLowerCase().includes('sign in again'));
+                error.toLowerCase().includes('sign in again') ||
+                error.toLowerCase().includes('token expired') ||
+                error.toLowerCase().includes('expiredtoken'));
 
         if (error) {
             if (sessionExpired) {

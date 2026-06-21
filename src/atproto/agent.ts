@@ -96,6 +96,8 @@ export function wasRefreshTokenRejected(): boolean {
 
 export async function tryRefreshSession(): Promise<boolean> {
   lastRefreshRejected = false
+  await restoreSessionFromStorageIfEmpty()
+
   const a = getAgent()
   if (!a.session?.refreshJwt) return false
 
@@ -117,11 +119,38 @@ export async function tryRefreshSession(): Promise<boolean> {
   }
 }
 
+/** Reload persisted tokens when the in-memory agent lost its session (e.g. after a 401). */
+export async function restoreSessionFromStorageIfEmpty(): Promise<boolean> {
+  if (getAgent().session) return true
+  return resumeSession()
+}
+
+async function recoverAuth(): Promise<boolean> {
+  await restoreSessionFromStorageIfEmpty()
+
+  const refreshed = await tryRefreshSession()
+  if (refreshed && !isAccessTokenExpired(getAgent().session?.accessJwt)) {
+    return true
+  }
+
+  try {
+    const { trySilentRelogin } = await import('./auth')
+    if (await trySilentRelogin()) {
+      return true
+    }
+  } catch (error) {
+    console.warn('[auth] silent re-login during recoverAuth failed:', error)
+  }
+
+  return false
+}
+
 /**
  * Ensure the agent has a non-expired access token before authenticated API calls.
  */
 export async function ensureFreshSession(): Promise<boolean> {
   await awaitSessionRestore()
+  await restoreSessionFromStorageIfEmpty()
 
   const a = getAgent()
   if (!a.session) return false
@@ -142,12 +171,18 @@ function failExpiredSession(reason?: string): never {
  * Run an authenticated ATProto call with proactive refresh and one retry on token errors.
  */
 export async function withAuthenticatedFetch<T>(fn: () => Promise<T>): Promise<T> {
+  await awaitSessionRestore()
+  await restoreSessionFromStorageIfEmpty()
+
   const fresh = await ensureFreshSession()
   if (!fresh) {
-    if (!(await hasStoredSession())) {
-      failExpiredSession()
+    const recovered = await recoverAuth()
+    if (!recovered) {
+      if (!(await hasStoredSession()) || wasRefreshTokenRejected()) {
+        failExpiredSession()
+      }
+      throw new SessionExpiredError('Session expired — sign in again')
     }
-    throw new SessionExpiredError('Not authenticated')
   }
 
   try {
@@ -155,19 +190,23 @@ export async function withAuthenticatedFetch<T>(fn: () => Promise<T>): Promise<T
   } catch (error) {
     if (!isAuthTokenError(error)) throw error
 
-    const refreshed = await tryRefreshSession()
-    if (!refreshed) {
+    await restoreSessionFromStorageIfEmpty()
+    const recovered = await recoverAuth()
+    if (!recovered) {
       if (wasRefreshTokenRejected()) {
         failExpiredSession()
       }
-      throw new SessionExpiredError('Not authenticated')
+      throw new SessionExpiredError('Session expired — sign in again')
     }
 
     try {
       return await fn()
     } catch (retryError) {
-      if (isAuthTokenError(retryError) && wasRefreshTokenRejected()) {
-        failExpiredSession()
+      if (isAuthTokenError(retryError)) {
+        if (wasRefreshTokenRejected()) {
+          failExpiredSession()
+        }
+        throw new SessionExpiredError('Session expired — sign in again')
       }
       throw retryError
     }
