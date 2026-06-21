@@ -36,7 +36,8 @@ export function getNotificationRoute(item: NotificationNavItem): NotificationRou
     }
 
     if (item.video_id) {
-        const profileId = parseRepoDidFromAtUri(item.video_id) || item.video_pid
+        // Prefer video_pid (e.g. recipient DID for reply notifications) over the repo in video_id.
+        const profileId = item.video_pid || parseRepoDidFromAtUri(item.video_id)
         if (profileId) {
             return toProfileFeedPath(item.video_id, profileId, {
                 openComments: COMMENT_ACTIVITY_TYPES.has(item.type),
