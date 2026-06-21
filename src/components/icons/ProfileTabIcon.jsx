@@ -17,7 +17,7 @@ const ProfileTabIcon = memo(function ProfileTabIcon({
 }) {
     const strokeWidth = focused ? 1.75 : 1.3;
     const strokeOpacity = focused ? 1 : 0.72;
-    const dotRadius = focused ? 0.52 : 0.44;
+    const dotRadius = focused ? 0.68 : 0.58;
 
     return (
         <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
