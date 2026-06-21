@@ -1,10 +1,13 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
+import { prefetchExploreQueries } from '@/utils/explorePrefetch';
+import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarLayout';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tabs } from 'expo-router';
-import { ComponentProps, useMemo } from 'react';
+import { ComponentProps, useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -43,6 +46,14 @@ export default function TabsLayout() {
     const { colors, isDark } = useTheme();
     const tabBarMetrics = useFlipTabBarMetrics();
     const tabBarLayout = getTabBarStyleFromMetrics(tabBarMetrics);
+    const queryClient = useQueryClient();
+    const authReady = useAuthStore((s) => s.authReady);
+    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+
+    useEffect(() => {
+        if (!authReady || !isLoggedIn) return;
+        prefetchExploreQueries(queryClient);
+    }, [authReady, isLoggedIn, queryClient]);
 
     const displayBadgeCount = useMemo(() => {
         if (!badgeCount || badgeCount <= 0) return undefined;

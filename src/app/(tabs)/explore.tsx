@@ -21,17 +21,19 @@ import {
     writeExploreTagsCache,
 } from '@/utils/exploreCache';
 import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation';
+import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
     FlatList,
     Pressable,
     RefreshControl,
+    ScrollView,
     Text,
     TouchableOpacity,
     View,
@@ -130,6 +132,283 @@ function VideoThumbnailSkeleton() {
         />
     );
 }
+
+const ExploreAccountCard = memo(function ExploreAccountCard({
+    item,
+    isFollowing,
+    isHiding,
+    onFollow,
+    onHide,
+    onOpenProfile,
+}: {
+    item: Account;
+    isFollowing: boolean;
+    isHiding: boolean;
+    onFollow: () => void;
+    onHide: () => void;
+    onOpenProfile: () => void;
+}) {
+    return (
+        <View style={tw`mr-3 bg-gray-100 dark:bg-[#1c1c1e] rounded-xl overflow-hidden`}>
+            <View style={tw`w-[${ACCOUNT_CARD_WIDTH}px] p-3 items-center`}>
+                <PressableHaptics
+                    style={tw`absolute top-2 right-2 z-10 bg-opacity-50 rounded-full p-1`}
+                    onPress={onHide}
+                    disabled={isHiding}>
+                    <Feather name="x" size={16} color="gray" />
+                </PressableHaptics>
+
+                <Avatar url={item.avatar} width={64} onPress={onOpenProfile} />
+
+                <Pressable onPress={onOpenProfile}>
+                    <Text
+                        style={tw`text-black font-semibold text-sm mb-1 mt-2 dark:text-white`}
+                        numberOfLines={1}>
+                        {item.name || item.username}
+                    </Text>
+                </Pressable>
+
+                {item.bio ? (
+                    <Text
+                        style={tw`text-gray-800 text-xs text-center mb-1 dark:text-gray-300`}
+                        numberOfLines={1}>
+                        {item.bio}
+                    </Text>
+                ) : null}
+
+                <XStack justifyContent="space-between" gap="$3" style={tw`w-full mb-3`}>
+                    {typeof item.post_count === 'number' ? (
+                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
+                            {item.post_count.toLocaleString()} videos
+                        </Text>
+                    ) : null}
+                    {typeof item.follower_count === 'number' ? (
+                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
+                            {item.follower_count.toLocaleString()} followers
+                        </Text>
+                    ) : null}
+                </XStack>
+
+                <PressableHaptics onPress={onFollow} disabled={isFollowing}>
+                    <View style={[tw`rounded-full px-4 py-1.5`, { backgroundColor: '#F02C56' }]}>
+                        <Text style={tw`text-white font-semibold text-xs`}>
+                            {isFollowing ? 'Following...' : 'Follow'}
+                        </Text>
+                    </View>
+                </PressableHaptics>
+            </View>
+        </View>
+    );
+});
+
+const ExploreTagChip = memo(function ExploreTagChip({
+    item,
+    isSelected,
+    onSelect,
+}: {
+    item: Tag;
+    isSelected: boolean;
+    onSelect: () => void;
+}) {
+    return (
+        <PressableHaptics
+            style={[
+                tw`mr-2.5 rounded-xl px-4 py-2.5`,
+                isSelected ? tw`bg-[#F02C56]` : tw`bg-gray-100 dark:bg-gray-900`,
+            ]}
+            onPress={onSelect}>
+            <View style={tw`w-[${TAG_CARD_WIDTH}px] items-center`}>
+                <Text
+                    style={[
+                        tw`font-bold text-base mb-0.5`,
+                        isSelected ? tw`text-white` : tw`text-black dark:text-gray-400`,
+                    ]}>
+                    #{item.name}
+                </Text>
+                {item.count > 0 ? (
+                    <Text
+                        style={[
+                            tw`text-xs`,
+                            isSelected ? tw`text-gray-200` : tw`text-gray-600`,
+                        ]}>
+                        {item.count.toLocaleString()} videos
+                    </Text>
+                ) : null}
+            </View>
+        </PressableHaptics>
+    );
+});
+
+const ExploreVideoThumbnail = memo(function ExploreVideoThumbnail({
+    item,
+    index,
+    onPress,
+}: {
+    item: Video;
+    index: number;
+    onPress: () => void;
+}) {
+    if (!item.account || !item.media) return null;
+
+    const duration = item.media.duration || 0;
+    const minutes = Math.floor(duration / 60);
+    const seconds = Math.floor(duration % 60);
+
+    return (
+        <TouchableOpacity style={tw`mb-1 px-0.5`} onPress={onPress}>
+            <View style={tw`relative`}>
+                <Image
+                    source={item.media.thumbnail}
+                    style={[
+                        tw`rounded-lg bg-gray-900`,
+                        {
+                            width: VIDEO_THUMBNAIL_WIDTH - 4,
+                            height: ((VIDEO_THUMBNAIL_WIDTH - 4) * 16) / 9,
+                        },
+                    ]}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    priority={index < 6 ? 'normal' : 'low'}
+                    transition={index < 6 ? 150 : 0}
+                    recyclingKey={item.id}
+                />
+                {item.caption ? (
+                    <View style={tw`absolute bottom-2 left-2 right-2`}>
+                        <Text style={tw`text-white text-xs font-medium`} numberOfLines={2}>
+                            {item.caption}
+                        </Text>
+                    </View>
+                ) : null}
+                <View style={tw`absolute top-2 right-2 bg-black bg-opacity-70 rounded px-1.5 py-0.5`}>
+                    <Text style={tw`text-white text-xs`}>
+                        {minutes}:{seconds.toString().padStart(2, '0')}
+                    </Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+});
+
+type ExploreListHeaderProps = {
+    isDark: boolean;
+    showAccountsSkeleton: boolean;
+    showTagsSkeleton: boolean;
+    showVideosSkeleton: boolean;
+    validAccounts: Account[];
+    validTags: Tag[];
+    feedTag: string;
+    accountsError: boolean;
+    tagsError: boolean;
+    followingAccountId: string | null;
+    hidingAccountId: string | null;
+    onFollow: (id: string) => void;
+    onHide: (id: string) => void;
+    onSelectTag: (name: string) => void;
+    onOpenSearch: () => void;
+    onOpenProfile: (id: string) => void;
+    renderEmptyState: (message: string) => React.ReactElement;
+};
+
+const ExploreListHeader = memo(function ExploreListHeader({
+    isDark,
+    showAccountsSkeleton,
+    showTagsSkeleton,
+    showVideosSkeleton,
+    validAccounts,
+    validTags,
+    feedTag,
+    accountsError,
+    tagsError,
+    followingAccountId,
+    hidingAccountId,
+    onFollow,
+    onHide,
+    onSelectTag,
+    onOpenSearch,
+    onOpenProfile,
+    renderEmptyState,
+}: ExploreListHeaderProps) {
+    return (
+        <>
+            <View style={tw`px-4 pt-4 pb-3 flex justify-between items-center flex-row`}>
+                <Text style={tw`text-black text-4xl font-bold dark:text-white`}>Explore</Text>
+                <Pressable onPress={onOpenSearch}>
+                    <Feather name="search" color={isDark ? '#fff' : '#000'} size={30} />
+                </Pressable>
+            </View>
+
+            <View style={tw`my-5`}>
+                <Text style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
+                    Suggested for you
+                </Text>
+                {showAccountsSkeleton ? (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={tw`px-4`}>
+                        {[1, 2, 3].map((item) => (
+                            <AccountCardSkeleton key={`account-skel-${item}`} />
+                        ))}
+                    </ScrollView>
+                ) : validAccounts.length > 0 ? (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={tw`px-4`}>
+                        {validAccounts.map((item) => (
+                            <ExploreAccountCard
+                                key={item.id}
+                                item={item}
+                                isFollowing={followingAccountId === item.id}
+                                isHiding={hidingAccountId === item.id}
+                                onFollow={() => onFollow(item.id)}
+                                onHide={() => onHide(item.id)}
+                                onOpenProfile={() => onOpenProfile(item.id)}
+                            />
+                        ))}
+                    </ScrollView>
+                ) : accountsError ? (
+                    renderEmptyState('Unable to load suggested accounts. Pull down to refresh.')
+                ) : null}
+            </View>
+
+            <View style={tw`mb-4`}>
+                <Text style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
+                    Trending
+                </Text>
+                {showTagsSkeleton ? (
+                    <SectionSkeleton height={52} />
+                ) : validTags.length > 0 ? (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={tw`px-4`}>
+                        {validTags.map((item) => (
+                            <ExploreTagChip
+                                key={item.id}
+                                item={item}
+                                isSelected={feedTag === item.name}
+                                onSelect={() => onSelectTag(item.name)}
+                            />
+                        ))}
+                    </ScrollView>
+                ) : tagsError ? (
+                    renderEmptyState('Unable to load trending topics. Please try again later.')
+                ) : null}
+            </View>
+
+            {showVideosSkeleton ? (
+                <View style={tw`flex-row flex-wrap px-2`}>
+                    {Array.from({ length: 9 }, (_, i) => (
+                        <View key={`video-skel-${i}`} style={tw`w-1/3 px-0.5`}>
+                            <VideoThumbnailSkeleton />
+                        </View>
+                    ))}
+                </View>
+            ) : null}
+        </>
+    );
+});
 
 export default function ExploreScreen() {
     const router = useRouter();
@@ -262,165 +541,17 @@ export default function ExploreScreen() {
     }, [videosData]);
 
     React.useEffect(() => {
-        if (videosData?.pages?.length) {
-            writeExploreFeedCache(feedTag, videosData.pages, videosData.pageParams);
-        }
+        if (!videosData?.pages?.length) return;
+        const pages = videosData.pages;
+        const pageParams = videosData.pageParams;
+        const tag = feedTag;
+        queueMicrotask(() => writeExploreFeedCache(tag, pages, pageParams));
     }, [feedTag, videosData]);
 
-    const renderAccountCard = useCallback(
-        ({
-            item,
-            onHandleFollow,
-            onHideSuggestion,
-        }: {
-            item: Account;
-            onHandleFollow: () => void;
-            onHideSuggestion: () => void;
-        }) => {
-            const isFollowing = followingAccountId === item.id;
-            const isHiding = hidingAccountId === item.id;
-
-            return (
-                <View style={tw`mr-3 bg-gray-100 dark:bg-[#1c1c1e] rounded-xl overflow-hidden`}>
-                    <View style={tw`w-[${ACCOUNT_CARD_WIDTH}px] p-3 items-center`}>
-                        <PressableHaptics
-                            style={tw`absolute top-2 right-2 z-10 bg-opacity-50 rounded-full p-1`}
-                            onPress={onHideSuggestion}
-                            disabled={isHiding}>
-                            <Feather name="x" size={16} color="gray" />
-                        </PressableHaptics>
-
-                        <Avatar
-                            url={item.avatar}
-                            width={64}
-                            onPress={() => router.push(toProfilePath(item.id))}
-                        />
-
-                        <Pressable onPress={() => router.push(toProfilePath(item.id))}>
-                            <Text
-                                style={tw`text-black font-semibold text-sm mb-1 mt-2 dark:text-white`}
-                                numberOfLines={1}>
-                                {item.name || item.username}
-                            </Text>
-                        </Pressable>
-
-                        {item.bio && (
-                            <Text
-                                style={tw`text-gray-800 text-xs text-center mb-1 dark:text-gray-300`}
-                                numberOfLines={1}>
-                                {item.bio}
-                            </Text>
-                        )}
-
-                        <XStack justifyContent="space-between" gap="$3" style={tw`w-full mb-3`}>
-                            {typeof item.post_count === 'number' && (
-                                <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                                    {item.post_count.toLocaleString()} videos
-                                </Text>
-                            )}
-                            {typeof item.follower_count === 'number' && (
-                                <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                                    {item.follower_count.toLocaleString()} followers
-                                </Text>
-                            )}
-                        </XStack>
-
-                        <PressableHaptics onPress={onHandleFollow} disabled={isFollowing}>
-                            <View
-                                style={[tw`rounded-full px-4 py-1.5`, { backgroundColor: '#F02C56' }]}>
-                                <Text style={tw`text-white font-semibold text-xs`}>
-                                    {isFollowing ? 'Following...' : 'Follow'}
-                                </Text>
-                            </View>
-                        </PressableHaptics>
-                    </View>
-                </View>
-            );
-        },
-        [followingAccountId, hidingAccountId, router],
-    );
-
-    const renderTagCard = useCallback(
-        ({ item }: { item: Tag }) => {
-            const isSelected = feedTag === item.name;
-            return (
-                <PressableHaptics
-                    style={[
-                        tw`mr-2.5 rounded-xl px-4 py-2.5`,
-                        isSelected ? tw`bg-[#F02C56]` : tw`bg-gray-100 dark:bg-gray-900`,
-                    ]}
-                    onPress={() => setSelectedTag(item.name)}>
-                    <View style={tw`w-[${TAG_CARD_WIDTH}px] items-center`}>
-                        <Text
-                            style={[
-                                tw`font-bold text-base mb-0.5`,
-                                isSelected ? tw`text-white` : tw`text-black dark:text-gray-400`,
-                            ]}>
-                            #{item.name}
-                        </Text>
-                        {item.count > 0 && (
-                            <Text
-                                style={[
-                                    tw`text-xs`,
-                                    isSelected ? tw`text-gray-200` : tw`text-gray-600`,
-                                ]}>
-                                {item.count.toLocaleString()} videos
-                            </Text>
-                        )}
-                    </View>
-                </PressableHaptics>
-            );
-        },
-        [feedTag],
-    );
-
-    const renderVideoThumbnail = useCallback(
-        ({ item, index }: { item: Video; index: number }) => {
-            if (!item.account || !item.media) return null;
-
-            const duration = item.media.duration || 0;
-            const minutes = Math.floor(duration / 60);
-            const seconds = Math.floor(duration % 60);
-
-            return (
-                <TouchableOpacity
-                    style={tw`mb-1 px-0.5`}
-                    onPress={() => router.push(toProfileFeedPath(item.id, item.account!.id))}>
-                    <View style={tw`relative`}>
-                        <Image
-                            source={item.media.thumbnail}
-                            style={[
-                                tw`rounded-lg bg-gray-900`,
-                                {
-                                    width: VIDEO_THUMBNAIL_WIDTH - 4,
-                                    height: ((VIDEO_THUMBNAIL_WIDTH - 4) * 16) / 9,
-                                },
-                            ]}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            priority={index < 6 ? 'normal' : 'low'}
-                            transition={index < 6 ? 150 : 0}
-                            recyclingKey={item.id}
-                        />
-                        {item.caption && (
-                            <View style={tw`absolute bottom-2 left-2 right-2`}>
-                                <Text style={tw`text-white text-xs font-medium`} numberOfLines={2}>
-                                    {item.caption}
-                                </Text>
-                            </View>
-                        )}
-                        <View
-                            style={tw`absolute top-2 right-2 bg-black bg-opacity-70 rounded px-1.5 py-0.5`}>
-                            <Text style={tw`text-white text-xs`}>
-                                {minutes}:{seconds.toString().padStart(2, '0')}
-                            </Text>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-            );
-        },
-        [router],
-    );
+    React.useEffect(() => {
+        if (allVideos.length === 0) return;
+        prefetchThumbnails(allVideos.map((video) => video.media?.thumbnail));
+    }, [allVideos]);
 
     const renderEmptyState = useCallback(
         (message: string) => (
@@ -431,100 +562,87 @@ export default function ExploreScreen() {
         [],
     );
 
+    const handleFollow = useCallback(
+        (profileId: string) => {
+            followMutation.mutate(profileId);
+        },
+        [followMutation],
+    );
+
+    const handleHide = useCallback(
+        (profileId: string) => {
+            hideSuggestionMutation.mutate(profileId);
+        },
+        [hideSuggestionMutation],
+    );
+
+    const handleSelectTag = useCallback((name: string) => {
+        setSelectedTag(name);
+    }, []);
+
+    const handleOpenSearch = useCallback(() => {
+        router.push('/private/search');
+    }, [router]);
+
+    const handleOpenProfile = useCallback(
+        (id: string) => {
+            router.push(toProfilePath(id));
+        },
+        [router],
+    );
+
+    const renderVideoThumbnail = useCallback(
+        ({ item, index }: { item: Video; index: number }) => (
+            <ExploreVideoThumbnail
+                item={item}
+                index={index}
+                onPress={() => router.push(toProfileFeedPath(item.id, item.account!.id))}
+            />
+        ),
+        [router],
+    );
+
     const showAccountsSkeleton = accountsLoading && validAccounts.length === 0;
     const showTagsSkeleton = tagsLoading && validTags.length === 0;
     const showVideosSkeleton = videosLoading && allVideos.length === 0;
 
-    const listHeader = useMemo(
+    const renderListHeader = useCallback(
         () => (
-            <>
-                <View style={tw`px-4 pt-4 pb-3 flex justify-between items-center flex-row`}>
-                    <Text style={tw`text-black text-4xl font-bold dark:text-white`}>Explore</Text>
-                    <Pressable onPress={() => router.push('/private/search')}>
-                        <Feather name="search" color={isDark ? '#fff' : '#000'} size={30} />
-                    </Pressable>
-                </View>
-
-                <View style={tw`my-5`}>
-                    <Text
-                        style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
-                        Suggested for you
-                    </Text>
-                    {showAccountsSkeleton ? (
-                        <FlatList
-                            horizontal
-                            data={[1, 2, 3]}
-                            keyExtractor={(item) => `account-skel-${item}`}
-                            renderItem={() => <AccountCardSkeleton />}
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={tw`px-4`}
-                        />
-                    ) : validAccounts.length > 0 ? (
-                        <FlatList
-                            horizontal
-                            data={validAccounts}
-                            renderItem={({ item }) =>
-                                renderAccountCard({
-                                    item,
-                                    onHandleFollow: () => followMutation.mutate(item.id),
-                                    onHideSuggestion: () => hideSuggestionMutation.mutate(item.id),
-                                })
-                            }
-                            keyExtractor={(item) => item.id}
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={tw`px-4`}
-                        />
-                    ) : accountsError ? (
-                        renderEmptyState(
-                            'Unable to load suggested accounts. Pull down to refresh.',
-                        )
-                    ) : null}
-                </View>
-
-                <View style={tw`mb-4`}>
-                    <Text
-                        style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
-                        Trending
-                    </Text>
-                    {showTagsSkeleton ? (
-                        <SectionSkeleton height={52} />
-                    ) : validTags.length > 0 ? (
-                        <FlatList
-                            horizontal
-                            data={validTags}
-                            renderItem={renderTagCard}
-                            keyExtractor={(item) => item.id.toString()}
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={tw`px-4`}
-                        />
-                    ) : tagsError ? (
-                        renderEmptyState('Unable to load trending topics. Please try again later.')
-                    ) : null}
-                </View>
-
-                {showVideosSkeleton ? (
-                    <View style={tw`flex-row flex-wrap px-2`}>
-                        {Array.from({ length: 9 }, (_, i) => (
-                            <View key={`video-skel-${i}`} style={tw`w-1/3 px-0.5`}>
-                                <VideoThumbnailSkeleton />
-                            </View>
-                        ))}
-                    </View>
-                ) : null}
-            </>
+            <ExploreListHeader
+                isDark={isDark}
+                showAccountsSkeleton={showAccountsSkeleton}
+                showTagsSkeleton={showTagsSkeleton}
+                showVideosSkeleton={showVideosSkeleton}
+                validAccounts={validAccounts}
+                validTags={validTags}
+                feedTag={feedTag}
+                accountsError={accountsError}
+                tagsError={tagsError}
+                followingAccountId={followingAccountId}
+                hidingAccountId={hidingAccountId}
+                onFollow={handleFollow}
+                onHide={handleHide}
+                onSelectTag={handleSelectTag}
+                onOpenSearch={handleOpenSearch}
+                onOpenProfile={handleOpenProfile}
+                renderEmptyState={renderEmptyState}
+            />
         ),
         [
             accountsError,
+            feedTag,
+            followingAccountId,
+            handleFollow,
+            handleHide,
+            handleOpenProfile,
+            handleOpenSearch,
+            handleSelectTag,
+            hidingAccountId,
+            isDark,
+            renderEmptyState,
             showAccountsSkeleton,
             showTagsSkeleton,
             showVideosSkeleton,
-            followMutation,
-            hideSuggestionMutation,
-            isDark,
-            renderAccountCard,
-            renderEmptyState,
-            renderTagCard,
-            router,
             tagsError,
             validAccounts,
             validTags,
@@ -594,7 +712,7 @@ export default function ExploreScreen() {
                 numColumns={3}
                 keyExtractor={(item) => item.id}
                 renderItem={renderVideoThumbnail}
-                ListHeaderComponent={listHeader}
+                ListHeaderComponent={renderListHeader}
                 ListFooterComponent={listFooter}
                 ListEmptyComponent={listEmpty}
                 onEndReached={handleLoadMore}
