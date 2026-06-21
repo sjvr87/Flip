@@ -113,8 +113,8 @@ export default function TabsLayout() {
                     tabBarIcon: ({ color, focused }) => (
                         <TabIcon
                             focused={focused}
-                            activeName="search"
-                            inactiveName="search-outline"
+                            activeName="compass"
+                            inactiveName="compass-outline"
                             color={color}
                         />
                     ),
