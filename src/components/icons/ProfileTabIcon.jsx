@@ -5,10 +5,10 @@ import Svg, { Circle, Path } from 'react-native-svg';
  * Person bust inside a broken circle — tab bar reference at 26px.
  * Stroke-only line art; tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  *
- * Geometry traced from reference PNG (center 13,13, ring r=9):
- * - Ring gap on left (~8–10 o'clock) with three filled dots along the missing arc
+ * Geometry (center 13,13, ring r=9) traced from reference:
+ * - Ring gap on left (~8–10 o'clock) with three filled dots on the missing arc
  * - Head: stroke circle centered in ring
- * - Shoulders: single wide shallow arc (not a deep bowl)
+ * - Shoulders: wide shallow U (large rx, tiny ry)
  */
 const ProfileTabIcon = memo(function ProfileTabIcon({
     size = 26,
@@ -19,35 +19,54 @@ const ProfileTabIcon = memo(function ProfileTabIcon({
     const strokeOpacity = focused ? 1 : 0.72;
     const dotRadius = focused ? 0.52 : 0.44;
 
+    // Ring center (13,13), r=9. Gap on left from 10 o'clock to 8 o'clock.
+    const ringStartX = 5.21;
+    const ringStartY = 8.5;
+    const ringEndX = 5.21;
+    const ringEndY = 17.5;
+
+    // Three dots evenly on missing arc (250°, 270°, 290° clockwise from 12 o'clock).
+    const dots = [
+        { cx: 4.54, cy: 10.06 },
+        { cx: 4, cy: 13 },
+        { cx: 4.54, cy: 16.06 },
+    ];
+
     return (
         <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-            {/* Outer ring — gap on left (~8–10 o'clock); long arc clockwise */}
+            {/* Outer ring — long arc clockwise, skipping left gap */}
             <Path
-                d="M 5.21 17.5 A 9 9 0 1 1 5.21 8.5"
+                d={`M ${ringStartX} ${ringStartY} A 9 9 0 1 1 ${ringEndX} ${ringEndY}`}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
             />
 
-            {/* Three dots evenly spaced along the missing left arc (8.5h, 9h, 9.5h) */}
-            <Circle cx={4.3} cy={10.67} r={dotRadius} fill={color} opacity={strokeOpacity} />
-            <Circle cx={4} cy={13} r={dotRadius} fill={color} opacity={strokeOpacity} />
-            <Circle cx={4.3} cy={15.33} r={dotRadius} fill={color} opacity={strokeOpacity} />
+            {dots.map((dot, index) => (
+                <Circle
+                    key={index}
+                    cx={dot.cx}
+                    cy={dot.cy}
+                    r={dotRadius}
+                    fill={color}
+                    opacity={strokeOpacity}
+                />
+            ))}
 
-            {/* Head */}
+            {/* Head — centered horizontally in ring */}
             <Circle
                 cx={13}
-                cy={10.35}
-                r={2.55}
+                cy={10.4}
+                r={2.5}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
             />
 
-            {/* Shoulders — wide shallow U (rx=5.1, ry=0.65) */}
+            {/* Shoulders — wide shallow U (rx=5.65, ry=0.45) */}
             <Path
-                d="M 7.9 13.15 A 5.1 0.65 0 0 0 18.1 13.15"
+                d="M 7.0 13.35 A 5.65 0.45 0 0 0 19.0 13.35"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
