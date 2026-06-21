@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -373,7 +374,8 @@ function VideoPlayerCore({
         if (!player || !isMountedRef.current || !isActive) return;
 
         try {
-            const currentlyPlaying = player.playing;
+            // player.playing can lag on Android; fall back to synced playingChange state.
+            const currentlyPlaying = player.playing ?? isPlaying;
             if (currentlyPlaying) {
                 player.pause();
                 setIsPlaying(false);
@@ -511,33 +513,30 @@ function VideoPlayerCore({
                     allowsPictureInPicture={false}
                     nativeControls={false}
                     pointerEvents="none"
+                    surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
                     accessible={true}
                     accessibilityLabel={item.media.alt_text || 'Video content'}
                     accessibilityHint="Tap to pause or play"
                     contentFit="contain"
                 />
-
-                <Pressable
-                    style={styles.tapOverlay}
-                    onPress={handleScreenPress}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play"
-                    accessibilityRole="button"
-                />
-
-                {showPauseHint && (
-                    <View style={styles.controlsOverlay} pointerEvents="none">
-                        <View style={styles.playButton}>
-                            <Ionicons
-                                name={pauseHintIcon}
-                                size={60}
-                                color="white"
-                            />
-                        </View>
-                    </View>
-                )}
             </View>
+
+            <Pressable
+                style={styles.tapOverlay}
+                onPress={handleScreenPress}
+                accessible={true}
+                accessibilityLabel="Video"
+                accessibilityHint="Tap to pause or play"
+                accessibilityRole="button"
+            />
+
+            {showPauseHint && (
+                <View style={styles.controlsOverlay} pointerEvents="none">
+                    <View style={styles.playButton}>
+                        <Ionicons name={pauseHintIcon} size={60} color="white" />
+                    </View>
+                </View>
+            )}
 
             <LinearGradient
                 colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
@@ -693,16 +692,16 @@ const styles = StyleSheet.create({
     },
     tapOverlay: {
         ...StyleSheet.absoluteFillObject,
-        zIndex: 2,
-        elevation: 2,
+        zIndex: 4,
+        elevation: 4,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.3)',
-        zIndex: 10,
-        elevation: 10,
+        zIndex: 8,
+        elevation: 8,
     },
     playButton: {
         width: 80,
