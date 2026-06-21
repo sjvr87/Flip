@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import Avatar from '@/components/Avatar';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { composeAutocompleteMentions, composeAutocompleteTags, uploadDuet } from '@/utils/requests';
@@ -481,7 +482,7 @@ export default function DuetCaptionScreen() {
                                                 style={styles.suggestionContent}
                                                 justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
-                                                    <Text style={styles.suggestionName}>
+                                                    <Text style={styles.mentionSuggestionName}>
                                                         @{item.username}
                                                     </Text>
                                                     <Text>·</Text>
@@ -1031,6 +1032,11 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
         color: '#000',
+    },
+    mentionSuggestionName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: LOOP_ACCENT,
     },
     suggestionMeta: {
         fontSize: 13,

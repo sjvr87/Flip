@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -134,7 +135,11 @@ function ConvoRow({ convo, myDid, onPress }: ConvoRowProps) {
                 </StackText>
             </View>
             {convo.unreadCount > 0 ? (
-                <View style={tw`bg-[#F02C56] rounded-full min-w-6 h-6 px-2 items-center justify-center`}>
+                <View
+                    style={[
+                        tw`rounded-full min-w-6 h-6 px-2 items-center justify-center`,
+                        { backgroundColor: LOOP_ACCENT },
+                    ]}>
                     <StackText fontSize="$2" textColor="text-white" fontWeight="bold">
                         {convo.unreadCount > 99 ? '99+' : convo.unreadCount}
                     </StackText>
@@ -172,9 +177,9 @@ const SuggestedAccountCard = ({
                 <StackText
                     fontSize="$4"
                     fontWeight="semibold"
-                    textColor="text-black dark:text-gray-200"
+                    style={{ color: LOOP_ACCENT }}
                     numberOfLines={1}>
-                    {account.username}
+                    @{account.username}
                 </StackText>
                 {account.bio ? (
                     <StackText
@@ -192,7 +197,7 @@ const SuggestedAccountCard = ({
                 disabled={isFollowing || isHiding}
                 style={({ pressed }) => [
                     tw`rounded-2xl px-6 py-2`,
-                    { backgroundColor: '#F02C56' },
+                    { backgroundColor: LOOP_ACCENT },
                     (pressed || isFollowing) && tw`opacity-70`,
                 ]}>
                 {isFollowing ? (
@@ -386,7 +391,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
             id: 'activity',
             icon: 'notifications' as const,
             iconColor: '#FFFFFF',
-            iconBgColor: '#F02C56',
+            iconBgColor: LOOP_ACCENT,
             title: 'Activities',
             subtitle: latestNotifications.activity
                 ? getNotificationMessage(latestNotifications.activity)
@@ -450,7 +455,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
 
             {loading ? (
                 <YStack flex={1} alignItems="center" justifyContent="center">
-                    <ActivityIndicator size="large" color={isDark ? '#fff' : '#F02C56'} />
+                    <ActivityIndicator size="large" color={isDark ? '#fff' : LOOP_ACCENT} />
                 </YStack>
             ) : (
                 <ScrollView
@@ -458,7 +463,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                         <RefreshControl
                             refreshing={(isRefetching || isFetching) && !isLoading}
                             onRefresh={handleRefresh}
-                            tintColor={isDark ? '#fff' : '#F02C56'}
+                            tintColor={isDark ? '#fff' : LOOP_ACCENT}
                         />
                     }>
                     {isError ? (

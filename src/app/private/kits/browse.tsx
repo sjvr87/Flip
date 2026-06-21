@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchStarterKitBrowse } from '@/utils/requests';
@@ -122,7 +123,7 @@ const KitCard = ({
                             source={{ uri: item.creator.avatar }}
                             style={tw`w-4 h-4 rounded-full`}
                         />
-                        <Text style={[tw`text-xs`, { color: textMuted }]}>
+                        <Text style={[tw`text-xs`, { color: LOOP_ACCENT }]}>
                             @{item.creator.username}
                         </Text>
                     </View>

@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchStarterKit, fetchStarterKitUsed } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,7 +114,7 @@ function AccountCard({ account, onFollow, isFollowing, isLoading, onPress }: Acc
                         {account.name}
                     </Text>
                 </View>
-                <Text style={tw`text-gray-700 dark:text-gray-400 text-xs mb-1`}>
+                <Text style={[tw`text-xs mb-1`, { color: LOOP_ACCENT }]}>
                     @{account.username}
                 </Text>
                 {account.bio ? (
@@ -154,7 +155,7 @@ export default function StarterKitShow() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const insets = useSafeAreaInsets();
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const {
         data: kit,
@@ -345,7 +346,7 @@ export default function StarterKitShow() {
                         />
                         <Text style={tw`text-gray-600 dark:text-gray-400 text-base`}>
                             Curated by{' '}
-                            <Text style={tw`text-black dark:text-gray-200 font-semibold`}>
+                            <Text style={[tw`font-semibold`, { color: colors.accent }]}>
                                 @{kit.creator.username}
                             </Text>
                         </Text>

@@ -160,7 +160,7 @@ const VISIBILITY = [
 ];
 
 export default function EditScreen() {
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -489,7 +489,10 @@ export default function EditScreen() {
                                             <YStack style={tw`flex-1`} justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
                                                     <Text
-                                                        style={tw`text-[15px] font-semibold text-gray-900 dark:text-white`}>
+                                                        style={[
+                                                            tw`text-[15px] font-semibold`,
+                                                            { color: colors.accent },
+                                                        ]}>
                                                         @{item.username}
                                                     </Text>
                                                     <Text

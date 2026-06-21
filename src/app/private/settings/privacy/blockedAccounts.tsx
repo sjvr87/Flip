@@ -22,7 +22,7 @@ export default function BlockedAccountsScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const queryClient = useQueryClient();
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const isSearching = debouncedSearch.trim().length > 0;
 
@@ -89,7 +89,7 @@ export default function BlockedAccountsScreen() {
                 <Text style={tw`text-base font-semibold text-gray-900 dark:text-white`}>
                     {item.account.name}
                 </Text>
-                <Text style={tw`text-sm text-gray-600 dark:text-gray-300`}>
+                <Text style={[tw`text-sm font-semibold`, { color: colors.accent }]}>
                     @{item.account.username}
                 </Text>
                 <Text style={tw`text-xs text-gray-500 dark:text-gray-400 mt-1`}>

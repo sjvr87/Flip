@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
         flexWrap: 'nowrap',
     },
     captionInlineText: { flexShrink: 1, minWidth: 0 },
-    linkText: { fontWeight: '700' },
+    linkText: { fontWeight: '700', color: LOOP_ACCENT },
     moreInline: {
         flexDirection: 'row',
         alignItems: 'baseline',

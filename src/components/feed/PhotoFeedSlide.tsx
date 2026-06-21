@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
         right: 80,
     },
     username: {
-        color: 'white',
+        color: LOOP_ACCENT,
         fontSize: 16,
         fontWeight: '700',
         marginBottom: 6,

@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -13,6 +14,7 @@ import {
 import tw from 'twrnc';
 
 export default function EditUsernameScreen() {
+    const { colors } = useTheme();
     const params = useLocalSearchParams();
     const [username, setUsername] = useState(params.username || '');
     const [isChecking, setIsChecking] = useState(false);
@@ -143,7 +145,8 @@ export default function EditUsernameScreen() {
                             Your profile will be available at:
                         </Text>
                         <Text style={tw`text-sm font-medium text-gray-900 mt-1`}>
-                            loops.video/@{username || 'username'}
+                            loops.video/
+                            <Text style={{ color: colors.accent }}>@{username || 'username'}</Text>
                         </Text>
                     </View>
                 </View>

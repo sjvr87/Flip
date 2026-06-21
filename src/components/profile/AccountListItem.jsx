@@ -1,5 +1,6 @@
 import Avatar from '@/components/Avatar';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { Link, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
@@ -7,6 +8,7 @@ import tw from 'twrnc';
 
 export default function AccountListItem(props) {
     const { user } = useAuthStore();
+    const { colors } = useTheme();
     const router = useRouter();
     const isLoading = props.isLoading || false;
 
@@ -43,9 +45,9 @@ export default function AccountListItem(props) {
                         </XStack>
                         <StackText
                             fontSize="$3"
-                            style={tw`text-gray-500 dark:text-gray-400`}
+                            style={{ color: colors.accent }}
                             numberOfLines={1}>
-                            {props.item?.username}
+                            @{props.item?.username}
                         </StackText>
                     </YStack>
                 </XStack>

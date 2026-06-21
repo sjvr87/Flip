@@ -117,7 +117,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     const [reportContent, setReportContent] = useState();
     const { user } = useAuthStore();
     const canComment = item?.permissions?.can_comment !== false;
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
     const [showKlipy, setShowKlipy] = useState(false);
     const hasKlipy = useFeatureFlag('hasKlipy');
 
@@ -144,8 +144,8 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     }}>
                     <Avatar url={item?.account.avatar} size={36} />
                     <View style={tw`ml-3 flex-1`}>
-                        <Text style={tw`text-[15px] font-bold text-black dark:text-white`}>
-                            {item?.account?.username}
+                        <Text style={[tw`text-[15px] font-bold`, { color: colors.accent }]}>
+                            @{item?.account?.username}
                         </Text>
                         <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
                             {timeAgo(item?.created_at)}
@@ -170,7 +170,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                 />
             </View>
         );
-    }, [item, isDark, router, onNavigate, onClose, navigation]);
+    }, [item, isDark, colors.accent, router, onNavigate, onClose, navigation]);
 
     const commentMutation = useMutation({
         mutationFn: async (data: CommentPayload) => {
@@ -584,15 +584,15 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             <View style={tw`flex-1`}>
                 <View style={tw`flex-row items-center gap-2 mb-1`}>
                     <PressableHaptics onPress={() => handleProfilePress(reply.account?.id)}>
-                        <Text style={tw`text-sm font-bold text-black dark:text-white`}>
-                            {reply.account.username}
+                        <Text style={[tw`text-sm font-bold`, { color: colors.accent }]}>
+                            @{reply.account.username}
                         </Text>
                     </PressableHaptics>
                     <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
                         {timeAgo(reply.created_at)}
                     </Text>
                     {reply.account.id == item.account.id && (
-                        <Text style={tw`text-xs font-bold text-[#22D3EE]`}>Creator</Text>
+                        <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>Creator</Text>
                     )}
                 </View>
                 <LinkifiedCaption
@@ -697,7 +697,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                                         color={isDark ? '#666' : '#999'}
                                     />
                                 ) : (
-                                    <Text style={tw`text-[13px] font-semibold text-[#22D3EE]`}>
+                                    <Text style={[tw`text-[13px] font-semibold`, { color: colors.accent }]}>
                                         Load more replies
                                     </Text>
                                 )}
@@ -719,15 +719,15 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                 <View style={tw`flex-1`}>
                     <View style={tw`flex flex-row items-center gap-2 mb-1`}>
                         <PressableHaptics onPress={() => handleProfilePress(comment.account?.id)}>
-                            <Text style={tw`text-sm font-bold text-black dark:text-white`}>
-                                {comment.account.username}
+                            <Text style={[tw`text-sm font-bold`, { color: colors.accent }]}>
+                                @{comment.account.username}
                             </Text>
                         </PressableHaptics>
                         <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
                             {timeAgo(comment.created_at)}
                         </Text>
                         {comment.account.id == item.account.id && (
-                            <Text style={tw`text-xs font-bold text-[#22D3EE]`}>Creator</Text>
+                            <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>Creator</Text>
                         )}
                     </View>
                     <LinkifiedCaption
@@ -752,7 +752,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     <View style={tw`flex-row mt-2 gap-4`}>
                         {comment.replies > 0 && (
                             <PressableHaptics onPress={() => toggleReplies(comment.id)}>
-                                <Text style={tw`text-[13px] font-semibold text-[#22D3EE]`}>
+                                <Text style={[tw`text-[13px] font-semibold`, { color: colors.accent }]}>
                                     {expandedComments.has(comment.id)
                                         ? 'Hide replies'
                                         : `View ${comment.replies} ${comment.replies === 1 ? 'reply' : 'replies'}`}
@@ -924,7 +924,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         <View
                             style={tw`flex-row justify-between items-center px-4 py-2 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700`}>
                             <Text style={tw`text-sm text-gray-600 dark:text-gray-400`}>
-                                Replying to @{replyingTo.account.username}
+                                Replying to{' '}
+                                <Text style={{ color: colors.accent, fontWeight: '700' }}>
+                                    @{replyingTo.account.username}
+                                </Text>
                             </Text>
                             <TouchableOpacity onPress={cancelReply}>
                                 <Ionicons
@@ -965,7 +968,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <Feather
                                 name="send"
                                 size={24}
-                                color={comment.trim() ? '#22D3EE' : isDark ? '#555' : '#CCC'}
+                                color={comment.trim() ? colors.accent : isDark ? '#555' : '#CCC'}
                             />
                         </TouchableOpacity>
                     </View>

@@ -1,3 +1,4 @@
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeNativeShims } from '@/utils/runtime';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -349,6 +350,7 @@ const styles = StyleSheet.create({
 
     linkText: {
         fontWeight: '700',
+        color: LOOP_ACCENT,
     },
 
     moreInline: {

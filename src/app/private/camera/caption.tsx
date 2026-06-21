@@ -213,7 +213,7 @@ export default function CaptionScreen() {
     const [isSensitive, setIsSensitive] = useState(false);
     const [isAd, setIsAd] = useState(false);
     const [isAi, setIsAi] = useState(false);
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const [cursorPosition, setCursorPosition] = useState(0);
     const [autocompleteType, setAutocompleteType] = useState<'hashtag' | 'mention' | null>(null);
@@ -610,7 +610,10 @@ export default function CaptionScreen() {
                                             <YStack style={tw`flex-1`} justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
                                                     <Text
-                                                        style={tw`text-[15px] font-semibold text-black dark:text-white`}>
+                                                        style={[
+                                                            tw`text-[15px] font-semibold`,
+                                                            { color: colors.accent },
+                                                        ]}>
                                                         @{item.username}
                                                     </Text>
                                                     <Text

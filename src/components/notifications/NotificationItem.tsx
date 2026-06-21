@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -32,6 +33,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     onPress,
     onProfilePress,
 }) => {
+    const { colors } = useTheme();
     const isUnread = item.read_at === null;
 
     const getNotificationText = () => {
@@ -124,7 +126,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             <Pressable onPress={() => onPress(item)} style={tw`flex-1 flex-row items-center`}>
                 <View style={tw`flex-1 mr-2`}>
                     <Text style={tw`text-base`}>
-                        <Text style={tw`font-semibold dark:text-white`}>{item.actor.username}</Text>
+                        <Text style={[tw`font-semibold`, { color: colors.accent }]}>
+                            {item.actor.username}
+                        </Text>
                         <Text style={tw`text-gray-700 dark:text-gray-300`}>
                             {' '}
                             {getNotificationText()}

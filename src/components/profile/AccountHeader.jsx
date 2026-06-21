@@ -12,7 +12,7 @@ import tw from 'twrnc';
 import ExpandableBio from './ExpandableBio';
 
 export default function AccountHeader(props) {
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const isOwner = props?.is_owner || props.user?.is_owner;
 
@@ -38,7 +38,10 @@ export default function AccountHeader(props) {
             <Avatar url={props.user?.avatar} theme="xl" />
 
             <XStack gap="$2" alignItems="center">
-                <StackText fontWeight="bold" fontSize="$6" textColor="text-black dark:text-white">
+                <StackText
+                    fontWeight="bold"
+                    fontSize="$6"
+                    style={{ color: colors.accent }}>
                     {props.user?.username ? '@' + props.user?.username : ''}
                 </StackText>
             </XStack>
