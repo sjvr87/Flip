@@ -1,3 +1,4 @@
+import HomeTabIcon from '@/components/icons/HomeTabIcon';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
@@ -94,12 +95,7 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="home"
-                            inactiveName="home-outline"
-                            color={color}
-                        />
+                        <HomeTabIcon color={color} focused={focused} size={ICON_SIZE} />
                     ),
                 }}
             />
