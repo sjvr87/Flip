@@ -20,6 +20,7 @@ import {
     Alert,
     Dimensions,
     Platform,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -418,7 +419,7 @@ function VideoPlayerCore({
         try {
             const pinchFactory = Gesture?.Pinch;
             const tapFactory = Gesture?.Tap;
-            const exclusiveFactory = Gesture?.Exclusive;
+            const simultaneousFactory = Gesture?.Simultaneous;
 
             if (typeof tapFactory !== 'function') {
                 return null;
@@ -431,7 +432,7 @@ function VideoPlayerCore({
                     runOnJS(togglePlayPause)();
                 });
 
-            if (typeof pinchFactory !== 'function' || typeof exclusiveFactory !== 'function') {
+            if (typeof pinchFactory !== 'function' || typeof simultaneousFactory !== 'function') {
                 return tap;
             }
 
@@ -458,7 +459,9 @@ function VideoPlayerCore({
                 pinch.blocksExternalGesture(feedScrollGesture);
             }
 
-            return exclusiveFactory(pinch, tap);
+            // Simultaneous (not Exclusive): pinch waits for a 2nd finger and would
+            // capture the first pointer, preventing single-finger tap from firing.
+            return simultaneousFactory(pinch, tap);
         } catch (error) {
             console.warn('[VideoPlayer] gesture setup failed:', error);
             return null;
@@ -597,15 +600,36 @@ function VideoPlayerCore({
                         accessibilityHint="Tap to pause or play"
                         contentFit="contain"
                     />
-
-                    {showPauseHint && (
-                        <View style={styles.controlsOverlay} pointerEvents="none">
-                            <View style={styles.playButton}>
-                                <Ionicons name={pauseHintIcon} size={60} color="white" />
-                            </View>
-                        </View>
-                    )}
                 </Reanimated.View>
+
+                {videoGestures ? (
+                    <GestureDetector gesture={videoGestures}>
+                        <View
+                            style={styles.tapOverlay}
+                            accessible={true}
+                            accessibilityLabel="Video"
+                            accessibilityHint="Tap to pause or play"
+                            accessibilityRole="button"
+                        />
+                    </GestureDetector>
+                ) : (
+                    <Pressable
+                        style={styles.tapOverlay}
+                        onPress={togglePlayPause}
+                        accessible={true}
+                        accessibilityLabel="Video"
+                        accessibilityHint="Tap to pause or play"
+                        accessibilityRole="button"
+                    />
+                )}
+
+                {showPauseHint && (
+                    <View style={styles.controlsOverlay} pointerEvents="none">
+                        <View style={styles.playButton}>
+                            <Ionicons name={pauseHintIcon} size={60} color="white" />
+                        </View>
+                    </View>
+                )}
 
                 <Reanimated.View
                     pointerEvents="none"
@@ -736,10 +760,6 @@ function VideoPlayerCore({
             </View>
     );
 
-    if (videoGestures) {
-        return <GestureDetector gesture={videoGestures}>{videoBody}</GestureDetector>;
-    }
-
     return videoBody;
 }
 
@@ -771,6 +791,11 @@ const styles = StyleSheet.create({
     },
     videoHiddenUntilReady: {
         opacity: 0,
+    },
+    tapOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 4,
+        elevation: 4,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
