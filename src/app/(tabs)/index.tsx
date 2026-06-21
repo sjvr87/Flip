@@ -118,6 +118,29 @@ export default function LoopsFeed({ navigation }) {
         }
     }, [isConfigLoading, appConfig, forYouEnabled, activeTab]);
 
+    useEffect(() => {
+        const epochs = feedEpochsRef.current;
+        const prefetchTab = (tab: (typeof FEED_TABS)[number]) => {
+            if (tab === 'forYou' && !forYouEnabled) {
+                return;
+            }
+            const epoch = epochs[tab] ?? 0;
+            void queryClient.prefetchInfiniteQuery({
+                queryKey: ['videos', tab, epoch],
+                queryFn: ({ pageParam }) =>
+                    fetchVideos({ pageParam, tab, refreshEpoch: epoch }),
+                initialPageParam: null,
+                staleTime: getFeedStaleMs(tab),
+            });
+        };
+
+        for (const tab of FEED_TABS) {
+            if (tab !== activeTabRef.current) {
+                prefetchTab(tab);
+            }
+        }
+    }, [forYouEnabled, queryClient]);
+
     const recordVideoImpression = useCallback(
         async (video, duration) => {
             if (activeTab !== 'forYou' || !video) {
@@ -653,8 +676,10 @@ export default function LoopsFeed({ navigation }) {
             </View>
 
             <FlatList
+                key={`${activeTab}-${feedEpoch}`}
                 ref={flatListRef}
                 data={videosWithEnd}
+                extraData={currentIndex}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                 pagingEnabled

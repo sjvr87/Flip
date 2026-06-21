@@ -1,7 +1,12 @@
 import type { AppBskyFeedDefs } from '@atproto/api'
 import Constants from 'expo-constants'
 import { decodeRouteParam } from '@/utils/profileNavigation'
-import { shuffleFeedVideos, videoDedupeKey } from '@/utils/feedCache'
+import {
+  DISCOVERY_SEARCH_LIMIT,
+  FOLLOWING_MAX_CHAIN_FETCHES,
+  shuffleFeedVideos,
+  videoDedupeKey,
+} from '@/utils/feedCache'
 import { postsToFeedPage, postsToMediaPage } from './adapters'
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
 import type { FlipFeedPage, FlipVideo } from './types'
@@ -11,6 +16,7 @@ type PageParam = string | false | null | undefined
 const PAGE_SRC_PREFIX = 'flip-src:'
 
 type ForYouSourceId = 'thevids' | 'search-latest' | 'search-top' | 'whats-hot' | 'custom'
+type LocalSourceId = 'thevids' | 'search-latest' | 'search-top'
 
 type FeedFetchOptions = {
   pageParam?: PageParam
@@ -46,29 +52,6 @@ function isFirstFeedPage(pageParam: PageParam): boolean {
   return !decoded.cursor && !decoded.sourceId
 }
 
-function mergeVideoPages(primary: FlipFeedPage, extra: FlipFeedPage): FlipFeedPage {
-  const seen = new Set<string>()
-  const merged: FlipVideo[] = []
-
-  for (const video of [...primary.data, ...extra.data]) {
-    const key = videoDedupeKey(video)
-    if (!key || seen.has(key)) {
-      continue
-    }
-    seen.add(key)
-    merged.push(video)
-  }
-
-  return {
-    data: merged,
-    meta: {
-      ...primary.meta,
-      per_page: merged.length,
-      next_cursor: primary.meta.next_cursor ?? extra.meta.next_cursor,
-    },
-  }
-}
-
 function finalizeFirstPage(page: FlipFeedPage, refreshEpoch: number): FlipFeedPage {
   if (page.data.length <= 1) {
     return page
@@ -79,9 +62,8 @@ function finalizeFirstPage(page: FlipFeedPage, refreshEpoch: number): FlipFeedPa
   }
 }
 
-/** Target distinct videos per page when chaining sparse timeline/search results. */
+/** Target distinct videos per page when chaining sparse timeline results. */
 const MIN_VIDEOS_PER_PAGE = 3
-const MAX_CHAIN_FETCHES = 5
 
 function feedLoadError(context: string, error: unknown): never {
   if (error instanceof SessionExpiredError) {
@@ -99,9 +81,8 @@ function normalizeCursor(pageParam: PageParam): string | undefined {
 }
 
 /**
- * Timeline/custom feeds include non-video posts; client-side filtering can yield
- * sparse pages while the ATProto cursor still has more data. Chain fetches until
- * we have enough distinct videos or exhaust the cursor (bounded to avoid runaway loops).
+ * Timeline includes non-video posts; chain fetches until we have enough distinct
+ * videos or exhaust the cursor. Used for Following only — never for discovery tabs.
  */
 async function fetchUntilVideoPage(
   fetchPage: (cursor: string | undefined) => Promise<{
@@ -109,13 +90,14 @@ async function fetchUntilVideoPage(
     cursor?: string
   }>,
   pageParam: PageParam,
+  maxFetches = FOLLOWING_MAX_CHAIN_FETCHES,
 ): Promise<FlipFeedPage> {
   let cursor = normalizeCursor(pageParam)
   const videos: FlipVideo[] = []
   const seenKeys = new Set<string>()
   let nextCursor: string | null = null
 
-  for (let attempt = 0; attempt < MAX_CHAIN_FETCHES; attempt++) {
+  for (let attempt = 0; attempt < maxFetches; attempt++) {
     const res = await fetchPage(cursor)
     const page = postsToFeedPage(res.feed, res.cursor)
     nextCursor = page.meta.next_cursor
@@ -136,7 +118,6 @@ async function fetchUntilVideoPage(
       break
     }
 
-    // Keep scanning the timeline when this batch had no playable videos.
     if (added === 0 && res.feed.length === 0) {
       break
     }
@@ -186,26 +167,26 @@ function getLocalFeedUri(): string | undefined {
 
 type VideoSearchSort = 'latest' | 'top'
 
-async function fetchVideoSearchFeed(
+/** Single searchPosts request — global discovery, no timeline chaining. */
+async function fetchSingleVideoSearchPage(
   pageParam: PageParam,
   options: { sort: VideoSearchSort; context: string; query?: string },
 ): Promise<FlipFeedPage> {
   const { sort, context, query = 'video' } = options
   const decoded = decodeFeedPageParam(pageParam)
   const apiCursor = decoded.cursor ?? normalizeCursor(pageParam)
+
   try {
     return await withAuthenticatedFetch(async () => {
       const agent = getAgent()
-      return fetchUntilVideoPage(async (cursor) => {
-        const res = await agent.app.bsky.feed.searchPosts({
-          q: query,
-          sort,
-          limit: 50,
-          cursor,
-        })
-        const feed = res.data.posts.map((post) => ({ post, reply: undefined }))
-        return { feed, cursor: res.data.cursor }
-      }, apiCursor)
+      const res = await agent.app.bsky.feed.searchPosts({
+        q: query,
+        sort,
+        limit: DISCOVERY_SEARCH_LIMIT,
+        cursor: apiCursor,
+      })
+      const feed = res.data.posts.map((post) => ({ post, reply: undefined }))
+      return postsToFeedPage(feed, res.data.cursor)
     })
   } catch (error) {
     feedLoadError(context, error)
@@ -225,7 +206,7 @@ async function fetchGeneratorFeed(
       const agent = getAgent()
       const res = await agent.app.bsky.feed.getFeed({
         feed: feedUri,
-        limit: 30,
+        limit: DISCOVERY_SEARCH_LIMIT,
         cursor: apiCursor,
       })
       return postsToFeedPage(res.data.feed, res.data.cursor)
@@ -255,15 +236,16 @@ export async function fetchFollowingFeed({
       }, apiCursor)
     })
 
-    if (firstPage && page.data.length < MIN_VIDEOS_PER_PAGE) {
+    // Only supplement when the timeline is completely empty — never merge discover into thin Following.
+    if (firstPage && page.data.length === 0) {
       try {
-        const supplement = await fetchVideoSearchFeed(false, {
+        const supplement = await fetchSingleVideoSearchPage(false, {
           sort: refreshEpoch % 2 === 0 ? 'latest' : 'top',
           context: 'following suggestions',
           query: 'video',
         })
         if (supplement.data.length > 0) {
-          page = mergeVideoPages(page, supplement)
+          page = supplement
         }
       } catch (supplementError) {
         if (supplementError instanceof SessionExpiredError) {
@@ -284,11 +266,16 @@ export async function fetchFollowingFeed({
 }
 
 function pickForYouSource(refreshEpoch: number, customUri?: string): ForYouSourceId {
-  if (customUri) {
-    const withCustom: ForYouSourceId[] = ['custom', 'thevids', 'search-latest', 'search-top']
+  if (customUri && customUri !== BLUESKY_THE_VIDS) {
+    const withCustom: ForYouSourceId[] = ['custom', 'search-latest', 'search-top', 'whats-hot']
     return withCustom[refreshEpoch % withCustom.length]!
   }
   const pool: ForYouSourceId[] = ['thevids', 'search-latest', 'search-top', 'whats-hot']
+  return pool[refreshEpoch % pool.length]!
+}
+
+function pickLocalSource(refreshEpoch: number): LocalSourceId {
+  const pool: LocalSourceId[] = ['thevids', 'search-latest', 'search-top']
   return pool[refreshEpoch % pool.length]!
 }
 
@@ -301,12 +288,12 @@ async function fetchForYouBySource(
     case 'custom':
       return fetchGeneratorFeed(customUri || BLUESKY_THE_VIDS, cursor ?? false, 'for you feed')
     case 'search-latest':
-      return fetchVideoSearchFeed(cursor ?? false, {
+      return fetchSingleVideoSearchPage(cursor ?? false, {
         sort: 'latest',
         context: 'for you feed',
       })
     case 'search-top':
-      return fetchVideoSearchFeed(cursor ?? false, {
+      return fetchSingleVideoSearchPage(cursor ?? false, {
         sort: 'top',
         context: 'for you feed',
       })
@@ -315,6 +302,32 @@ async function fetchForYouBySource(
     case 'thevids':
     default:
       return fetchGeneratorFeed(BLUESKY_THE_VIDS, cursor ?? false, 'for you feed')
+  }
+}
+
+async function fetchLocalBySource(
+  sourceId: LocalSourceId,
+  cursor: string | undefined,
+  refreshEpoch: number,
+): Promise<FlipFeedPage> {
+  const query = refreshEpoch % 3 === 2 ? 'flip video' : 'video'
+
+  switch (sourceId) {
+    case 'search-top':
+      return fetchSingleVideoSearchPage(cursor ?? false, {
+        sort: 'top',
+        context: 'local feed',
+        query,
+      })
+    case 'search-latest':
+      return fetchSingleVideoSearchPage(cursor ?? false, {
+        sort: 'latest',
+        context: 'local feed',
+        query,
+      })
+    case 'thevids':
+    default:
+      return fetchGeneratorFeed(BLUESKY_THE_VIDS, cursor ?? false, 'local feed')
   }
 }
 
@@ -381,7 +394,7 @@ export async function fetchForYouFeed({
     }
     console.warn('[feed] for you source failed, trying fallbacks:', error)
     try {
-      const page = await fetchVideoSearchFeed(pageParam, {
+      const page = await fetchSingleVideoSearchPage(false, {
         sort: refreshEpoch % 2 === 0 ? 'latest' : 'top',
         context: 'for you feed',
       })
@@ -408,38 +421,73 @@ export async function fetchForYouFeed({
 }
 
 /**
- * Local tab — optional custom feed generator, else recent video posts from the network.
- * Location-based feeds require a geo feed generator URI in flipLocalFeed; without it we
- * search for recent videos and surface a clear message when nothing is found.
+ * Local tab — optional custom feed generator, else global video discovery.
+ * Never uses getTimeline; rotates thevids + video search on refresh.
  */
 export async function fetchLocalFeed({
   pageParam = false,
   refreshEpoch = 0,
 }: FeedFetchOptions = {}): Promise<FlipFeedPage> {
   const customUri = getLocalFeedUri()
+  const decoded = decodeFeedPageParam(pageParam)
   const firstPage = isFirstFeedPage(pageParam)
 
   if (customUri) {
     const page = await fetchGeneratorFeed(customUri, pageParam, 'local feed')
-    return firstPage ? finalizeFirstPage(page, refreshEpoch) : page
+    const finalized = firstPage ? finalizeFirstPage(page, refreshEpoch) : page
+    const nextCursor = finalized.meta.next_cursor
+    return {
+      ...finalized,
+      meta: {
+        ...finalized.meta,
+        next_cursor: nextCursor
+          ? encodeFeedPageParam('custom', nextCursor)
+          : null,
+      },
+    }
   }
 
-  const sort: VideoSearchSort = refreshEpoch % 3 === 1 ? 'top' : 'latest'
-  const query = refreshEpoch % 3 === 2 ? 'flip video' : 'video'
+  let sourceId: LocalSourceId
+  let cursor: string | undefined
+
+  if (decoded.sourceId) {
+    sourceId = decoded.sourceId as LocalSourceId
+    cursor = decoded.cursor
+  } else if (decoded.cursor) {
+    sourceId = 'thevids'
+    cursor = decoded.cursor
+  } else {
+    sourceId = pickLocalSource(refreshEpoch)
+    cursor = undefined
+  }
 
   let page: FlipFeedPage
 
   try {
-    page = await fetchVideoSearchFeed(pageParam, {
-      sort,
-      context: 'local feed',
-      query,
-    })
+    page = await fetchLocalBySource(sourceId, cursor, refreshEpoch)
+
+    if (firstPage && page.data.length === 0) {
+      const fallbacks: LocalSourceId[] = ['search-latest', 'search-top', 'thevids']
+      for (const fallback of fallbacks) {
+        if (fallback === sourceId) {
+          continue
+        }
+        try {
+          page = await fetchLocalBySource(fallback, undefined, refreshEpoch)
+          sourceId = fallback
+          if (page.data.length > 0) {
+            break
+          }
+        } catch {
+          // try next fallback
+        }
+      }
+    }
   } catch (error) {
     if (error instanceof SessionExpiredError) {
       feedLoadError('local feed', error)
     }
-    console.warn('[feed] local searchPosts failed:', error)
+    console.warn('[feed] local discovery failed:', error)
     return {
       data: [],
       meta: {
@@ -454,6 +502,15 @@ export async function fetchLocalFeed({
 
   if (firstPage) {
     page = finalizeFirstPage(page, refreshEpoch)
+  }
+
+  const nextCursor = page.meta.next_cursor
+  page = {
+    ...page,
+    meta: {
+      ...page.meta,
+      next_cursor: nextCursor ? encodeFeedPageParam(sourceId, nextCursor) : null,
+    },
   }
 
   if (page.data.length === 0 && !page.meta.next_cursor && firstPage) {

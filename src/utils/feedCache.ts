@@ -6,8 +6,14 @@ import type { FlipVideo } from '@/atproto/types';
 export const FEED_FYP_STALE_MS = 8_000;
 /** Following — timeline can stay warm longer; soft refresh is non-destructive. */
 export const FEED_FOLLOWING_STALE_MS = 15_000;
-export const FEED_LOCAL_STALE_MS = 12_000;
+/** Local / discovery — warm longer so tab switches feel instant (like Explore). */
+export const FEED_LOCAL_STALE_MS = 60_000;
 export const FEED_GC_MS = 2 * 60_000;
+
+/** Single-page discovery fetch size (generators + searchPosts). */
+export const DISCOVERY_SEARCH_LIMIT = 30;
+/** Timeline chain depth for Following only. */
+export const FOLLOWING_MAX_CHAIN_FETCHES = 8;
 
 export const FEED_TABS = ['following', 'local', 'forYou'] as const;
 export type FeedTab = (typeof FEED_TABS)[number];
