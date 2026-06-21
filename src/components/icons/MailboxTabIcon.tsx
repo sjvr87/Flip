@@ -39,12 +39,12 @@ function FoldedHeart({ x, y, scale }: { x: number; y: number; scale: number }) {
 }
 
 /**
- * Classic US mailbox on a post — stroke-only line art at 26px.
+ * Classic US mailbox on a post — stroke-only line art at 30px.
  * Tint follows tabBarActiveTintColor / tabBarInactiveTintColor like other tab icons.
  * Priority when multiple unread: messages > likes > follows.
  */
 const MailboxTabIcon = memo(function MailboxTabIcon({
-    size = 26,
+    size = 30,
     color = '#000000',
     focused = false,
     state = 'allRead',

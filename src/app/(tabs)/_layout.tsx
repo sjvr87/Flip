@@ -14,7 +14,8 @@ import { Tabs } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-const ICON_SIZE = 26;
+const ICON_SIZE = 30;
+const CREATE_ADD_SIZE = Math.round(ICON_SIZE * (24 / 26));
 
 function CreateTabIcon({ isDark }: { isDark: boolean }) {
     const backgroundColor = isDark ? '#ffffff' : '#000000';
@@ -22,7 +23,7 @@ function CreateTabIcon({ isDark }: { isDark: boolean }) {
 
     return (
         <View style={[styles.createButton, { backgroundColor }]}>
-            <Ionicons name="add" size={24} color={iconColor} />
+            <Ionicons name="add" size={CREATE_ADD_SIZE} color={iconColor} />
         </View>
     );
 }
@@ -150,8 +151,8 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
     createButton: {
-        width: 48,
-        height: 30,
+        width: Math.round(48 * (ICON_SIZE / 26)),
+        height: Math.round(30 * (ICON_SIZE / 26)),
         borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',

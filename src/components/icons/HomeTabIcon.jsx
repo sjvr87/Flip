@@ -2,11 +2,11 @@ import { memo } from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 /**
- * House inside a broken circle — tab bar reference at 26px.
+ * House inside a broken circle — tab bar reference at 30px.
  * Stroke-only line art; tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  */
 const HomeTabIcon = memo(function HomeTabIcon({
-    size = 26,
+    size = 30,
     color = '#000000',
     focused = false,
 }) {

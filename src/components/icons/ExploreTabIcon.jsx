@@ -35,11 +35,11 @@ const STAR_RAYS = [
 const TICK_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
 /**
- * Compass rose tab icon — stroke + fill line art at 26px.
+ * Compass rose tab icon — stroke + fill line art at 30px.
  * Tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  */
 const ExploreTabIcon = memo(function ExploreTabIcon({
-    size = 26,
+    size = 30,
     color = '#000000',
     focused = false,
 }) {
