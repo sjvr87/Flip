@@ -1,4 +1,5 @@
 import { useTheme } from '@/contexts/ThemeContext';
+import { toProfileFeedPath } from '@/utils/profileNavigation';
 import { fetchPlaylistLimits, fetchStudioSummary } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -399,7 +400,7 @@ export default function StudioScreen() {
                             onPress={() => {
                                 if (data?.latest_post) {
                                     router.push(
-                                        `/private/profile/feed/${data.latest_post.id}?profileId=${data.latest_post.profile_id}`,
+                                        toProfileFeedPath(data.latest_post.id, data.latest_post.profile_id),
                                     );
                                 }
                             }}
@@ -469,9 +470,7 @@ export default function StudioScreen() {
                     totalPosts={data?.total_posts ?? 0}
                     isLoading={isPending}
                     onViewAll={() => router.push('/private/studio/posts')}
-                    onPostPress={(hid, pid) =>
-                        router.push(`/private/profile/feed/${hid}?profileId=${pid}`)
-                    }
+                    onPostPress={(hid, pid) => router.push(toProfileFeedPath(hid, pid))}
                 />
 
                 <View style={tw.style('h-50')}></View>

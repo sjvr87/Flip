@@ -1,6 +1,8 @@
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useAuthStore } from '@/utils/authStore';
+import { navigateFromNotification } from '@/utils/notificationNavigation';
+import { toProfilePath } from '@/utils/profileNavigation';
 import { fetchNotifications, notificationMarkAsRead } from '@/utils/requests';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
@@ -68,20 +70,19 @@ export default function NotificationScreen() {
     }, [data]);
 
     const handleOnPress = (item: any) => {
-        if (item.type === 'new_follower') {
-            router.push(`/private/profile/${item?.actor?.id}`);
-        }
         if (!item.read_at) {
             readMutation.mutate(item.id);
         }
-
-        if (item.video_id && item.video_pid) {
-            router.push(`/private/profile/feed/${item.video_id}?profileId=${item.video_pid}`);
-        }
+        navigateFromNotification(router, item);
     };
 
-    const handleOnProfilePress = (item) => {
-        router.push(`/private/profile/${item?.id}`);
+    const handleOnProfilePress = (account: any, item: any) => {
+        if (!item.read_at) {
+            readMutation.mutate(item.id);
+        }
+        if (account?.id) {
+            router.push(toProfilePath(account.id));
+        }
     };
 
     const renderEmpty = () => (

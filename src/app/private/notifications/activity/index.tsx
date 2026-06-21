@@ -8,7 +8,9 @@ import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
+import { navigateFromNotification } from '@/utils/notificationNavigation';
 import { useNotificationStore } from '@/utils/notificationStore';
+import { toProfilePath } from '@/utils/profileNavigation';
 import {
     fetchActivityNotifications,
     notificationMarkAsRead,
@@ -172,16 +174,16 @@ export default function ActivityNotificationsScreen() {
         if (!item.read_at) {
             readMutation.mutate(item.id);
         }
-        if (item.video_id && item.video_pid) {
-            router.push(`/private/profile/feed/${item.video_id}?profileId=${item.video_pid}`);
-        }
+        navigateFromNotification(router, item);
     };
 
     const handleOnProfilePress = (account: any, item: any) => {
         if (!item.read_at) {
             readMutation.mutate(item.id);
         }
-        router.push(`/private/profile/${account?.id}`);
+        if (account?.id) {
+            router.push(toProfilePath(account.id));
+        }
     };
 
     const renderEmpty = () => (

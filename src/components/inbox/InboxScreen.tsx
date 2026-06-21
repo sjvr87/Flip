@@ -4,6 +4,7 @@ import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
+import { toProfilePath } from '@/utils/profileNavigation';
 import {
     fetchConvos,
     fetchNotifications,
@@ -542,7 +543,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                                     key={account.id}
                                     account={account}
                                     onFollow={(id) => followMutation.mutate(id)}
-                                    onView={(id) => router.push(`/private/profile/${id}`)}
+                                    onView={(id) => router.push(toProfilePath(id))}
                                     onHide={(id) => hideSuggestionMutation.mutate(id)}
                                     isFollowing={followingAccountId === account.id}
                                     isHiding={hidingAccountId === account.id}
