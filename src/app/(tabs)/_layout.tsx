@@ -1,5 +1,6 @@
 import HomeTabIcon from '@/components/icons/HomeTabIcon';
 import MailboxTabIcon from '@/components/icons/MailboxTabIcon';
+import ProfileTabIcon from '@/components/icons/ProfileTabIcon';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
@@ -161,12 +162,7 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="person-circle"
-                            inactiveName="person-circle-outline"
-                            color={color}
-                        />
+                        <ProfileTabIcon color={color} focused={focused} size={ICON_SIZE} />
                     ),
                 }}
             />
