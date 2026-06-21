@@ -1,7 +1,7 @@
 import type { AppBskyNotificationDefs } from '@atproto/api'
 import { AppBskyEmbedVideo } from '@atproto/api'
 
-import { getAgent } from './agent'
+import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
 
 export type FlipNotification = {
   id: string
@@ -142,8 +142,9 @@ function countUnread(notifications: FlipNotification[]): UnreadCounts {
 }
 
 async function listNotificationsPage(cursor?: string, limit = 30) {
-  const agent = getAgent()
-  const res = await agent.listNotifications({ limit, cursor })
+  const res = await withAuthenticatedFetch(() =>
+    getAgent().listNotifications({ limit, cursor }),
+  )
   const mapped = res.data.notifications.map(mapNotification)
   return {
     notifications: mapped,
@@ -152,13 +153,13 @@ async function listNotificationsPage(cursor?: string, limit = 30) {
 }
 
 export async function fetchUnreadNotificationCount(): Promise<number> {
-  const agent = getAgent()
-  if (!agent.session) return 0
+  if (!getAgent().session) return 0
 
   try {
-    const res = await agent.countUnreadNotifications()
+    const res = await withAuthenticatedFetch(() => getAgent().countUnreadNotifications())
     return res.data.count ?? 0
-  } catch {
+  } catch (error) {
+    if (error instanceof SessionExpiredError) throw error
     return 0
   }
 }
@@ -210,19 +211,17 @@ export async function fetchFollowerNotifications({
 }
 
 export async function notificationMarkAsRead(id: string): Promise<{ data: Record<string, never> }> {
-  const agent = getAgent()
-
-  // Mark everything up to this notification as seen.
-  const res = await agent.listNotifications({ limit: 50 })
+  const res = await withAuthenticatedFetch(() => getAgent().listNotifications({ limit: 50 }))
   const target = res.data.notifications.find((n) => n.uri === id)
   const seenAt = target?.indexedAt ?? new Date().toISOString()
 
-  await agent.updateSeenNotifications({ seenAt })
+  await withAuthenticatedFetch(() => getAgent().updateSeenNotifications({ seenAt }))
   return { data: {} }
 }
 
 export async function notificationTypeMarkAllAsRead(_type: string): Promise<{ data: Record<string, never> }> {
-  const agent = getAgent()
-  await agent.updateSeenNotifications({ seenAt: new Date().toISOString() })
+  await withAuthenticatedFetch(() =>
+    getAgent().updateSeenNotifications({ seenAt: new Date().toISOString() }),
+  )
   return { data: {} }
 }

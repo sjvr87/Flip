@@ -1,6 +1,6 @@
 import { AtUri } from '@atproto/api'
 import { profileToFlipUser } from './adapters'
-import { getAgent } from './agent'
+import { getAgent, withAuthenticatedFetch } from './agent'
 import type { FlipUserProfile } from './types'
 
 export type FlipAccountState = {
@@ -10,22 +10,19 @@ export type FlipAccountState = {
 }
 
 async function resolveActorDid(actor: string): Promise<string> {
-  const agent = getAgent()
-  const profile = await agent.getProfile({ actor })
+  const profile = await withAuthenticatedFetch(() => getAgent().getProfile({ actor }))
   return profile.data.did
 }
 
 export async function fetchAccount(actor: string): Promise<{ data: FlipUserProfile }> {
-  const agent = getAgent()
-  const profile = await agent.getProfile({ actor })
-  const isOwner = profile.data.did === agent.session?.did
+  const profile = await withAuthenticatedFetch(() => getAgent().getProfile({ actor }))
+  const isOwner = profile.data.did === getAgent().session?.did
 
   return { data: profileToFlipUser(profile.data, isOwner) }
 }
 
 export async function fetchAccountState(actor: string): Promise<{ data: FlipAccountState }> {
-  const agent = getAgent()
-  const profile = await agent.getProfile({ actor })
+  const profile = await withAuthenticatedFetch(() => getAgent().getProfile({ actor }))
   const viewer = profile.data.viewer
 
   return {
@@ -38,19 +35,17 @@ export async function fetchAccountState(actor: string): Promise<{ data: FlipAcco
 }
 
 export async function followAccount(actor: string): Promise<{ data: Record<string, never> }> {
-  const agent = getAgent()
   const did = await resolveActorDid(actor)
-  await agent.follow(did)
+  await withAuthenticatedFetch(() => getAgent().follow(did))
   return { data: {} }
 }
 
 export async function unfollowAccount(actor: string): Promise<{ data: Record<string, never> }> {
-  const agent = getAgent()
-  const profile = await agent.getProfile({ actor })
+  const profile = await withAuthenticatedFetch(() => getAgent().getProfile({ actor }))
   const followUri = profile.data.viewer?.following
 
   if (followUri) {
-    await agent.deleteFollow(followUri)
+    await withAuthenticatedFetch(() => getAgent().deleteFollow(followUri))
   }
 
   return { data: {} }
@@ -61,32 +56,36 @@ export async function cancelFollowRequest(_actor: string): Promise<{ data: Recor
 }
 
 export async function blockAccount(actor: string): Promise<{ data: Record<string, never> }> {
-  const agent = getAgent()
   const did = await resolveActorDid(actor)
+  const repo = getAgent().session!.did
 
-  await agent.app.bsky.graph.block.create(
-    { repo: agent.session!.did },
-    {
-      subject: did,
-      createdAt: new Date().toISOString(),
-    },
+  await withAuthenticatedFetch(() =>
+    getAgent().app.bsky.graph.block.create(
+      { repo },
+      {
+        subject: did,
+        createdAt: new Date().toISOString(),
+      },
+    ),
   )
 
   return { data: {} }
 }
 
 export async function unblockAccount(actor: string): Promise<{ data: Record<string, never> }> {
-  const agent = getAgent()
-  const profile = await agent.getProfile({ actor })
+  const profile = await withAuthenticatedFetch(() => getAgent().getProfile({ actor }))
   const blockUri = profile.data.viewer?.blocking
 
   if (blockUri) {
     const { rkey } = new AtUri(blockUri)
+    const repo = getAgent().session!.did
     if (rkey) {
-      await agent.app.bsky.graph.block.delete({
-        repo: agent.session!.did,
-        rkey,
-      })
+      await withAuthenticatedFetch(() =>
+        getAgent().app.bsky.graph.block.delete({
+          repo,
+          rkey,
+        }),
+      )
     }
   }
 

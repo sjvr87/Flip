@@ -7,7 +7,7 @@ import {
 } from '@/utils/exploreCache'
 
 import { isVideoPost, postToFlipVideo, profileToFlipUser } from './adapters'
-import { getAgent } from './agent'
+import { getAgent, withAuthenticatedFetch } from './agent'
 import type { FlipFeedPage } from './types'
 
 const FALLBACK_TAGS = ['flip', 'video', 'music', 'comedy', 'art', 'gaming', 'sports']
@@ -62,12 +62,13 @@ function topicToTagName(topic: { topic?: string; displayName?: string }): string
 }
 
 export async function getExploreTags(): Promise<ExploreTag[]> {
-  const agent = getAgent()
   const seen = new Set<string>()
   const tags: ExploreTag[] = []
 
   try {
-    const res = await agent.app.bsky.unspecced.getTrendingTopics({ limit: 15 })
+    const res = await withAuthenticatedFetch(() =>
+      getAgent().app.bsky.unspecced.getTrendingTopics({ limit: 15 }),
+    )
     for (const topic of [...(res.data.topics ?? []), ...(res.data.suggested ?? [])]) {
       const name = topicToTagName(topic)
       if (!name || seen.has(name)) continue
@@ -86,8 +87,9 @@ export async function getExploreTags(): Promise<ExploreTag[]> {
 }
 
 export async function getExploreAccounts(): Promise<ExploreAccount[]> {
-  const agent = getAgent()
-  const res = await agent.app.bsky.actor.getSuggestions({ limit: 20 })
+  const res = await withAuthenticatedFetch(() =>
+    getAgent().app.bsky.actor.getSuggestions({ limit: 20 }),
+  )
 
   return res.data.actors.map((actor) => {
     const profile = profileToFlipUser({
@@ -125,19 +127,20 @@ export async function getExploreTagsFeed({
     return { data: [], meta: { path: 'atproto', per_page: 0, next_cursor: null } }
   }
 
-  const agent = getAgent()
   let cursor = pageParam && pageParam !== false ? String(pageParam) : undefined
   const videos: FlipFeedPage['data'] = []
   let nextCursor: string | null = null
 
   for (let attempt = 0; attempt < EXPLORE_MAX_EMPTY_FETCHES; attempt++) {
-    const res = await agent.app.bsky.feed.searchPosts({
-      q: tag,
-      tag,
-      sort: 'latest',
-      limit: EXPLORE_FEED_PAGE_SIZE,
-      cursor,
-    })
+    const res = await withAuthenticatedFetch(() =>
+      getAgent().app.bsky.feed.searchPosts({
+        q: tag,
+        tag,
+        sort: 'latest',
+        limit: EXPLORE_FEED_PAGE_SIZE,
+        cursor,
+      }),
+    )
 
     const page = postsToVideoFeedPage(res.data.posts.filter(isVideoPost), res.data.cursor)
     videos.push(...page.data)

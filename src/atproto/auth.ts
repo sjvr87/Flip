@@ -36,6 +36,10 @@ export async function loginWithPassword(
 
   await persistSession(agent.session)
 
+  // Bluesky login — drop stale Loops REST credentials so routing uses ATProto.
+  Storage.delete('app.token')
+  Storage.delete('app.instance')
+
   const profile = await agent.getProfile({ actor: agent.session.did })
   const user = profileToFlipUser(profile.data, true)
   Storage.set(PROFILE_KEY, JSON.stringify(user))
@@ -46,6 +50,10 @@ export async function loginWithPassword(
 export async function hydrateSession(): Promise<boolean> {
   const ok = await resumeSession()
   if (!ok) return false
+
+  // Prefer ATProto routing — drop stale Loops REST credentials from older sessions.
+  Storage.delete('app.token')
+  Storage.delete('app.instance')
 
   try {
     const profile = await withAuthenticatedFetch(async () => {

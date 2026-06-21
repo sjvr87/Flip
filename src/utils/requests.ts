@@ -31,12 +31,19 @@ import { Alert } from 'react-native';
 
 let _authFailureTriggered = false;
 
+const ATPROTO_SESSION_KEY = 'flip.atproto.session';
+
+function hasAtprotoSession(): boolean {
+    return isAuthenticated() || !!Storage.getString(ATPROTO_SESSION_KEY);
+}
+
 export function usesLoopsBackend(): boolean {
-    return !!Storage.getString('app.instance') && !!Storage.getString('app.token');
+    const hasLoops = !!Storage.getString('app.instance') && !!Storage.getString('app.token');
+    return hasLoops && !hasAtprotoSession();
 }
 
 export function usesAtprotoBackend(): boolean {
-    return isAuthenticated() && !usesLoopsBackend();
+    return hasAtprotoSession();
 }
 
 function getLoopsInstance(): string {

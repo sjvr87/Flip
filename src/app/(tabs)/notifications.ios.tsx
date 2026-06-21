@@ -13,8 +13,8 @@ import { font, foregroundStyle, labelStyle } from '@expo/ui/swift-ui/modifiers';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useMemo, useState, useCallback } from 'react';
+import { ActivityIndicator, Image, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import tw from 'twrnc';
 
 interface CategoryCardProps {
@@ -197,7 +197,7 @@ export default function NotificationScreen() {
     const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
     const { isDark } = useTheme();
 
-    const { data, isLoading, isFetching } = useQuery({
+    const { data, isLoading, isError, refetch, isRefetching } = useQuery({
         queryKey: ['main-notifications'],
         queryFn: fetchNotifications,
         refetchOnWindowFocus: true,
@@ -208,7 +208,13 @@ export default function NotificationScreen() {
     const { data: accountsData, isLoading: accountsLoading } = useQuery({
         queryKey: ['accounts', 'suggested'],
         queryFn: getExploreAccounts,
+        retry: 2,
     });
+
+    const handleRefresh = useCallback(() => {
+        void refetch();
+        queryClient.invalidateQueries({ queryKey: ['accounts', 'suggested'] });
+    }, [queryClient, refetch]);
 
     const followMutation = useMutation({
         mutationFn: async (profileId: string) => {
@@ -394,12 +400,29 @@ export default function NotificationScreen() {
                 }}
             />
 
-            {isLoading || isFetching ? (
+            {isLoading ? (
                 <YStack flex={1} alignItems="center" justifyContent="center">
                     <ActivityIndicator size="large" />
                 </YStack>
             ) : (
-                <ScrollView>
+                <ScrollView
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isRefetching && !isLoading}
+                            onRefresh={handleRefresh}
+                            tintColor={isDark ? '#fff' : '#F02C56'}
+                        />
+                    }>
+                    {isError ? (
+                        <View style={tw`px-4 py-6`}>
+                            <StackText
+                                fontSize="$4"
+                                textColor="text-gray-600 dark:text-gray-400"
+                                style={{ textAlign: 'center' }}>
+                                Unable to load inbox. Pull down to refresh.
+                            </StackText>
+                        </View>
+                    ) : null}
                     {categories.map((category) => (
                         <CategoryCard
                             key={category.id}

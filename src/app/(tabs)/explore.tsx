@@ -25,6 +25,7 @@ import {
     Dimensions,
     FlatList,
     Pressable,
+    RefreshControl,
     Text,
     TouchableOpacity,
     View,
@@ -128,6 +129,8 @@ export default function ExploreScreen() {
         data: tagsData,
         isLoading: tagsLoading,
         isError: tagsError,
+        refetch: refetchTags,
+        isRefetching: tagsRefetching,
     } = useQuery({
         queryKey: ['explore', 'tags'],
         queryFn: getExploreTags,
@@ -139,6 +142,8 @@ export default function ExploreScreen() {
         data: accountsData,
         isLoading: accountsLoading,
         isError: accountsError,
+        refetch: refetchAccounts,
+        isRefetching: accountsRefetching,
     } = useQuery({
         queryKey: ['accounts', 'suggested'],
         queryFn: getExploreAccounts,
@@ -165,6 +170,8 @@ export default function ExploreScreen() {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
+        refetch: refetchVideos,
+        isRefetching: videosRefetching,
     } = useInfiniteQuery({
         queryKey: ['explore', 'tag-feed', feedTag],
         queryFn: getExploreTagsFeed,
@@ -529,6 +536,14 @@ export default function ExploreScreen() {
         }
     }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
+    const handleRefresh = useCallback(() => {
+        void refetchTags();
+        void refetchAccounts();
+        void refetchVideos();
+    }, [refetchAccounts, refetchTags, refetchVideos]);
+
+    const isRefreshing = tagsRefetching || accountsRefetching || videosRefetching;
+
     return (
         <SafeAreaView edges={['top']} style={tw`flex-1 bg-white dark:bg-black`}>
             <FlatList
@@ -548,6 +563,13 @@ export default function ExploreScreen() {
                 maxToRenderPerBatch={9}
                 windowSize={5}
                 removeClippedSubviews
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={isDark ? '#fff' : '#000'}
+                    />
+                }
             />
         </SafeAreaView>
     );
