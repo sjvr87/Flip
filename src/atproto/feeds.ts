@@ -11,7 +11,7 @@ import {
 } from '@/utils/feedCache'
 import { postsToFeedPage, postsToMediaPage, isMediaPost, postToFlipItem } from './adapters'
 import { getAgent, restoreSessionFromStorageIfEmpty, SessionExpiredError, withAuthenticatedFetch } from './agent'
-import { normalizeToPostUri } from './postResolve'
+import { normalizeToPostUri, resolveMediaPostView } from './postResolve'
 import type { FlipFeedPage, FlipVideo } from './types'
 
 type PageParam = string | false | null | undefined
@@ -1199,91 +1199,6 @@ async function hydratePostView(
   }
 }
 
-async function resolveMediaPostViaThread(
-  agent: ReturnType<typeof getAgent>,
-  uri: string,
-): Promise<AppBskyFeedDefs.PostView | null> {
-  try {
-    const res = await agent.getPostThread({ uri, depth: 0, parentHeight: 12 })
-    const thread = res.data.thread
-    if (thread.$type !== 'app.bsky.feed.defs#threadViewPost') {
-      return null
-    }
-
-    let node: AppBskyFeedDefs.ThreadViewPost | undefined = thread
-    while (node) {
-      if (isMediaPost(node.post)) {
-        return node.post
-      }
-
-      const parent = node.parent
-      if (!parent || parent.$type !== 'app.bsky.feed.defs#threadViewPost') {
-        break
-      }
-      node = parent
-    }
-  } catch {
-    // Fall through to caller.
-  }
-
-  return null
-}
-
-async function resolveMediaPostView(
-  agent: ReturnType<typeof getAgent>,
-  uri: string,
-): Promise<import('@atproto/api').AppBskyFeedDefs.PostView | null> {
-  let currentUri: string | undefined = await normalizeToPostUri(agent, uri)
-  const visited = new Set<string>()
-
-  for (let depth = 0; depth < 8 && currentUri && !visited.has(currentUri); depth++) {
-    visited.add(currentUri)
-    currentUri = await normalizeToPostUri(agent, currentUri)
-    const res = await agent.getPosts({ uris: [currentUri] })
-    let post = res.data.posts[0]
-    if (!post) return null
-
-    if (!isMediaPost(post)) {
-      const hydrated = await hydratePostView(agent, currentUri)
-      if (hydrated) {
-        post = hydrated
-      }
-    }
-
-    if (isMediaPost(post)) return post
-
-    const record = post.record as {
-      reply?: { parent?: { uri?: string }; root?: { uri?: string } }
-    }
-    const parentUri = record?.reply?.parent?.uri
-    if (parentUri) {
-      currentUri = parentUri
-      continue
-    }
-
-    const rootUri = record?.reply?.root?.uri
-    if (rootUri && rootUri !== currentUri) {
-      currentUri = rootUri
-      continue
-    }
-
-    const embed = post.embed
-    if (
-      embed &&
-      embed.$type === 'app.bsky.embed.record#view' &&
-      'record' in embed &&
-      (embed as { record?: { uri?: string } }).record?.uri
-    ) {
-      currentUri = (embed as { record: { uri: string } }).record.uri
-      continue
-    }
-
-    return null
-  }
-
-  return resolveMediaPostViaThread(agent, uri)
-}
-
 function mediaPageWithResolvedPost(
   resolvedPost: AppBskyFeedDefs.PostView,
   feedItems: AppBskyFeedDefs.FeedViewPost[],
@@ -1386,10 +1301,26 @@ export async function fetchUserVideoCursor({
       }
 
       if (!resolvedPost) {
+        if (__DEV__) {
+          console.warn('[feed] fetchUserVideoCursor: no media post resolved', {
+            videoUri,
+            normalizedUri,
+            actor,
+          })
+        }
         return postsToMediaPage(feedItems, feedCursor)
       }
 
-      return mediaPageWithResolvedPost(resolvedPost, feedItems, feedCursor)
+      const page = mediaPageWithResolvedPost(resolvedPost, feedItems, feedCursor)
+      if (__DEV__ && page.data.length === 0) {
+        console.warn('[feed] fetchUserVideoCursor: resolved post not playable', {
+          videoUri,
+          normalizedUri,
+          resolvedUri: resolvedPost.uri,
+          actor,
+        })
+      }
+      return page
     })
   }
 

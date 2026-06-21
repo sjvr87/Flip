@@ -2,7 +2,7 @@ import type { AppBskyNotificationDefs } from '@atproto/api'
 import { AppBskyEmbedVideo, AppBskyFeedLike, AppBskyFeedRepost } from '@atproto/api'
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
-import { normalizeToPostUri } from './postResolve'
+import { normalizeToPostUri, resolveMediaPostView } from './postResolve'
 import { parseRepoDidFromAtUri } from '@/utils/profileNavigation'
 
 const REPLY_NOTIFICATION_REASONS = new Set(['reply', 'quote', 'mention'])
@@ -73,6 +73,13 @@ export function getNotificationSubjectUri(
     reason === 'repost-via-repost'
   ) {
     const record = notification.record
+    // Duck-type: listNotifications records may omit a decoded $type.
+    if (record && typeof record === 'object' && 'subject' in record) {
+      const subjectUri = (record as { subject?: { uri?: string } }).subject?.uri
+      if (typeof subjectUri === 'string' && subjectUri.length > 0) {
+        return subjectUri
+      }
+    }
     if (AppBskyFeedRepost.isRecord(record) || AppBskyFeedLike.isRecord(record)) {
       const subjectUri = record.subject?.uri
       if (typeof subjectUri === 'string' && subjectUri.length > 0) {
@@ -172,11 +179,69 @@ async function resolveNotificationSubject(
   }
 }
 
+const MEDIA_NAV_REASONS = new Set([
+  'like',
+  'like-via-repost',
+  'reply',
+  'quote',
+  'mention',
+  'repost',
+  'repost-via-repost',
+])
+
+async function resolveMediaVideoMeta(
+  notification: AppBskyNotificationDefs.Notification,
+  subjectUri: string,
+): Promise<Pick<FlipNotification, 'video_id' | 'video_pid' | 'video_thumbnail'>> {
+  const fallback = extractVideoMeta(notification, subjectUri)
+
+  if (!MEDIA_NAV_REASONS.has(notification.reason)) {
+    return fallback
+  }
+
+  try {
+    const mediaPost = await resolveMediaPostView(getAgent(), subjectUri)
+    if (mediaPost) {
+      if (__DEV__) {
+        console.log('[notifications] resolved media post', {
+          reason: notification.reason,
+          subjectUri,
+          mediaUri: mediaPost.uri,
+          authorDid: mediaPost.author.did,
+        })
+      }
+      return {
+        video_id: mediaPost.uri,
+        video_pid: mediaPost.author.did,
+        video_thumbnail: fallback.video_thumbnail,
+      }
+    }
+    if (__DEV__) {
+      console.warn('[notifications] no media post for subject', {
+        reason: notification.reason,
+        subjectUri,
+      })
+    }
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('[notifications] media resolve failed', {
+        reason: notification.reason,
+        subjectUri,
+        error,
+      })
+    }
+  }
+
+  return fallback
+}
+
 async function mapNotification(
   notification: AppBskyNotificationDefs.Notification,
 ): Promise<FlipNotification> {
   const subjectUri = await resolveNotificationSubject(notification)
-  const videoMeta = extractVideoMeta(notification, subjectUri)
+  const videoMeta = subjectUri
+    ? await resolveMediaVideoMeta(notification, subjectUri)
+    : extractVideoMeta(notification)
 
   return {
     id: notification.uri,
