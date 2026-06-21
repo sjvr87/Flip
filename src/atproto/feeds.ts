@@ -270,11 +270,16 @@ function pickForYouSource(refreshEpoch: number, customUri?: string): ForYouSourc
     const withCustom: ForYouSourceId[] = ['custom', 'search-latest', 'search-top', 'whats-hot']
     return withCustom[refreshEpoch % withCustom.length]!
   }
-  const pool: ForYouSourceId[] = ['thevids', 'search-latest', 'search-top', 'whats-hot']
+  // Discovery first — thevids overlaps heavily with Following reposts.
+  const pool: ForYouSourceId[] = ['search-latest', 'search-top', 'thevids', 'whats-hot']
   return pool[refreshEpoch % pool.length]!
 }
 
 function pickLocalSource(refreshEpoch: number): LocalSourceId {
+  // First load: single generator request (fast). Rotate on pull-to-refresh only.
+  if (refreshEpoch === 0) {
+    return 'thevids'
+  }
   const pool: LocalSourceId[] = ['thevids', 'search-latest', 'search-top']
   return pool[refreshEpoch % pool.length]!
 }
@@ -355,24 +360,6 @@ export async function fetchForYouFeed({
 
   try {
     let page = await fetchForYouBySource(sourceId, cursor, customUri)
-
-    if (firstPage && page.data.length === 0) {
-      const fallbacks: ForYouSourceId[] = ['search-latest', 'search-top', 'whats-hot', 'thevids']
-      for (const fallback of fallbacks) {
-        if (fallback === sourceId) {
-          continue
-        }
-        try {
-          page = await fetchForYouBySource(fallback, undefined, customUri)
-          sourceId = fallback
-          if (page.data.length > 0) {
-            break
-          }
-        } catch {
-          // try next fallback
-        }
-      }
-    }
 
     if (firstPage) {
       page = finalizeFirstPage(page, refreshEpoch)
@@ -465,38 +452,32 @@ export async function fetchLocalFeed({
 
   try {
     page = await fetchLocalBySource(sourceId, cursor, refreshEpoch)
-
-    if (firstPage && page.data.length === 0) {
-      const fallbacks: LocalSourceId[] = ['search-latest', 'search-top', 'thevids']
-      for (const fallback of fallbacks) {
-        if (fallback === sourceId) {
-          continue
-        }
-        try {
-          page = await fetchLocalBySource(fallback, undefined, refreshEpoch)
-          sourceId = fallback
-          if (page.data.length > 0) {
-            break
-          }
-        } catch {
-          // try next fallback
-        }
-      }
-    }
   } catch (error) {
     if (error instanceof SessionExpiredError) {
       feedLoadError('local feed', error)
     }
-    console.warn('[feed] local discovery failed:', error)
-    return {
-      data: [],
-      meta: {
-        path: 'atproto',
-        per_page: 0,
-        next_cursor: null,
-        error:
-          'Could not load local videos. Configure flipLocalFeed for a geo feed, or try again later.',
-      },
+    console.warn('[feed] local discovery failed, trying video search once:', error)
+    try {
+      page = await fetchSingleVideoSearchPage(false, {
+        sort: 'latest',
+        context: 'local feed',
+        query: 'video',
+      })
+      sourceId = 'search-latest'
+    } catch (fallbackError) {
+      if (fallbackError instanceof SessionExpiredError) {
+        feedLoadError('local feed', fallbackError)
+      }
+      return {
+        data: [],
+        meta: {
+          path: 'atproto',
+          per_page: 0,
+          next_cursor: null,
+          error:
+            'Could not load local videos. Configure flipLocalFeed for a geo feed, or try again later.',
+        },
+      }
     }
   }
 

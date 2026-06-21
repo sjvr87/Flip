@@ -13,7 +13,7 @@ export const FEED_GC_MS = 2 * 60_000;
 /** Single-page discovery fetch size (generators + searchPosts). */
 export const DISCOVERY_SEARCH_LIMIT = 30;
 /** Timeline chain depth for Following only. */
-export const FOLLOWING_MAX_CHAIN_FETCHES = 8;
+export const FOLLOWING_MAX_CHAIN_FETCHES = 12;
 
 export const FEED_TABS = ['following', 'local', 'forYou'] as const;
 export type FeedTab = (typeof FEED_TABS)[number];

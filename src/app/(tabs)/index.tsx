@@ -8,6 +8,7 @@ import {
     FEED_GC_MS,
     FEED_TABS,
     dedupeFeedVideos,
+    type FeedTab,
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
@@ -55,7 +56,15 @@ const MAX_EMPTY_DEDUPE_FETCHES = 2;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = 2;
 
-const fetchVideos = async ({ pageParam = null, tab, refreshEpoch = 0 }) => {
+const fetchVideos = async ({
+    pageParam = null,
+    tab,
+    refreshEpoch = 0,
+}: {
+    pageParam?: string | null;
+    tab: FeedTab;
+    refreshEpoch?: number;
+}) => {
     if (tab === 'local') {
         return await fetchLocalFeed({ pageParam, refreshEpoch });
     }
@@ -63,6 +72,19 @@ const fetchVideos = async ({ pageParam = null, tab, refreshEpoch = 0 }) => {
         return await fetchForYouFeed({ pageParam, refreshEpoch });
     }
     return await fetchFollowingFeed({ pageParam, refreshEpoch });
+};
+
+/** Read tab + epoch from query key so refetches never use a stale activeTab closure. */
+const feedQueryFn = ({
+    pageParam,
+    queryKey,
+}: {
+    pageParam: string | null;
+    queryKey: readonly unknown[];
+}) => {
+    const tab = queryKey[1] as FeedTab;
+    const refreshEpoch = typeof queryKey[2] === 'number' ? queryKey[2] : 0;
+    return fetchVideos({ pageParam, tab, refreshEpoch });
 };
 
 const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0])) as Record<
@@ -84,7 +106,6 @@ export default function LoopsFeed({ navigation }) {
     feedEpochsRef.current = feedEpochs;
     const activeTabRef = useRef(activeTab);
     activeTabRef.current = activeTab;
-    const skipFeedTabRefreshRef = useRef(true);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [dedupeExhausted, setDedupeExhausted] = useState(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
@@ -127,8 +148,7 @@ export default function LoopsFeed({ navigation }) {
             const epoch = epochs[tab] ?? 0;
             void queryClient.prefetchInfiniteQuery({
                 queryKey: ['videos', tab, epoch],
-                queryFn: ({ pageParam }) =>
-                    fetchVideos({ pageParam, tab, refreshEpoch: epoch }),
+                queryFn: feedQueryFn,
                 initialPageParam: null,
                 staleTime: getFeedStaleMs(tab),
             });
@@ -171,8 +191,7 @@ export default function LoopsFeed({ navigation }) {
         isRefetching,
     } = useInfiniteQuery({
         queryKey: ['videos', activeTab, feedEpoch],
-        queryFn: ({ pageParam }) =>
-            fetchVideos({ pageParam, tab: activeTab, refreshEpoch: feedEpoch }),
+        queryFn: feedQueryFn,
         getNextPageParam: (lastPage) => {
             const cursor = lastPage.meta?.next_cursor;
             return cursor && cursor.length > 0 ? cursor : undefined;
@@ -180,7 +199,7 @@ export default function LoopsFeed({ navigation }) {
         initialPageParam: null,
         staleTime: getFeedStaleMs(activeTab),
         gcTime: FEED_GC_MS,
-        refetchOnMount: 'always',
+        refetchOnMount: true,
         refetchOnWindowFocus: false,
         maxPages: 25,
     });
@@ -288,18 +307,6 @@ export default function LoopsFeed({ navigation }) {
         resetSessionSeen(tab);
     }, []);
 
-    const refreshFeed = useCallback(
-        (tab: string, mode: 'soft' | 'hard' = 'soft') => {
-            if (mode === 'hard') {
-                bumpFeedEpoch(tab);
-                hardRefreshFeed(queryClient, tab);
-                return;
-            }
-            softRefreshFeed(queryClient, tab);
-        },
-        [bumpFeedEpoch, queryClient],
-    );
-
     const refreshFeedIfStale = useCallback(
         (tab: string, epoch: number) => {
             const state = queryClient.getQueryState(['videos', tab, epoch]);
@@ -307,15 +314,13 @@ export default function LoopsFeed({ navigation }) {
                 return;
             }
             const age = Date.now() - (state.dataUpdatedAt ?? 0);
-            const staleMs = getFeedStaleMs(tab);
             const softMs = getFeedSoftRefreshMs(tab);
-            if (age >= staleMs) {
-                refreshFeed(tab, 'hard');
-            } else if (age >= softMs) {
-                refreshFeed(tab, 'soft');
+            // Soft refresh only on focus — never bump feedEpoch here (caused max update depth).
+            if (age >= softMs) {
+                softRefreshFeed(queryClient, tab);
             }
         },
-        [queryClient, refreshFeed],
+        [queryClient],
     );
 
     const onRefresh = useCallback(() => {
@@ -331,7 +336,7 @@ export default function LoopsFeed({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
-            refreshFeedIfStale(activeTab, feedEpochRef.current);
+            refreshFeedIfStale(activeTabRef.current, feedEpochRef.current);
 
             return () => {
                 setScreenFocused(false);
@@ -340,16 +345,8 @@ export default function LoopsFeed({ navigation }) {
                     recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
                 }
             };
-        }, [activeTab, refreshFeedIfStale]),
+        }, [refreshFeedIfStale]),
     );
-
-    useEffect(() => {
-        if (skipFeedTabRefreshRef.current) {
-            skipFeedTabRefreshRef.current = false;
-            return;
-        }
-        refreshFeed(activeTab, 'soft');
-    }, [activeTab, refreshFeed]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
@@ -579,7 +576,8 @@ export default function LoopsFeed({ navigation }) {
         ],
     );
 
-    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !isLoading;
+    const hasFeedData = (data?.pages?.length ?? 0) > 0;
+    const showInitialLoader = isLoading && !hasFeedData;
 
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
@@ -594,7 +592,9 @@ export default function LoopsFeed({ navigation }) {
         [],
     );
 
-    if (isLoading) {
+    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
+
+    if (showInitialLoader) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#fff" />
@@ -676,7 +676,7 @@ export default function LoopsFeed({ navigation }) {
             </View>
 
             <FlatList
-                key={`${activeTab}-${feedEpoch}`}
+                key={activeTab}
                 ref={flatListRef}
                 data={videosWithEnd}
                 extraData={currentIndex}
