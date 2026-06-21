@@ -17,10 +17,11 @@ type FeedActionRailProps = {
     profileLabel: string;
     isLiked: boolean;
     isBookmarked: boolean;
+    isReposted: boolean;
     likeCount: number;
     commentCount: number;
     bookmarkCount: number;
-    shareCount: number;
+    repostCount: number;
     canComment?: boolean;
     bottomInset: number;
     tabBarHeight?: number;
@@ -30,6 +31,7 @@ type FeedActionRailProps = {
     onLike: () => void;
     onComment: () => void;
     onBookmark: () => void;
+    onRepost: () => void;
     onShare: () => void;
     onOther: () => void;
 };
@@ -62,10 +64,11 @@ export default function FeedActionRail({
     profileLabel,
     isLiked,
     isBookmarked,
+    isReposted,
     likeCount,
     commentCount,
     bookmarkCount,
-    shareCount,
+    repostCount,
     canComment = true,
     bottomInset,
     tabBarHeight = 20,
@@ -74,6 +77,7 @@ export default function FeedActionRail({
     onLike,
     onComment,
     onBookmark,
+    onRepost,
     onShare,
     onOther,
 }: FeedActionRailProps) {
@@ -158,14 +162,32 @@ export default function FeedActionRail({
 
             <TouchableOpacity
                 style={styles.actionButton}
+                onPress={onRepost}
+                accessible
+                accessibilityLabel={
+                    isReposted
+                        ? `Undo repost. ${repostCount} reposts`
+                        : `Repost. ${repostCount} reposts`
+                }
+                accessibilityRole="button"
+                accessibilityState={{ selected: isReposted }}>
+                <FeedActionIcon
+                    name="repeat-outline"
+                    activeName="repeat"
+                    active={isReposted}
+                />
+                <Text style={styles.actionText} accessibilityElementsHidden>
+                    {repostCount}
+                </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+                style={styles.actionButton}
                 onPress={onShare}
                 accessible
-                accessibilityLabel={`Share. ${shareCount} shares`}
+                accessibilityLabel="Share video"
                 accessibilityRole="button">
                 <FeedActionIcon name="arrow-redo-outline" />
-                <Text style={styles.actionText} accessibilityElementsHidden>
-                    {shareCount}
-                </Text>
             </TouchableOpacity>
 
             <TouchableOpacity

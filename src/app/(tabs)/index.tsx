@@ -29,11 +29,14 @@ import {
     fetchForYouFeed,
     fetchLocalFeed,
     getConfiguration,
+    invalidateFollowingDidsCache,
     recordImpression,
     videoBookmark,
     videoLike,
+    videoRepost,
     videoUnbookmark,
     videoUnlike,
+    videoUnrepost,
 } from '@/atproto';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -250,6 +253,21 @@ export default function LoopsFeed({ navigation }) {
         onError: (error) => {},
     });
 
+    const videoRepostMutation = useMutation({
+        mutationFn: async (data) => {
+            if (data.type === 'repost') {
+                return await videoRepost(data.id);
+            }
+            if (data.type === 'unrepost') {
+                return await videoUnrepost(data.id);
+            }
+        },
+        onSuccess: () => {},
+        onError: (error) => {
+            console.warn('[feed] repost failed:', error);
+        },
+    });
+
     const rawVideos = useMemo(
         () => data?.pages?.flatMap((page) => page.data) ?? [],
         [data?.pages],
@@ -353,6 +371,7 @@ export default function LoopsFeed({ navigation }) {
         dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
         bumpFeedEpoch(tab);
+        invalidateFollowingDidsCache();
         hardRefreshFeed(queryClient, tab);
     }, [bumpFeedEpoch, queryClient]);
 
@@ -506,6 +525,11 @@ export default function LoopsFeed({ navigation }) {
         videoBookmarkMutation.mutate({ type: dir, id: videoId });
     };
 
+    const handleRepost = (videoId, reposted) => {
+        const dir = reposted ? 'repost' : 'unrepost';
+        videoRepostMutation.mutate({ type: dir, id: videoId });
+    };
+
     const handleComment = (video) => {
         setSelectedVideo(video);
         setShowComments(true);
@@ -576,6 +600,7 @@ export default function LoopsFeed({ navigation }) {
                     onComment={handleComment}
                     onShare={handleShare}
                     onBookmark={handleBookmark}
+                    onRepost={handleRepost}
                     onOther={handleOther}
                     bottomInset={tabBarMetrics.bottomInset}
                     commentsOpen={showComments && selectedVideo?.id === item.id}

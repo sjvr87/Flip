@@ -12,6 +12,7 @@ export {
   fetchAccountLikes,
   fetchAccountFavorites,
   recordImpression,
+  invalidateFollowingDidsCache,
 } from './feeds'
 
 export {
@@ -23,7 +24,7 @@ export {
 
 export { searchContent } from './search'
 
-export { videoLike, videoUnlike, videoBookmark, videoUnbookmark } from './social'
+export { videoLike, videoUnlike, videoBookmark, videoUnbookmark, videoRepost, videoUnrepost } from './social'
 
 export {
   fetchVideoComments,

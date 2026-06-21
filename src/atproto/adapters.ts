@@ -96,6 +96,7 @@ function baseFlipItem(
     bookmarks: 0,
     has_liked: !!post.viewer?.like,
     has_bookmarked: !!post.viewer?.bookmarked,
+    has_reposted: !!post.viewer?.repost,
     created_at: (post.record as { createdAt?: string }).createdAt || new Date().toISOString(),
   }
 }

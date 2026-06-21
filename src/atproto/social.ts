@@ -50,3 +50,38 @@ export async function videoUnbookmark(uri: string): Promise<{ has_bookmarked: bo
   }
   return { has_bookmarked: false }
 }
+
+export async function videoRepost(
+  uri: string,
+): Promise<{ has_reposted: boolean; shares: number }> {
+  const agent = getAgent()
+  const posts = await agent.getPosts({ uris: [uri] })
+  const post = posts.data.posts[0]
+  if (!post) throw new Error('Post not found')
+
+  await agent.repost(post.uri, post.cid)
+
+  return {
+    has_reposted: true,
+    shares: (post.repostCount ?? 0) + 1,
+  }
+}
+
+export async function videoUnrepost(
+  uri: string,
+): Promise<{ has_reposted: boolean; shares: number }> {
+  const agent = getAgent()
+  const posts = await agent.getPosts({ uris: [uri] })
+  const post = posts.data.posts[0]
+  if (!post) throw new Error('Post not found')
+
+  const repostUri = post.viewer?.repost
+  if (repostUri) {
+    await agent.deleteRepost(repostUri)
+  }
+
+  return {
+    has_reposted: false,
+    shares: Math.max(0, (post.repostCount ?? 1) - 1),
+  }
+}

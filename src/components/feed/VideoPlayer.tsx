@@ -56,6 +56,7 @@ export default function VideoPlayer({
     onComment,
     onShare,
     onBookmark,
+    onRepost,
     onOther,
     bottomInset,
     commentsOpen,
@@ -85,6 +86,7 @@ export default function VideoPlayer({
             onComment={onComment}
             onShare={onShare}
             onBookmark={onBookmark}
+            onRepost={onRepost}
             onOther={onOther}
             bottomInset={bottomInset}
             commentsOpen={commentsOpen}
@@ -108,6 +110,7 @@ function VideoPlayerCore({
     onComment,
     onShare,
     onBookmark,
+    onRepost,
     onOther,
     bottomInset,
     commentsOpen,
@@ -123,6 +126,7 @@ function VideoPlayerCore({
 }) {
     const [isLiked, setIsLiked] = useState(item.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
+    const [isReposted, setIsReposted] = useState(!!item.has_reposted);
     const [showControls, setShowControls] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const manualControlRef = useRef(false);
@@ -233,6 +237,11 @@ function VideoPlayerCore({
         onBookmark(item.id, !isBookmarked);
     };
 
+    const handleRepost = () => {
+        setIsReposted(!isReposted);
+        onRepost(item.id, !isReposted);
+    };
+
     const togglePlayPause = () => {
         if (!player || !isMountedRef.current) return;
 
@@ -292,6 +301,10 @@ function VideoPlayerCore({
         safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
     const bookmarkCount =
         safeCount(item.bookmarks) + (isBookmarked && !item.has_bookmarked ? 1 : 0);
+    const repostCount =
+        safeCount(item.shares) +
+        (isReposted && !item.has_reposted ? 1 : 0) -
+        (!isReposted && item.has_reposted ? 1 : 0);
 
     if (!player) {
         return <VideoSlidePlaceholder item={item} />;
@@ -385,10 +398,11 @@ function VideoPlayerCore({
                 profileLabel={`View ${item.account.username}'s profile`}
                 isLiked={isLiked}
                 isBookmarked={isBookmarked}
+                isReposted={isReposted}
                 likeCount={likeCount}
                 commentCount={safeCount(item.comments)}
                 bookmarkCount={bookmarkCount}
-                shareCount={safeCount(item.shares)}
+                repostCount={repostCount}
                 canComment={item.permissions?.can_comment}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
@@ -397,6 +411,7 @@ function VideoPlayerCore({
                 onLike={handleLike}
                 onComment={() => onComment(item)}
                 onBookmark={handleBookmark}
+                onRepost={handleRepost}
                 onShare={() => onShare(item)}
                 onOther={() => onOther(item)}
             />

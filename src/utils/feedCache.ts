@@ -3,11 +3,11 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { FlipVideo } from '@/atproto/types';
 
 /** For You — refresh sooner so reopen feels algorithmically fresh. */
-export const FEED_FYP_STALE_MS = 8_000;
+export const FEED_FYP_STALE_MS = 6_000;
 /** Following — timeline can stay warm longer; soft refresh is non-destructive. */
-export const FEED_FOLLOWING_STALE_MS = 15_000;
-/** Local / discovery — warm longer so tab switches feel instant (like Explore). */
-export const FEED_LOCAL_STALE_MS = 60_000;
+export const FEED_FOLLOWING_STALE_MS = 12_000;
+/** Local / discovery — refetch on tab focus so content rotates. */
+export const FEED_LOCAL_STALE_MS = 12_000;
 export const FEED_GC_MS = 2 * 60_000;
 
 /** Single-page discovery fetch size (generators + searchPosts). */
@@ -53,11 +53,11 @@ export function getFeedStaleMs(tab: string): number {
 export function getFeedSoftRefreshMs(tab: string): number {
     switch (tab) {
         case 'forYou':
-            return 4_000;
+            return 3_000;
         case 'following':
-            return 30_000;
+            return 20_000;
         default:
-            return FEED_LOCAL_STALE_MS / 2;
+            return 6_000;
     }
 }
 
@@ -147,8 +147,7 @@ export function softRefreshFeed(queryClient: QueryClient, tab: string) {
     });
 }
 
-/**
- * Hard refresh: drop cached pages so the next fetch starts at cursor null
+/** Hard refresh: drop cached pages so the next fetch starts at cursor null
  * with a new feed epoch (caller bumps epoch in query key).
  */
 export function hardRefreshFeed(queryClient: QueryClient, tab: string) {
