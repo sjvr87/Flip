@@ -1,34 +1,40 @@
 import { memo, useId } from 'react';
 import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 
-export const HEART_DEEP = '#C0266B';
-export const HEART_MID = '#DB2777';
-export const HEART_LIGHT = '#F472B6';
-export const HEART_SHADOW = '#9D174D';
+/** Light-purple ribbon palette — matches @mention purple preference. */
+export const HEART_SHADOW = '#7C3AED';
+export const HEART_DEEP = '#A78BFA';
+export const HEART_MID = '#C084FC';
+export const HEART_LIGHT = '#E9D5FF';
+export const HEART_OUTLINE = '#C084FC';
 
 const VIEWBOX = '0 0 26 26';
 
 /** Uniform ribbon width traced from reference (~4.2px at 26×26). */
 const RIBBON_STROKE = 4.2;
-const OUTLINE_STROKE = 1.65;
+const OUTLINE_STROKE = 1.75;
 
 /**
- * Single continuous ribbon centerline — outer heart shell looping inward to nested inner V.
- * Coordinates traced from reference PNG and smoothed with cubics.
+ * Single continuous ribbon centerline traced from reference PNG:
+ * top-left start → outer left lobe → bottom point → right lobe →
+ * top-right fold tuck → inward dive → nested inner V tip → left arm → end.
  */
 const RIBBON_CENTERLINE =
-    'M 6.6 2.8' +
-    'C 5.2 1.9 4.2 2.6 2.9 4' +
-    'C 1.7 5.8 1.8 8.5 2.6 10.4' +
-    'C 4.5 14.8 8.2 18 13 19.2' +
-    'C 17.8 18 22 14.8 23.4 10.4' +
-    'C 24.8 7 25.2 4.5 22 3.5' +
-    'C 20.2 5 18.5 5.8 17.66 6.29' +
-    'L 13 6.3' +
-    'L 6.9 6.3';
+    'M 6.2 3.4' +
+    'C 4.2 3.8 2.4 6.2 2.6 9.2' +
+    'C 3.2 13.8 7.2 18.2 13 19.5' +
+    'C 18.8 18.2 22.8 13.8 23.4 9.2' +
+    'C 23.6 6.2 21.8 3.8 19.8 3.4' +
+    'C 19.2 2.9 18.5 3.5 18.0 4.8' +
+    'C 17.5 6.0 16.5 6.8 15.5 7.8' +
+    'C 14.5 9.0 13.8 11.0 13.3 12.5' +
+    'C 13.1 13.2 13.0 13.8 13.0 14.2' +
+    'C 12.5 13.2 11.8 11.5 11.2 10.0' +
+    'C 10.6 8.8 11.0 7.5 12.5 7.0' +
+    'C 13.8 6.6 15.0 6.5 15.8 7.0';
 
-/** Dark tuck shadow at top-right fold. */
-const FOLD_SHADOW = 'M 18.6 2.2 L 22.6 2.6 L 20.4 4.1 Z';
+/** Dark tuck shadow at top-right fold where ribbon passes under itself. */
+const FOLD_SHADOW = 'M 18.8 2.6 L 22.4 3.2 L 20.2 4.6 Z';
 
 const STROKE_PROPS = {
     strokeLinecap: 'round',
@@ -47,8 +53,8 @@ function HeartGradientDefs({ id }) {
                 y2="2"
                 gradientUnits="userSpaceOnUse">
                 <Stop offset="0" stopColor={HEART_SHADOW} />
-                <Stop offset="0.35" stopColor={HEART_DEEP} />
-                <Stop offset="0.72" stopColor={HEART_MID} />
+                <Stop offset="0.32" stopColor={HEART_DEEP} />
+                <Stop offset="0.68" stopColor={HEART_MID} />
                 <Stop offset="1" stopColor={HEART_LIGHT} />
             </LinearGradient>
         </Defs>
@@ -64,7 +70,7 @@ export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
         return (
             <Path
                 d={RIBBON_CENTERLINE}
-                stroke={HEART_DEEP}
+                stroke={HEART_OUTLINE}
                 strokeWidth={OUTLINE_STROKE}
                 {...STROKE_PROPS}
             />
@@ -80,7 +86,7 @@ export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
                 strokeWidth={RIBBON_STROKE}
                 {...STROKE_PROPS}
             />
-            <Path d={FOLD_SHADOW} fill={HEART_SHADOW} opacity={0.48} />
+            <Path d={FOLD_SHADOW} fill={HEART_SHADOW} opacity={0.42} />
         </>
     );
 }
@@ -104,7 +110,7 @@ export function FoldedHeartGroup({
 }
 
 /**
- * Folded-ribbon heart — continuous magenta→pink gradient stroke with fold shadow.
+ * Folded-ribbon heart — continuous light-purple gradient stroke with fold shadow.
  * Scales via size prop (~26px action rail, ~11px mailbox overlay at scale 0.42).
  */
 const FoldedHeartIcon = memo(function FoldedHeartIcon({ size = 26, variant = 'filled' }) {
