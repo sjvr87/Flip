@@ -15,10 +15,10 @@ const ProfileTabIcon = memo(function ProfileTabIcon({
     const dotRadius = focused ? 0.52 : 0.44;
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-            {/* Outer circle — gap on left (~8–10 o'clock) */}
+        <Svg width={size} height={size} viewBox="-1 -1 28 28" fill="none">
+            {/* Outer ring — gap on left (~10–8 o'clock) */}
             <Path
-                d="M 5.21 17.52 A 9 9 0 1 1 5.21 8.48"
+                d="M 5.21 17.5 A 9 9 0 1 1 5.21 8.5"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
@@ -26,28 +26,27 @@ const ProfileTabIcon = memo(function ProfileTabIcon({
             />
 
             {/* Three dots along the missing arc */}
-            <Circle cx={4.52} cy={9.92} r={dotRadius} fill={color} opacity={strokeOpacity} />
+            <Circle cx={4.56} cy={9.62} r={dotRadius} fill={color} opacity={strokeOpacity} />
             <Circle cx={4} cy={13} r={dotRadius} fill={color} opacity={strokeOpacity} />
-            <Circle cx={4.52} cy={16.08} r={dotRadius} fill={color} opacity={strokeOpacity} />
+            <Circle cx={4.66} cy={16.38} r={dotRadius} fill={color} opacity={strokeOpacity} />
 
             {/* Head */}
             <Circle
                 cx={13}
-                cy={10.35}
-                r={2.35}
+                cy={10.25}
+                r={2.3}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
             />
 
-            {/* Shoulders — wide rounded U */}
+            {/* Shoulders — wide shallow U */}
             <Path
-                d="M 8.85 12.65 C 8.85 16.95 13 17.75 17.15 12.65"
+                d="M 9.05 12.7 A 3.95 2.2 0 0 0 16.95 12.7"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
-                strokeLinejoin="round"
             />
         </Svg>
     );
