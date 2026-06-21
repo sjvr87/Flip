@@ -177,22 +177,37 @@ function failExpiredSession(reason?: string): never {
   throw new SessionExpiredError(message)
 }
 
+let pendingAuthPrep: Promise<boolean> | null = null
+
+async function prepareAuthenticatedSession(): Promise<boolean> {
+  if (pendingAuthPrep) {
+    return pendingAuthPrep
+  }
+
+  pendingAuthPrep = (async () => {
+    await awaitSessionRestore()
+    await restoreSessionFromStorageIfEmpty()
+
+    const fresh = await ensureFreshSession()
+    if (fresh) return true
+    return recoverAuth()
+  })().finally(() => {
+    pendingAuthPrep = null
+  })
+
+  return pendingAuthPrep
+}
+
 /**
  * Run an authenticated ATProto call with proactive refresh and one retry on token errors.
  */
 export async function withAuthenticatedFetch<T>(fn: () => Promise<T>): Promise<T> {
-  await awaitSessionRestore()
-  await restoreSessionFromStorageIfEmpty()
-
-  const fresh = await ensureFreshSession()
-  if (!fresh) {
-    const recovered = await recoverAuth()
-    if (!recovered) {
-      if (!(await hasStoredSession()) || wasRefreshTokenRejected()) {
-        failExpiredSession()
-      }
-      throw new SessionExpiredError('Session expired — sign in again')
+  const ready = await prepareAuthenticatedSession()
+  if (!ready) {
+    if (!(await hasStoredSession()) || wasRefreshTokenRejected()) {
+      failExpiredSession()
     }
+    throw new SessionExpiredError('Session expired — sign in again')
   }
 
   try {

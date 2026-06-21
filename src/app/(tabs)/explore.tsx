@@ -13,6 +13,12 @@ import {
     EXPLORE_DEFAULT_TAG,
     EXPLORE_GC_MS,
     EXPLORE_STALE_MS,
+    readExploreAccountsCache,
+    readExploreFeedCache,
+    readExploreTagsCache,
+    writeExploreAccountsCache,
+    writeExploreFeedCache,
+    writeExploreTagsCache,
 } from '@/utils/exploreCache';
 import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation';
 import { Feather } from '@expo/vector-icons';
@@ -111,6 +117,20 @@ function AccountCardSkeleton() {
     );
 }
 
+function VideoThumbnailSkeleton() {
+    return (
+        <View
+            style={[
+                tw`mb-1 rounded-lg bg-gray-100 dark:bg-gray-900`,
+                {
+                    width: VIDEO_THUMBNAIL_WIDTH - 4,
+                    height: ((VIDEO_THUMBNAIL_WIDTH - 4) * 16) / 9,
+                },
+            ]}
+        />
+    );
+}
+
 export default function ExploreScreen() {
     const router = useRouter();
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -133,7 +153,12 @@ export default function ExploreScreen() {
         isRefetching: tagsRefetching,
     } = useQuery({
         queryKey: ['explore', 'tags'],
-        queryFn: getExploreTags,
+        queryFn: async () => {
+            const data = await getExploreTags();
+            writeExploreTagsCache(data);
+            return data;
+        },
+        placeholderData: readExploreTagsCache,
         retry: 2,
         ...exploreQueryOptions,
     });
@@ -146,7 +171,12 @@ export default function ExploreScreen() {
         isRefetching: accountsRefetching,
     } = useQuery({
         queryKey: ['accounts', 'suggested'],
-        queryFn: getExploreAccounts,
+        queryFn: async () => {
+            const data = await getExploreAccounts();
+            writeExploreAccountsCache(data);
+            return data;
+        },
+        placeholderData: readExploreAccountsCache,
         retry: 2,
         ...exploreQueryOptions,
     });
@@ -161,7 +191,7 @@ export default function ExploreScreen() {
         return accountsData.filter(isValidAccount);
     }, [accountsData]);
 
-    const feedTag = selectedTag ?? validTags[0]?.name ?? EXPLORE_DEFAULT_TAG;
+    const feedTag = selectedTag ?? EXPLORE_DEFAULT_TAG;
 
     const {
         data: videosData,
@@ -177,6 +207,11 @@ export default function ExploreScreen() {
         queryFn: getExploreTagsFeed,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
         initialPageParam: null,
+        placeholderData: () => {
+            const cached = readExploreFeedCache(feedTag);
+            if (!cached) return undefined;
+            return { pages: cached.pages, pageParams: cached.pageParams };
+        },
         retry: 2,
         ...exploreQueryOptions,
     });
@@ -227,10 +262,10 @@ export default function ExploreScreen() {
     }, [videosData]);
 
     React.useEffect(() => {
-        if (validTags.length > 0 && !selectedTag) {
-            setSelectedTag(validTags[0].name);
+        if (videosData?.pages?.length) {
+            writeExploreFeedCache(feedTag, videosData.pages, videosData.pageParams);
         }
-    }, [validTags, selectedTag]);
+    }, [feedTag, videosData]);
 
     const renderAccountCard = useCallback(
         ({
@@ -340,7 +375,7 @@ export default function ExploreScreen() {
     );
 
     const renderVideoThumbnail = useCallback(
-        ({ item }: { item: Video }) => {
+        ({ item, index }: { item: Video; index: number }) => {
             if (!item.account || !item.media) return null;
 
             const duration = item.media.duration || 0;
@@ -363,7 +398,8 @@ export default function ExploreScreen() {
                             ]}
                             contentFit="cover"
                             cachePolicy="memory-disk"
-                            transition={150}
+                            priority={index < 6 ? 'normal' : 'low'}
+                            transition={index < 6 ? 150 : 0}
                             recyclingKey={item.id}
                         />
                         {item.caption && (
@@ -395,13 +431,9 @@ export default function ExploreScreen() {
         [],
     );
 
-    const showEmptyExplore =
-        !tagsLoading &&
-        !accountsLoading &&
-        !videosLoading &&
-        validTags.length === 0 &&
-        validAccounts.length === 0 &&
-        allVideos.length === 0;
+    const showAccountsSkeleton = accountsLoading && validAccounts.length === 0;
+    const showTagsSkeleton = tagsLoading && validTags.length === 0;
+    const showVideosSkeleton = videosLoading && allVideos.length === 0;
 
     const listHeader = useMemo(
         () => (
@@ -418,7 +450,7 @@ export default function ExploreScreen() {
                         style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
                         Suggested for you
                     </Text>
-                    {accountsLoading ? (
+                    {showAccountsSkeleton ? (
                         <FlatList
                             horizontal
                             data={[1, 2, 3]}
@@ -454,7 +486,7 @@ export default function ExploreScreen() {
                         style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
                         Trending
                     </Text>
-                    {tagsLoading ? (
+                    {showTagsSkeleton ? (
                         <SectionSkeleton height={52} />
                     ) : validTags.length > 0 ? (
                         <FlatList
@@ -470,17 +502,22 @@ export default function ExploreScreen() {
                     ) : null}
                 </View>
 
-                {videosLoading && allVideos.length === 0 ? (
-                    <View style={tw`py-6 items-center`}>
-                        <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
+                {showVideosSkeleton ? (
+                    <View style={tw`flex-row flex-wrap px-2`}>
+                        {Array.from({ length: 9 }, (_, i) => (
+                            <View key={`video-skel-${i}`} style={tw`w-1/3 px-0.5`}>
+                                <VideoThumbnailSkeleton />
+                            </View>
+                        ))}
                     </View>
                 ) : null}
             </>
         ),
         [
             accountsError,
-            accountsLoading,
-            allVideos.length,
+            showAccountsSkeleton,
+            showTagsSkeleton,
+            showVideosSkeleton,
             followMutation,
             hideSuggestionMutation,
             isDark,
@@ -489,12 +526,18 @@ export default function ExploreScreen() {
             renderTagCard,
             router,
             tagsError,
-            tagsLoading,
             validAccounts,
             validTags,
-            videosLoading,
         ],
     );
+
+    const showEmptyExplore =
+        !showAccountsSkeleton &&
+        !showTagsSkeleton &&
+        !showVideosSkeleton &&
+        validTags.length === 0 &&
+        validAccounts.length === 0 &&
+        allVideos.length === 0;
 
     const listFooter = useMemo(() => {
         if (isFetchingNextPage) {
@@ -508,7 +551,7 @@ export default function ExploreScreen() {
     }, [isDark, isFetchingNextPage]);
 
     const listEmpty = useMemo(() => {
-        if (videosLoading) return null;
+        if (showVideosSkeleton) return null;
         if (videosError) {
             return renderEmptyState('Unable to load videos. Please try again later.');
         }
@@ -525,9 +568,9 @@ export default function ExploreScreen() {
         feedTag,
         renderEmptyState,
         showEmptyExplore,
+        showVideosSkeleton,
         validTags.length,
         videosError,
-        videosLoading,
     ]);
 
     const handleLoadMore = useCallback(() => {
@@ -559,9 +602,9 @@ export default function ExploreScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={tw`pb-4`}
                 columnWrapperStyle={tw`px-2`}
-                initialNumToRender={12}
-                maxToRenderPerBatch={9}
-                windowSize={5}
+                initialNumToRender={9}
+                maxToRenderPerBatch={6}
+                windowSize={3}
                 removeClippedSubviews
                 refreshControl={
                     <RefreshControl

@@ -1,9 +1,10 @@
 import type { AppBskyFeedDefs } from '@atproto/api'
 
 import {
+  EXPLORE_ACCOUNTS_LIMIT,
   EXPLORE_DEFAULT_TAG,
   EXPLORE_FEED_PAGE_SIZE,
-  EXPLORE_MAX_EMPTY_FETCHES,
+  EXPLORE_TAGS_LIMIT,
 } from '@/utils/exploreCache'
 
 import { isVideoPost, postToFlipVideo, profileToFlipUser } from './adapters'
@@ -67,14 +68,14 @@ export async function getExploreTags(): Promise<ExploreTag[]> {
 
   try {
     const res = await withAuthenticatedFetch(() =>
-      getAgent().app.bsky.unspecced.getTrendingTopics({ limit: 15 }),
+      getAgent().app.bsky.unspecced.getTrendingTopics({ limit: EXPLORE_TAGS_LIMIT }),
     )
     for (const topic of [...(res.data.topics ?? []), ...(res.data.suggested ?? [])]) {
       const name = topicToTagName(topic)
       if (!name || seen.has(name)) continue
       seen.add(name)
       tags.push({ id: hashTagId(name), name, count: 0 })
-      if (tags.length >= 12) break
+      if (tags.length >= EXPLORE_TAGS_LIMIT) break
     }
   } catch (error) {
     console.warn('[explore] getTrendingTopics failed:', error)
@@ -88,7 +89,7 @@ export async function getExploreTags(): Promise<ExploreTag[]> {
 
 export async function getExploreAccounts(): Promise<ExploreAccount[]> {
   const res = await withAuthenticatedFetch(() =>
-    getAgent().app.bsky.actor.getSuggestions({ limit: 20 }),
+    getAgent().app.bsky.actor.getSuggestions({ limit: EXPLORE_ACCOUNTS_LIMIT }),
   )
 
   return res.data.actors.map((actor) => {
@@ -127,38 +128,26 @@ export async function getExploreTagsFeed({
     return { data: [], meta: { path: 'atproto', per_page: 0, next_cursor: null } }
   }
 
-  let cursor = pageParam && pageParam !== false ? String(pageParam) : undefined
-  const videos: FlipFeedPage['data'] = []
-  let nextCursor: string | null = null
+  const cursor = pageParam && pageParam !== false ? String(pageParam) : undefined
 
-  for (let attempt = 0; attempt < EXPLORE_MAX_EMPTY_FETCHES; attempt++) {
-    const res = await withAuthenticatedFetch(() =>
-      getAgent().app.bsky.feed.searchPosts({
-        q: tag,
-        tag,
-        sort: 'latest',
-        limit: EXPLORE_FEED_PAGE_SIZE,
-        cursor,
-      }),
-    )
+  const res = await withAuthenticatedFetch(() =>
+    getAgent().app.bsky.feed.searchPosts({
+      q: tag,
+      tag,
+      sort: 'latest',
+      limit: EXPLORE_FEED_PAGE_SIZE,
+      cursor,
+    }),
+  )
 
-    const page = postsToVideoFeedPage(res.data.posts.filter(isVideoPost), res.data.cursor)
-    videos.push(...page.data)
-    nextCursor = page.meta.next_cursor
-
-    if (page.data.length > 0 || !nextCursor) {
-      break
-    }
-
-    cursor = nextCursor ?? undefined
-  }
+  const page = postsToVideoFeedPage(res.data.posts.filter(isVideoPost), res.data.cursor)
 
   return {
-    data: videos,
+    data: page.data,
     meta: {
       path: 'atproto',
-      per_page: videos.length,
-      next_cursor: nextCursor,
+      per_page: page.data.length,
+      next_cursor: page.meta.next_cursor,
     },
   }
 }
