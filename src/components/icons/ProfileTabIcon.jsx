@@ -31,9 +31,9 @@ const ProfileTabIcon = memo(function ProfileTabIcon({
             />
 
             {/* Three dots evenly spaced along the missing upper-left arc */}
-            <Circle cx={4.14} cy={11.43} r={dotRadius} fill={color} opacity={strokeOpacity} />
+            <Circle cx={4} cy={12.84} r={dotRadius} fill={color} opacity={strokeOpacity} />
             <Circle cx={5.21} cy={8.5} r={dotRadius} fill={color} opacity={strokeOpacity} />
-            <Circle cx={7.22} cy={6.11} r={dotRadius} fill={color} opacity={strokeOpacity} />
+            <Circle cx={8.36} cy={5.29} r={dotRadius} fill={color} opacity={strokeOpacity} />
 
             {/* Head */}
             <Circle
