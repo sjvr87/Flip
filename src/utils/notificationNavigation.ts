@@ -1,4 +1,8 @@
-import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation'
+import {
+    parseRepoDidFromAtUri,
+    toProfileFeedPath,
+    toProfilePath,
+} from '@/utils/profileNavigation'
 
 const COMMENT_ACTIVITY_TYPES = new Set([
     'video.comment',
@@ -31,10 +35,13 @@ export function getNotificationRoute(item: NotificationNavItem): NotificationRou
         return `/private/kits/show/${item.kit.id}`
     }
 
-    if (item.video_id && item.video_pid) {
-        return toProfileFeedPath(item.video_id, item.video_pid, {
-            openComments: COMMENT_ACTIVITY_TYPES.has(item.type),
-        })
+    if (item.video_id) {
+        const profileId = item.video_pid || parseRepoDidFromAtUri(item.video_id)
+        if (profileId) {
+            return toProfileFeedPath(item.video_id, profileId, {
+                openComments: COMMENT_ACTIVITY_TYPES.has(item.type),
+            })
+        }
     }
 
     if (item.actor?.id) {

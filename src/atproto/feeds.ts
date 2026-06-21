@@ -1221,6 +1221,11 @@ async function resolveMediaPostView(
   return null
 }
 
+const EMPTY_FEED_PAGE: FlipFeedPage = {
+  data: [],
+  meta: { path: 'atproto', per_page: 0, next_cursor: null },
+}
+
 export async function fetchUserVideoCursor({
   queryKey,
   pageParam = false,
@@ -1230,40 +1235,54 @@ export async function fetchUserVideoCursor({
 }): Promise<FlipFeedPage> {
   const actor = String(queryKey[1] ?? '')
   const videoUri = decodeRouteParam(queryKey[2] as string)
-  const agent = getAgent()
 
   if (!pageParam) {
-    const postRes = await agent.getPosts({ uris: [videoUri] })
-    const targetPost = postRes.data.posts[0]
+    if (!videoUri) return EMPTY_FEED_PAGE
 
-    let resolvedPost = targetPost
-    if (targetPost && !isMediaPost(targetPost)) {
-      const mediaPost = await resolveMediaPostView(agent, videoUri)
-      if (mediaPost) {
-        resolvedPost = mediaPost
+    return withAuthenticatedFetch(async () => {
+      const agent = getAgent()
+      const postRes = await agent.getPosts({ uris: [videoUri] })
+      const targetPost = postRes.data.posts[0]
+
+      let resolvedPost = targetPost && isMediaPost(targetPost) ? targetPost : null
+      if (!resolvedPost) {
+        resolvedPost = await resolveMediaPostView(agent, videoUri)
       }
-    }
 
-    const feedActor = resolvedPost?.author.did || actor
-    const feedRes = await agent.app.bsky.feed.getAuthorFeed({
-      actor: feedActor,
-      filter: 'posts_with_media',
-      limit: 30,
-    })
+      let feedItems: AppBskyFeedDefs.FeedViewPost[] = []
+      let feedCursor: string | undefined
 
-    const feedItems = feedRes.data.feed
+      const feedActor = resolvedPost?.author.did || actor
+      if (feedActor) {
+        try {
+          const feedRes = await agent.app.bsky.feed.getAuthorFeed({
+            actor: feedActor,
+            filter: 'posts_with_media',
+            limit: 30,
+          })
+          feedItems = feedRes.data.feed
+          feedCursor = feedRes.data.cursor
+        } catch (error) {
+          if (error instanceof SessionExpiredError) throw error
+          if (!resolvedPost) throw error
+        }
+      }
 
-    const resolvedUri = resolvedPost?.uri ?? videoUri
-    const hasTarget = feedItems.some(
-      (item) => item.post.uri === resolvedUri || item.post.uri === videoUri,
-    )
+      if (!resolvedPost) {
+        return postsToMediaPage(feedItems, feedCursor)
+      }
 
-    const items =
-      resolvedPost && !hasTarget
+      const resolvedUri = resolvedPost.uri
+      const hasTarget = feedItems.some(
+        (item) => item.post.uri === resolvedUri || item.post.uri === videoUri,
+      )
+
+      const items = !hasTarget
         ? [{ post: resolvedPost, reply: undefined }, ...feedItems]
         : feedItems
 
-    return postsToMediaPage(items, feedRes.data.cursor)
+      return postsToMediaPage(items, feedCursor)
+    })
   }
 
   return fetchUserVideos({ queryKey: ['userVideos', actor], pageParam })

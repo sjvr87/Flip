@@ -21,7 +21,7 @@ export function parseRepoDidFromAtUri(uri: string): string | undefined {
 export function toProfilePath(profileId: string) {
   return {
     pathname: '/private/profile/[id]' as const,
-    params: { id: profileId },
+    params: { id: encodeRouteParam(profileId) },
   }
 }
 
@@ -35,8 +35,8 @@ export function toProfileFeedPath(
   options?: ProfileFeedNavOptions,
 ) {
   const params: Record<string, string> = {
-    id: videoId,
-    profileId,
+    id: encodeRouteParam(videoId),
+    profileId: encodeRouteParam(profileId),
   }
 
   if (options?.openComments) {
