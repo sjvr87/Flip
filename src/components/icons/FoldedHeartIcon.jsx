@@ -98,14 +98,19 @@ function HeartGradientDefs({ id }) {
  * Folded ribbon heart paths — embed inside a parent Svg via FoldedHeartGroup.
  * @param {'filled' | 'outline'} variant
  */
-export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
+export function FoldedHeartPaths({
+    variant = 'filled',
+    gradientId,
+    outlineColor = HEART_OUTLINE,
+    outlineOpacity = 0.72,
+}) {
     if (variant === 'outline') {
         return (
             <Path
                 d={RIBBON_CENTERLINE}
-                stroke={HEART_OUTLINE}
+                stroke={outlineColor}
                 strokeWidth={OUTLINE_STROKE}
-                opacity={0.72}
+                opacity={outlineOpacity}
                 {...OUTLINE_STROKE_PROPS}
             />
         );
@@ -132,25 +137,37 @@ export function FoldedHeartGroup({
     scale = 1,
     variant = 'filled',
     gradientId: gradientIdProp,
+    outlineColor,
+    outlineOpacity,
 }) {
     const autoId = useId();
     const gradientId = gradientIdProp ?? autoId;
 
     return (
         <G transform={`translate(${x}, ${y}) scale(${scale})`}>
-            <FoldedHeartPaths variant={variant} gradientId={gradientId} />
+            <FoldedHeartPaths
+                variant={variant}
+                gradientId={gradientId}
+                outlineColor={outlineColor}
+                outlineOpacity={outlineOpacity}
+            />
         </G>
     );
 }
 
-function FoldedHeartSvg({ variant, gradientId }) {
+function FoldedHeartSvg({ variant, gradientId, outlineColor, outlineOpacity }) {
     return (
         <Svg
             width={FOLDED_HEART_DESIGN_SIZE}
             height={FOLDED_HEART_DESIGN_SIZE}
             viewBox={VIEWBOX}
             fill="none">
-            <FoldedHeartPaths variant={variant} gradientId={gradientId} />
+            <FoldedHeartPaths
+                variant={variant}
+                gradientId={gradientId}
+                outlineColor={outlineColor}
+                outlineOpacity={outlineOpacity}
+            />
         </Svg>
     );
 }
@@ -162,11 +179,20 @@ function FoldedHeartSvg({ variant, gradientId }) {
 const FoldedHeartIcon = memo(function FoldedHeartIcon({
     size = FOLDED_HEART_DESIGN_SIZE,
     variant = 'filled',
+    outlineColor,
+    outlineOpacity,
 }) {
     const gradientId = useId();
 
     if (size === FOLDED_HEART_DESIGN_SIZE) {
-        return <FoldedHeartSvg variant={variant} gradientId={gradientId} />;
+        return (
+            <FoldedHeartSvg
+                variant={variant}
+                gradientId={gradientId}
+                outlineColor={outlineColor}
+                outlineOpacity={outlineOpacity}
+            />
+        );
     }
 
     const scale = size / FOLDED_HEART_DESIGN_SIZE;
@@ -180,7 +206,12 @@ const FoldedHeartIcon = memo(function FoldedHeartIcon({
                 justifyContent: 'center',
             }}>
             <View style={{ transform: [{ scale }] }}>
-                <FoldedHeartSvg variant={variant} gradientId={gradientId} />
+                <FoldedHeartSvg
+                    variant={variant}
+                    gradientId={gradientId}
+                    outlineColor={outlineColor}
+                    outlineOpacity={outlineOpacity}
+                />
             </View>
         </View>
     );
