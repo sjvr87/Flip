@@ -19,7 +19,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "dev:connect": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1",
-    "android:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-reinstall.ps1"
+    "android:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-reinstall.ps1",
+    "dev:connect:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -RestartMetro"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
