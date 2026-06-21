@@ -94,6 +94,11 @@ export function wasRefreshTokenRejected(): boolean {
   return lastRefreshRejected
 }
 
+/** @atproto/api 0.20+: refreshSession lives on CredentialSession, not AtpAgent. */
+async function refreshAgentSession(a: BskyAgent): Promise<void> {
+  await a.sessionManager.refreshSession()
+}
+
 export async function tryRefreshSession(): Promise<boolean> {
   lastRefreshRejected = false
   await restoreSessionFromStorageIfEmpty()
@@ -102,7 +107,7 @@ export async function tryRefreshSession(): Promise<boolean> {
   if (!a.session?.refreshJwt) return false
 
   try {
-    await a.refreshSession()
+    await refreshAgentSession(a)
     if (a.session) {
       await persistSession(a.session)
       return true
@@ -112,6 +117,7 @@ export async function tryRefreshSession(): Promise<boolean> {
     console.warn('[auth] refreshSession failed:', error)
     if (isRefreshTokenRejected(error)) {
       lastRefreshRejected = true
+      clearSession()
       return false
     }
     // Transient/offline — keep stored session for retry later.
@@ -386,29 +392,36 @@ export async function resumeSession(): Promise<boolean> {
 
 
   const a = getAgent()
+  const sm = a.sessionManager
 
-  try {
-    await a.resumeSession(session)
-  } catch (error) {
-    // @atproto/api sets session before refresh; rejection means refresh failed (often offline).
-    console.warn('[auth] resumeSession refresh failed:', error)
+  // Load tokens without AtpAgent.resumeSession() — it always POSTs refreshSession (no body).
+  if (sm.session?.refreshJwt !== session.refreshJwt) {
+    sm.session = session
+    sm.refreshSessionPromise = undefined
   }
 
-  if (!a.session) return false
+  if (!sm.session) return false
 
-  if (isAccessTokenExpired(a.session.accessJwt)) {
-    const refreshed = await tryRefreshSession()
-    if (!refreshed && isAccessTokenExpired(a.session.accessJwt)) {
-      // Keep stored session for offline retry; caller may still show feeds after refresh at request time.
+  if (!isAccessTokenExpired(session.accessJwt)) {
+    await persistSession(sm.session)
+    return true
+  }
+
+  const refreshed = await tryRefreshSession()
+  if (!refreshed) {
+    if (wasRefreshTokenRejected()) {
+      return false
+    }
+    if (isAccessTokenExpired(sm.session?.accessJwt)) {
       console.warn('[auth] access token still expired after resume')
     }
   }
 
-  if (a.session) {
-    await persistSession(a.session)
+  if (sm.session) {
+    await persistSession(sm.session)
   }
 
-  return !!a.session
+  return !!sm.session
 
 }
 

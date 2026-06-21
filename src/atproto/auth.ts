@@ -9,6 +9,7 @@ import {
   resumeSession,
   setServiceUrl,
   tryRefreshSession,
+  wasRefreshTokenRejected,
   withAuthenticatedFetch,
 } from './agent'
 import { clearCredentials, getSavedCredentials } from './credentialVault'
@@ -87,6 +88,10 @@ export async function hydrateSession(): Promise<boolean> {
     return true
   } catch (error) {
     console.warn('[auth] profile refresh during hydrate failed:', error)
+    if (wasRefreshTokenRejected()) {
+      clearSession()
+      return false
+    }
     return !!getAgent().session
   }
 }

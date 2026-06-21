@@ -11,7 +11,14 @@ import {
   updatePreferences,
   type FlipSessionUser,
 } from '@/atproto/auth'
-import { ensureFreshSession, hasStoredSession, trackSessionRestore, tryRefreshSession } from '@/atproto/agent'
+import {
+  clearSession,
+  ensureFreshSession,
+  hasStoredSession,
+  trackSessionRestore,
+  tryRefreshSession,
+  wasRefreshTokenRejected,
+} from '@/atproto/agent'
 import { clearCredentials, getSavedCredentials, saveCredentials } from '@/atproto/credentialVault'
 import { canUseBiometrics } from '@/utils/biometricAuth'
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode'
@@ -72,7 +79,7 @@ type UserState = {
 let sessionRestorePromise: Promise<boolean> | null = null
 let loginInFlight = false
 
-const SESSION_RESTORE_TIMEOUT_MS = 8_000
+const SESSION_RESTORE_TIMEOUT_MS = 12_000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -372,13 +379,16 @@ export const useAuthStore = create(
 
             const stored = await hasStoredSession()
             if (stored && !isAuthenticated() && !loginInFlight) {
+              if (wasRefreshTokenRejected()) {
+                clearSession()
+              }
               get().clearUser()
             }
 
             console.warn(
               `[auth] session restore complete (restored=false, savedCreds=${!!savedCreds})`,
             )
-            return isAuthenticated()
+            return false
           } catch (error) {
             console.warn('[auth] session restore failed:', error)
             const savedCreds = await getSavedCredentials()
@@ -396,9 +406,12 @@ export const useAuthStore = create(
 
             const stored = await hasStoredSession()
             if (stored && !isAuthenticated() && !loginInFlight) {
+              if (wasRefreshTokenRejected()) {
+                clearSession()
+              }
               get().clearUser()
             }
-            return isAuthenticated()
+            return false
           } finally {
             get().syncAuthState()
             if (get().isLoggedIn && !isAuthenticated() && !loginInFlight) {
@@ -468,9 +481,16 @@ setAuthFailureHandler(async (reason) => {
     }
   }
 
+  if (wasRefreshTokenRejected()) {
+    clearSession()
+    useAuthStore.getState().clearUser()
+    Alert.alert('Session expired', reason || 'Please sign in again.')
+    return
+  }
+
   const hasStored = await hasStoredSession()
   if (hasStored) {
-    console.warn('[auth] auth failure ignored — stored session kept:', reason)
+    console.warn('[auth] auth failure ignored — stored session kept (transient):', reason)
     resetAuthFailureFlag()
     return
   }
