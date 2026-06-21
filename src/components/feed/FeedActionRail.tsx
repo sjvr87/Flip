@@ -232,7 +232,8 @@ function FeedActionRail({
                     style={styles.actionButton}
                     onPress={onUseAudio}
                     accessible
-                    accessibilityLabel="Use this audio"
+                    accessibilityLabel="Use audio with credit"
+                    accessibilityHint="Opens camera to record a remix; audio credit is attached to your post"
                     accessibilityRole="button">
                     <FeedActionIcon name="musical-notes-outline" />
                 </TouchableOpacity>

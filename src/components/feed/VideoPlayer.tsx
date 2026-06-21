@@ -161,6 +161,7 @@ function VideoPlayerCore({
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
     const [showPauseHint, setShowPauseHint] = useState(false);
+    const [pauseHintIcon, setPauseHintIcon] = useState<'play' | 'pause'>('pause');
     const [isPlaying, setIsPlaying] = useState(false);
     const pauseHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isMountedRef = useRef(true);
@@ -242,8 +243,9 @@ function VideoPlayerCore({
             }
         };
         const onPlaying = ({ isPlaying: playing }: { isPlaying: boolean }) => {
-            if (playing && isMountedRef.current) {
+            if (isMountedRef.current) {
                 setVideoReady(true);
+                setIsPlaying(playing);
             }
         };
 
@@ -354,10 +356,11 @@ function VideoPlayerCore({
         onRepost(item.id, !isReposted);
     };
 
-    const flashPauseHint = () => {
+    const flashPauseHint = (icon: 'play' | 'pause') => {
         if (pauseHintTimeoutRef.current) {
             clearTimeout(pauseHintTimeoutRef.current);
         }
+        setPauseHintIcon(icon);
         setShowPauseHint(true);
         pauseHintTimeoutRef.current = setTimeout(() => {
             if (isMountedRef.current) {
@@ -370,16 +373,17 @@ function VideoPlayerCore({
         if (!player || !isMountedRef.current || !isActive) return;
 
         try {
-            if (isPlaying) {
+            const currentlyPlaying = player.playing;
+            if (currentlyPlaying) {
                 player.pause();
                 setIsPlaying(false);
                 setManuallyPaused(item.id, true);
-                flashPauseHint();
+                flashPauseHint('play');
             } else {
                 player.play();
                 setIsPlaying(true);
                 setManuallyPaused(item.id, false);
-                flashPauseHint();
+                flashPauseHint('pause');
             }
         } catch (error) {
             console.log('Toggle play/pause error:', error);
@@ -412,9 +416,28 @@ function VideoPlayerCore({
             postUri: item.id,
             isOriginal: true,
         };
+        const referenceVideoUrl = item.media?.src_url;
+        const remixSource = {
+            ...source,
+            isOriginal: false,
+            referenceVideoUrl,
+        };
 
-        setPendingAudioReuse(source);
-        router.push('/(tabs)/create');
+        setPendingAudioReuse(remixSource);
+
+        Alert.alert(
+            'Remix with this sound',
+            referenceVideoUrl
+                ? `Reference audio from @${source.username} will play while you record. Audio credit is attached to your post when you publish.`
+                : `Audio credit from @${source.username} will be attached to your post. Record your video with this sound in mind.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Record remix',
+                    onPress: () => router.push('/(tabs)/create'),
+                },
+            ],
+        );
     };
 
     useEffect(() => {
@@ -487,14 +510,15 @@ function VideoPlayerCore({
                     player={player}
                     allowsPictureInPicture={false}
                     nativeControls={false}
+                    pointerEvents="none"
                     accessible={true}
                     accessibilityLabel={item.media.alt_text || 'Video content'}
-                    accessibilityHint="Tap to show playback controls"
+                    accessibilityHint="Tap to pause or play"
                     contentFit="contain"
                 />
 
                 <Pressable
-                    style={StyleSheet.absoluteFill}
+                    style={styles.tapOverlay}
                     onPress={handleScreenPress}
                     accessible={true}
                     accessibilityLabel="Video"
@@ -506,7 +530,7 @@ function VideoPlayerCore({
                     <View style={styles.controlsOverlay} pointerEvents="none">
                         <View style={styles.playButton}>
                             <Ionicons
-                                name={isPlaying ? 'play' : 'pause'}
+                                name={pauseHintIcon}
                                 size={60}
                                 color="white"
                             />
@@ -666,6 +690,11 @@ const styles = StyleSheet.create({
     },
     videoHiddenUntilReady: {
         opacity: 0,
+    },
+    tapOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 2,
+        elevation: 2,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,

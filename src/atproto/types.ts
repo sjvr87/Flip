@@ -34,6 +34,8 @@ export type FlipAudioSource = {
   postUri?: string
   /** When true or when postUri matches this post, audio is from the poster. */
   isOriginal?: boolean
+  /** Client-only: remote video URL for reference playback during remix/create. */
+  referenceVideoUrl?: string
 }
 
 export type FlipVideoMeta = {

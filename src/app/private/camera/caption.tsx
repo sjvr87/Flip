@@ -1,5 +1,6 @@
 import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
+import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { uploadMediaPost } from '@/atproto/upload';
@@ -571,13 +572,22 @@ export default function CaptionScreen() {
             </View>
 
             {reusedAudioSource ? (
-                <View
-                    style={tw`mx-5 mt-3 flex-row items-center gap-2 self-start rounded-full bg-cyan-500/10 px-3 py-2`}>
-                    <Ionicons name="musical-notes" size={16} color="#22D3EE" />
-                    <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300`}>
-                        Audio from @{reusedAudioSource.username}
-                    </Text>
-                </View>
+                <>
+                    {reusedAudioSource.referenceVideoUrl ? (
+                        <ReferenceAudioPlayer
+                            url={reusedAudioSource.referenceVideoUrl}
+                            active={isFocused}
+                        />
+                    ) : null}
+                    <View
+                        style={tw`mx-5 mt-3 flex-row items-center gap-2 self-start rounded-full bg-cyan-500/10 px-3 py-2`}>
+                        <Ionicons name="musical-notes" size={16} color="#22D3EE" />
+                        <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300`}>
+                            Remix · audio credit @{reusedAudioSource.username}
+                            {reusedAudioSource.referenceVideoUrl ? ' · reference playing' : ''}
+                        </Text>
+                    </View>
+                </>
             ) : null}
 
             <View>

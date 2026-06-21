@@ -2,7 +2,9 @@ import { MAX_RECORDING_SECONDS } from '@/camera/camerawesome/config'
 import { launchUploadGalleryPicker } from '@/camera/launchUploadGalleryPicker'
 import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions'
 import { useRecentGalleryThumb } from '@/camera/useRecentGalleryThumb'
+import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer'
 import { PressableHaptics } from '@/components/ui/PressableHaptics'
+import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore'
 import { FlipCamerawesomeView } from 'flip-camerawesome'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -49,6 +51,8 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const [zoomLevel, setZoomLevel] = useState(1)
 
   const { thumbUri: galleryThumbUri, reload: reloadGalleryThumb } = useRecentGalleryThumb()
+  const pendingRemix = usePendingAudioReuseStore((s) => s.pending)
+  const remixReferenceUrl = pendingRemix?.referenceVideoUrl
 
   const requestAndroidPermissions = useCallback(async () => {
     const cameraGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA)
@@ -271,6 +275,12 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   return (
     <GestureHandlerRootView style={styles.container}>
+      {remixReferenceUrl ? (
+        <ReferenceAudioPlayer
+          url={remixReferenceUrl}
+          active={isFocused && isCameraActive}
+        />
+      ) : null}
       <GestureDetector gesture={cameraGestures}>
         <View style={StyleSheet.absoluteFill}>
           {isFocused && (
@@ -316,7 +326,17 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         <PressableHaptics onPress={handleClose} style={styles.topButton}>
           <Ionicons name="close" size={28} color="#fff" />
         </PressableHaptics>
-        <View style={styles.topButton} />
+        {pendingRemix ? (
+          <View style={styles.remixBanner}>
+            <Ionicons name="musical-notes" size={14} color="#22D3EE" />
+            <Text style={styles.remixBannerText} numberOfLines={1}>
+              Remix @{pendingRemix.username}
+              {remixReferenceUrl ? ' · reference playing' : ' · credit attached'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.topButton} />
+        )}
       </View>
 
       <View style={styles.rightControls}>
@@ -453,6 +473,24 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+  remixBanner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  remixBannerText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   rightControls: { position: 'absolute', right: 12, top: '35%', zIndex: 10, gap: 20 },
   controlButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   bottomContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: 40 },
