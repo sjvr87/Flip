@@ -78,6 +78,10 @@ export default function LoopsFeed({ navigation }) {
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
     const [activeTab, setActiveTab] = useState(defaultFeed);
     const feedEpoch = feedEpochs[activeTab] ?? 0;
+    const feedEpochRef = useRef(feedEpoch);
+    feedEpochRef.current = feedEpoch;
+    const feedEpochsRef = useRef(feedEpochs);
+    feedEpochsRef.current = feedEpochs;
     const activeTabRef = useRef(activeTab);
     activeTabRef.current = activeTab;
     const skipFeedTabRefreshRef = useRef(true);
@@ -273,6 +277,24 @@ export default function LoopsFeed({ navigation }) {
         [bumpFeedEpoch, queryClient],
     );
 
+    const refreshFeedIfStale = useCallback(
+        (tab: string, epoch: number) => {
+            const state = queryClient.getQueryState(['videos', tab, epoch]);
+            if (!state?.data) {
+                return;
+            }
+            const age = Date.now() - (state.dataUpdatedAt ?? 0);
+            const staleMs = getFeedStaleMs(tab);
+            const softMs = getFeedSoftRefreshMs(tab);
+            if (age >= staleMs) {
+                refreshFeed(tab, 'hard');
+            } else if (age >= softMs) {
+                refreshFeed(tab, 'soft');
+            }
+        },
+        [queryClient, refreshFeed],
+    );
+
     const onRefresh = useCallback(() => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         setCurrentIndex(0);
@@ -286,16 +308,7 @@ export default function LoopsFeed({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
-
-            const staleMs = getFeedStaleMs(activeTab);
-            const softMs = getFeedSoftRefreshMs(activeTab);
-            const state = queryClient.getQueryState(['videos', activeTab, feedEpoch]);
-            const age = Date.now() - (state?.dataUpdatedAt ?? 0);
-            if (!state?.data || age >= staleMs) {
-                refreshFeed(activeTab, 'hard');
-            } else if (age >= softMs) {
-                refreshFeed(activeTab, 'soft');
-            }
+            refreshFeedIfStale(activeTab, feedEpochRef.current);
 
             return () => {
                 setScreenFocused(false);
@@ -304,7 +317,7 @@ export default function LoopsFeed({ navigation }) {
                     recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
                 }
             };
-        }, [activeTab, feedEpoch, queryClient, refreshFeed]),
+        }, [activeTab, refreshFeedIfStale]),
     );
 
     useEffect(() => {
@@ -321,20 +334,12 @@ export default function LoopsFeed({ navigation }) {
                 return;
             }
             for (const tab of FEED_TABS) {
-                const epoch = feedEpochs[tab] ?? 0;
-                const state = queryClient.getQueryState(['videos', tab, epoch]);
-                const age = Date.now() - (state?.dataUpdatedAt ?? 0);
-                const staleMs = getFeedStaleMs(tab);
-                const softMs = getFeedSoftRefreshMs(tab);
-                if (!state?.data || age >= staleMs) {
-                    refreshFeed(tab, 'hard');
-                } else if (age >= softMs) {
-                    refreshFeed(tab, 'soft');
-                }
+                const epoch = feedEpochsRef.current[tab] ?? 0;
+                refreshFeedIfStale(tab, epoch);
             }
         });
         return () => subscription.remove();
-    }, [feedEpochs, queryClient, refreshFeed]);
+    }, [refreshFeedIfStale]);
 
     useEffect(() => {
         if (videos.length > 0) {
