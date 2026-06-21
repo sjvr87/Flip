@@ -2,7 +2,7 @@ import { memo } from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 /**
- * Stylized house inside a circle — matches tab bar reference at 26px.
+ * House inside a broken circle — tab bar reference at 26px.
  * Stroke-only line art; tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  */
 const HomeTabIcon = memo(function HomeTabIcon({
@@ -10,75 +10,85 @@ const HomeTabIcon = memo(function HomeTabIcon({
     color = '#000000',
     focused = false,
 }) {
-    const strokeWidth = focused ? 1.9 : 1.5;
-    const dotRadius = focused ? 0.55 : 0.48;
-    const knobRadius = focused ? 0.42 : 0.36;
+    const strokeWidth = focused ? 1.75 : 1.3;
+    const strokeOpacity = focused ? 1 : 0.72;
+    const dotRadius = focused ? 0.52 : 0.44;
+    const knobRadius = focused ? 0.4 : 0.34;
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            {/* Circle — long arc with intentional gap at upper-right (~2 o'clock) */}
+        <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
+            {/* Main circle arc — skips top gap and upper-right gap */}
             <Path
-                d="M17.35 6.65 A7.6 7.6 0 1 1 19.3 10.05"
+                d="M21.33 9.58 A9 9 0 1 1 11.24 4.48"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
             />
-            {/* Short pill segment in the gap */}
+            {/* Short arc bridging the top gap */}
             <Path
-                d="M16.05 5.55 A7.6 7.6 0 0 0 15.1 5.25"
+                d="M14.76 4.48 A9 9 0 0 1 19.09 6.84"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
             />
-            {/* Dot on circle at ~10 o'clock */}
-            <Circle cx={5.45} cy={8.2} r={dotRadius} fill={color} />
+            {/* Dash in the upper-right gap */}
+            <Path
+                d="M20.15 7.15 A9 9 0 0 1 20.76 8.05"
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
+                strokeLinecap="round"
+            />
+
+            {/* Decorative dot above left roof eave */}
+            <Circle cx={7.4} cy={10.5} r={dotRadius} fill={color} opacity={strokeOpacity} />
 
             {/* Roof with eaves */}
             <Path
-                d="M8.15 12.35 12 9.1 15.85 12.35"
+                d="M7.9 12.1 13 8.8 18.1 12.1"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
                 strokeLinejoin="round"
             />
             {/* Left wall */}
             <Path
-                d="M8.7 12.35V16.85"
+                d="M8.3 12.1V17.3"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
             />
             {/* Right wall */}
             <Path
-                d="M15.3 12.35V16.85"
+                d="M17.7 12.1V17.3"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
             />
             {/* Floor */}
             <Path
-                d="M8.7 16.85h6.6"
+                d="M8.3 17.3h9.4"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
             />
-            {/* Door frame */}
+            {/* Door */}
             <Path
-                d="M10.8 16.85v-2.55h2.4V16.85"
+                d="M11.7 17.3V14.5h2.6V17.3"
                 stroke={color}
                 strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
                 strokeLinecap="round"
                 strokeLinejoin="round"
             />
-            {/* Door panel line */}
-            <Path
-                d="M11.25 14.3v2.55"
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-            />
             {/* Door knob */}
-            <Circle cx={12.6} cy={15.6} r={knobRadius} fill={color} />
+            <Circle cx={13.85} cy={15.9} r={knobRadius} fill={color} opacity={strokeOpacity} />
         </Svg>
     );
 });
