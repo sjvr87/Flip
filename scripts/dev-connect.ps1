@@ -216,8 +216,8 @@ Write-Host "USB URL: exp://127.0.0.1:8081 (requires adb reverse)"
 if ($lanIp) { Write-Host "LAN URL: exp://${lanIp}:8081 (npm run start:lan + same Wi-Fi)" }
 Write-Host ""
 Write-Host "=== Troubleshooting ===" -ForegroundColor Cyan
-Write-Host "- Must run flip-dev.bat (or npm run dev:connect:restart) — opening Flip alone does not start Metro"
-Write-Host "- Beta/preview app (flip-beta.bat) is standalone — it cannot load live JS from your PC"
+Write-Host "- Must run flip-dev.bat (or npm run dev:connect:restart) - opening Flip alone does not start Metro"
+Write-Host "- Beta/preview app [flip-beta.bat] is standalone - it cannot load live JS from your PC"
 Write-Host "- Stale Metro / port conflict: npm run dev:connect -- -RestartMetro"
 Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run npm run start:clear"
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
