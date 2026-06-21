@@ -1,3 +1,4 @@
+import ExploreTabIcon from '@/components/icons/ExploreTabIcon';
 import HomeTabIcon from '@/components/icons/HomeTabIcon';
 import MailboxTabIcon from '@/components/icons/MailboxTabIcon';
 import ProfileTabIcon from '@/components/icons/ProfileTabIcon';
@@ -10,28 +11,10 @@ import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarL
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tabs } from 'expo-router';
-import { ComponentProps, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-type IoniconName = ComponentProps<typeof Ionicons>['name'];
-
 const ICON_SIZE = 26;
-
-function TabIcon({
-    focused,
-    activeName,
-    inactiveName,
-    color,
-    size = ICON_SIZE,
-}: {
-    focused: boolean;
-    activeName: IoniconName;
-    inactiveName: IoniconName;
-    color: string;
-    size?: number;
-}) {
-    return <Ionicons name={focused ? activeName : inactiveName} size={size} color={color} />;
-}
 
 function CreateTabIcon({ isDark }: { isDark: boolean }) {
     const backgroundColor = isDark ? '#ffffff' : '#000000';
@@ -109,12 +92,7 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="compass"
-                            inactiveName="compass-outline"
-                            color={color}
-                        />
+                        <ExploreTabIcon color={color} focused={focused} size={ICON_SIZE} />
                     ),
                 }}
             />
