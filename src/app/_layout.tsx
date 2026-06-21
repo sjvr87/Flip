@@ -25,6 +25,8 @@ if (__DEV__) {
         'Falling back to ponyfill',
         'Falling back to file-based resolution',
         'shadow*',
+        'InteractionManager has been deprecated',
+        'props.pointerEvents is deprecated',
         '[expo-notifications] Listening to push token changes',
     ]);
 }

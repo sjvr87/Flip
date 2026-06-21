@@ -5,7 +5,6 @@ import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
-import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -27,6 +26,19 @@ function safeCount(value: unknown): number {
 }
 
 const POSTER_BG = '#1a1a1a';
+
+type ExpoVideoPlayer = ReturnType<typeof createVideoPlayer>;
+
+/** Release after VideoView unmounts so native prop updates don't race teardown. */
+function releasePlayerDeferred(player: ExpoVideoPlayer) {
+    queueMicrotask(() => {
+        try {
+            player.release?.();
+        } catch {
+            // already released
+        }
+    });
+}
 
 function VideoPoster({ thumbnail }: { thumbnail?: string }) {
     return (
@@ -157,19 +169,15 @@ function VideoPlayerCore({
 
     const srcUrl = item.media?.src_url;
     const thumbnail = item.media?.thumbnail;
-    const playerRef = useRef<ReturnType<typeof createVideoPlayer> | null>(null);
+    const playerRef = useRef<ExpoVideoPlayer | null>(null);
     const boundSrcRef = useRef<string | undefined>(undefined);
-    const [player, setPlayer] = useState<ReturnType<typeof createVideoPlayer> | null>(null);
+    const [player, setPlayer] = useState<ExpoVideoPlayer | null>(null);
     const [videoReady, setVideoReady] = useState(false);
 
     useEffect(() => {
         if (!srcUrl) {
             if (playerRef.current) {
-                try {
-                    playerRef.current.release?.();
-                } catch {
-                    // already released
-                }
+                releasePlayerDeferred(playerRef.current);
                 playerRef.current = null;
             }
             boundSrcRef.current = undefined;
@@ -179,17 +187,14 @@ function VideoPlayerCore({
         }
 
         if (boundSrcRef.current === srcUrl && playerRef.current) {
-            setPlayer(playerRef.current);
-            setVideoReady(playerRef.current.status === 'readyToPlay');
             return;
         }
 
+        setPlayer(null);
+        setVideoReady(false);
+
         if (playerRef.current) {
-            try {
-                playerRef.current.release?.();
-            } catch {
-                // already released
-            }
+            releasePlayerDeferred(playerRef.current);
             playerRef.current = null;
         }
 
@@ -201,15 +206,11 @@ function VideoPlayerCore({
         setVideoReady(nextPlayer.status === 'readyToPlay');
 
         return () => {
-            try {
-                nextPlayer.release?.();
-            } catch {
-                // already released
-            }
             if (playerRef.current === nextPlayer) {
                 playerRef.current = null;
                 boundSrcRef.current = undefined;
             }
+            releasePlayerDeferred(nextPlayer);
         };
     }, [srcUrl]);
 
@@ -217,17 +218,30 @@ function VideoPlayerCore({
         prefetchThumbnails([thumbnail]);
     }, [thumbnail]);
 
-    useEventListener(player, 'statusChange', ({ status }) => {
-        if (status === 'readyToPlay' && isMountedRef.current) {
-            setVideoReady(true);
+    useEffect(() => {
+        if (!player) {
+            return;
         }
-    });
 
-    useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
-        if (playing && isMountedRef.current) {
-            setVideoReady(true);
-        }
-    });
+        const onStatus = ({ status }: { status: string }) => {
+            if (status === 'readyToPlay' && isMountedRef.current) {
+                setVideoReady(true);
+            }
+        };
+        const onPlaying = ({ isPlaying: playing }: { isPlaying: boolean }) => {
+            if (playing && isMountedRef.current) {
+                setVideoReady(true);
+            }
+        };
+
+        const statusSub = player.addListener('statusChange', onStatus);
+        const playingSub = player.addListener('playingChange', onPlaying);
+
+        return () => {
+            statusSub.remove();
+            playingSub.remove();
+        };
+    }, [player]);
 
     useEffect(() => {
         isMountedRef.current = true;
