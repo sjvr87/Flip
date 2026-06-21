@@ -82,6 +82,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   useFocusEffect(
     useCallback(() => {
       setIsCameraActive(true)
+      setIsCameraReady(false)
       requestAndroidPermissions().then(setHasPermissions)
       ensureAndroidMediaReadPermissions()
         .catch(() => undefined)
@@ -92,6 +93,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
           recordingRef.current = false
         }
         setIsCameraActive(false)
+        setIsCameraReady(false)
       }
     }, [requestAndroidPermissions, reloadGalleryThumb]),
   )
@@ -282,10 +284,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      {remixReferenceUrl ? (
+      {isCameraReady && remixReferenceUrl ? (
         <ReferenceAudioPlayer
           url={remixReferenceUrl}
-          active={isCameraReady && isFocused && isCameraActive}
+          active={isFocused && isCameraActive}
           recordingActive={isRecording}
         />
       ) : null}
@@ -300,7 +302,12 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
               isActive={isFocused && isCameraActive}
               recording={isRecording}
               photoRequestId={photoRequestId}
-              onCameraReady={() => setIsCameraReady(true)}
+              onCameraReady={() => {
+                setIsCameraReady(true)
+                if (__DEV__ && remixReferenceUrl) {
+                  console.log('[FlipCamera] ready; remix url:', remixReferenceUrl.slice(0, 80))
+                }
+              }}
               onRecordingFinished={(e) => {
                 const path = e.nativeEvent.uri || e.nativeEvent.path
                 navigateToPreview(path, recordingDuration, 'video')

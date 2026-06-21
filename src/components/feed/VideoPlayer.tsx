@@ -30,7 +30,6 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
     Extrapolation,
     interpolate,
-    runOnJS,
     useAnimatedStyle,
     useSharedValue,
     withSpring,
@@ -415,25 +414,11 @@ function VideoPlayerCore({
         }
     }, [isActive, zoomScale, zoomStartScale]);
 
-    const videoGestures = useMemo(() => {
+    const pinchGesture = useMemo(() => {
         try {
             const pinchFactory = Gesture?.Pinch;
-            const tapFactory = Gesture?.Tap;
-            const simultaneousFactory = Gesture?.Simultaneous;
-
-            if (typeof tapFactory !== 'function') {
+            if (typeof pinchFactory !== 'function') {
                 return null;
-            }
-
-            const tap = tapFactory()
-                .maxDuration(250)
-                .maxPointers(1)
-                .onEnd(() => {
-                    runOnJS(togglePlayPause)();
-                });
-
-            if (typeof pinchFactory !== 'function' || typeof simultaneousFactory !== 'function') {
-                return tap;
             }
 
             const pinch = pinchFactory()
@@ -459,14 +444,12 @@ function VideoPlayerCore({
                 pinch.blocksExternalGesture(feedScrollGesture);
             }
 
-            // Simultaneous (not Exclusive): pinch waits for a 2nd finger and would
-            // capture the first pointer, preventing single-finger tap from firing.
-            return simultaneousFactory(pinch, tap);
+            return pinch;
         } catch (error) {
-            console.warn('[VideoPlayer] gesture setup failed:', error);
+            console.warn('[VideoPlayer] pinch gesture setup failed:', error);
             return null;
         }
-    }, [feedScrollGesture, togglePlayPause, zoomScale, zoomStartScale]);
+    }, [feedScrollGesture, zoomScale, zoomStartScale]);
 
     const zoomedVideoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: zoomScale.value }],
@@ -504,6 +487,13 @@ function VideoPlayerCore({
 
         setPendingAudioReuse(remixSource);
 
+        if (__DEV__) {
+            console.log('[Remix] queued', {
+                username: source.username,
+                referenceVideoUrl: referenceVideoUrl?.slice(0, 80),
+            });
+        }
+
         Alert.alert(
             'Remix with this sound',
             referenceVideoUrl
@@ -517,7 +507,11 @@ function VideoPlayerCore({
                 },
                 {
                     text: 'Record remix',
-                    onPress: () => router.push('/(tabs)/create'),
+                    onPress: () => {
+                        requestAnimationFrame(() => {
+                            router.push('/create');
+                        });
+                    },
                 },
             ],
         );
@@ -602,10 +596,11 @@ function VideoPlayerCore({
                     />
                 </Reanimated.View>
 
-                {videoGestures ? (
-                    <GestureDetector gesture={videoGestures}>
-                        <View
+                {pinchGesture ? (
+                    <GestureDetector gesture={pinchGesture}>
+                        <Pressable
                             style={styles.tapOverlay}
+                            onPress={togglePlayPause}
                             accessible={true}
                             accessibilityLabel="Video"
                             accessibilityHint="Tap to pause or play"

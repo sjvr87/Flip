@@ -50,7 +50,6 @@ import {
     ActivityIndicator,
     AppState,
     Dimensions,
-    FlatList,
     InteractionManager,
     Platform,
     RefreshControl,
@@ -59,6 +58,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { FlatList } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');

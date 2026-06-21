@@ -1,5 +1,6 @@
 import { getExpoAudioModule, isExpoAudioAvailable } from '@/utils/expoAudioAvailability';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 
 type ReferenceAudioPlayerProps = {
     url: string;
@@ -10,6 +11,7 @@ type ReferenceAudioPlayerProps = {
 
 const REFERENCE_AUDIO_MODE = {
     playsInSilentMode: true,
+    allowsRecording: true,
     interruptionMode: 'duckOthers' as const,
 };
 
@@ -20,6 +22,9 @@ export default function ReferenceAudioPlayer({
     recordingActive = false,
 }: ReferenceAudioPlayerProps) {
     if (!isExpoAudioAvailable() || !url) {
+        if (__DEV__ && url) {
+            console.warn('[ReferenceAudio] expo-audio native module unavailable');
+        }
         return null;
     }
 
@@ -45,26 +50,21 @@ function ReferenceAudioPlayerActive({
     // Stream remote URLs — downloadFirst contends with CameraX encode on Samsung devices.
     const player = useAudioPlayer(url);
     const status = useAudioPlayerStatus(player);
+    const loggedPlaying = useRef(false);
+
+    useEffect(() => {
+        if (__DEV__) {
+            console.log('[ReferenceAudio] mount', {
+                url: url.slice(0, 80),
+                active,
+                platform: Platform.OS,
+            });
+        }
+    }, [url, active]);
 
     useEffect(() => {
         void setAudioModeAsync(REFERENCE_AUDIO_MODE);
     }, [setAudioModeAsync]);
-
-    useEffect(() => {
-        if (!recordingActive) {
-            return;
-        }
-        void setAudioModeAsync(REFERENCE_AUDIO_MODE).then(() => {
-            if (!active || !status.isLoaded) {
-                return;
-            }
-            try {
-                player.play();
-            } catch {
-                // player may be tearing down
-            }
-        });
-    }, [recordingActive, setAudioModeAsync, active, status.isLoaded, player]);
 
     useEffect(() => {
         player.loop = true;
@@ -84,10 +84,34 @@ function ReferenceAudioPlayerActive({
         }
         try {
             player.play();
-        } catch {
-            // player may be tearing down
+            if (__DEV__ && !loggedPlaying.current) {
+                loggedPlaying.current = true;
+                console.log('[ReferenceAudio] playing', url.slice(0, 80));
+            }
+        } catch (error) {
+            if (__DEV__) {
+                console.warn('[ReferenceAudio] play failed:', error);
+            }
         }
-    }, [player, active, status.isLoaded]);
+    }, [player, active, status.isLoaded, url]);
+
+    useEffect(() => {
+        if (!recordingActive) {
+            return;
+        }
+        void setAudioModeAsync(REFERENCE_AUDIO_MODE).then(() => {
+            if (!active || !status.isLoaded) {
+                return;
+            }
+            try {
+                player.play();
+            } catch (error) {
+                if (__DEV__) {
+                    console.warn('[ReferenceAudio] resume on record failed:', error);
+                }
+            }
+        });
+    }, [recordingActive, setAudioModeAsync, active, status.isLoaded, player]);
 
     return null;
 }
