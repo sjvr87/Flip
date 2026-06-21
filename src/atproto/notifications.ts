@@ -2,9 +2,10 @@ import type { AppBskyNotificationDefs } from '@atproto/api'
 import { AppBskyEmbedVideo, AppBskyFeedLike, AppBskyFeedRepost } from '@atproto/api'
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
+import { normalizeToPostUri } from './postResolve'
+import { parseRepoDidFromAtUri } from '@/utils/profileNavigation'
 
 const REPLY_NOTIFICATION_REASONS = new Set(['reply', 'quote', 'mention'])
-import { parseRepoDidFromAtUri } from '@/utils/profileNavigation'
 
 export type FlipNotification = {
   id: string
@@ -118,8 +119,9 @@ function reasonToType(reason: string, subjectUri?: string): string {
 
 function extractVideoMeta(
   notification: AppBskyNotificationDefs.Notification,
+  subjectOverride?: string,
 ): Pick<FlipNotification, 'video_id' | 'video_pid' | 'video_thumbnail'> {
-  const subject = getNotificationSubjectUri(notification)
+  const subject = subjectOverride ?? getNotificationSubjectUri(notification)
   if (!subject) return {}
 
   let videoThumbnail: string | undefined
@@ -156,9 +158,25 @@ function extractVideoMeta(
   }
 }
 
-function mapNotification(notification: AppBskyNotificationDefs.Notification): FlipNotification {
-  const subjectUri = getNotificationSubjectUri(notification)
-  const videoMeta = extractVideoMeta(notification)
+async function resolveNotificationSubject(
+  notification: AppBskyNotificationDefs.Notification,
+): Promise<string | undefined> {
+  const subject = getNotificationSubjectUri(notification)
+  if (!subject) return undefined
+  if (subject.includes('app.bsky.feed.post')) return subject
+
+  try {
+    return await normalizeToPostUri(getAgent(), subject)
+  } catch {
+    return subject
+  }
+}
+
+async function mapNotification(
+  notification: AppBskyNotificationDefs.Notification,
+): Promise<FlipNotification> {
+  const subjectUri = await resolveNotificationSubject(notification)
+  const videoMeta = extractVideoMeta(notification, subjectUri)
 
   return {
     id: notification.uri,
@@ -207,7 +225,7 @@ async function listNotificationsPage(cursor?: string, limit = 30) {
   const res = await withAuthenticatedFetch(() =>
     getAgent().listNotifications({ limit, cursor }),
   )
-  const mapped = res.data.notifications.map(mapNotification)
+  const mapped = await Promise.all(res.data.notifications.map(mapNotification))
   return {
     notifications: mapped,
     cursor: res.data.cursor,

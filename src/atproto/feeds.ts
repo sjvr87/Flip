@@ -1,5 +1,4 @@
 import type { AppBskyFeedDefs } from '@atproto/api'
-import { AppBskyFeedLike, AppBskyFeedRepost, AtUri } from '@atproto/api'
 import Constants from 'expo-constants'
 import { decodeRouteParam } from '@/utils/profileNavigation'
 import {
@@ -12,6 +11,7 @@ import {
 } from '@/utils/feedCache'
 import { postsToFeedPage, postsToMediaPage, isMediaPost, postToFlipItem } from './adapters'
 import { getAgent, restoreSessionFromStorageIfEmpty, SessionExpiredError, withAuthenticatedFetch } from './agent'
+import { normalizeToPostUri } from './postResolve'
 import type { FlipFeedPage, FlipVideo } from './types'
 
 type PageParam = string | false | null | undefined
@@ -1183,35 +1183,20 @@ export async function fetchUserVideos({
   return postsToMediaPage(res.data.feed, res.data.cursor)
 }
 
-async function normalizeToPostUri(
+async function hydratePostView(
   agent: ReturnType<typeof getAgent>,
   uri: string,
-): Promise<string> {
-  if (uri.includes('app.bsky.feed.post')) {
-    return uri
-  }
-
+): Promise<AppBskyFeedDefs.PostView | null> {
   try {
-    const atUri = new AtUri(uri)
-    if (atUri.collection === 'app.bsky.feed.repost' || atUri.collection === 'app.bsky.feed.like') {
-      const record = await agent.com.atproto.repo.getRecord({
-        repo: atUri.host,
-        collection: atUri.collection,
-        rkey: atUri.rkey,
-      })
-      const value = record.data.value
-      if (AppBskyFeedRepost.isRecord(value) || AppBskyFeedLike.isRecord(value)) {
-        const subjectUri = value.subject?.uri
-        if (typeof subjectUri === 'string' && subjectUri.length > 0) {
-          return subjectUri
-        }
-      }
+    const res = await agent.getPostThread({ uri, depth: 0, parentHeight: 0 })
+    const thread = res.data.thread
+    if (thread.$type !== 'app.bsky.feed.defs#threadViewPost') {
+      return null
     }
+    return thread.post
   } catch {
-    // Fall through to caller resolution chain.
+    return null
   }
-
-  return uri
 }
 
 async function resolveMediaPostViaThread(
@@ -1255,8 +1240,15 @@ async function resolveMediaPostView(
     visited.add(currentUri)
     currentUri = await normalizeToPostUri(agent, currentUri)
     const res = await agent.getPosts({ uris: [currentUri] })
-    const post = res.data.posts[0]
+    let post = res.data.posts[0]
     if (!post) return null
+
+    if (!isMediaPost(post)) {
+      const hydrated = await hydratePostView(agent, currentUri)
+      if (hydrated) {
+        post = hydrated
+      }
+    }
 
     if (isMediaPost(post)) return post
 
@@ -1346,7 +1338,14 @@ export async function fetchUserVideoCursor({
       const agent = getAgent()
       const normalizedUri = await normalizeToPostUri(agent, videoUri)
       const postRes = await agent.getPosts({ uris: [normalizedUri] })
-      const targetPost = postRes.data.posts[0]
+      let targetPost = postRes.data.posts[0]
+
+      if (targetPost && !isMediaPost(targetPost)) {
+        const hydrated = await hydratePostView(agent, normalizedUri)
+        if (hydrated) {
+          targetPost = hydrated
+        }
+      }
 
       let resolvedPost = targetPost && isMediaPost(targetPost) ? targetPost : null
       if (!resolvedPost) {
@@ -1354,7 +1353,17 @@ export async function fetchUserVideoCursor({
       }
 
       if (resolvedPost && !isMediaPost(resolvedPost)) {
-        resolvedPost = await resolveMediaPostView(agent, resolvedPost.uri)
+        const hydrated = await hydratePostView(agent, resolvedPost.uri)
+        if (hydrated && isMediaPost(hydrated)) {
+          resolvedPost = hydrated
+        }
+      }
+
+      if (resolvedPost && !postToFlipItem({ post: resolvedPost, reply: undefined })) {
+        const hydrated = await hydratePostView(agent, resolvedPost.uri)
+        if (hydrated) {
+          resolvedPost = hydrated
+        }
       }
 
       let feedItems: AppBskyFeedDefs.FeedViewPost[] = []
