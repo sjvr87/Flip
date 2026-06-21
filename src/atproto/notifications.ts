@@ -423,3 +423,99 @@ export async function notificationTypeMarkAllAsRead(_type: string): Promise<{ da
   )
   return { data: {} }
 }
+
+const COMMENT_ACTIVITY_TYPES = new Set([
+  'video.comment',
+  'video.commentReply',
+  'comment.like',
+  'comment.share',
+  'commentReply.like',
+  'commentReply.share',
+])
+
+async function findRawNotification(
+  notificationUri: string,
+): Promise<AppBskyNotificationDefs.Notification | undefined> {
+  let cursor: string | undefined
+
+  for (let page = 0; page < 5; page++) {
+    const res = await withAuthenticatedFetch(() =>
+      getAgent().listNotifications({ limit: 50, cursor }),
+    )
+    const found = res.data.notifications.find((n) => n.uri === notificationUri)
+    if (found) return found
+    cursor = res.data.cursor
+    if (!cursor) break
+  }
+
+  return undefined
+}
+
+export type NotificationTapTarget = {
+  postUri: string
+  openComments: boolean
+}
+
+/** Re-fetch and resolve the playable post URI at tap time (not just list-map time). */
+export async function resolveNotificationTapTarget(
+  item: Pick<FlipNotification, 'id' | 'type' | 'video_id' | 'video_pid'>,
+): Promise<NotificationTapTarget | null> {
+  const openComments = COMMENT_ACTIVITY_TYPES.has(item.type)
+
+  if (item.id) {
+    try {
+      const raw = await findRawNotification(item.id)
+      if (raw) {
+        const mapped = await mapNotification(raw)
+        if (mapped.video_id) {
+          if (__DEV__) {
+            console.log('[notifications] tap target from fresh fetch', {
+              type: item.type,
+              notificationId: item.id,
+              cachedVideoId: item.video_id,
+              resolvedVideoId: mapped.video_id,
+            })
+          }
+          return { postUri: mapped.video_id, openComments }
+        }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[notifications] tap re-fetch failed', { id: item.id, error })
+      }
+    }
+  }
+
+  if (item.video_id) {
+    try {
+      const agent = getAgent()
+      const mediaPost = await resolveMediaPostView(agent, item.video_id)
+      if (mediaPost?.uri) {
+        if (__DEV__) {
+          console.log('[notifications] tap target from media resolve', {
+            type: item.type,
+            input: item.video_id,
+            resolved: mediaPost.uri,
+          })
+        }
+        return { postUri: mediaPost.uri, openComments }
+      }
+
+      const normalized = await normalizeToPostUri(agent, item.video_id)
+      if (normalized.includes('app.bsky.feed.post')) {
+        return { postUri: normalized, openComments }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[notifications] tap media resolve failed', {
+          video_id: item.video_id,
+          error,
+        })
+      }
+    }
+
+    return { postUri: item.video_id, openComments }
+  }
+
+  return null
+}

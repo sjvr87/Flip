@@ -69,11 +69,11 @@ export default function NotificationScreen() {
         return data.pages.flatMap((p: any) => p?.data ?? []);
     }, [data]);
 
-    const handleOnPress = (item: any) => {
+    const handleOnPress = async (item: any) => {
         if (!item.read_at) {
             readMutation.mutate(item.id);
         }
-        navigateFromNotification(router, item);
+        await navigateFromNotification(router, item);
     };
 
     const handleOnProfilePress = (account: any, item: any) => {

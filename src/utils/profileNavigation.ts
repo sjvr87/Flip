@@ -4,13 +4,20 @@ export function encodeRouteParam(value: string): string {
 
 export function decodeRouteParam(value: string | string[] | undefined): string {
   if (!value) return ''
-  const raw = Array.isArray(value) ? value[0] : value
+  let raw = Array.isArray(value) ? value[0] : value
 
-  try {
-    return decodeURIComponent(raw)
-  } catch {
-    return raw
+  // Expo Router may encode AT URIs more than once when passed as params.
+  for (let i = 0; i < 3; i++) {
+    try {
+      const decoded = decodeURIComponent(raw)
+      if (decoded === raw) break
+      raw = decoded
+    } catch {
+      break
+    }
   }
+
+  return raw
 }
 
 export function parseRepoDidFromAtUri(uri: string): string | undefined {
@@ -71,7 +78,7 @@ export function toPostViewPath(postUri: string, options?: PostViewNavOptions) {
   }
 
   return {
-    pathname: '/private/post/view' as const,
+    pathname: '/private/post/[uri]' as const,
     params,
   }
 }

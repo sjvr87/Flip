@@ -65,6 +65,7 @@ export {
   fetchFollowerNotifications,
   notificationMarkAsRead,
   notificationTypeMarkAllAsRead,
+  resolveNotificationTapTarget,
 } from './notifications'
 
 export {
