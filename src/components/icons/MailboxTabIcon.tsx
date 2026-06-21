@@ -1,4 +1,4 @@
-import FollowPeopleIcon from '@/components/icons/FollowPeopleIcon';
+import { FollowPeopleGroup } from '@/components/icons/FollowPeopleIcon';
 import { memo } from 'react';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
@@ -127,11 +127,10 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
 
             {/* Three people (unread follows) */}
             {state === 'follows' ? (
-                <FollowPeopleIcon
+                <FollowPeopleGroup
                     x={2.8}
                     y={11.4}
-                    width={10}
-                    height={8}
+                    scale={0.46}
                     color={color}
                     strokeWidth={focused ? 1.2 : 1.05}
                 />

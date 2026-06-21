@@ -1,7 +1,6 @@
 import {
     fetchInboxUnreadBreakdown,
     fetchUnreadFollowCount,
-    fetchUnreadLikeCount,
     notificationTypeMarkAllAsRead,
 } from '@/atproto/notifications';
 import { fetchUnreadDmCount } from '@/atproto/chat';
