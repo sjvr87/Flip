@@ -1327,6 +1327,69 @@ export async function fetchUserVideoCursor({
   return fetchUserVideos({ queryKey: ['userVideos', actor], pageParam })
 }
 
+/** Load a single post for the notification / deep-link viewer — no author-feed pagination. */
+export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | null> {
+  const videoUri = decodeRouteParam(rawUri)
+  if (!videoUri) return null
+
+  return withAuthenticatedFetch(async () => {
+    const agent = getAgent()
+    const normalizedUri = await normalizeToPostUri(agent, videoUri)
+
+    if (__DEV__) {
+      console.log('[postViewer] fetch', { videoUri, normalizedUri })
+    }
+
+    const postRes = await agent.getPosts({ uris: [normalizedUri] })
+    let targetPost = postRes.data.posts[0]
+
+    if (targetPost?.$type === 'app.bsky.feed.defs#notFoundPost') {
+      targetPost = undefined
+    }
+
+    if (targetPost && !isMediaPost(targetPost)) {
+      const hydrated = await hydratePostView(agent, normalizedUri)
+      if (hydrated) {
+        targetPost = hydrated
+      }
+    }
+
+    let resolvedPost = targetPost && isMediaPost(targetPost) ? targetPost : null
+    if (!resolvedPost) {
+      resolvedPost = await resolveMediaPostView(agent, normalizedUri)
+    }
+
+    if (resolvedPost && !isMediaPost(resolvedPost)) {
+      const hydrated = await hydratePostView(agent, resolvedPost.uri)
+      if (hydrated && isMediaPost(hydrated)) {
+        resolvedPost = hydrated
+      }
+    }
+
+    if (resolvedPost && !postToFlipItem({ post: resolvedPost, reply: undefined })) {
+      const hydrated = await hydratePostView(agent, resolvedPost.uri)
+      if (hydrated) {
+        resolvedPost = hydrated
+      }
+    }
+
+    const item = resolvedPost
+      ? postToFlipItem({ post: resolvedPost, reply: undefined })
+      : null
+
+    if (__DEV__) {
+      console.log('[postViewer] result', {
+        videoUri,
+        normalizedUri,
+        resolvedUri: resolvedPost?.uri,
+        playable: !!item,
+      })
+    }
+
+    return item
+  })
+}
+
 export async function fetchAccountLikes({
   pageParam = false,
 }: { pageParam?: PageParam } = {}): Promise<FlipFeedPage> {

@@ -18,8 +18,8 @@ import {
 } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Stack, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
@@ -46,6 +46,7 @@ export default function ActivityNotificationsScreen() {
         queryFn: ({ pageParam, queryKey }) =>
             fetchActivityNotifications({ pageParam, type: queryKey[1] as string }),
         initialPageParam: undefined,
+        staleTime: 0,
         refetchOnWindowFocus: true,
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
     });
@@ -149,6 +150,12 @@ export default function ActivityNotificationsScreen() {
         if (!data?.pages?.length) return [];
         return data.pages.flatMap((p: any) => p?.data ?? []);
     }, [data]);
+
+    useFocusEffect(
+        useCallback(() => {
+            refetch();
+        }, [refetch]),
+    );
 
     const activeFilterLabel = useMemo(
         () => NOTIFICATION_FILTERS.find((f) => f.type === filter)?.label ?? 'Activities',

@@ -1,8 +1,10 @@
 import {
     parseRepoDidFromAtUri,
+    toPostViewPath,
     toProfileFeedPath,
     toProfilePath,
 } from '@/utils/profileNavigation'
+import { usesAtprotoBackend } from '@/utils/requests'
 
 const COMMENT_ACTIVITY_TYPES = new Set([
     'video.comment',
@@ -22,6 +24,7 @@ type NotificationNavItem = {
 }
 
 export type NotificationRoute =
+    | ReturnType<typeof toPostViewPath>
     | ReturnType<typeof toProfileFeedPath>
     | ReturnType<typeof toProfilePath>
     | string
@@ -36,12 +39,16 @@ export function getNotificationRoute(item: NotificationNavItem): NotificationRou
     }
 
     if (item.video_id) {
-        // Prefer video_pid (e.g. recipient DID for reply notifications) over the repo in video_id.
+        const openComments = COMMENT_ACTIVITY_TYPES.has(item.type)
+
+        if (usesAtprotoBackend()) {
+            return toPostViewPath(item.video_id, { openComments })
+        }
+
+        // Legacy REST backend — profile feed pagination.
         const profileId = item.video_pid || parseRepoDidFromAtUri(item.video_id)
         if (profileId) {
-            return toProfileFeedPath(item.video_id, profileId, {
-                openComments: COMMENT_ACTIVITY_TYPES.has(item.type),
-            })
+            return toProfileFeedPath(item.video_id, profileId, { openComments })
         }
     }
 
@@ -62,6 +69,14 @@ export function navigateFromNotification(
     item: NotificationNavItem,
 ) {
     const route = getNotificationRoute(item)
+    if (__DEV__) {
+        console.log('[notification] tap', {
+            type: item.type,
+            video_id: item.video_id,
+            video_pid: item.video_pid,
+            route,
+        })
+    }
     if (route) {
         router.push(route)
     }

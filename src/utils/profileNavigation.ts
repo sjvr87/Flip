@@ -56,6 +56,26 @@ export function toProfileFeedPath(
   }
 }
 
+type PostViewNavOptions = {
+  openComments?: boolean
+}
+
+/** Direct single-post viewer — avoids author-feed pagination for notification deep links. */
+export function toPostViewPath(postUri: string, options?: PostViewNavOptions) {
+  const params: Record<string, string> = {
+    uri: encodeRouteParam(postUri),
+  }
+
+  if (options?.openComments) {
+    params.openComments = '1'
+  }
+
+  return {
+    pathname: '/private/post/view' as const,
+    params,
+  }
+}
+
 type PlaylistNav = {
   id?: string | number | null
   name?: string | null

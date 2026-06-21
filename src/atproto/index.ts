@@ -9,6 +9,7 @@ export {
   fetchSelfAccountVideos,
   fetchUserVideos,
   fetchUserVideoCursor,
+  fetchPostForViewer,
   fetchAccountLikes,
   fetchAccountFavorites,
   recordImpression,
