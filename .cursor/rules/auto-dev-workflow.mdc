@@ -1,0 +1,33 @@
+﻿---
+description: Before testing Flip on device or emulator, sync main and start Metro with a clean cache.
+alwaysApply: true
+---
+
+# Auto dev workflow (test on latest)
+
+The user wants agents on the **latest main** with a **fresh Metro cache** before validating fixes or asking the user to test.
+
+## Before testing or saying "please test"
+
+1. **Sync** — from the Flip repo root:
+   ```bash
+   git pull origin main
+   ```
+   Report whether new commits were pulled. If you just pushed, pull still ensures you match remote.
+
+2. **Start Metro (clear cache)** — use the project dev-client scripts when possible:
+   - Preferred: `npm run start:clear` (runs `expo start --dev-client --clear`)
+   - Equivalent: `npx expo start -c` or `npx expo start --dev-client --clear`
+
+   Run Metro when **you** are actively testing (device, emulator, or verifying a fix). Do **not** leave `expo start` running indefinitely in the background unless it is useful for the current task; the user can start Metro themselves — this rule is for agent-driven verification.
+
+3. **Windows** — if `npm` fails under PowerShell execution policy or script blocking, use `npm.cmd` (e.g. `npm.cmd run start:clear`).
+
+## Pair with other Flip rules
+
+- **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt when pulling, installing, or starting Metro; do not stop to ask for routine approval.
+- **[auto-push-progress.mdc](auto-push-progress.mdc)** — after meaningful work, commit and push unless the user says not to; then pull again before the next test cycle if others may have merged.
+
+## After dependency or native changes
+
+If `package.json`, lockfile, or native modules changed on pull, run `npm install` (or `npm.cmd install` on Windows) before starting Metro. For Android native changes, follow existing project scripts (`android:prebuild`, etc.) as needed.
