@@ -1,0 +1,3 @@
+cd /d C:\Users\tomas\Documents\Flip
+npm.cmd run dev:connect -- -RestartMetro
+pause
