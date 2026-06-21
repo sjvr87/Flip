@@ -28,6 +28,10 @@ let lastRefreshRejected = false
 
 /** Buffer before JWT expiry to refresh proactively (seconds). */
 const TOKEN_EXPIRY_BUFFER_SEC = 60
+const RESUME_REFRESH_TIMEOUT_MS = 5_000
+
+/** Skip redundant MMKV + SecureStore writes during restore loops. */
+let lastPersistedSessionJson: string | null = null
 
 export class SessionExpiredError extends Error {
   constructor(message = 'Session expired — sign in again') {
@@ -284,24 +288,24 @@ export function setServiceUrl(service: string): void {
 
 
 export async function persistSession(session: AtpSessionData): Promise<void> {
-
   const json = JSON.stringify(session)
+  if (json === lastPersistedSessionJson) {
+    return
+  }
+  lastPersistedSessionJson = json
 
   Storage.set(SESSION_KEY, json)
 
   if (!isWeb) {
-
     await SecureStore.setItemAsync(SESSION_KEY, json)
-
     console.warn('[auth] session persisted (MMKV + SecureStore)')
-
   }
-
 }
 
 
 
 export function clearSession(): void {
+  lastPersistedSessionJson = null
 
   Storage.delete(SESSION_KEY)
 
@@ -372,6 +376,7 @@ export async function resumeSession(): Promise<boolean> {
   if (!raw) return false
 
   console.warn('[auth] session loaded from storage')
+  lastPersistedSessionJson = raw
 
 
 
@@ -403,11 +408,19 @@ export async function resumeSession(): Promise<boolean> {
   if (!sm.session) return false
 
   if (!isAccessTokenExpired(session.accessJwt)) {
-    await persistSession(sm.session)
+    // Tokens already on disk — no need to rewrite on every cold start.
     return true
   }
 
-  const refreshed = await tryRefreshSession()
+  const refreshed = await Promise.race([
+    tryRefreshSession(),
+    new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        console.warn('[auth] refresh during resume timed out — keeping stored session')
+        resolve(false)
+      }, RESUME_REFRESH_TIMEOUT_MS)
+    }),
+  ])
   if (!refreshed) {
     if (wasRefreshTokenRejected()) {
       return false
@@ -422,7 +435,6 @@ export async function resumeSession(): Promise<boolean> {
   }
 
   return !!sm.session
-
 }
 
 

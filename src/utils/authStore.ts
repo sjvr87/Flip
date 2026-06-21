@@ -77,6 +77,7 @@ type UserState = {
 }
 
 let sessionRestorePromise: Promise<boolean> | null = null
+let sessionRestoreAttempted = false
 let loginInFlight = false
 
 const SESSION_RESTORE_TIMEOUT_MS = 12_000
@@ -314,7 +315,8 @@ export const useAuthStore = create(
         }
 
         if (get()._hasHydrated) {
-          if (!sessionRestorePromise) {
+          // Avoid re-entering restore after splash fail-safe or duplicate rehydrate callbacks.
+          if (!sessionRestorePromise && !sessionRestoreAttempted && !get().authReady) {
             void get().restoreSessionInBackground()
           }
           return
@@ -330,6 +332,7 @@ export const useAuthStore = create(
           return sessionRestorePromise
         }
 
+        sessionRestoreAttempted = true
         console.warn('[auth] restoring session in background')
 
         set({ authReady: false })
@@ -341,15 +344,13 @@ export const useAuthStore = create(
               SESSION_RESTORE_TIMEOUT_MS,
               'hydrateSession',
             )
-            if (ok) {
+            if (ok || isAuthenticated()) {
               get().syncAuthState()
-              await withTimeout(
-                get().syncPreferencesFromServer(),
-                SESSION_RESTORE_TIMEOUT_MS,
-                'syncPreferencesFromServer',
-              ).catch(() => {})
-              console.warn('[auth] session restore complete (restored=true)')
-              return true
+              void get().syncPreferencesFromServer().catch(() => {})
+              console.warn(
+                `[auth] session restore complete (restored=${ok || isAuthenticated()})`,
+              )
+              return ok || isAuthenticated()
             }
 
             const savedCreds = await getSavedCredentials()
@@ -367,11 +368,7 @@ export const useAuthStore = create(
 
               if (reloginOk) {
                 get().syncAuthState()
-                await withTimeout(
-                  get().syncPreferencesFromServer(),
-                  SESSION_RESTORE_TIMEOUT_MS,
-                  'syncPreferencesFromServer',
-                ).catch(() => {})
+                void get().syncPreferencesFromServer().catch(() => {})
                 console.warn('[auth] session restore complete (silent re-login=true)')
                 return true
               }
@@ -391,6 +388,15 @@ export const useAuthStore = create(
             return false
           } catch (error) {
             console.warn('[auth] session restore failed:', error)
+
+            // Hydrate timed out but tokens are still loaded — proceed with cached profile.
+            if (isAuthenticated()) {
+              get().syncAuthState()
+              void get().syncPreferencesFromServer().catch(() => {})
+              console.warn('[auth] session restore complete (timeout, session still valid)')
+              return true
+            }
+
             const savedCreds = await getSavedCredentials()
             const { rememberLogin, requireBiometric } = get()
             const needsBiometric =

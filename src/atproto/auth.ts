@@ -4,6 +4,7 @@ import {
   ensureFreshSession,
   getAgent,
   getServiceUrl,
+  isAccessTokenExpired,
   isAuthenticated,
   persistSession,
   resumeSession,
@@ -17,8 +18,51 @@ import type { FlipAppConfig, FlipUserProfile } from './types'
 import { Storage } from '@/utils/cache'
 
 const PROFILE_KEY = 'flip.user.profile'
+const PROFILE_FETCH_TIMEOUT_MS = 3_000
 
 export type FlipSessionUser = FlipUserProfile
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`))
+    }, ms)
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
+
+/** Refresh cached profile without blocking session restore. */
+function fetchProfileInBackground(): void {
+  void (async () => {
+    try {
+      await withTimeout(
+        withAuthenticatedFetch(async () => {
+          const agent = getAgent()
+          const did = agent.session?.did
+          if (!did) return
+          const profile = await agent.getProfile({ actor: did })
+          const user = profileToFlipUser(profile.data, true)
+          Storage.set(PROFILE_KEY, JSON.stringify(user))
+        }),
+        PROFILE_FETCH_TIMEOUT_MS,
+        'profileFetch',
+      )
+    } catch (error) {
+      console.warn('[auth] profile refresh during hydrate failed:', error)
+      if (wasRefreshTokenRejected()) {
+        clearSession()
+      }
+    }
+  })()
+}
 
 export async function loginWithPassword(
   identifier: string,
@@ -78,22 +122,24 @@ export async function hydrateSession(): Promise<boolean> {
   Storage.delete('app.token')
   Storage.delete('app.instance')
 
-  try {
-    const profile = await withAuthenticatedFetch(async () => {
-      const agent = getAgent()
-      return agent.getProfile({ actor: agent.session!.did })
-    })
-    const user = profileToFlipUser(profile.data, true)
-    Storage.set(PROFILE_KEY, JSON.stringify(user))
-    return true
-  } catch (error) {
-    console.warn('[auth] profile refresh during hydrate failed:', error)
-    if (wasRefreshTokenRejected()) {
-      clearSession()
-      return false
-    }
-    return !!getAgent().session
+  const agent = getAgent()
+  const session = agent.session
+  if (!session) return false
+
+  if (wasRefreshTokenRejected()) {
+    clearSession()
+    return false
   }
+
+  // Valid access token — unblock the app immediately; profile loads in background.
+  if (!isAccessTokenExpired(session.accessJwt)) {
+    fetchProfileInBackground()
+    return true
+  }
+
+  // Expired access token but refresh may still be in flight — keep session for retry.
+  fetchProfileInBackground()
+  return true
 }
 
 export async function refreshSession(): Promise<boolean> {
