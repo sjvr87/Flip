@@ -30,6 +30,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
     Extrapolation,
     interpolate,
+    runOnJS,
     useAnimatedStyle,
     useSharedValue,
     withSpring,
@@ -414,11 +415,27 @@ function VideoPlayerCore({
         }
     }, [isActive, zoomScale, zoomStartScale]);
 
-    const pinchGesture = useMemo(() => {
+    // Tap must use RNGH Gesture.Tap (not Pressable) when composed with pinch: a pinch-only
+    // GestureDetector steals single-finger touches on Android before Pressable onPress fires.
+    const videoGestures = useMemo(() => {
         try {
             const pinchFactory = Gesture?.Pinch;
-            if (typeof pinchFactory !== 'function') {
+            const tapFactory = Gesture?.Tap;
+            const simultaneousFactory = Gesture?.Simultaneous;
+
+            if (typeof tapFactory !== 'function') {
                 return null;
+            }
+
+            const tap = tapFactory()
+                .maxDuration(250)
+                .maxPointers(1)
+                .onEnd(() => {
+                    runOnJS(togglePlayPause)();
+                });
+
+            if (typeof pinchFactory !== 'function' || typeof simultaneousFactory !== 'function') {
+                return tap;
             }
 
             const pinch = pinchFactory()
@@ -444,12 +461,14 @@ function VideoPlayerCore({
                 pinch.blocksExternalGesture(feedScrollGesture);
             }
 
-            return pinch;
+            // Simultaneous (not Exclusive): Exclusive pinch waits for a 2nd finger and
+            // captures the first pointer, preventing single-finger tap from firing.
+            return simultaneousFactory(pinch, tap);
         } catch (error) {
-            console.warn('[VideoPlayer] pinch gesture setup failed:', error);
+            console.warn('[VideoPlayer] gesture setup failed:', error);
             return null;
         }
-    }, [feedScrollGesture, zoomScale, zoomStartScale]);
+    }, [feedScrollGesture, togglePlayPause, zoomScale, zoomStartScale]);
 
     const zoomedVideoStyle = useAnimatedStyle(() => ({
         transform: [{ scale: zoomScale.value }],
@@ -596,11 +615,10 @@ function VideoPlayerCore({
                     />
                 </Reanimated.View>
 
-                {pinchGesture ? (
-                    <GestureDetector gesture={pinchGesture}>
-                        <Pressable
+                {videoGestures ? (
+                    <GestureDetector gesture={videoGestures}>
+                        <View
                             style={styles.tapOverlay}
-                            onPress={togglePlayPause}
                             accessible={true}
                             accessibilityLabel="Video"
                             accessibilityHint="Tap to pause or play"
