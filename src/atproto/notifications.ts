@@ -2,6 +2,7 @@ import type { AppBskyNotificationDefs } from '@atproto/api'
 import { AppBskyEmbedVideo } from '@atproto/api'
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent'
+import { parseRepoDidFromAtUri } from '@/utils/profileNavigation'
 
 export type FlipNotification = {
   id: string
@@ -63,11 +64,6 @@ function reasonToType(reason: string, reasonSubject?: string): string {
   }
 }
 
-function parseRepoDidFromUri(uri: string): string | undefined {
-  const match = uri.match(/^at:\/\/(did:[^/]+)/)
-  return match?.[1]
-}
-
 function extractVideoMeta(
   notification: AppBskyNotificationDefs.Notification,
 ): Pick<FlipNotification, 'video_id' | 'video_pid' | 'video_thumbnail'> {
@@ -90,7 +86,7 @@ function extractVideoMeta(
 
   return {
     video_id: subject,
-    video_pid: parseRepoDidFromUri(subject),
+    video_pid: parseRepoDidFromAtUri(subject),
     video_thumbnail: videoThumbnail,
   }
 }

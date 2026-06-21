@@ -9,7 +9,7 @@ import {
   shuffleFeedVideos,
   videoDedupeKey,
 } from '@/utils/feedCache'
-import { postsToFeedPage, postsToMediaPage } from './adapters'
+import { postsToFeedPage, postsToMediaPage, isMediaPost } from './adapters'
 import { getAgent, restoreSessionFromStorageIfEmpty, SessionExpiredError, withAuthenticatedFetch } from './agent'
 import type { FlipFeedPage, FlipVideo } from './types'
 
@@ -1182,6 +1182,45 @@ export async function fetchUserVideos({
   return postsToMediaPage(res.data.feed, res.data.cursor)
 }
 
+async function resolveMediaPostView(
+  agent: ReturnType<typeof getAgent>,
+  uri: string,
+): Promise<import('@atproto/api').AppBskyFeedDefs.PostView | null> {
+  let currentUri: string | undefined = uri
+  const visited = new Set<string>()
+
+  for (let depth = 0; depth < 8 && currentUri && !visited.has(currentUri); depth++) {
+    visited.add(currentUri)
+    const res = await agent.getPosts({ uris: [currentUri] })
+    const post = res.data.posts[0]
+    if (!post) return null
+
+    if (isMediaPost(post)) return post
+
+    const record = post.record as { reply?: { parent?: { uri?: string } } }
+    const parentUri = record?.reply?.parent?.uri
+    if (parentUri) {
+      currentUri = parentUri
+      continue
+    }
+
+    const embed = post.embed
+    if (
+      embed &&
+      embed.$type === 'app.bsky.embed.record#view' &&
+      'record' in embed &&
+      (embed as { record?: { uri?: string } }).record?.uri
+    ) {
+      currentUri = (embed as { record: { uri: string } }).record.uri
+      continue
+    }
+
+    return null
+  }
+
+  return null
+}
+
 export async function fetchUserVideoCursor({
   queryKey,
   pageParam = false,
@@ -1194,22 +1233,34 @@ export async function fetchUserVideoCursor({
   const agent = getAgent()
 
   if (!pageParam) {
-    const [postRes, feedRes] = await Promise.all([
-      agent.getPosts({ uris: [videoUri] }),
-      agent.app.bsky.feed.getAuthorFeed({
-        actor,
-        filter: 'posts_with_media',
-        limit: 30,
-      }),
-    ])
-
+    const postRes = await agent.getPosts({ uris: [videoUri] })
     const targetPost = postRes.data.posts[0]
+
+    let resolvedPost = targetPost
+    if (targetPost && !isMediaPost(targetPost)) {
+      const mediaPost = await resolveMediaPostView(agent, videoUri)
+      if (mediaPost) {
+        resolvedPost = mediaPost
+      }
+    }
+
+    const feedActor = resolvedPost?.author.did || actor
+    const feedRes = await agent.app.bsky.feed.getAuthorFeed({
+      actor: feedActor,
+      filter: 'posts_with_media',
+      limit: 30,
+    })
+
     const feedItems = feedRes.data.feed
-    const hasTarget = feedItems.some((item) => item.post.uri === videoUri)
+
+    const resolvedUri = resolvedPost?.uri ?? videoUri
+    const hasTarget = feedItems.some(
+      (item) => item.post.uri === resolvedUri || item.post.uri === videoUri,
+    )
 
     const items =
-      targetPost && !hasTarget
-        ? [{ post: targetPost, reply: undefined }, ...feedItems]
+      resolvedPost && !hasTarget
+        ? [{ post: resolvedPost, reply: undefined }, ...feedItems]
         : feedItems
 
     return postsToMediaPage(items, feedRes.data.cursor)

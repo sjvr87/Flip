@@ -13,12 +13,40 @@ export function decodeRouteParam(value: string | string[] | undefined): string {
   }
 }
 
-export function toProfilePath(profileId: string): string {
-  return `/private/profile/${encodeRouteParam(profileId)}`
+export function parseRepoDidFromAtUri(uri: string): string | undefined {
+  const match = uri.match(/^at:\/\/(did:[^/]+)/)
+  return match?.[1]
 }
 
-export function toProfileFeedPath(videoId: string, profileId: string): string {
-  return `/private/profile/feed/${encodeRouteParam(videoId)}?profileId=${encodeRouteParam(profileId)}`
+export function toProfilePath(profileId: string) {
+  return {
+    pathname: '/private/profile/[id]' as const,
+    params: { id: profileId },
+  }
+}
+
+type ProfileFeedNavOptions = {
+  openComments?: boolean
+}
+
+export function toProfileFeedPath(
+  videoId: string,
+  profileId: string,
+  options?: ProfileFeedNavOptions,
+) {
+  const params: Record<string, string> = {
+    id: videoId,
+    profileId,
+  }
+
+  if (options?.openComments) {
+    params.openComments = '1'
+  }
+
+  return {
+    pathname: '/private/profile/feed/[id]' as const,
+    params,
+  }
 }
 
 type PlaylistNav = {

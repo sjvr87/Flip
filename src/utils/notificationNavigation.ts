@@ -1,12 +1,12 @@
 import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation'
 
-const VIDEO_ACTIVITY_TYPES = new Set([
-    'video.like',
+const COMMENT_ACTIVITY_TYPES = new Set([
     'video.comment',
     'video.commentReply',
-    'video.mention',
-    'video.share',
-    'video.duet',
+    'comment.like',
+    'comment.share',
+    'commentReply.like',
+    'commentReply.share',
 ])
 
 type NotificationNavItem = {
@@ -17,7 +17,12 @@ type NotificationNavItem = {
     kit?: { id?: string | number; path?: string }
 }
 
-export function getNotificationHref(item: NotificationNavItem): string | null {
+export type NotificationRoute =
+    | ReturnType<typeof toProfileFeedPath>
+    | ReturnType<typeof toProfilePath>
+    | string
+
+export function getNotificationRoute(item: NotificationNavItem): NotificationRoute | null {
     if (item.type === 'starterKit.awaitingApproval' && item.kit?.id != null) {
         return `/private/notifications/starterKits/review/${item.kit.id}`
     }
@@ -26,8 +31,10 @@ export function getNotificationHref(item: NotificationNavItem): string | null {
         return `/private/kits/show/${item.kit.id}`
     }
 
-    if (VIDEO_ACTIVITY_TYPES.has(item.type) && item.video_id && item.video_pid) {
-        return toProfileFeedPath(item.video_id, item.video_pid)
+    if (item.video_id && item.video_pid) {
+        return toProfileFeedPath(item.video_id, item.video_pid, {
+            openComments: COMMENT_ACTIVITY_TYPES.has(item.type),
+        })
     }
 
     if (item.actor?.id) {
@@ -37,12 +44,17 @@ export function getNotificationHref(item: NotificationNavItem): string | null {
     return null
 }
 
+/** @deprecated Use getNotificationRoute */
+export function getNotificationHref(item: NotificationNavItem): NotificationRoute | null {
+    return getNotificationRoute(item)
+}
+
 export function navigateFromNotification(
-    router: { push: (href: string) => void },
+    router: { push: (href: NotificationRoute) => void },
     item: NotificationNavItem,
 ) {
-    const href = getNotificationHref(item)
-    if (href) {
-        router.push(href)
+    const route = getNotificationRoute(item)
+    if (route) {
+        router.push(route)
     }
 }

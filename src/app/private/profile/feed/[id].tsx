@@ -27,19 +27,21 @@ import {
     videoUnbookmark,
     videoUnlike,
 } from '@/utils/requests';
-import { decodeRouteParam } from '@/utils/profileNavigation';
+import { decodeRouteParam, parseRepoDidFromAtUri } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileFeed({ navigation }) {
     const params = useLocalSearchParams();
-    const profileId = decodeRouteParam(params.profileId);
     const id = decodeRouteParam(params.id);
+    const profileId = decodeRouteParam(params.profileId) || parseRepoDidFromAtUri(id);
+    const shouldOpenComments =
+        params.openComments === '1' || params.openComments === 'true';
     const atproto = usesAtprotoBackend();
 
     const insets = useSafeAreaInsets();
@@ -152,6 +154,20 @@ export default function ProfileFeed({ navigation }) {
         });
     }, [feedHeight, videos.length, targetIndex, id, profileId]);
 
+    useEffect(() => {
+        if (!shouldOpenComments || videos.length === 0) {
+            return;
+        }
+
+        const targetVideo = videos[targetIndex] ?? videos[0];
+        if (!targetVideo) {
+            return;
+        }
+
+        setSelectedVideo(targetVideo);
+        setShowComments(true);
+    }, [shouldOpenComments, videos, targetIndex]);
+
     const onViewableItemsChanged = useRef(({ viewableItems }) => {
         if (viewableItems.length > 0) {
             const idx = viewableItems[0].index;
@@ -256,6 +272,8 @@ export default function ProfileFeed({ navigation }) {
         }
     };
 
+    const showEmptyFeed = !isLoading && feedHeight > 0 && videos.length === 0;
+
     return (
         <View style={styles.container} onLayout={onContainerLayout}>
             <StatusBar style="light" />
@@ -271,6 +289,13 @@ export default function ProfileFeed({ navigation }) {
             {isLoading || feedHeight === 0 ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#fff" />
+                </View>
+            ) : showEmptyFeed ? (
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.emptyText}>This post could not be loaded.</Text>
+                    <TouchableOpacity style={styles.emptyBackButton} onPress={() => router.back()}>
+                        <Text style={styles.emptyBackText}>Go back</Text>
+                    </TouchableOpacity>
                 </View>
             ) : (
                 <FlatList
@@ -373,5 +398,23 @@ const styles = StyleSheet.create({
     footer: {
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyText: {
+        color: '#fff',
+        fontSize: 16,
+        marginBottom: 16,
+        textAlign: 'center',
+        paddingHorizontal: 24,
+    },
+    emptyBackButton: {
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    emptyBackText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
     },
 });
