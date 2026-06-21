@@ -1,4 +1,5 @@
 import HomeTabIcon from '@/components/icons/HomeTabIcon';
+import MailboxTabIcon from '@/components/icons/MailboxTabIcon';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
@@ -43,7 +44,7 @@ function CreateTabIcon({ isDark }: { isDark: boolean }) {
 }
 
 export default function TabsLayout() {
-    const { badgeCount } = useNotificationStore();
+    const { badgeCount, mailboxIconState } = useNotificationStore();
     const { colors, isDark } = useTheme();
     const tabBarMetrics = useFlipTabBarMetrics();
     const tabBarLayout = getTabBarStyleFromMetrics(tabBarMetrics);
@@ -129,8 +130,8 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="notifications"
                 options={{
-                    title: 'Notifications',
-                    tabBarAccessibilityLabel: 'Notifications',
+                    title: 'Inbox',
+                    tabBarAccessibilityLabel: 'Inbox',
                     tabBarShowLabel: false,
                     ...(Platform.OS !== 'web' && displayBadgeCount
                         ? {
@@ -143,11 +144,11 @@ export default function TabsLayout() {
                           }
                         : {}),
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="heart"
-                            inactiveName="heart-outline"
+                        <MailboxTabIcon
                             color={color}
+                            focused={focused}
+                            size={ICON_SIZE}
+                            state={mailboxIconState}
                         />
                     ),
                 }}

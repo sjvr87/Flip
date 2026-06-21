@@ -56,12 +56,27 @@ export {
 
 export {
   fetchUnreadNotificationCount,
+  fetchUnreadLikeCount,
+  fetchUnreadFollowCount,
+  fetchInboxUnreadBreakdown,
   fetchNotifications,
   fetchActivityNotifications,
   fetchFollowerNotifications,
   notificationMarkAsRead,
   notificationTypeMarkAllAsRead,
 } from './notifications'
+
+export {
+  fetchConvos,
+  fetchUnreadDmCount,
+  fetchConvoMessages,
+  sendChatMessage,
+  markConvoRead,
+  getOrCreateConvo,
+  convoTitle,
+  convoAvatar,
+} from './chat'
+export type { FlipConvo, FlipChatMessage, FlipConvoMember } from './chat'
 
 export {
   fetchAccount,

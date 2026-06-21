@@ -13,6 +13,11 @@ import {
     getExploreTagsFeed as atprotoGetExploreTagsFeed,
     notificationMarkAsRead as atprotoNotificationMarkAsRead,
     notificationTypeMarkAllAsRead as atprotoNotificationTypeMarkAllAsRead,
+    fetchConvos as atprotoFetchConvos,
+    fetchConvoMessages as atprotoFetchConvoMessages,
+    sendChatMessage as atprotoSendChatMessage,
+    markConvoRead as atprotoMarkConvoRead,
+    getOrCreateConvo as atprotoGetOrCreateConvo,
     postExploreAccountHideSuggestion as atprotoPostExploreAccountHideSuggestion,
     searchContent as atprotoSearchContent,
     submitReport as atprotoSubmitReport,
@@ -1319,6 +1324,44 @@ export async function notificationTypeMarkAllAsRead(type): Promise<any> {
         type: type,
     };
     return await _selfPost('api/v1/account/notifications/mark-all-read', params);
+}
+
+// ============================================================================
+// DIRECT MESSAGES (ATProto chat)
+// ============================================================================
+
+export async function fetchConvos({ pageParam }: { pageParam?: string } = {}) {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchConvos(pageParam);
+    }
+    return { convos: [], cursor: undefined };
+}
+
+export async function fetchConvoMessages(convoId: string, cursor?: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchConvoMessages(convoId, cursor);
+    }
+    return { messages: [], cursor: undefined };
+}
+
+export async function sendChatMessage(convoId: string, text: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoSendChatMessage(convoId, text);
+    }
+    throw new Error('Direct messages require an ATProto session');
+}
+
+export async function markConvoRead(convoId: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoMarkConvoRead(convoId);
+    }
+}
+
+export async function getOrCreateConvo(memberDid: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoGetOrCreateConvo(memberDid);
+    }
+    return null;
 }
 
 // ============================================================================

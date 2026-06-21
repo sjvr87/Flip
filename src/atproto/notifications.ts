@@ -164,6 +164,59 @@ export async function fetchUnreadNotificationCount(): Promise<number> {
   }
 }
 
+const LIKE_NOTIFICATION_TYPES = new Set(['video.like', 'comment.like', 'commentReply.like'])
+
+async function countUnreadLikesAndFollows(): Promise<{ unreadLikes: number; unreadFollows: number }> {
+  const { notifications } = await listNotificationsPage(undefined, 50)
+  const unread = notifications.filter((n) => !n.read_at)
+  return {
+    unreadLikes: unread.filter((n) => LIKE_NOTIFICATION_TYPES.has(n.type)).length,
+    unreadFollows: unread.filter((n) => n.type === 'new_follower').length,
+  }
+}
+
+export async function fetchUnreadLikeCount(): Promise<number> {
+  if (!getAgent().session) return 0
+
+  try {
+    const { unreadLikes } = await countUnreadLikesAndFollows()
+    return unreadLikes
+  } catch (error) {
+    if (error instanceof SessionExpiredError) throw error
+    return 0
+  }
+}
+
+export async function fetchUnreadFollowCount(): Promise<number> {
+  if (!getAgent().session) return 0
+
+  try {
+    const { unreadFollows } = await countUnreadLikesAndFollows()
+    return unreadFollows
+  } catch (error) {
+    if (error instanceof SessionExpiredError) throw error
+    return 0
+  }
+}
+
+export type InboxUnreadBreakdown = {
+  badgeCount: number
+  unreadLikes: number
+  unreadFollows: number
+  unreadMessages: number
+}
+
+export async function fetchInboxUnreadBreakdown(
+  unreadMessages: number,
+): Promise<InboxUnreadBreakdown> {
+  const [badgeCount, { unreadLikes, unreadFollows }] = await Promise.all([
+    fetchUnreadNotificationCount(),
+    countUnreadLikesAndFollows(),
+  ])
+
+  return { badgeCount, unreadLikes, unreadFollows, unreadMessages }
+}
+
 export async function fetchNotifications({
   pageParam,
 }: {
