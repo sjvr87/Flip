@@ -7,17 +7,17 @@ export const FOLDED_HEART_DESIGN_SIZE = 26;
 /** Activities / notification badge size — same shape, proportionally smaller. */
 export const FOLDED_HEART_ACTIVITY_SIZE = 20;
 
-/** Magenta ribbon palette — traced from reference PNG. */
-export const HEART_SHADOW = '#7A0C38';
-export const HEART_DEEP = '#B8145A';
-export const HEART_MID = '#E8307A';
-export const HEART_LIGHT = '#FF4D8F';
-export const HEART_OUTLINE = '#FFB8D4';
+/** Light-purple ribbon palette — @mention purple preference. */
+export const HEART_SHADOW = '#7C3AED';
+export const HEART_DEEP = '#A78BFA';
+export const HEART_MID = '#C084FC';
+export const HEART_LIGHT = '#E9D5FF';
+export const HEART_OUTLINE = '#C084FC';
 
 const VIEWBOX = `0 0 ${FOLDED_HEART_DESIGN_SIZE} ${FOLDED_HEART_DESIGN_SIZE}`;
 
-/** Uniform ribbon width (~19% of viewBox, per reference). */
-const RIBBON_STROKE = 5.0;
+/** Ribbon width traced from reference (~4.2px at 26×26) — same for liked & unliked. */
+const RIBBON_STROKE = 4.2;
 const OUTLINE_STROKE = 1.75;
 
 /**
@@ -64,7 +64,8 @@ const FOLD_SHADOW = 'M 21.8 1.8 L 24.6 3.0 L 22.8 5.6 Z';
 
 const FILLED_STROKE_PROPS = {
     strokeLinecap: 'butt',
-    strokeLinejoin: 'round',
+    strokeLinejoin: 'miter',
+    strokeMiterlimit: 3,
     fill: 'none',
 };
 
@@ -84,10 +85,9 @@ function HeartGradientDefs({ id }) {
                 x2="23"
                 y2="1"
                 gradientUnits="userSpaceOnUse">
-                <Stop offset="0" stopColor={HEART_DEEP} />
-                <Stop offset="0.28" stopColor={HEART_DEEP} />
-                <Stop offset="0.55" stopColor={HEART_MID} />
-                <Stop offset="0.82" stopColor={HEART_LIGHT} />
+                <Stop offset="0" stopColor={HEART_SHADOW} />
+                <Stop offset="0.32" stopColor={HEART_DEEP} />
+                <Stop offset="0.68" stopColor={HEART_MID} />
                 <Stop offset="1" stopColor={HEART_LIGHT} />
             </LinearGradient>
         </Defs>
@@ -105,7 +105,7 @@ export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
                 d={RIBBON_CENTERLINE}
                 stroke={HEART_OUTLINE}
                 strokeWidth={OUTLINE_STROKE}
-                opacity={0.92}
+                opacity={0.72}
                 {...OUTLINE_STROKE_PROPS}
             />
         );
@@ -120,7 +120,7 @@ export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
                 strokeWidth={RIBBON_STROKE}
                 {...FILLED_STROKE_PROPS}
             />
-            <Path d={FOLD_SHADOW} fill={HEART_SHADOW} opacity={0.62} />
+            <Path d={FOLD_SHADOW} fill={HEART_SHADOW} opacity={0.42} />
         </>
     );
 }
@@ -156,7 +156,7 @@ function FoldedHeartSvg({ variant, gradientId }) {
 }
 
 /**
- * Folded-ribbon heart — continuous magenta gradient stroke with fold shadow.
+ * Folded-ribbon heart — light-purple gradient stroke with fold shadow.
  * Renders at design size then uniformly scales so ribbon proportions match feed at any size.
  */
 const FoldedHeartIcon = memo(function FoldedHeartIcon({
