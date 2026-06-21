@@ -24,6 +24,8 @@ type FeedActionRailProps = {
     canComment?: boolean;
     bottomInset: number;
     tabBarHeight?: number;
+    /** When set, overrides bottomInset + tabBarHeight (Good Lock–aware total). */
+    overlayBottom?: number;
     onProfilePress: () => void;
     onLike: () => void;
     onComment: () => void;
@@ -67,6 +69,7 @@ export default function FeedActionRail({
     canComment = true,
     bottomInset,
     tabBarHeight = 20,
+    overlayBottom,
     onProfilePress,
     onLike,
     onComment,
@@ -74,8 +77,10 @@ export default function FeedActionRail({
     onShare,
     onOther,
 }: FeedActionRailProps) {
+    const railBottom = overlayBottom ?? bottomInset + tabBarHeight + 20;
+
     return (
-        <View style={[styles.rightActions, { bottom: bottomInset + tabBarHeight + 20 }]}>
+        <View style={[styles.rightActions, { bottom: railBottom }]}>
             <PressableHaptics
                 style={styles.actionButton}
                 onPress={onProfilePress}

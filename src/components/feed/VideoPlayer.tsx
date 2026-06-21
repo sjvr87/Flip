@@ -62,6 +62,8 @@ export default function VideoPlayer({
     navigation,
     onNavigate,
     tabBarHeight = 60,
+    overlayBottom,
+    actionRailBottom,
 }) {
     if (!isActive && !shouldPreload) {
         return <VideoSlidePlaceholder item={item} />;
@@ -85,6 +87,8 @@ export default function VideoPlayer({
             navigation={navigation}
             onNavigate={onNavigate}
             tabBarHeight={tabBarHeight}
+            overlayBottom={overlayBottom}
+            actionRailBottom={actionRailBottom}
         />
     );
 }
@@ -106,6 +110,8 @@ function VideoPlayerCore({
     navigation,
     onNavigate,
     tabBarHeight = 60,
+    overlayBottom,
+    actionRailBottom,
 }) {
     const [isLiked, setIsLiked] = useState(item.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
@@ -117,6 +123,7 @@ function VideoPlayerCore({
     const router = useRouter();
     const [playSensitive, setPlaySensitive] = useState(false);
     const controlsTimeoutRef = useRef(null);
+    const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
 
     const playbackRate = videoPlaybackRates[item.id] || 1.0;
 
@@ -369,6 +376,7 @@ function VideoPlayerCore({
                 canComment={item.permissions?.can_comment}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
+                overlayBottom={actionRailBottom ?? overlayBottom}
                 onProfilePress={() => router.push(toProfilePath(item.account.id))}
                 onLike={handleLike}
                 onComment={() => onComment(item)}
@@ -377,7 +385,7 @@ function VideoPlayerCore({
                 onOther={() => onOther(item)}
             />
 
-            <View style={[styles.bottomInfo, { bottom: bottomInset + tabBarHeight + 10 }]}>
+            <View style={[styles.bottomInfo, { bottom: captionBottom }]}>
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();

@@ -14,7 +14,7 @@ import {
     resetSessionSeen,
     softRefreshFeed,
 } from '@/utils/feedCache';
-import { TAB_BAR_CONTENT_HEIGHT } from '@/utils/tabBarLayout';
+import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchVideoUrls } from '@/utils/videoPrefetch';
 import {
     fetchFollowingFeed,
@@ -72,7 +72,7 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 
 export default function LoopsFeed({ navigation }) {
     const insets = useSafeAreaInsets();
-    const overlayTabBarHeight = TAB_BAR_CONTENT_HEIGHT;
+    const tabBarMetrics = useFlipTabBarMetrics();
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
@@ -518,7 +518,7 @@ export default function LoopsFeed({ navigation }) {
                     onShare={handleShare}
                     onBookmark={handleBookmark}
                     onOther={handleOther}
-                    bottomInset={insets.bottom}
+                    bottomInset={tabBarMetrics.bottomInset}
                     commentsOpen={showComments && selectedVideo?.id === item.id}
                     shareOpen={showShare && selectedVideo?.id === item.id}
                     otherOpen={showOther && selectedVideo?.id === item.id}
@@ -527,7 +527,9 @@ export default function LoopsFeed({ navigation }) {
                     videoPlaybackRates={videoPlaybackRates}
                     navigation={navigation}
                     onNavigate={handleNavigate}
-                    tabBarHeight={overlayTabBarHeight}
+                    tabBarHeight={tabBarMetrics.contentHeight}
+                    overlayBottom={tabBarMetrics.feedOverlayBottom}
+                    actionRailBottom={tabBarMetrics.actionRailBottom}
                 />
             );
         },
@@ -537,7 +539,9 @@ export default function LoopsFeed({ navigation }) {
             feedError,
             insets.bottom,
             onRefresh,
-            overlayTabBarHeight,
+            tabBarMetrics.actionRailBottom,
+            tabBarMetrics.bottomInset,
+            tabBarMetrics.feedOverlayBottom,
             showComments,
             showShare,
             showOther,

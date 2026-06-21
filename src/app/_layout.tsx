@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { type PropsWithChildren, useEffect, useLayoutEffect, useState } from 'react';
 import { AppState, LogBox, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 const SPLASH_FAILSAFE_MS = 10_000;
 const EXPO_GO_BANNER_MS = 4000;
@@ -206,9 +206,21 @@ function useAndroidSystemBars() {
             return;
         }
 
-        void import('expo-system-ui').then((SystemUI) => {
-            void SystemUI.setBackgroundColorAsync('#000000');
+        const apply = () => {
+            void import('expo-system-ui').then((SystemUI) => {
+                void SystemUI.setBackgroundColorAsync('#000000');
+            });
+        };
+
+        apply();
+
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') {
+                apply();
+            }
         });
+
+        return () => subscription.remove();
     }, []);
 }
 
@@ -249,7 +261,7 @@ export default function RootLayout() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <SafeAreaProvider>
+            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
                 <StartupErrorBoundary label="Flip">
                     <ThemeProvider>
                         <QueryClientProvider client={queryClient}>

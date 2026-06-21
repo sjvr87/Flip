@@ -1,12 +1,11 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { useNotificationStore } from '@/utils/notificationStore';
-import { getTabBarStyleInsets } from '@/utils/tabBarLayout';
+import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarLayout';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { ComponentProps, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -42,8 +41,8 @@ function CreateTabIcon({ isDark }: { isDark: boolean }) {
 export default function TabsLayout() {
     const { badgeCount } = useNotificationStore();
     const { colors, isDark } = useTheme();
-    const insets = useSafeAreaInsets();
-    const tabBarInsets = getTabBarStyleInsets(insets.bottom);
+    const tabBarMetrics = useFlipTabBarMetrics();
+    const tabBarLayout = getTabBarStyleFromMetrics(tabBarMetrics);
 
     const displayBadgeCount = useMemo(() => {
         if (!badgeCount || badgeCount <= 0) return undefined;
@@ -64,9 +63,11 @@ export default function TabsLayout() {
                     backgroundColor: isDark ? 'rgba(0, 0, 0, 0.96)' : 'rgba(255, 255, 255, 0.98)',
                     borderTopWidth: StyleSheet.hairlineWidth,
                     borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder,
-                    height: tabBarInsets.height,
-                    paddingTop: 10,
-                    paddingBottom: tabBarInsets.paddingBottom,
+                    paddingTop: tabBarLayout.paddingTop,
+                    paddingBottom: tabBarLayout.paddingBottom,
+                    ...(Platform.OS === 'android'
+                        ? { minHeight: tabBarLayout.height }
+                        : { height: tabBarLayout.height }),
                     elevation: 0,
                     shadowOpacity: 0,
                 },

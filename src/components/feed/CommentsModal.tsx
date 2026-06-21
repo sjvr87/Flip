@@ -25,6 +25,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useSafeNativeShims } from '@/utils/runtime';
+import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import React, { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -105,6 +106,9 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     const [replyingTo, setReplyingTo] = useState(null);
     const [expandedComments, setExpandedComments] = useState(new Set());
     const insets = useSafeAreaInsets();
+    const tabBarMetrics = useFlipTabBarMetrics();
+    const sheetBottomPad =
+        Platform.OS === 'android' ? insets.bottom + 16 : Math.max(insets.bottom, 16);
     const flatListRef = useRef(null);
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -845,7 +849,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         <ListHeader />
                         <View
                             style={tw.style(`flex-1 items-center justify-center px-5`, {
-                                paddingBottom: Math.max(insets.bottom, 16),
+                                paddingBottom: sheetBottomPad,
                             })}>
                             <View
                                 style={tw`flex-1 py-4 px-5 flex-col items-center justify-center gap-2.5`}>
@@ -934,7 +938,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     <View
                         style={tw.style(
                             `flex flex-row items-center p-3 border-t border-gray-200 dark:border-gray-700 gap-3 bg-white dark:bg-black`,
-                            { paddingBottom: Math.max(insets.bottom, 8) },
+                            { paddingBottom: tabBarMetrics.paddingBottom + 8 },
                         )}>
                         <Avatar url={user?.avatar} size={32} />
                         <TextInput
