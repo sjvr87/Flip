@@ -67,7 +67,6 @@ function LikeActionIcon({ active }: { active: boolean }) {
             <FoldedHeartIcon
                 size={LIKE_ICON_SIZE}
                 variant={active ? 'filled' : 'outline'}
-                color={ICON_COLOR}
             />
         </View>
     );
