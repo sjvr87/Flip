@@ -22,4 +22,5 @@ NEVER paste a PowerShell prompt into the terminal (lines starting with "PS C:\..
 
 NEVER use bare "npm" in PowerShell — use npm.cmd or the scripts above.
 
-Leave the dev window open while Metro is running.
+flip-dev.bat closes on success (Metro stays in its own window).
+Use flip-dev-pause.bat if you want this window to stay open to read the log.

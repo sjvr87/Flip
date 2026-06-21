@@ -1,0 +1,40 @@
+---
+description: Full permissions for dev builds on Windows — no sandbox, no chat permission asks.
+alwaysApply: true
+---
+
+# Dev permissions (zero-friction)
+
+The user is on **Windows**, prefers **minimal friction**, and has **pre-authorized** all dev tooling. Agents should run dev commands immediately — never ask in chat "may I run this?" for routine work.
+
+Pair with [auto-permissions.mdc](auto-permissions.mdc) and [auto-dev-workflow.mdc](auto-dev-workflow.mdc).
+
+## Always request `required_permissions: ["all"]` on the first attempt
+
+Disable the sandbox for these (do not try a sandboxed run first):
+
+| Category | Commands / scripts |
+|----------|-------------------|
+| Daily dev | `flip-dev.bat`, `flip-dev-pause.bat`, `scripts\flip-dev.cmd`, `scripts\dev-connect.ps1` |
+| npm dev | `npm run dev:connect`, `npm run dev:connect:restart`, `npm run start:clear`, `npm run start:lan`, `npm run flip:dev` |
+| Android build | `npm run android:dev`, `npm run android:build`, `npm run android:prebuild`, `gradlew`, `adb` |
+| Git remote | `git pull`, `git push`, `git fetch` |
+| Deps / Expo | `npm install`, `npx expo`, EAS / `flip-beta.bat` cloud builds |
+
+Also use `git_write` when staging or committing, and `full_network` when `all` is not needed but network is (registry, gh API).
+
+## Agent behavior
+
+1. **Proactive `all`** — dev builds, adb, Gradle, Metro, and git remote need filesystem + process access on Windows.
+2. **No chat pauses** — run the command; report results after.
+3. **Windows** — use `npm.cmd` in PowerShell when `npm` is blocked by execution policy.
+4. **User scripts** — `flip-dev.bat` exits without "press any key" on success; use `flip-dev-pause.bat` only when the user wants the log window kept open.
+
+## Cannot fix (Cursor / OS)
+
+- **Cursor IDE approval cards** may still appear for sandbox, network, or git — the user approves those in the UI; agents cannot bypass them.
+- **One-time device/OS prompts**: Android USB debugging RSA, Windows Firewall for port 8081, first Gradle download, `gh auth login`, first `eas login` for beta builds.
+
+## package.json scripts
+
+Dev scripts are non-interactive. `beta:build` / `flip-beta.bat` may prompt for first-time Expo login only; daily `flip-dev.bat` / `dev:connect` do not.

@@ -1,6 +1,10 @@
 ﻿# Flip dev — PowerShell-safe entry. Launch with -ExecutionPolicy Bypass (see FLIP-DEV.txt).
 # Do NOT paste lines that include the prompt, e.g. "PS C:\Users\tomas> ..."
 
+param(
+  [switch]$Pause
+)
+
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
@@ -11,14 +15,14 @@ if (-not (Test-Path -LiteralPath $packageJson)) {
   Write-Host ""
   Write-Host "ERROR: package.json not found at: $packageJson" -ForegroundColor Red
   Write-Host "Expected Flip repo root: $Root" -ForegroundColor Yellow
-  Read-Host "Press Enter to close"
+  if ($Pause) { Read-Host "Press Enter to close" }
   exit 1
 }
 
 $devConnect = Join-Path $PSScriptRoot "dev-connect.ps1"
 if (-not (Test-Path -LiteralPath $devConnect)) {
   Write-Host "ERROR: dev-connect.ps1 not found at: $devConnect" -ForegroundColor Red
-  Read-Host "Press Enter to close"
+  if ($Pause) { Read-Host "Press Enter to close" }
   exit 1
 }
 
@@ -40,5 +44,6 @@ try {
 }
 
 Write-Host ""
-Write-Host "Leave this window open while Metro is running." -ForegroundColor Green
+Write-Host "Done. Metro runs in its own window — you can close this one." -ForegroundColor Green
+if ($Pause) { Read-Host "Press Enter to close" }
 exit 0

@@ -25,6 +25,7 @@ The user wants agents on the **latest main** with a **fresh Metro cache** before
 
 ## Pair with other Flip rules
 
+- **[dev-permissions.mdc](dev-permissions.mdc)** — use `required_permissions: ["all"]` for flip-dev, android:dev, Gradle, adb, Metro, git remote.
 - **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt when pulling, installing, or starting Metro; do not stop to ask for routine approval.
 - **[auto-push-progress.mdc](auto-push-progress.mdc)** — after meaningful work, commit and push unless the user says not to; then pull again before the next test cycle if others may have merged.
 

@@ -19,4 +19,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Leave this window open while Metro is running.
+echo Done. Metro runs in its own window — you can close this one.
+exit /b 0
