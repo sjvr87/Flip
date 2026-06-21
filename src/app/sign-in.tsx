@@ -1,5 +1,5 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette'
-import { StackText, XStack } from '@/components/ui/Stack'
+import { XStack } from '@/components/ui/Stack'
 import { useTheme } from '@/contexts/ThemeContext'
 import { getSavedCredentials } from '@/atproto/credentialVault'
 import { openBrowser } from '@/atproto/auth'
@@ -349,14 +349,12 @@ export default function SignInScreen() {
       <View style={styles.inner}>
         {mode !== 'unlock' && mode !== 'loading' ? (
           <>
-            <StackText
-              fontSize="$10"
-              fontWeight="bold"
-              textColor="text-white"
-              style={{ textAlign: 'center', marginBottom: 8 }}
-            >
-              Flip
-            </StackText>
+            <Image
+              source={require('../../assets/images/flip-logo.png')}
+              style={styles.logo}
+              contentFit="contain"
+              accessibilityLabel="Flip"
+            />
             <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
               Short video on Bluesky
             </Text>
@@ -406,6 +404,12 @@ const styles = StyleSheet.create({
   centered: {
     alignItems: 'center',
     gap: 12,
+  },
+  logo: {
+    width: 140,
+    aspectRatio: 980 / 1024,
+    alignSelf: 'center',
+    marginBottom: 8,
   },
   subtitle: {
     color: 'rgba(255,255,255,0.85)',
