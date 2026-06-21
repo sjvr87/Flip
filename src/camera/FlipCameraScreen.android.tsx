@@ -52,6 +52,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   const { thumbUri: galleryThumbUri, reload: reloadGalleryThumb } = useRecentGalleryThumb()
   const pendingRemix = usePendingAudioReuseStore((s) => s.pending)
+  const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending)
   const remixReferenceUrl = pendingRemix?.referenceVideoUrl
 
   const requestAndroidPermissions = useCallback(async () => {
@@ -187,6 +188,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     else router.canGoBack() ? router.back() : router.replace('/')
   }
 
+  const handleRemoveRemix = () => {
+    clearPendingRemix()
+  }
+
   const handleUpload = async () => {
     try {
       // Upload uses an intent-based picker (Samsung Gallery on Samsung devices).
@@ -275,7 +280,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      {remixReferenceUrl ? (
+      {isCameraReady && remixReferenceUrl ? (
         <ReferenceAudioPlayer
           url={remixReferenceUrl}
           active={isFocused && isCameraActive}
@@ -333,6 +338,14 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
               Remix @{pendingRemix.username}
               {remixReferenceUrl ? ' · reference playing' : ' · credit attached'}
             </Text>
+            <PressableHaptics
+              onPress={handleRemoveRemix}
+              style={styles.remixRemoveButton}
+              accessibilityLabel="Remove remix audio"
+              accessibilityHint="Stops reference audio and clears remix credit while keeping the camera open"
+            >
+              <Ionicons name="close" size={16} color="rgba(255,255,255,0.85)" />
+            </PressableHaptics>
           </View>
         ) : (
           <View style={styles.topButton} />
@@ -490,6 +503,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     flexShrink: 1,
+  },
+  remixRemoveButton: {
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 2,
   },
   rightControls: { position: 'absolute', right: 12, top: '35%', zIndex: 10, gap: 20 },
   controlButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },

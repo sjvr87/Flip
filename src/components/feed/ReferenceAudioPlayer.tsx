@@ -1,45 +1,27 @@
-import { createVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
+import { useEffect } from 'react';
 
 type ReferenceAudioPlayerProps = {
     url: string;
     active?: boolean;
 };
 
-/** Hidden player so remix/create flows can hear the source clip while recording. */
+/** Audio-only playback for remix/create flows (no VideoView — avoids camera decoder conflicts on Android). */
 export default function ReferenceAudioPlayer({ url, active = true }: ReferenceAudioPlayerProps) {
-    const playerRef = useRef<ReturnType<typeof createVideoPlayer> | null>(null);
-    const [player, setPlayer] = useState<ReturnType<typeof createVideoPlayer> | null>(null);
+    const player = useAudioPlayer(url, { downloadFirst: true });
 
     useEffect(() => {
-        if (!url) {
-            return;
-        }
-
-        const nextPlayer = createVideoPlayer(url);
-        nextPlayer.loop = true;
-        nextPlayer.muted = false;
-        playerRef.current = nextPlayer;
-        setPlayer(nextPlayer);
-
-        return () => {
-            try {
-                nextPlayer.pause();
-                nextPlayer.release?.();
-            } catch {
-                // already released
-            }
-            if (playerRef.current === nextPlayer) {
-                playerRef.current = null;
-            }
-        };
-    }, [url]);
+        void setAudioModeAsync({
+            playsInSilentMode: true,
+            interruptionMode: 'mixWithOthers',
+        });
+    }, []);
 
     useEffect(() => {
-        if (!player) {
-            return;
-        }
+        player.loop = true;
+    }, [player]);
+
+    useEffect(() => {
         try {
             if (active) {
                 player.play();
@@ -51,28 +33,5 @@ export default function ReferenceAudioPlayer({ url, active = true }: ReferenceAu
         }
     }, [player, active]);
 
-    if (!player) {
-        return null;
-    }
-
-    return (
-        <View style={styles.hidden} pointerEvents="none" accessible={false}>
-            <VideoView
-                player={player}
-                style={styles.hidden}
-                nativeControls={false}
-                allowsPictureInPicture={false}
-            />
-        </View>
-    );
+    return null;
 }
-
-const styles = StyleSheet.create({
-    hidden: {
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        opacity: 0,
-        overflow: 'hidden',
-    },
-});
