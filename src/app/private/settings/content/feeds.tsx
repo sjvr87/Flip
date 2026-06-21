@@ -165,7 +165,7 @@ export default function FeedsSettingsScreen() {
                                         Default feed
                                     </Text>
                                     <Text style={tw`flex-1 text-sm text-gray-500`}>
-                                        The default feed when you open the Loops app.
+                                        The default feed when you open the Flip app.
                                     </Text>
                                 </YStack>
                             </XStack>

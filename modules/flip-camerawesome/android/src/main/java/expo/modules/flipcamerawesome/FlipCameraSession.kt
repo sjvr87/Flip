@@ -3,11 +3,14 @@ package expo.modules.flipcamerawesome
 import android.Manifest
 import android.content.pm.PackageManager
 import android.hardware.camera2.CaptureRequest
+import android.util.Log
 import android.util.Range
 import android.util.Size
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -41,21 +44,34 @@ class FlipCameraSession(
   private val mainExecutor: Executor,
 ) {
   companion object {
-    const val TARGET_WIDTH = 1920
-    const val TARGET_HEIGHT = 1080
+    private const val TAG = "FlipCameraSession"
+    /** Preview target — 4K with CameraX fallback to nearest supported size. */
+    const val TARGET_WIDTH = 3840
+    const val TARGET_HEIGHT = 2160
     const val TARGET_FPS = 60
-    const val VIDEO_BITRATE = 12_000_000
+    /** 45 Mbps for UHD60; CameraX falls back to FHD when UHD is unsupported. */
+    const val VIDEO_BITRATE = 45_000_000
   }
 
   private var cameraProvider: ProcessCameraProvider? = null
   private var camera: Camera? = null
   private var videoCapture: VideoCapture<Recorder>? = null
+  private var imageCapture: ImageCapture? = null
   private var activeRecording: Recording? = null
   private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
   private var zoomRatio: Float = 1f
+  private var torchEnabled: Boolean = false
 
   fun bind(onReady: () -> Unit, onError: (String) -> Unit) {
     val context = previewView.context
+    if (
+      ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+      onError("Camera permission not granted")
+      return
+    }
+
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener(
       {
@@ -100,7 +116,46 @@ class FlipCameraSession(
   }
 
   fun setTorch(enabled: Boolean) {
+    torchEnabled = enabled
     camera?.cameraControl?.enableTorch(enabled)
+  }
+
+  fun takePicture(
+    outputFile: File,
+    onFinished: (String) -> Unit,
+    onFailed: (String) -> Unit,
+  ) {
+    val capture = imageCapture ?: run {
+      onFailed("Image capture not ready")
+      return
+    }
+
+    if (activeRecording != null) {
+      onFailed("Cannot take photo while recording")
+      return
+    }
+
+    capture.flashMode =
+      if (torchEnabled && lensFacing == CameraSelector.LENS_FACING_BACK) {
+        ImageCapture.FLASH_MODE_ON
+      } else {
+        ImageCapture.FLASH_MODE_OFF
+      }
+
+    val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+    capture.takePicture(
+      outputOptions,
+      mainExecutor,
+      object : ImageCapture.OnImageSavedCallback {
+        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+          onFinished(outputFile.absolutePath)
+        }
+
+        override fun onError(exception: ImageCaptureException) {
+          onFailed(exception.message ?: "Photo capture failed")
+        }
+      },
+    )
   }
 
   fun startRecording(
@@ -156,82 +211,97 @@ class FlipCameraSession(
     cameraProvider?.unbindAll()
     camera = null
     videoCapture = null
+    imageCapture = null
   }
 
   private fun rebindCamera() {
     val provider = cameraProvider ?: return
     provider.unbindAll()
 
-    val previewResolutionSelector =
-      ResolutionSelector.Builder()
-        .setResolutionStrategy(
-          ResolutionStrategy(
-            Size(TARGET_WIDTH, TARGET_HEIGHT),
-            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
-          ),
+    try {
+      val previewResolutionSelector =
+        ResolutionSelector.Builder()
+          .setResolutionStrategy(
+            ResolutionStrategy(
+              Size(TARGET_WIDTH, TARGET_HEIGHT),
+              ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+            ),
+          )
+          .build()
+
+      val previewBuilder =
+        Preview.Builder().setResolutionSelector(previewResolutionSelector)
+
+      // Prefer 60fps but allow fallback — strict Range(60, 60) can fail to bind on some devices.
+      Camera2Interop.Extender(previewBuilder)
+        .setCaptureRequestOption(
+          CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+          Range(30, TARGET_FPS),
         )
-        .build()
+        .setCaptureRequestOption(
+          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
+        )
+        .setCaptureRequestOption(
+          CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+          CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON,
+        )
 
-    val previewBuilder =
-      Preview.Builder().setResolutionSelector(previewResolutionSelector)
+      val preview =
+        previewBuilder.build().also { it.surfaceProvider = previewView.surfaceProvider }
 
-    Camera2Interop.Extender(previewBuilder)
-      .setCaptureRequestOption(
-        CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-        Range(TARGET_FPS, TARGET_FPS),
-      )
-      .setCaptureRequestOption(
-        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
-        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
-      )
-      .setCaptureRequestOption(
-        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON,
-      )
+      // Prefer UHD (4K) on flagship devices; fall back to FHD when hardware cannot bind UHD60.
+      val qualitySelector =
+        QualitySelector.fromOrderedList(
+          listOf(Quality.UHD, Quality.FHD),
+          FallbackStrategy.lowerQualityOrHigherThan(Quality.FHD),
+        )
 
-    val preview =
-      previewBuilder.build().also { it.surfaceProvider = previewView.surfaceProvider }
+      val recorder =
+        Recorder.Builder()
+          .setQualitySelector(qualitySelector)
+          .setTargetVideoEncodingBitRate(VIDEO_BITRATE)
+          .build()
 
-    // FHD (1080p) with fallback; CameraX selects best supported frame rate (60fps when available)
-    val qualitySelector =
-      QualitySelector.from(
-        Quality.FHD,
-        FallbackStrategy.higherQualityOrLowerThan(Quality.FHD),
-      )
+      val videoBuilder = VideoCapture.Builder(recorder).setVideoStabilizationEnabled(true)
 
-    val recorder =
-      Recorder.Builder()
-        .setQualitySelector(qualitySelector)
-        .setTargetVideoEncodingBitRate(VIDEO_BITRATE)
-        .build()
+      Camera2Interop.Extender(videoBuilder)
+        .setCaptureRequestOption(
+          CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+          Range(30, TARGET_FPS),
+        )
+        .setCaptureRequestOption(
+          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
+        )
+        .setCaptureRequestOption(
+          CaptureRequest.CONTROL_AE_MODE,
+          CaptureRequest.CONTROL_AE_MODE_ON,
+        )
 
-    val videoBuilder = VideoCapture.Builder(recorder).setVideoStabilizationEnabled(true)
+      val capture = videoBuilder.build()
 
-    Camera2Interop.Extender(videoBuilder)
-      .setCaptureRequestOption(
-        CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-        Range(TARGET_FPS, TARGET_FPS),
-      )
-      .setCaptureRequestOption(
-        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
-        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
-      )
-      .setCaptureRequestOption(
-        CaptureRequest.CONTROL_AE_MODE,
-        CaptureRequest.CONTROL_AE_MODE_ON,
-      )
+      videoCapture = capture
 
-    val capture = videoBuilder.build()
+      val photoCapture =
+        ImageCapture.Builder()
+          .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+          .build()
 
-    videoCapture = capture
+      imageCapture = photoCapture
 
-    val selector =
-      CameraSelector.Builder().requireLensFacing(lensFacing).build()
+      val selector =
+        CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
-    camera =
-      provider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+      camera =
+        provider.bindToLifecycle(lifecycleOwner, selector, preview, capture, photoCapture)
 
-    camera?.cameraControl?.setZoomRatio(zoomRatio)
-    applyFlagshipExposureProfile()
+      camera?.cameraControl?.setZoomRatio(zoomRatio)
+      applyFlagshipExposureProfile()
+      Log.d(TAG, "CameraX bound lensFacing=$lensFacing preview=${previewView.width}x${previewView.height}")
+    } catch (e: Exception) {
+      Log.e(TAG, "rebindCamera failed", e)
+      throw e
+    }
   }
 }

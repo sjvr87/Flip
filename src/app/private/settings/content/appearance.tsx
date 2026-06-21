@@ -1,36 +1,14 @@
-import { useTheme } from '@/contexts/ThemeContext';
-import { useQueryClient } from '@tanstack/react-query';
-import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { type ColorScheme, useTheme } from '@/contexts/ThemeContext';
+import { Stack } from 'expo-router';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function AppearanceScreen() {
-    const { colorScheme, setColorScheme } = useTheme();
-    const [systemTheme, setSystemTheme] = useState(colorScheme === 'device');
-    const [lastSelectedTheme, setLastSelectedTheme] = useState<'light' | 'dark'>('light');
+    const { colorScheme, isDark, setColorScheme } = useTheme();
+    const systemTheme = colorScheme === 'device';
 
-    const queryClient = useQueryClient();
-    const router = useRouter();
-
-    useEffect(() => {
-        setSystemTheme(colorScheme === 'device');
-        if (colorScheme === 'light' || colorScheme === 'dark') {
-            setLastSelectedTheme(colorScheme);
-        }
-    }, [colorScheme]);
-
-    const handleThemeSelect = (theme: 'light' | 'dark') => {
-        setLastSelectedTheme(theme);
+    const handleThemeSelect = (theme: ColorScheme) => {
         setColorScheme(theme);
-    };
-
-    const handleSystemThemeToggle = (value: boolean) => {
-        if (value) {
-            setColorScheme('device');
-        } else {
-            setColorScheme(lastSelectedTheme);
-        }
     };
 
     const ThemeMockup = ({ theme }: { theme: 'light' | 'dark' }) => {
@@ -69,7 +47,7 @@ export default function AppearanceScreen() {
 
     const RadioButton = ({ selected }: { selected: boolean }) => (
         <View
-            style={tw`w-6 h-6 rounded-full border-2 ${selected ? 'border-[#F02C56]' : 'border-gray-300'} items-center justify-center`}>
+            style={tw`w-6 h-6 rounded-full border-2 ${selected ? 'border-[#F02C56]' : 'border-gray-300 dark:border-gray-600'} items-center justify-center`}>
             {selected && <View style={tw`w-3.5 h-3.5 rounded-full bg-[#F02C56]`} />}
         </View>
     );
@@ -80,7 +58,7 @@ export default function AppearanceScreen() {
                 options={{
                     title: 'Appearance',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}
@@ -90,7 +68,7 @@ export default function AppearanceScreen() {
                 <View
                     style={
                         systemTheme
-                            ? tw`bg-white dark:bg-black py-8 px-4 opacity-20`
+                            ? tw`bg-white dark:bg-black py-8 px-4 opacity-40`
                             : tw`bg-white dark:bg-black py-8 px-4`
                     }>
                     <View style={tw`flex-row justify-around items-start mb-6`}>
@@ -103,7 +81,7 @@ export default function AppearanceScreen() {
                                 style={tw`text-base font-semibold mt-4 mb-3 text-gray-900 dark:text-white`}>
                                 Light
                             </Text>
-                            <RadioButton selected={colorScheme === 'light' && !systemTheme} />
+                            <RadioButton selected={colorScheme === 'light'} />
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -115,36 +93,26 @@ export default function AppearanceScreen() {
                                 style={tw`text-base font-semibold mt-4 mb-3 text-gray-900 dark:text-white`}>
                                 Dark
                             </Text>
-                            <RadioButton selected={colorScheme === 'dark' && !systemTheme} />
+                            <RadioButton selected={colorScheme === 'dark'} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* <View style={tw`h-px bg-gray-200 dark:bg-gray-800`} />
+                <View style={tw`h-px bg-gray-200 dark:bg-gray-800`} />
 
-                <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
-                    <XStack flex={1}>
-                        <YStack flex={1}>
-                            <XStack style={tw`mt-1`}>
-                                <YStack>
-                                    <Text
-                                        style={tw`flex-1 text-base font-medium text-gray-900 dark:text-white`}>
-                                        Use device settings
-                                    </Text>
-                                    <Text style={tw`flex-1 mt-3 text-sm text-gray-500`}>
-                                        Match appearance to your device's Display & Brightness
-                                        settings.
-                                    </Text>
-                                </YStack>
-                            </XStack>
-                        </YStack>
-                        <Switch
-                            value={systemTheme}
-                            onValueChange={handleSystemThemeToggle}
-                            ios_backgroundColor="#ccc"
-                        />
-                    </XStack>
-                </View> */}
+                <TouchableOpacity
+                    style={tw`flex-row items-center py-5 px-5 bg-white dark:bg-black`}
+                    onPress={() => handleThemeSelect('device')}>
+                    <View style={tw`flex-1`}>
+                        <Text style={tw`text-base font-medium text-gray-900 dark:text-white`}>
+                            System
+                        </Text>
+                        <Text style={tw`mt-1 text-sm text-gray-500 dark:text-gray-400`}>
+                            Match your device&apos;s display settings
+                        </Text>
+                    </View>
+                    <RadioButton selected={colorScheme === 'device'} />
+                </TouchableOpacity>
             </ScrollView>
         </View>
     );

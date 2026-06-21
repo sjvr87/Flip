@@ -1,15 +1,14 @@
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { XStack } from '@/components/ui/Stack';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useAuthStore } from '@/utils/authStore';
-import { Storage } from '@/utils/cache';
 import {
     followAccount,
     getExploreAccounts,
     getExploreTags,
     getExploreTagsFeed,
     postExploreAccountHideSuggestion,
-} from '@/utils/requests';
+} from '@/atproto';
+import { useTheme } from '@/contexts/ThemeContext';
+import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation';
 import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -70,16 +69,16 @@ interface Video {
     } | null;
 }
 
-// Validation helpers
+// Validation helpers — avatar optional (many ATProto profiles have none)
 const isValidAccount = (account: Account | null | undefined): account is Account => {
-    return !!(account?.id && account?.username && account?.avatar && account?.name);
+    return !!(account?.id && account?.username && account?.name);
 };
 
 const isValidVideo = (video: Video | null | undefined): video is Video => {
     return !!(
         video?.id &&
-        video?.account &&
-        isValidAccount(video.account) &&
+        video?.account?.id &&
+        video?.account?.username &&
         video?.media?.thumbnail
     );
 };
@@ -90,13 +89,11 @@ const isValidTag = (tag: Tag | null | undefined): tag is Tag => {
 
 export default function ExploreScreen() {
     const router = useRouter();
-    const { user } = useAuthStore();
-    const token = Storage.getString('app.token');
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
     const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
     const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
     const queryClient = useQueryClient();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const {
         data: tagsData,
@@ -217,14 +214,21 @@ export default function ExploreScreen() {
                         <Feather name="x" size={16} color="gray" />
                     </PressableHaptics>
 
-                    <Pressable onPress={() => router.push(`/private/profile/${item.id}`)}>
-                        <Image
-                            source={{ uri: item.avatar }}
-                            style={tw`w-16 h-16 rounded-full mb-2`}
-                        />
+                    <Pressable onPress={() => router.push(toProfilePath(item.id))}>
+                        {item.avatar ? (
+                            <Image
+                                source={{ uri: item.avatar }}
+                                style={tw`w-16 h-16 rounded-full mb-2`}
+                            />
+                        ) : (
+                            <View
+                                style={tw`w-16 h-16 rounded-full mb-2 bg-gray-300 dark:bg-gray-600 items-center justify-center`}>
+                                <Feather name="user" size={28} color="#9ca3af" />
+                            </View>
+                        )}
                     </Pressable>
 
-                    <Pressable onPress={() => router.push(`/private/profile/${item.id}`)}>
+                    <Pressable onPress={() => router.push(toProfilePath(item.id))}>
                         <Text
                             style={tw`text-black font-semibold text-sm mb-1 dark:text-white`}
                             numberOfLines={1}>
@@ -285,9 +289,15 @@ export default function ExploreScreen() {
                         ]}>
                         #{item.name}
                     </Text>
-                    <Text style={[tw`text-xs`, isSelected ? tw`text-gray-200` : tw`text-gray-600`]}>
-                        {item.count.toLocaleString()} videos
-                    </Text>
+                    {item.count > 0 && (
+                        <Text
+                            style={[
+                                tw`text-xs`,
+                                isSelected ? tw`text-gray-200` : tw`text-gray-600`,
+                            ]}>
+                            {item.count.toLocaleString()} videos
+                        </Text>
+                    )}
                 </View>
             </PressableHaptics>
         );
@@ -304,7 +314,7 @@ export default function ExploreScreen() {
             <TouchableOpacity
                 style={tw`mb-1 ${index % 3 !== 2 ? 'mr-1' : ''}`}
                 onPress={() =>
-                    router.push(`/private/profile/feed/${item.id}?profileId=${item.account.id}`)
+                    router.push(toProfileFeedPath(item.id, item.account!.id))
                 }>
                 <View style={tw`relative`}>
                     <Image
@@ -342,18 +352,27 @@ export default function ExploreScreen() {
         </View>
     );
 
-    if (tagsLoading || accountsLoading) {
+    const isInitialLoading = tagsLoading && accountsLoading;
+
+    if (isInitialLoading) {
         return (
             <SafeAreaView edges={['top']} style={tw`flex-1 bg-white dark:bg-black`}>
                 <View style={tw`flex-1 items-center justify-center`}>
                     <ActivityIndicator
                         size="large"
-                        color={colorScheme === 'dark' ? '#fff' : '#000'}
+                        color={isDark ? '#fff' : '#000'}
                     />
                 </View>
             </SafeAreaView>
         );
     }
+
+    const showEmptyExplore =
+        !tagsLoading &&
+        !accountsLoading &&
+        validTags.length === 0 &&
+        validAccounts.length === 0 &&
+        allVideos.length === 0;
 
     return (
         <SafeAreaView edges={['top']} style={tw`flex-1 bg-white dark:bg-black`}>
@@ -380,7 +399,7 @@ export default function ExploreScreen() {
                         <Pressable onPress={() => router.push('/private/search')}>
                             <Feather
                                 name="search"
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                                 size={30}
                             />
                         </Pressable>
@@ -411,8 +430,9 @@ export default function ExploreScreen() {
                     )}
 
                     {accountsError &&
+                        validAccounts.length === 0 &&
                         renderEmptyState(
-                            'Unable to load suggested accounts. Please try again later.',
+                            'Unable to load suggested accounts. Pull down to refresh.',
                         )}
 
                     {validTags.length > 0 && (
@@ -433,13 +453,14 @@ export default function ExploreScreen() {
                     )}
 
                     {tagsError &&
-                        renderEmptyState('Unable to load trending tags. Please try again later.')}
+                        validTags.length === 0 &&
+                        renderEmptyState('Unable to load trending topics. Please try again later.')}
 
                     {videosLoading ? (
                         <View style={tw`py-10 items-center`}>
                             <ActivityIndicator
                                 size="large"
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </View>
                     ) : videosError ? (
@@ -457,14 +478,18 @@ export default function ExploreScreen() {
                                 <View style={tw`py-4 items-center`}>
                                     <ActivityIndicator
                                         size="small"
-                                        color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                        color={isDark ? '#fff' : '#000'}
                                     />
                                 </View>
                             )}
                         </>
-                    ) : (
-                        renderEmptyState('No videos found for this tag.')
-                    )}
+                    ) : validTags.length > 0 ? (
+                        renderEmptyState('No video posts for this topic yet. Try another tag.')
+                    ) : showEmptyExplore ? (
+                        renderEmptyState(
+                            'Nothing to explore right now. Check your connection and try again.',
+                        )
+                    ) : null}
                 </ScrollView>
             </View>
         </SafeAreaView>

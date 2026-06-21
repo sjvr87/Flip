@@ -21,7 +21,7 @@ export default function AccountHeader(props) {
     const handleShare = async () => {
         try {
             await shareContent({
-                message: `Check out my account on Loops!`,
+                message: `Check out my account on Flip!`,
                 url: props.user?.url,
             });
         } catch (error) {
@@ -156,24 +156,23 @@ export default function AccountHeader(props) {
                             )}
                         </View>
 
-                        <Button
+                        <Pressable
                             onPress={props.onMenuPress}
-                            theme="light"
                             accessibilityLabel="More options"
                             accessibilityHint="To share, block, or report this profile"
                             accessibilityRole="button"
-                            title={
-                                <MaterialIcons
-                                    name="keyboard-arrow-down"
-                                    size={26}
-                                    color={colorScheme === 'dark' ? '#ccc' : '#333'}
-                                />
-                            }></Button>
+                            style={tw`px-3 py-2 rounded-full bg-gray-100 dark:bg-gray-900`}>
+                            <MaterialIcons
+                                name="keyboard-arrow-down"
+                                size={26}
+                                color={colorScheme === 'dark' ? '#ccc' : '#333'}
+                            />
+                        </Pressable>
                     </XStack>
                 )}
             </XStack>
 
-            {props.user?.bio && props.user?.bio?.length && <ExpandableBio bio={props.user?.bio} />}
+            {!!props.user?.bio?.length && <ExpandableBio bio={props.user?.bio} />}
 
             {isOwner && props.user?.bio?.length === 0 && (
                 <Button

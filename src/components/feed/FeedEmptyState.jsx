@@ -6,17 +6,26 @@ import tw from 'twrnc';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export default function FeedEmptyState({ tab, onRefresh }) {
+export default function FeedEmptyState({ tab, onRefresh, error }) {
     const router = useRouter();
 
     const content = useMemo(() => {
+        if (error) {
+            return {
+                icon: 'alert-circle-outline',
+                title: tab === 'local' ? 'Local feed unavailable' : 'Feed unavailable',
+                subtitle: error,
+                primary: { label: 'Try again', onPress: onRefresh },
+            };
+        }
+
         switch (tab) {
             case 'following':
                 return {
                     icon: 'people-outline',
                     title: 'Your following feed is empty',
                     subtitle:
-                        "Follow some creators and their loops will show up here. Browse the Local or For You feed to find accounts you'll love.",
+                        "Follow some creators and their Flips will show up here. Browse the Local or For You feed to find accounts you'll love.",
                     primary: {
                         label: 'Find creators',
                         onPress: () => router.push('/explore'),
@@ -27,9 +36,9 @@ export default function FeedEmptyState({ tab, onRefresh }) {
                     icon: 'planet-outline',
                     title: 'Nothing local just yet',
                     subtitle:
-                        'No public loops from this instance right now. Be the first to share something.',
+                        'No public Flips nearby right now. Be the first to share something, or check For You for trending videos.',
                     primary: {
-                        label: 'Record a loop',
+                        label: 'Record a Flip',
                         onPress: () => router.push('/private/camera'),
                     },
                 };
@@ -38,11 +47,11 @@ export default function FeedEmptyState({ tab, onRefresh }) {
                 return {
                     icon: 'sparkles-outline',
                     title: "You're all caught up",
-                    subtitle: "We're curating more loops for you. Check back soon.",
+                    subtitle: "We're curating more Flips for you. Check back soon.",
                     primary: { label: 'Refresh', onPress: onRefresh },
                 };
         }
-    }, [tab, onRefresh, router]);
+    }, [tab, onRefresh, router, error]);
 
     return (
         <View style={[tw`items-center justify-center px-10 bg-black`, { height: SCREEN_HEIGHT }]}>

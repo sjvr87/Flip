@@ -34,15 +34,17 @@
                 "android.permission.ACCESS_MEDIA_LOCATION",
                 "android.permission.READ_MEDIA_AUDIO",
                 "android.permission.READ_MEDIA_IMAGES",
+                "android.permission.READ_MEDIA_VIDEO",
                 "android.permission.CAMERA",
                 "android.permission.RECORD_AUDIO"
             ]
         },
         "web": {
-            "output": "static",
+            "output": "single",
             "favicon": "./assets/images/favicon.png"
         },
         "plugins": [
+            "expo-dev-client",
             "expo-router",
             [
                 "expo-splash-screen",
@@ -66,7 +68,7 @@
                     "photosPermission": "Loops needs access to your photos and videos so you can select and upload videos from your library to share with the community.",
                     "savePhotosPermission": "Loops saves videos to your photo library when you download content you want to keep or save videos you've created in the app. This allows you to keep a local copy of your content.",
                     "isAccessMediaLocationEnabled": true,
-                    "granularPermissions": ["audio", "photo"]
+                    "granularPermissions": ["audio", "photo", "video"]
                 }
             ],
             [
@@ -88,9 +90,13 @@
             "typedRoutes": true,
             "reactCompiler": true
         },
+        "updates": {
+            "enabled": false
+        },
         "extra": {
             "router": {},
             "flipForYouFeed": "",
+            "flipLocalFeed": "",
             "eas": {
                 "projectId": ""
             }

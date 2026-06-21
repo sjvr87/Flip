@@ -5,7 +5,18 @@ import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import tw from 'twrnc';
 
-const PlaylistBar = memo(function PlaylistBar({ title, partsCount, onPress, bottomInset = 0 }) {
+function safeCount(value) {
+    const n = Number(Array.isArray(value) ? value[0] : value);
+    return Number.isFinite(n) ? n : 0;
+}
+
+const PlaylistBar = memo(function PlaylistBar({
+    title,
+    partsCount,
+    currentIndex = 0,
+    onPress,
+    bottomInset = 0,
+}) {
     const { colorScheme } = useTheme();
     const isDark = colorScheme === 'dark';
 
@@ -13,6 +24,10 @@ const PlaylistBar = memo(function PlaylistBar({ title, partsCount, onPress, bott
     const iconColor = isDark ? '#ffffff' : '#1f2937';
     const iconBg = isDark ? '#262626' : '#ffffff';
     const chevronColor = isDark ? '#ffffff' : '#374151';
+
+    const total = safeCount(partsCount) || 1;
+    const current = Math.min(Math.max(safeCount(currentIndex), 0), Math.max(total - 1, 0));
+    const counterLabel = `${current + 1} / ${total}`;
 
     return (
         <View
@@ -30,9 +45,9 @@ const PlaylistBar = memo(function PlaylistBar({ title, partsCount, onPress, bott
                     style={tw`flex-1 ml-3 text-gray-900 dark:text-white text-base font-semibold`}
                     numberOfLines={1}>
                     {title}
-                    {partsCount != null && (
+                    {total > 0 && (
                         <Text
-                            style={tw`text-gray-500 dark:text-gray-400 font-normal`}>{`  ·  ${partsCount} parts`}</Text>
+                            style={tw`text-gray-500 dark:text-gray-400 font-normal`}>{`  ·  ${counterLabel}`}</Text>
                     )}
                 </Text>
                 <Ionicons name="chevron-up" size={22} color={chevronColor} />

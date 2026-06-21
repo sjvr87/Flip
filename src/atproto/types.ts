@@ -32,9 +32,17 @@ export type FlipVideo = {
   likes: number
   shares: number
   comments: number
+  bookmarks: number
   has_liked: boolean
   has_bookmarked: boolean
   created_at: string
+  tags?: string[]
+  mentions?: Array<{
+    username: string
+    profile_id?: string
+    start_index: number
+    end_index: number
+  }>
 }
 
 export type FlipFeedPage = {
@@ -44,6 +52,8 @@ export type FlipFeedPage = {
     per_page: number
     next_cursor: string | null
     prev_cursor?: string | null
+    /** Set when the feed could not load geo/local content or fell back. */
+    error?: string | null
   }
 }
 

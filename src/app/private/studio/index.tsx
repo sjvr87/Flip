@@ -329,8 +329,8 @@ export default function StudioScreen() {
         <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
             <Stack.Screen
                 options={{
-                    headerTitle: 'Loops Studio',
-                    title: 'Loops Studio',
+                    headerTitle: 'Flip Studio',
+                    title: 'Flip Studio',
                     headerStyle: tw`bg-gray-100 dark:bg-black`,
                     headerTintColor: isDark ? '#fff' : '#000',
                     headerTitleStyle: {

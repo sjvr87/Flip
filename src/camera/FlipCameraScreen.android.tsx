@@ -1,36 +1,25 @@
-import { FLIP_ANDROID_CAPTURE, MAX_RECORDING_SECONDS } from '@/camera/camerawesome/config'
+import { MAX_RECORDING_SECONDS } from '@/camera/camerawesome/config'
+import { launchUploadGalleryPicker } from '@/camera/launchUploadGalleryPicker'
+import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions'
+import { useRecentGalleryThumb } from '@/camera/useRecentGalleryThumb'
 import { PressableHaptics } from '@/components/ui/PressableHaptics'
-import {
-  FlipCamerawesomeView,
-  getCaptureProfile,
-} from 'flip-camerawesome'
+import { FlipCamerawesomeView } from 'flip-camerawesome'
 import { Ionicons } from '@expo/vector-icons'
-import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
-import { requestPermissionsAsync } from 'expo-media-library'
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Linking,
+  Image,
   PermissionsAndroid,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
-import Reanimated, {
-  Extrapolate,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated'
+import Reanimated, { runOnJS, useSharedValue, withSpring } from 'react-native-reanimated'
 
 type Props = {
   onClose?: () => void
@@ -47,6 +36,8 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const [hasPermissions, setHasPermissions] = useState<boolean | null>(null)
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [isCameraActive, setIsCameraActive] = useState(true)
+  const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video')
+  const [photoRequestId, setPhotoRequestId] = useState(0)
 
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const recordingRef = useRef(false)
@@ -57,24 +48,23 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const maxZoom = 10
   const [zoomLevel, setZoomLevel] = useState(1)
 
-  const recordButtonStartY = useSharedValue(0)
-  const zoomOffsetY = useSharedValue(0)
-  const isHoldingRecord = useSharedValue(false)
-  const isPanning = useSharedValue(false)
-  const zoomIndicatorOpacity = useSharedValue(0)
-
-  useEffect(() => {
-    getCaptureProfile().catch(() => {})
-  }, [])
+  const { thumbUri: galleryThumbUri, reload: reloadGalleryThumb } = useRecentGalleryThumb()
 
   const requestAndroidPermissions = useCallback(async () => {
-    const results = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    ])
+    const cameraGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA)
+    const micGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+    if (cameraGranted && micGranted) return true
+
+    const toRequest: (typeof PermissionsAndroid.PERMISSIONS.CAMERA)[] = []
+    if (!cameraGranted) toRequest.push(PermissionsAndroid.PERMISSIONS.CAMERA)
+    if (!micGranted) toRequest.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+
+    const results = await PermissionsAndroid.requestMultiple(toRequest)
     const cameraOk =
+      cameraGranted ||
       results[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED
     const micOk =
+      micGranted ||
       results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED
     return cameraOk && micOk
   }, [])
@@ -86,6 +76,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   useFocusEffect(
     useCallback(() => {
       setIsCameraActive(true)
+      requestAndroidPermissions().then(setHasPermissions)
+      ensureAndroidMediaReadPermissions()
+        .catch(() => undefined)
+        .finally(() => reloadGalleryThumb())
       return () => {
         if (recordingRef.current) {
           setIsRecording(false)
@@ -93,7 +87,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         }
         setIsCameraActive(false)
       }
-    }, []),
+    }, [requestAndroidPermissions, reloadGalleryThumb]),
   )
 
   useEffect(() => {
@@ -128,10 +122,17 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     }
   }, [isRecording])
 
-  const navigateToPreview = (videoPath: string, duration: number) => {
+  const navigateToPreview = (mediaPath: string, duration: number, mediaType: 'video' | 'photo' = 'video') => {
+    if (mediaType === 'photo') {
+      router.push({
+        pathname: '/private/camera/preview',
+        params: { imagePath: mediaPath, mediaType: 'photo' },
+      })
+      return
+    }
     router.push({
       pathname: '/private/camera/preview',
-      params: { videoPath, duration: String(duration) },
+      params: { videoPath: mediaPath, duration: String(duration) },
     })
   }
 
@@ -142,19 +143,39 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   }
 
   const startRecording = useCallback(() => {
-    if (isRecording || !isCameraReady) return
+    if (isRecording || !isCameraReady || captureMode !== 'video') return
     recordingRef.current = true
     setIsRecording(true)
-    zoomIndicatorOpacity.value = withTiming(1, { duration: 200 })
-  }, [isRecording, isCameraReady, zoomIndicatorOpacity])
+  }, [isRecording, isCameraReady, captureMode])
 
   const stopRecording = useCallback(() => {
     if (!recordingRef.current) return
     recordingRef.current = false
     setIsRecording(false)
-    zoomIndicatorOpacity.value = withDelay(2000, withTiming(0, { duration: 200 }))
     zoom.value = withSpring(1)
-  }, [zoom, zoomIndicatorOpacity])
+  }, [zoom])
+
+  const toggleRecording = useCallback(() => {
+    if (!isCameraReady || captureMode !== 'video') return
+    if (recordingRef.current) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
+  }, [isCameraReady, captureMode, startRecording, stopRecording])
+
+  const takePhoto = useCallback(() => {
+    if (!isCameraReady || isRecording || captureMode !== 'photo') return
+    setPhotoRequestId((id) => id + 1)
+  }, [isCameraReady, isRecording, captureMode])
+
+  const adjustZoom = useCallback(
+    (delta: number) => {
+      const next = Math.max(minZoom, Math.min(maxZoom, zoomLevel + delta))
+      zoom.value = next
+    },
+    [zoom, zoomLevel, minZoom, maxZoom],
+  )
 
   const handleClose = () => {
     if (isRecording) stopRecording()
@@ -164,21 +185,13 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   const handleUpload = async () => {
     try {
-      const { granted } = await requestPermissionsAsync()
-      if (!granted) {
-        Alert.alert('Permission Required', 'Enable photo library access to upload videos.')
-        return
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['videos'],
-        allowsEditing: true,
-        aspect: [9, 16],
-        quality: 1,
-        selectionLimit: 1,
-        videoMaxDuration: MAX_RECORDING_SECONDS,
-      })
-      if (result.assets?.[0]) {
-        navigateToPreview(result.assets[0].uri, 0)
+      // Upload uses an intent-based picker (Samsung Gallery on Samsung devices).
+      // It does not require READ_MEDIA_* — the returned content URI carries a read grant.
+      const result = await launchUploadGalleryPicker()
+      if (!result.canceled) {
+        navigateToPreview(result.uri, 0, result.type === 'image' ? 'photo' : 'video')
+      } else {
+        reloadGalleryThumb()
       }
     } catch {
       Alert.alert('Error', 'Failed to open gallery.')
@@ -194,15 +207,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     .onBegin(() => {
       'worklet'
       zoomOffset.value = zoom.value
-      zoomIndicatorOpacity.value = withTiming(1, { duration: 200 })
     })
     .onUpdate((event) => {
       'worklet'
       zoom.value = clampZoom(zoomOffset.value * event.scale)
-    })
-    .onEnd(() => {
-      'worklet'
-      zoomIndicatorOpacity.value = withDelay(2000, withTiming(0, { duration: 200 }))
     })
 
   const doubleTapGesture = Gesture.Tap()
@@ -212,65 +220,22 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
       zoom.value = withSpring(1)
     })
 
-  const tapRecordGesture = Gesture.Tap()
-    .maxDuration(99999999)
-    .onBegin(() => {
-      'worklet'
-      isHoldingRecord.value = true
-      runOnJS(startRecording)()
-    })
-    .onFinalize(() => {
-      'worklet'
-      if (isPanning.value) return
-      isHoldingRecord.value = false
-      runOnJS(stopRecording)()
-    })
-
-  const panGesture = Gesture.Pan()
-    .onStart((event) => {
-      'worklet'
-      isPanning.value = true
-      recordButtonStartY.value = event.absoluteY
-      const yForFullZoom = recordButtonStartY.value * 0.7
-      const offsetYForFullZoom = recordButtonStartY.value - yForFullZoom
-      zoomOffsetY.value = interpolate(
-        zoom.value,
-        [minZoom, maxZoom],
-        [0, offsetYForFullZoom],
-        Extrapolate.CLAMP,
-      )
-    })
-    .onUpdate((event) => {
-      'worklet'
-      if (!isHoldingRecord.value) return
-      const startY = recordButtonStartY.value
-      const yForFullZoom = startY * 0.7
-      zoom.value = interpolate(
-        event.absoluteY - zoomOffsetY.value,
-        [yForFullZoom, startY],
-        [maxZoom, minZoom],
-        Extrapolate.CLAMP,
-      )
-    })
+  const tapVideoGesture = Gesture.Tap()
+    .numberOfTaps(1)
     .onEnd(() => {
       'worklet'
-      isPanning.value = false
-      if (isHoldingRecord.value) {
-        isHoldingRecord.value = false
-        runOnJS(stopRecording)()
-      }
+      runOnJS(toggleRecording)()
     })
 
-  const recordButtonGesture = Gesture.Simultaneous(tapRecordGesture, panGesture)
+  const tapPhotoGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .onEnd(() => {
+      'worklet'
+      runOnJS(takePhoto)()
+    })
+
+  const recordButtonGesture = captureMode === 'photo' ? tapPhotoGesture : tapVideoGesture
   const cameraGestures = Gesture.Race(doubleTapGesture, pinchGesture)
-
-  const zoomIndicatorStyle = useAnimatedStyle(() => ({
-    opacity: zoomIndicatorOpacity.value,
-  }))
-
-  const zoomBarFillStyle = useAnimatedStyle(() => ({
-    width: `${Math.round(((zoom.value - minZoom) / (maxZoom - minZoom)) * 100)}%`,
-  }))
 
   if (hasPermissions === false) {
     return (
@@ -279,9 +244,8 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
           <Ionicons name="camera-outline" size={80} color="rgba(255,255,255,0.6)" />
           <Text style={styles.permissionTitle}>Camera & Microphone Access</Text>
           <Text style={styles.permissionDescription}>
-            Flip needs camera and microphone access to record video via CameraX (
-            {FLIP_ANDROID_CAPTURE.resolution.width}×{FLIP_ANDROID_CAPTURE.resolution.height} @{' '}
-            {FLIP_ANDROID_CAPTURE.targetFps}fps).
+            Flip needs camera and microphone access to record video. Gallery access alone is not
+            enough — enable Camera in Android settings if you only granted Photos.
           </Text>
           <TouchableOpacity
             style={styles.permissionButton}
@@ -317,10 +281,18 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
               torchEnabled={flash && cameraPosition === 'back'}
               isActive={isFocused && isCameraActive}
               recording={isRecording}
+              photoRequestId={photoRequestId}
               onCameraReady={() => setIsCameraReady(true)}
               onRecordingFinished={(e) => {
                 const path = e.nativeEvent.uri || e.nativeEvent.path
-                navigateToPreview(path, recordingDuration)
+                navigateToPreview(path, recordingDuration, 'video')
+              }}
+              onPhotoCaptured={(e) => {
+                const path = e.nativeEvent.uri || e.nativeEvent.path
+                navigateToPreview(path, 0, 'photo')
+              }}
+              onPhotoCaptureError={(e) => {
+                Alert.alert('Photo error', e.nativeEvent.message)
               }}
               onRecordingError={(e) => {
                 Alert.alert('Recording error', e.nativeEvent.message)
@@ -340,20 +312,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         </View>
       </GestureDetector>
 
-      <Reanimated.View style={[styles.zoomIndicator, zoomIndicatorStyle]}>
-        <Text style={styles.zoomText}>{zoomLevel < 1.5 ? '1x' : `${zoomLevel.toFixed(1)}x`}</Text>
-        <View style={styles.zoomBarContainer}>
-          <Reanimated.View style={[styles.zoomBarFill, zoomBarFillStyle]} />
-        </View>
-      </Reanimated.View>
-
       <View style={styles.topBar}>
         <PressableHaptics onPress={handleClose} style={styles.topButton}>
           <Ionicons name="close" size={28} color="#fff" />
         </PressableHaptics>
-        <View style={styles.engineBadge}>
-          <Text style={styles.engineBadgeText}>CameraX · 1080p60 · OIS</Text>
-        </View>
         <View style={styles.topButton} />
       </View>
 
@@ -371,6 +333,33 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         >
           <Ionicons name={flash ? 'flash' : 'flash-off'} size={24} color="#fff" />
         </TouchableOpacity>
+        <View style={styles.zoomControls}>
+          <TouchableOpacity onPress={() => adjustZoom(-0.5)} style={styles.zoomButton}>
+            <Ionicons name="remove" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => adjustZoom(0.5)} style={styles.zoomButton}>
+            <Ionicons name="add" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.modeBar}>
+        <TouchableOpacity
+          onPress={() => setCaptureMode('video')}
+          style={[styles.modeChip, captureMode === 'video' && styles.modeChipActive]}
+        >
+          <Text style={[styles.modeChipText, captureMode === 'video' && styles.modeChipTextActive]}>
+            Video
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setCaptureMode('photo')}
+          style={[styles.modeChip, captureMode === 'photo' && styles.modeChipActive]}
+        >
+          <Text style={[styles.modeChipText, captureMode === 'photo' && styles.modeChipTextActive]}>
+            Photo
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.bottomContainer}>
@@ -384,7 +373,17 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         <View style={styles.bottomControls}>
           <TouchableOpacity onPress={handleUpload} style={styles.uploadButton}>
             <View style={styles.uploadIconWrapper}>
-              <View style={styles.uploadIconInner} />
+              {galleryThumbUri ? (
+                <Image
+                  source={{ uri: galleryThumbUri }}
+                  style={styles.uploadIconInner}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.uploadIconPlaceholder}>
+                  <Ionicons name="images-outline" size={20} color="rgba(255,255,255,0.7)" />
+                </View>
+              )}
             </View>
             <Text style={styles.bottomButtonText}>Upload</Text>
           </TouchableOpacity>
@@ -402,7 +401,11 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
                 />
               </View>
               <Text style={styles.recordHint}>
-                {isRecording ? 'Slide up to zoom' : 'Hold to record'}
+                {captureMode === 'photo'
+                  ? 'Tap to capture'
+                  : isRecording
+                    ? 'Tap to stop'
+                    : 'Tap to record'}
               </Text>
             </Reanimated.View>
           </GestureDetector>
@@ -450,13 +453,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  engineBadge: {
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  engineBadgeText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600' },
   rightControls: { position: 'absolute', right: 12, top: '35%', zIndex: 10, gap: 20 },
   controlButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   bottomContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: 40 },
@@ -484,8 +480,17 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  uploadIconInner: { width: 38, height: 38, borderRadius: 6, backgroundColor: '#fff' },
+  uploadIconInner: { width: 46, height: 46, borderRadius: 8 },
+  uploadIconPlaceholder: {
+    width: 46,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   bottomButtonText: { color: '#fff', fontSize: 12, fontWeight: '800', marginTop: 4 },
   effectsButton: { width: 70 },
   recordButtonContainer: { alignItems: 'center', gap: 8 },
@@ -507,25 +512,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#0085ff',
   },
   recordHint: { color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' },
-  zoomIndicator: {
+  zoomControls: { gap: 8, marginTop: 8 },
+  zoomButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modeBar: {
     position: 'absolute',
-    top: '45%',
+    bottom: 150,
     alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    zIndex: 5,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 10,
   },
-  zoomText: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  zoomBarContainer: {
-    width: 100,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 2,
-    marginTop: 8,
-    overflow: 'hidden',
+  modeChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  zoomBarFill: { height: '100%', backgroundColor: '#fff' },
+  modeChipActive: { backgroundColor: 'rgba(255,255,255,0.9)' },
+  modeChipText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' },
+  modeChipTextActive: { color: '#000' },
   gradientOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '100%' },
 })

@@ -30,10 +30,21 @@ flip-app/
 ```bash
 cd flip-app
 npm install
-npx expo start
+npm.cmd start
 ```
 
 Sign in with your Bluesky handle and an app password (not your account password).
+
+### Android development (Flip dev build)
+
+Flip uses a **development build** (`social.flip.app`) — **not Expo Go**. Camera and native modules require the Flip app icon on your home screen.
+
+1. First-time setup: `npm run android:dev:setup` (builds and installs Flip on your phone).
+2. Daily dev: `npm.cmd start` on PC, `adb reverse tcp:8081 tcp:8081`, open **Flip** on the phone.
+
+Full guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**.
+
+Metro should say **"Using development build"** (not Expo Go). Deep links use `flip://expo-development-client/?url=...`.
 
 ## Optional: custom For You feed
 
@@ -53,19 +64,23 @@ The Create tab on **Android** uses **`flip-camerawesome`**, a local Expo module 
 
 | Setting | Value |
 |---------|--------|
-| Resolution | 1080p (FHD, 1920×1080) |
+| Resolution | 1080p (FHD, 1920×1080) — **no 4K path** |
 | Target FPS | 60 (hardware fallback if unsupported) |
+| Codec | H.264 (AVC); HEVC not configured |
 | Stabilization | Video stabilization + OIS via Camera2 interop |
 | Exposure | Auto-exposure tuned for flagship sensors (Samsung Ultra class) |
 | Bitrate | 12 Mbps |
+| Upload | Re-compressed via `react-native-compressor` before Loops upload |
 
-**Requires a dev client rebuild** (not Expo Go):
+Full quality audit, S26 Ultra gaps, and future targets: **[docs/CAMERA.md](docs/CAMERA.md)**.
+
+**Requires a dev build** — the Flip app (`social.flip.app`), not Expo Go. Full Windows + Samsung guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**.
 
 ```bash
 cd flip-app
 npm install
-npx expo prebuild --platform android
-npx expo run:android
+npm run android:dev:setup   # first time only
+npm.cmd start               # daily; adb reverse tcp:8081 tcp:8081; open Flip app
 ```
 
 iOS continues to use `react-native-vision-camera` via `create.ios.tsx`.

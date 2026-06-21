@@ -1,6 +1,7 @@
 import { XStack } from '@/components/ui/Stack';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useEventListener } from 'expo';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,16 +20,14 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-export default function PreviewScreen() {
+function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duration?: string }) {
     const router = useRouter();
-    const params = useLocalSearchParams();
-    const { videoPath, duration, isUpload } = params;
+    const isFocused = useIsFocused();
     const [selectedSound, setSelectedSound] = useState('');
     const [isPlaying, setIsPlaying] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const isFocused = useIsFocused();
 
-    const player = useVideoPlayer(videoPath as string, (player) => {
+    const player = useVideoPlayer(mediaUri, (player) => {
         player.loop = true;
         player.play();
     });
@@ -38,24 +37,13 @@ export default function PreviewScreen() {
         console.log('Player error changed: ', error);
     });
 
-    const handleBack = () => {
-        router.back();
-    };
-
-    const handleRemoveSound = () => {
-        setSelectedSound('');
-        Alert.alert('Sound Removed', 'Audio track has been removed');
-    };
-
-    const handleSettings = () => {
-        Alert.alert('Settings', 'Sound settings coming soon');
-    };
+    const handleBack = () => router.back();
 
     const handleNext = () => {
         player.pause();
         router.push({
             pathname: '/private/camera/caption',
-            params: { videoPath: videoPath, duration: duration },
+            params: { videoPath: mediaUri, duration },
         });
     };
 
@@ -80,10 +68,7 @@ export default function PreviewScreen() {
             }
 
             setIsSaving(true);
-            const uri = (videoPath as string).startsWith('file://')
-                ? (videoPath as string)
-                : `file://${videoPath}`;
-
+            const uri = mediaUri.startsWith('file://') ? mediaUri : `file://${mediaUri}`;
             await Asset.create(uri);
             Alert.alert('Saved!', 'Video saved to your camera roll.');
         } catch (e) {
@@ -118,56 +103,133 @@ export default function PreviewScreen() {
                 <TouchableOpacity onPress={handleBack} style={styles.topButton}>
                     <Ionicons name="chevron-back" size={28} color="#fff" />
                 </TouchableOpacity>
-
-                {selectedSound && (
+                {selectedSound ? (
                     <View style={styles.soundChip}>
                         <Ionicons name="musical-notes" size={16} color="#fff" />
                         <Text style={styles.soundText} numberOfLines={1}>
                             {selectedSound}
                         </Text>
                         <TouchableOpacity
-                            onPress={handleRemoveSound}
+                            onPress={() => setSelectedSound('')}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                             <Ionicons name="close" size={18} color="#fff" />
                         </TouchableOpacity>
                     </View>
+                ) : (
+                    <View />
                 )}
-
-                <TouchableOpacity onPress={handleSettings} style={styles.topButton}>
+                <TouchableOpacity
+                    onPress={() => Alert.alert('Settings', 'Sound settings coming soon')}
+                    style={styles.topButton}>
                     <Ionicons name="settings-outline" size={24} color="#fff" />
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.rightControls} />
-
             <View style={styles.bottomContainer}>
                 <XStack gap={'$3'}>
-                    <TouchableOpacity
-                        accessible={true}
-                        accessibilityLabel="Play and pause button"
-                        onPress={togglePlayPause}
-                        style={styles.controlButton}>
+                    <TouchableOpacity onPress={togglePlayPause} style={styles.controlButton}>
                         <Feather name={isPlaying ? 'pause' : 'play'} size={24} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity
-                        accessible={true}
-                        accessibilityLabel="Download video button"
                         onPress={handleDownload}
                         style={styles.controlButton}
                         disabled={isSaving}>
                         <Feather name={isSaving ? 'loader' : 'download'} size={28} color="#fff" />
                     </TouchableOpacity>
                 </XStack>
-
-                <TouchableOpacity
-                    onPress={handleNext}
-                    style={styles.nextButton}
-                    activeOpacity={0.7}>
+                <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.7}>
                     <Text style={styles.nextButtonText}>Next</Text>
                 </TouchableOpacity>
             </View>
         </View>
     );
+}
+
+function PhotoPreviewContent({ mediaUri }: { mediaUri: string }) {
+    const router = useRouter();
+    const isFocused = useIsFocused();
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleBack = () => router.back();
+
+    const handleNext = () => {
+        router.push({
+            pathname: '/private/camera/caption',
+            params: { imagePath: mediaUri, mediaType: 'photo' },
+        });
+    };
+
+    const handleDownload = async () => {
+        try {
+            const { status } = await requestPermissionsAsync(true);
+            if (status !== 'granted') {
+                Alert.alert(
+                    'Permission Required',
+                    'Please allow access to your camera roll to save photos.',
+                );
+                return;
+            }
+
+            setIsSaving(true);
+            const uri = mediaUri.startsWith('file://') ? mediaUri : `file://${mediaUri}`;
+            await Asset.create(uri);
+            Alert.alert('Saved!', 'Photo saved to your camera roll.');
+        } catch (e) {
+            console.log(e);
+            Alert.alert('Error', 'Failed to save photo.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <View style={styles.container}>
+            <Stack.Screen options={{ headerShown: false }} />
+
+            {isFocused && (
+                <Image source={{ uri: mediaUri }} style={styles.video} contentFit="cover" />
+            )}
+
+            <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
+                style={styles.gradientOverlay}
+                pointerEvents="none"
+            />
+
+            <View style={styles.topBar}>
+                <TouchableOpacity onPress={handleBack} style={styles.topButton}>
+                    <Ionicons name="chevron-back" size={28} color="#fff" />
+                </TouchableOpacity>
+                <View />
+                <View style={styles.topButton} />
+            </View>
+
+            <View style={styles.bottomContainer}>
+                <TouchableOpacity
+                    onPress={handleDownload}
+                    style={styles.controlButton}
+                    disabled={isSaving}>
+                    <Feather name={isSaving ? 'loader' : 'download'} size={28} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.7}>
+                    <Text style={styles.nextButtonText}>Next</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+}
+
+export default function PreviewScreen() {
+    const params = useLocalSearchParams();
+    const { videoPath, duration, imagePath, mediaType } = params;
+    const isPhoto = mediaType === 'photo' || (!!imagePath && !videoPath);
+    const mediaUri = isPhoto ? (imagePath as string) : (videoPath as string);
+
+    if (isPhoto) {
+        return <PhotoPreviewContent mediaUri={mediaUri} />;
+    }
+
+    return <VideoPreviewContent mediaUri={mediaUri} duration={duration as string | undefined} />;
 }
 
 const styles = StyleSheet.create({
@@ -209,13 +271,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '500',
         flex: 1,
-    },
-    rightControls: {
-        position: 'absolute',
-        right: 12,
-        top: '15%',
-        zIndex: 10,
-        gap: 20,
     },
     controlButton: {
         width: 44,

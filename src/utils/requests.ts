@@ -1,3 +1,20 @@
+import { isAuthenticated } from '@/atproto/auth';
+import {
+    fetchAccountFavorites as atprotoFetchAccountFavorites,
+    fetchAccountLikes as atprotoFetchAccountLikes,
+    fetchActivityNotifications as atprotoFetchActivityNotifications,
+    fetchFollowerNotifications as atprotoFetchFollowerNotifications,
+    fetchNotifications as atprotoFetchNotifications,
+    followAccount as atprotoFollowAccount,
+    getExploreAccounts as atprotoGetExploreAccounts,
+    getExploreTags as atprotoGetExploreTags,
+    getExploreTagsFeed as atprotoGetExploreTagsFeed,
+    notificationMarkAsRead as atprotoNotificationMarkAsRead,
+    notificationTypeMarkAllAsRead as atprotoNotificationTypeMarkAllAsRead,
+    postExploreAccountHideSuggestion as atprotoPostExploreAccountHideSuggestion,
+    searchContent as atprotoSearchContent,
+    unfollowAccount as atprotoUnfollowAccount,
+} from '@/atproto';
 import { triggerAuthFailure } from '@/utils/authEvents';
 import { Storage } from '@/utils/cache';
 import { File, UploadType } from 'expo-file-system';
@@ -9,6 +26,22 @@ import { Alert } from 'react-native';
 // ============================================================================
 
 let _authFailureTriggered = false;
+
+export function usesLoopsBackend(): boolean {
+    return !!Storage.getString('app.instance') && !!Storage.getString('app.token');
+}
+
+export function usesAtprotoBackend(): boolean {
+    return isAuthenticated() && !usesLoopsBackend();
+}
+
+function getLoopsInstance(): string {
+    const instance = Storage.getString('app.instance');
+    if (!instance) {
+        throw new Error('Server not configured. Sign in with your Bluesky account and try again.');
+    }
+    return instance;
+}
 
 type UploadFilePart = { uri: string; name?: string; type?: string };
 
@@ -852,10 +885,16 @@ export async function unblockAccount(id): Promise<any> {
 }
 
 export async function followAccount(id): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFollowAccount(id);
+    }
     return await _selfPost(`api/v1/account/follow/${id}`);
 }
 
 export async function unfollowAccount(id): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoUnfollowAccount(id);
+    }
     return await _selfPost(`api/v1/account/unfollow/${id}`);
 }
 
@@ -972,14 +1011,21 @@ export async function composeAutocompleteMentions(q): Promise<any> {
 }
 
 export async function uploadVideo(params: any, extras?: UploadExtras): Promise<Response> {
-    const instance = Storage.getString('app.instance');
+    const instance = getLoopsInstance();
+    const token = Storage.getString('app.token');
+    const url = `https://${instance}/api/v1/studio/upload`;
+    return uploadFileMultipart(url, params, token, extras);
+}
+
+export async function uploadImage(params: any, extras?: UploadExtras): Promise<Response> {
+    const instance = getLoopsInstance();
     const token = Storage.getString('app.token');
     const url = `https://${instance}/api/v1/studio/upload`;
     return uploadFileMultipart(url, params, token, extras);
 }
 
 export async function uploadDuet(params: any, extras?: UploadExtras): Promise<Response> {
-    const instance = Storage.getString('app.instance');
+    const instance = getLoopsInstance();
     const token = Storage.getString('app.token');
     const url = `https://${instance}/api/v1/studio/duet/upload`;
     return uploadFileMultipart(url, params, token, extras);
@@ -1136,6 +1182,9 @@ export async function recordImpression(
 }
 
 export async function fetchAccountFavorites({ pageParam }) {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchAccountFavorites({ pageParam });
+    }
     const url = pageParam
         ? `api/v1/account/favourites?cursor=${pageParam}`
         : `api/v1/account/favourites`;
@@ -1143,6 +1192,9 @@ export async function fetchAccountFavorites({ pageParam }) {
 }
 
 export async function fetchAccountLikes({ pageParam }) {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchAccountLikes({ pageParam });
+    }
     const url = pageParam
         ? `api/v1/account/videos/likes?cursor=${pageParam}`
         : `api/v1/account/videos/likes`;
@@ -1158,6 +1210,9 @@ export async function fetchNotifications({
 }: {
     pageParam?: string | undefined;
 } = {}): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchNotifications({ pageParam });
+    }
     const url = pageParam
         ? `api/v1/account/notifications?cursor=${pageParam}`
         : `api/v1/account/notifications`;
@@ -1171,6 +1226,9 @@ export async function fetchActivityNotifications({
     pageParam?: string | undefined;
     type?: string;
 } = {}): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchActivityNotifications({ pageParam, type });
+    }
     const params = new URLSearchParams({ type });
     if (pageParam) params.append('cursor', pageParam);
     return await _selfGet(`api/v1/account/notifications?${params.toString()}`);
@@ -1181,6 +1239,9 @@ export async function fetchFollowerNotifications({
 }: {
     pageParam?: string | undefined;
 } = {}): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchFollowerNotifications({ pageParam });
+    }
     const url = pageParam
         ? `api/v1/account/notifications?type=followers&cursor=${pageParam}`
         : `api/v1/account/notifications?type=followers`;
@@ -1215,6 +1276,9 @@ export async function fetchSystemNotificationItem(id): Promise<any> {
 }
 
 export async function notificationMarkAsRead(id) {
+    if (usesAtprotoBackend()) {
+        return atprotoNotificationMarkAsRead(id);
+    }
     return await _selfPost(`api/v1/account/notifications/${id}/read`);
 }
 
@@ -1223,6 +1287,9 @@ export async function notificationBadgeCount() {
 }
 
 export async function notificationTypeMarkAllAsRead(type): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoNotificationTypeMarkAllAsRead(type);
+    }
     const params = {
         type: type,
     };
@@ -1300,6 +1367,9 @@ interface Tag {
 }
 
 export async function getExploreTags(): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoGetExploreTags();
+    }
     const res = await _selfGet('api/v1/explore/tags');
     return res.data as Tag[];
 }
@@ -1314,6 +1384,9 @@ interface Account {
 }
 
 export async function getExploreAccounts(): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoGetExploreAccounts();
+    }
     const res = await _selfGet('api/v1/accounts/suggested');
     return res.data as Account[];
 }
@@ -1325,6 +1398,9 @@ export async function getExploreTagsFeed({
     queryKey?: any[];
     pageParam?: string | false;
 } = {}): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoGetExploreTagsFeed({ queryKey, pageParam });
+    }
     const tag = queryKey?.[2];
     if (!tag) {
         return { data: [], meta: { next_cursor: null } };
@@ -1338,6 +1414,9 @@ export async function getExploreTagsFeed({
 }
 
 export async function postExploreAccountHideSuggestion(id) {
+    if (usesAtprotoBackend()) {
+        return atprotoPostExploreAccountHideSuggestion(id);
+    }
     const params = { profile_id: id };
     return await _selfPost('api/v1/accounts/suggested/hide', params);
 }
@@ -1363,6 +1442,9 @@ export async function getInstanceCommunityGuidelines(): Promise<any> {
 // ============================================================================
 
 export const searchContent = async (params): Promise<any> => {
+    if (usesAtprotoBackend()) {
+        return atprotoSearchContent(params);
+    }
     try {
         const typeMap = {
             Top: 'all',

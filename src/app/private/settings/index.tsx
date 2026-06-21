@@ -15,7 +15,7 @@ export default function SettingsScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const notificationStore = useNotificationStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const performLogOut = async () => {
         queryClient.clear();
@@ -45,7 +45,7 @@ export default function SettingsScreen() {
     const handleShare = async () => {
         try {
             await shareContent({
-                message: `Check out my account on Loops!`,
+                message: `Check out my account on Flip!`,
                 url: user?.url,
             });
         } catch (error) {
@@ -59,7 +59,7 @@ export default function SettingsScreen() {
                 options={{
                     title: 'Settings and privacy',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerBackVisible: false,
                     headerShown: true,
                     headerLeft: () => (
@@ -75,7 +75,7 @@ export default function SettingsScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={colorScheme === 'dark' ? '#fff' : '#000'}
+                                color={isDark ? '#fff' : '#000'}
                             />
                         </TouchableOpacity>
                     ),
@@ -110,7 +110,7 @@ export default function SettingsScreen() {
                 <Divider />
                 <SectionHeader title="Content & Display" />
                 <SettingsItem
-                    icon={colorScheme == 'dark' ? 'sunny-outline' : 'moon-outline'}
+                    icon={isDark ? 'sunny-outline' : 'moon-outline'}
                     label="Appearance"
                     onPress={() => router.push('/private/settings/content/appearance')}
                 />
@@ -165,7 +165,7 @@ export default function SettingsScreen() {
                     onPress={() => handleSignOut()}
                 />
                 <View style={tw`flex justify-center items-center mt-5 mb-20`}>
-                    <Text style={tw`text-gray-500`}>Loops v1.0.2.4</Text>
+                    <Text style={tw`text-gray-500`}>Flip v1.0.2.4</Text>
                 </View>
             </ScrollView>
         </View>

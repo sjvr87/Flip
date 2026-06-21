@@ -1,4 +1,4 @@
-import { notificationBadgeCount } from '@/utils/requests';
+import { fetchUnreadNotificationCount } from '@/atproto/notifications';
 import { create } from 'zustand';
 
 interface NotificationState {
@@ -31,12 +31,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
         set({ isLoading: true });
         try {
-            const count = await notificationBadgeCount();
+            const unreadCount = await fetchUnreadNotificationCount();
             if (!isLoggedIn()) return;
-            set({ badgeCount: count.data.unread_count, lastFetched: now, isLoading: false });
-        } catch (error) {
-            if (error?.message === 'auth_revoked') return;
-            console.error('Failed to fetch badge count:', error);
+            set({ badgeCount: unreadCount, lastFetched: now, isLoading: false });
+        } catch {
             set({ isLoading: false });
         }
     },
@@ -47,12 +45,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const now = Date.now();
         set({ isLoading: true });
         try {
-            const count = await notificationBadgeCount();
+            const unreadCount = await fetchUnreadNotificationCount();
             if (!isLoggedIn()) return;
-            set({ badgeCount: count.data.unread_count, lastFetched: now, isLoading: false });
-        } catch (error) {
-            if (error?.message === 'auth_revoked') return;
-            console.error('Failed to fetch badge count:', error);
+            set({ badgeCount: unreadCount, lastFetched: now, isLoading: false });
+        } catch {
             set({ isLoading: false });
         }
     },

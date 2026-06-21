@@ -3,12 +3,30 @@ import OtherModal from '@/components/feed/OtherModal';
 import ShareModal from '@/components/feed/ShareModal';
 import VideoPlayer from '@/components/feed/VideoPlayer';
 import {
+    commentDelete,
+    commentLike,
+    commentPost,
+    commentReplyDelete,
+    commentReplyLike,
+    commentReplyUnlike,
+    commentUnlike,
+    fetchUserVideoCursor as atprotoFetchUserVideoCursor,
+    fetchVideoComments,
+    fetchVideoReplies,
+    videoBookmark as atprotoVideoBookmark,
+    videoLike as atprotoVideoLike,
+    videoUnbookmark as atprotoVideoUnbookmark,
+    videoUnlike as atprotoVideoUnlike,
+} from '@/atproto';
+import {
     fetchUserVideoCursor,
+    usesAtprotoBackend,
     videoBookmark,
     videoLike,
     videoUnbookmark,
     videoUnlike,
 } from '@/utils/requests';
+import { decodeRouteParam } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,8 +37,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileFeed({ navigation }) {
     const params = useLocalSearchParams();
-    const profileId = params.profileId;
-    const id = params.id;
+    const profileId = decodeRouteParam(params.profileId);
+    const id = decodeRouteParam(params.id);
+    const atproto = usesAtprotoBackend();
 
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('forYou');
@@ -56,7 +75,7 @@ export default function ProfileFeed({ navigation }) {
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
         queryKey: ['profileVideoFeed', profileId, id],
         queryFn: ({ pageParam }) =>
-            fetchUserVideoCursor({
+            (atproto ? atprotoFetchUserVideoCursor : fetchUserVideoCursor)({
                 queryKey: ['profileVideoFeed', profileId, id],
                 pageParam,
             }),
@@ -68,12 +87,14 @@ export default function ProfileFeed({ navigation }) {
     const videoLikeMutation = useMutation({
         mutationFn: async (data) => {
             const dir = data.type;
+            const like = atproto ? atprotoVideoLike : videoLike;
+            const unlike = atproto ? atprotoVideoUnlike : videoUnlike;
 
             if (dir == 'like') {
-                return await videoLike(data.id);
+                return await like(data.id);
             }
             if (dir == 'unlike') {
-                return await videoUnlike(data.id);
+                return await unlike(data.id);
             }
         },
         onSuccess: (res) => {},
@@ -83,12 +104,14 @@ export default function ProfileFeed({ navigation }) {
     const videoBookmarkMutation = useMutation({
         mutationFn: async (data) => {
             const dir = data.type;
+            const bookmark = atproto ? atprotoVideoBookmark : videoBookmark;
+            const unbookmark = atproto ? atprotoVideoUnbookmark : videoUnbookmark;
 
             if (dir == 'bookmark') {
-                return await videoBookmark(data.id);
+                return await bookmark(data.id);
             }
             if (dir == 'unbookmark') {
-                return await videoUnbookmark(data.id);
+                return await unbookmark(data.id);
             }
         },
         onSuccess: (res) => {},

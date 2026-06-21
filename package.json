@@ -3,9 +3,16 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "postinstall": "node ./scripts/patch-foojay-gradle.js && node ./scripts/patch-android-node.js",
+    "start": "expo start --dev-client",
+    "start:clear": "expo start --dev-client --clear",
+    "start:lan": "expo start --dev-client --lan",
+    "start:tunnel": "expo start --dev-client --tunnel",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
+    "android:prebuild": "expo prebuild --platform android && node ./scripts/patch-android-node.js",
+    "android:dev": "expo run:android",
+    "android:dev:setup": "expo prebuild --platform android && expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
@@ -13,6 +20,7 @@
   "dependencies": {
     "@atproto/api": "^0.20.16",
     "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@shopify/react-native-skia": "2.6.2",
     "@tanstack/query-sync-storage-persister": "^5.100.8",
     "@tanstack/react-query": "^5.90.3",
@@ -21,6 +29,7 @@
     "expo-apple-authentication": "~56.0.4",
     "expo-clipboard": "~56.0.3",
     "expo-constants": "~56.0.16",
+    "expo-dev-client": "~56.0.16",
     "expo-device": "~56.0.4",
     "expo-font": "~56.0.5",
     "expo-haptics": "~56.0.3",

@@ -1,4 +1,5 @@
 import CommentsModal from '@/components/feed/CommentsModal';
+import FeedEmptyState from '@/components/feed/FeedEmptyState';
 import OtherModal from '@/components/feed/OtherModal';
 import ShareModal from '@/components/feed/ShareModal';
 import VideoPlayer from '@/components/feed/VideoPlayer';
@@ -15,12 +16,13 @@ import {
     videoUnlike,
 } from '@/atproto';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router/react-navigation';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    AppState,
     Dimensions,
     FlatList,
     RefreshControl,
@@ -33,6 +35,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_HEIGHT = 60;
+const LOAD_MORE_THRESHOLD = 2;
+const FEED_STALE_MS = 25_000;
+const FEED_SOFT_REFRESH_MS = FEED_STALE_MS / 2;
+const FEED_GC_MS = 3 * 60_000;
 
 const fetchVideos = async ({ pageParam = null, tab }) => {
     if (tab === 'local') {
@@ -49,6 +55,9 @@ export default function LoopsFeed({ navigation }) {
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
     const [activeTab, setActiveTab] = useState(defaultFeed);
+    const activeTabRef = useRef(activeTab);
+    activeTabRef.current = activeTab;
+    const skipFeedTabRefreshRef = useRef(true);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
@@ -58,21 +67,13 @@ export default function LoopsFeed({ navigation }) {
     const [screenFocused, setScreenFocused] = useState(true);
     const flatListRef = useRef(null);
     const router = useRouter();
+    const queryClient = useQueryClient();
     const currentVideoRef = useRef(null);
     const watchStartTimeRef = useRef(null);
 
     const viewabilityConfig = useRef({
         itemVisiblePercentThreshold: 50,
     });
-
-    useFocusEffect(
-        useCallback(() => {
-            setScreenFocused(true);
-            return () => {
-                setScreenFocused(false);
-            };
-        }, []),
-    );
 
     const { data: appConfig, isLoading: isConfigLoading } = useQuery({
         queryKey: ['appConfig'],
@@ -107,13 +108,31 @@ export default function LoopsFeed({ navigation }) {
         [activeTab],
     );
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch, isFetching } =
-        useInfiniteQuery({
-            queryKey: ['videos', activeTab],
-            queryFn: ({ pageParam }) => fetchVideos({ pageParam, tab: activeTab }),
-            getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
-            initialPageParam: null,
-        });
+    const {
+        data,
+        error: queryError,
+        fetchNextPage,
+        hasNextPage,
+        isError,
+        isFetchingNextPage,
+        isLoading,
+        isFetching,
+        isRefetching,
+        refetch,
+    } = useInfiniteQuery({
+        queryKey: ['videos', activeTab],
+        queryFn: ({ pageParam }) => fetchVideos({ pageParam, tab: activeTab }),
+        getNextPageParam: (lastPage) => {
+            const cursor = lastPage.meta?.next_cursor;
+            return cursor && cursor.length > 0 ? cursor : undefined;
+        },
+        initialPageParam: null,
+        staleTime: FEED_STALE_MS,
+        gcTime: FEED_GC_MS,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
+        maxPages: 10,
+    });
 
     const videoLikeMutation = useMutation({
         mutationFn: async (data) => {
@@ -146,32 +165,138 @@ export default function LoopsFeed({ navigation }) {
     });
 
     const videos = data?.pages?.flatMap((page) => page.data) || [];
+    const feedError = isError
+        ? queryError instanceof Error
+            ? queryError.message
+            : 'Could not load the feed. Pull down to try again.'
+        : (data?.pages?.[0]?.meta?.error ?? null);
+    const videosRef = useRef(videos);
+    videosRef.current = videos;
 
-    const videosWithEnd = React.useMemo(() => {
-        if (activeTab === 'forYou' && !hasNextPage && videos.length == 0) {
-            return [...videos, { id: 'end-of-feed', isEndMarker: true }];
+    const hasNextPageRef = useRef(hasNextPage);
+    hasNextPageRef.current = hasNextPage;
+    const isFetchingNextPageRef = useRef(isFetchingNextPage);
+    isFetchingNextPageRef.current = isFetchingNextPage;
+    const fetchNextPageRef = useRef(fetchNextPage);
+    fetchNextPageRef.current = fetchNextPage;
+
+    const maybeLoadMoreVideos = useCallback((visibleIndex: number) => {
+        const total = videosRef.current.length;
+        if (total === 0 || visibleIndex < total - LOAD_MORE_THRESHOLD) {
+            return;
         }
-        return videos;
-    }, [videos, activeTab, hasNextPage]);
+        if (hasNextPageRef.current && !isFetchingNextPageRef.current) {
+            fetchNextPageRef.current();
+        }
+    }, []);
 
-    const onViewableItemsChanged = useCallback(
-        ({ viewableItems }) => {
-            if (viewableItems.length > 0) {
-                const newIndex = viewableItems[0].index || 0;
-                const newVideo = videos[newIndex];
+    const recordVideoImpressionRef = useRef(recordVideoImpression);
+    recordVideoImpressionRef.current = recordVideoImpression;
 
+    const trimFeedToFirstPage = useCallback(
+        (tab: string) => {
+            queryClient.setQueryData(['videos', tab], (old) => {
+                if (!old?.pages?.length) {
+                    return old;
+                }
+                return {
+                    pages: old.pages.slice(0, 1),
+                    pageParams: old.pageParams.slice(0, 1),
+                };
+            });
+        },
+        [queryClient],
+    );
+
+    const refreshFeed = useCallback(
+        (tab: string, mode: 'soft' | 'hard' = 'soft') => {
+            const queryKey = ['videos', tab] as const;
+            if (mode === 'hard') {
+                trimFeedToFirstPage(tab);
+                void queryClient.refetchQueries({ queryKey, type: 'active' });
+                return;
+            }
+            void queryClient.invalidateQueries({ queryKey });
+        },
+        [queryClient, trimFeedToFirstPage],
+    );
+
+    const onRefresh = useCallback(async () => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        setCurrentIndex(0);
+        trimFeedToFirstPage(activeTab);
+        await refetch();
+    }, [activeTab, refetch, trimFeedToFirstPage]);
+
+    useFocusEffect(
+        useCallback(() => {
+            setScreenFocused(true);
+
+            const state = queryClient.getQueryState(['videos', activeTab]);
+            const age = Date.now() - (state?.dataUpdatedAt ?? 0);
+            if (!state?.data || age >= FEED_STALE_MS) {
+                refreshFeed(activeTab, 'hard');
+            } else if (age >= FEED_SOFT_REFRESH_MS) {
+                refreshFeed(activeTab, 'soft');
+            }
+
+            return () => {
+                setScreenFocused(false);
                 if (currentVideoRef.current && watchStartTimeRef.current) {
                     const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
-                    recordVideoImpression(currentVideoRef.current, watchDuration);
+                    recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
                 }
-
-                setCurrentIndex(newIndex);
-                currentVideoRef.current = newVideo;
-                watchStartTimeRef.current = Date.now();
-            }
-        },
-        [videos, recordVideoImpression],
+            };
+        }, [activeTab, queryClient, refreshFeed]),
     );
+
+    useEffect(() => {
+        if (skipFeedTabRefreshRef.current) {
+            skipFeedTabRefreshRef.current = false;
+            return;
+        }
+        refreshFeed(activeTab, 'soft');
+    }, [activeTab, refreshFeed]);
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            if (nextState !== 'active') {
+                return;
+            }
+            const tab = activeTabRef.current;
+            const state = queryClient.getQueryState(['videos', tab]);
+            const age = Date.now() - (state?.dataUpdatedAt ?? 0);
+            if (age >= FEED_SOFT_REFRESH_MS) {
+                refreshFeed(tab, age >= FEED_STALE_MS ? 'hard' : 'soft');
+            }
+        });
+        return () => subscription.remove();
+    }, [queryClient, refreshFeed]);
+
+    const videosWithEnd = React.useMemo(() => {
+        if (!isLoading && !isFetching && videos.length === 0) {
+            return [{ id: 'feed-empty', isEmptyMarker: true }];
+        }
+        return videos;
+    }, [videos, isLoading, isFetching]);
+
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
+        if (viewableItems.length > 0) {
+            const newIndex = viewableItems[0].index || 0;
+            const newVideo = videosRef.current[newIndex];
+
+            maybeLoadMoreVideos(newIndex);
+
+            if (currentVideoRef.current && watchStartTimeRef.current) {
+                const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
+                recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
+            }
+
+            setCurrentIndex(newIndex);
+            currentVideoRef.current = newVideo;
+            watchStartTimeRef.current = Date.now();
+        }
+    }).current;
 
     useEffect(() => {
         return () => {
@@ -181,20 +306,6 @@ export default function LoopsFeed({ navigation }) {
             }
         };
     }, [activeTab, recordVideoImpression]);
-
-    useFocusEffect(
-        useCallback(() => {
-            setScreenFocused(true);
-
-            return () => {
-                setScreenFocused(false);
-                if (currentVideoRef.current && watchStartTimeRef.current) {
-                    const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
-                    recordVideoImpression(currentVideoRef.current, watchDuration);
-                }
-            };
-        }, [recordVideoImpression]),
-    );
 
     const handleLike = (videoId, liked) => {
         const dir = liked ? 'like' : 'unlike';
@@ -238,15 +349,13 @@ export default function LoopsFeed({ navigation }) {
 
     const renderItem = useCallback(
         ({ item, index }) => {
-            if (item.isEndMarker) {
+            if (item.isEmptyMarker) {
                 return (
-                    <View style={styles.endOfFeedContainer}>
-                        <Text style={styles.endOfFeedEmoji}>🌟</Text>
-                        <Text style={styles.endOfFeedTitle}>You're all caught up!</Text>
-                        <Text style={styles.endOfFeedSubtitle}>
-                            We're curating more Loops for you. Check back soon.
-                        </Text>
-                    </View>
+                    <FeedEmptyState
+                        tab={activeTab}
+                        onRefresh={onRefresh}
+                        error={feedError}
+                    />
                 );
             }
 
@@ -274,8 +383,11 @@ export default function LoopsFeed({ navigation }) {
             );
         },
         [
+            activeTab,
             currentIndex,
+            feedError,
             insets.bottom,
+            onRefresh,
             showComments,
             showShare,
             showOther,
@@ -285,18 +397,11 @@ export default function LoopsFeed({ navigation }) {
         ],
     );
 
-    const refreshing = isFetching && !isFetchingNextPage;
+    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !isLoading;
 
-    const onRefresh = useCallback(async () => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-        await refetch();
-    }, [refetch]);
-
-    const handleEndReached = () => {
-        if (hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-        }
-    };
+    const handleEndReached = useCallback(() => {
+        maybeLoadMoreVideos(videosRef.current.length - 1);
+    }, [maybeLoadMoreVideos]);
 
     const getItemLayout = useCallback(
         (data, index) => ({

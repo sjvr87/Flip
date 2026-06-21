@@ -31,7 +31,7 @@ export async function loginWithPassword(
     throw new Error('Login failed')
   }
 
-  persistSession(agent.session)
+  await persistSession(agent.session)
 
   const profile = await agent.getProfile({ actor: agent.session.did })
   const user = profileToFlipUser(profile.data, true)
@@ -50,9 +50,9 @@ export async function hydrateSession(): Promise<boolean> {
     const user = profileToFlipUser(profile.data, true)
     Storage.set(PROFILE_KEY, JSON.stringify(user))
     return true
-  } catch {
-    clearSession()
-    return false
+  } catch (error) {
+    console.warn('[auth] profile refresh during hydrate failed:', error)
+    return !!getAgent().session
   }
 }
 
@@ -62,7 +62,7 @@ export async function refreshSession(): Promise<boolean> {
     if (!agent.session) return false
     await agent.refreshSession()
     if (agent.session) {
-      persistSession(agent.session)
+      await persistSession(agent.session)
     }
     return true
   } catch {

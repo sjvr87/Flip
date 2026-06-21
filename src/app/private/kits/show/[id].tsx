@@ -193,7 +193,7 @@ export default function StarterKitShow() {
     const handleShare = useCallback(async () => {
         try {
             await Share.share({
-                message: `Check out "${kit.title}" on Loops — ${kit.url}`,
+                message: `Check out "${kit.title}" on Flip — ${kit.url}`,
                 url: kit.url,
                 title: kit.title,
             });

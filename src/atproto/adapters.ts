@@ -1,6 +1,7 @@
-import { AppBskyEmbedVideo, type AppBskyFeedDefs } from '@atproto/api'
+import { AppBskyEmbedVideo, RichText, type AppBskyFeedDefs } from '@atproto/api'
 import type { FlipAccount, FlipUserProfile, FlipVideo } from './types'
 import { getAgent } from './agent'
+import { extractMentionsFromRecord, extractTagsFromRecord } from './mentions'
 
 function getVideoEmbed(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View | null {
   const embed = post.embed
@@ -49,12 +50,15 @@ export function postToFlipVideo(
 
   const agent = getAgent()
   const isOwner = options?.forceOwner ?? post.author.did === agent.session?.did
+  const record = post.record as { text?: string; facets?: RichText['facets'] }
 
   return {
     id: post.uri,
     cid: post.cid,
     account: toAccount(post.author),
-    caption: (post.record as { text?: string }).text || '',
+    caption: record.text || '',
+    tags: extractTagsFromRecord(record),
+    mentions: extractMentionsFromRecord(record),
     url: `https://bsky.app/profile/${post.author.handle}/post/${post.uri.split('/').pop()}`,
     is_owner: isOwner,
     is_sensitive: false,
@@ -68,6 +72,7 @@ export function postToFlipVideo(
     likes: post.likeCount ?? 0,
     shares: post.repostCount ?? 0,
     comments: post.replyCount ?? 0,
+    bookmarks: 0,
     has_liked: !!post.viewer?.like,
     has_bookmarked: !!post.viewer?.bookmarked,
     created_at: (post.record as { createdAt?: string }).createdAt || new Date().toISOString(),
@@ -87,7 +92,7 @@ export function postsToFeedPage(
     meta: {
       path: 'atproto',
       per_page: data.length,
-      next_cursor: cursor ?? null,
+      next_cursor: cursor && cursor.length > 0 ? cursor : null,
     },
   }
 }

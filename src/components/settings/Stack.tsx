@@ -6,9 +6,9 @@ import tw from 'twrnc';
 import { XStack, YStack } from '../ui/Stack';
 
 export const SettingsItem = ({ icon, label, onPress, showChevron = true }) => {
-    const { colorScheme } = useTheme();
-    const iconColor = colorScheme === 'dark' ? '#fff' : '#6b7280';
-    const chevronColor = colorScheme === 'dark' ? '#9ca3af' : '#999';
+    const { isDark } = useTheme();
+    const iconColor = isDark ? '#fff' : '#6b7280';
+    const chevronColor = isDark ? '#9ca3af' : '#999';
 
     return (
         <PressableHaptics
@@ -39,8 +39,8 @@ export const SectionHeader = ({ title }) => (
 export const Divider = () => <View style={tw`h-px bg-gray-200 dark:bg-gray-800`} />;
 
 export const SettingsToggleItem = ({ icon, label, value, onValueChange }) => {
-    const { colorScheme } = useTheme();
-    const iconColor = colorScheme === 'dark' ? '#fff' : '#000';
+    const { isDark } = useTheme();
+    const iconColor = isDark ? '#fff' : '#000';
 
     return (
         <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
@@ -60,8 +60,8 @@ export const SettingsToggleItemDescription = ({
     value,
     onValueChange,
 }) => {
-    const { colorScheme } = useTheme();
-    const iconColor = colorScheme === 'dark' ? '#fff' : '#000';
+    const { isDark } = useTheme();
+    const iconColor = isDark ? '#fff' : '#000';
 
     return (
         <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
@@ -93,10 +93,10 @@ export const SettingsStatusItem = ({
     inactiveText = 'Setup',
     showChevronWhenInactive = true,
 }) => {
-    const { colorScheme } = useTheme();
-    const iconColor = colorScheme === 'dark' ? '#fff' : '#333';
-    const chevronColor = colorScheme === 'dark' ? '#9ca3af' : '#999';
-    const inactiveTextColor = colorScheme === 'dark' ? '#9ca3af' : '#4b5563';
+    const { isDark } = useTheme();
+    const iconColor = isDark ? '#fff' : '#333';
+    const chevronColor = isDark ? '#9ca3af' : '#999';
+    const inactiveTextColor = isDark ? '#9ca3af' : '#4b5563';
 
     const content = (
         <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>

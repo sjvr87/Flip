@@ -6,6 +6,16 @@ import { ReportModal } from '@/components/ReportModal';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
+    blockAccount as atprotoBlockAccount,
+    cancelFollowRequest as atprotoCancelFollowRequest,
+    fetchAccount as atprotoFetchAccount,
+    fetchAccountState as atprotoFetchAccountState,
+    fetchUserVideos as atprotoFetchUserVideos,
+    followAccount as atprotoFollowAccount,
+    unblockAccount as atprotoUnblockAccount,
+    unfollowAccount as atprotoUnfollowAccount,
+} from '@/atproto';
+import {
     blockAccount,
     cancelFollowRequest,
     fetchAccount,
@@ -15,7 +25,9 @@ import {
     followAccount,
     unblockAccount,
     unfollowAccount,
+    usesAtprotoBackend,
 } from '@/utils/requests';
+import { decodeRouteParam, toProfileFeedPath } from '@/utils/profileNavigation';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -57,7 +69,9 @@ const FooterLoader = memo(() => (
 ));
 
 export default function ProfileScreen() {
-    const { id } = useLocalSearchParams();
+    const { id: rawId } = useLocalSearchParams();
+    const id = decodeRouteParam(rawId);
+    const atproto = usesAtprotoBackend();
     const router = useRouter();
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState('videos');
@@ -73,7 +87,9 @@ export default function ProfileScreen() {
     } = useQuery({
         queryKey: ['fetchAccount', id?.toString()],
         queryFn: async () => {
-            const res = await fetchAccount(id.toString());
+            const res = atproto
+                ? await atprotoFetchAccount(id)
+                : await fetchAccount(id.toString());
             return res.data;
         },
         enabled: !!id,
@@ -83,7 +99,9 @@ export default function ProfileScreen() {
     const { data: userState, refetch: refetchUserState } = useQuery({
         queryKey: ['fetchAccountState', id?.toString()],
         queryFn: async () => {
-            const res = await fetchAccountState(id.toString());
+            const res = atproto
+                ? await atprotoFetchAccountState(id)
+                : await fetchAccountState(id.toString());
             return res.data;
         },
         enabled: !!user && !!id,
@@ -96,7 +114,7 @@ export default function ProfileScreen() {
             const res = await fetchAccountPlaylists(id.toString());
             return res.data;
         },
-        enabled: !!user?.has_playlists && !!id,
+        enabled: !!user?.has_playlists && !!id && !atproto,
         staleTime: 5 * 60 * 1000,
     });
 
@@ -110,7 +128,7 @@ export default function ProfileScreen() {
         isError: videosError,
     } = useInfiniteQuery({
         queryKey: ['userVideos', id?.toString(), sortBy],
-        queryFn: fetchUserVideos,
+        queryFn: atproto ? atprotoFetchUserVideos : fetchUserVideos,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
         enabled: !!user && !!id,
@@ -134,11 +152,17 @@ export default function ProfileScreen() {
             if (!id) throw new Error('No user ID');
 
             if (userState?.pending_follow_request) {
-                return (await cancelFollowRequest(id.toString())).data;
+                return atproto
+                    ? (await atprotoCancelFollowRequest(id)).data
+                    : (await cancelFollowRequest(id.toString())).data;
             } else if (userState?.following) {
-                return (await unfollowAccount(id.toString())).data;
+                return atproto
+                    ? (await atprotoUnfollowAccount(id)).data
+                    : (await unfollowAccount(id.toString())).data;
             } else {
-                return (await followAccount(id.toString())).data;
+                return atproto
+                    ? (await atprotoFollowAccount(id)).data
+                    : (await followAccount(id.toString())).data;
             }
         },
         onMutate: async () => {
@@ -159,9 +183,13 @@ export default function ProfileScreen() {
             if (!id) throw new Error('No user ID');
 
             if (userState?.blocking) {
-                return (await unblockAccount(id.toString())).data;
+                return atproto
+                    ? (await atprotoUnblockAccount(id)).data
+                    : (await unblockAccount(id.toString())).data;
             } else {
-                return (await blockAccount(id.toString())).data;
+                return atproto
+                    ? (await atprotoBlockAccount(id)).data
+                    : (await blockAccount(id.toString())).data;
             }
         },
         onSuccess: async () => {
@@ -177,7 +205,7 @@ export default function ProfileScreen() {
     const handleVideoPress = useCallback(
         (video) => {
             if (!video?.id || !video?.account?.id) return;
-            router.push(`/private/profile/feed/${video.id}?profileId=${video.account.id}`);
+            router.push(toProfileFeedPath(video.id, video.account.id));
         },
         [router],
     );
@@ -230,7 +258,7 @@ export default function ProfileScreen() {
 
         try {
             await shareContent({
-                message: `Check out @${user.username}'s account on Loops!`,
+                message: `Check out @${user.username}'s account on Flip!`,
                 url: user.url,
             });
         } catch (error) {

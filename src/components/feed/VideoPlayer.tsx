@@ -1,6 +1,7 @@
 import Avatar from '@/components/Avatar';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
+import { toProfilePath } from '@/utils/profileNavigation';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -17,6 +18,10 @@ import {
 } from 'react-native';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function safeCount(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
 
 export default function VideoPlayer({
     item,
@@ -180,8 +185,10 @@ export default function VideoPlayer({
         setPlaySensitive(true);
     };
 
-    const likeCount = item.likes + (isLiked && !item.has_liked ? 1 : 0);
-    const bookmarkCount = item.bookmarks + (isBookmarked && !item.has_bookmarked ? 1 : 0);
+    const likeCount =
+        safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
+    const bookmarkCount =
+        safeCount(item.bookmarks) + (isBookmarked && !item.has_bookmarked ? 1 : 0);
 
     if (item.is_sensitive && !playSensitive) {
         return (
@@ -269,7 +276,7 @@ export default function VideoPlayer({
             <View style={[styles.rightActions, { bottom: bottomInset + tabBarHeight + 20 }]}>
                 <PressableHaptics
                     style={styles.actionButton}
-                    onPress={() => router.push(`/private/profile/${item.account.id}`)}
+                    onPress={() => router.push(toProfilePath(item.account.id))}
                     accessible={true}
                     accessibilityLabel={`View ${item.account.username}'s profile`}
                     accessibilityRole="button">
@@ -299,14 +306,14 @@ export default function VideoPlayer({
                     accessible={true}
                     accessibilityLabel={
                         item.permissions?.can_comment
-                            ? `Comments. ${item.comments} comments`
+                            ? `Comments. ${safeCount(item.comments)} comments`
                             : 'Comments are disabled'
                     }
                     accessibilityRole="button">
                     <Ionicons name="chatbubble" size={32} color="white" />
                     {item.permissions?.can_comment && (
                         <Text style={styles.actionText} accessibilityElementsHidden={true}>
-                            {item.comments}
+                            {safeCount(item.comments)}
                         </Text>
                     )}
                 </TouchableOpacity>
@@ -336,11 +343,11 @@ export default function VideoPlayer({
                     style={styles.actionButton}
                     onPress={() => onShare(item)}
                     accessible={true}
-                    accessibilityLabel={`Share. ${item.shares} shares`}
+                    accessibilityLabel={`Share. ${safeCount(item.shares)} shares`}
                     accessibilityRole="button">
                     <Ionicons name="arrow-redo" size={32} color="white" />
                     <Text style={styles.actionText} accessibilityElementsHidden={true}>
-                        {item.shares}
+                        {safeCount(item.shares)}
                     </Text>
                 </TouchableOpacity>
 
@@ -358,7 +365,7 @@ export default function VideoPlayer({
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
-                        router.push(`/private/profile/${item.account.id}`);
+                        router.push(toProfilePath(item.account.id));
                     }}
                     accessible={true}
                     accessibilityLabel={`View @${item.account.username}'s profile`}
@@ -378,7 +385,9 @@ export default function VideoPlayer({
                         }}
                         onMentionPress={(username, profileId) => {
                             onNavigate?.();
-                            router.push(`/private/profile/${profileId}`);
+                            const target = profileId ?? username;
+                            if (!target) return;
+                            router.push(toProfilePath(target));
                         }}
                         onMorePress={() => onComment(item)}
                     />

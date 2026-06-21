@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Package visibility (API 30+): required so Samsung Gallery can be discovered and targeted. -->
+  <queries>
+    <package android:name="com.sec.android.gallery3d" />
+    <package android:name="com.samsung.android.gallery" />
+    <package android:name="com.sec.android.app.gallery" />
+    <intent>
+      <action android:name="android.intent.action.GET_CONTENT" />
+      <data android:mimeType="image/*" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.GET_CONTENT" />
+      <data android:mimeType="video/*" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.GET_CONTENT" />
+      <data android:mimeType="*/*" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.PICK" />
+      <data android:mimeType="image/*" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.PICK" />
+      <data android:mimeType="video/*" />
+    </intent>
+    <intent>
+      <action android:name="android.provider.action.PICK_IMAGES" />
+    </intent>
+  </queries>
+</manifest>

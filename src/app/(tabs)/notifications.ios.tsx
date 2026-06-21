@@ -195,7 +195,7 @@ export default function NotificationScreen() {
     const queryClient = useQueryClient();
     const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
     const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const { data, isLoading, isFetching } = useQuery({
         queryKey: ['main-notifications'],
@@ -348,7 +348,7 @@ export default function NotificationScreen() {
                         systemImage="line.3.horizontal"
                         modifiers={[
                             labelStyle('iconOnly'),
-                            foregroundStyle(colorScheme === 'dark' ? '#FFFFFF' : '#000000'),
+                            foregroundStyle(isDark ? '#FFFFFF' : '#000000'),
                             font({ size: 30 }),
                         ]}>
                         <Button
@@ -380,11 +380,11 @@ export default function NotificationScreen() {
                     headerTitle: 'Inbox',
                     title: 'Inbox',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerTitleStyle: {
                         fontSize: 24,
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerBackTitle: 'Back',
                     headerShadowVisible: false,

@@ -1,0 +1,27 @@
+---
+description: Android in-app camera must preserve flagship capture quality (Samsung Galaxy S26 Ultra class)
+globs:
+  - src/camera/**
+  - src/app/(tabs)/create.android.tsx
+  - src/app/private/camera/**
+  - modules/flip-camerawesome/**
+---
+
+# Android camera quality
+
+**Do not regress capture quality on flagship Android.** Reference device: Samsung Galaxy S26 Ultra.
+
+Before changing camera or upload code, read [docs/CAMERA.md](../../docs/CAMERA.md).
+
+## Hard constraints
+
+- Current capture: **1080p60, 12 Mbps H.264**, CameraX via `flip-camerawesome`
+- **No 4K path today** — `Quality.FHD` caps recording; this is the main gap vs native camera
+- Upload re-compresses via `react-native-compressor` (`maxSize: 1920`, `auto`) in `caption.tsx` — second quality hit
+- Keep `FLIP_ANDROID_CAPTURE` (JS) and `FlipCameraSession` constants (Kotlin) in sync when tuning bitrate/resolution
+
+## When adding features
+
+- Prefer capability detection + fallback over fixed 1080p if extending to 4K
+- Surface **actual** capture profile to UI/logs, not assumed values
+- Avoid extra re-encode steps in the ATProto upload path unless required by size limits

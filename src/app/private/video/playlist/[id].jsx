@@ -98,7 +98,14 @@ export default function PlaylistFeed({ navigation }) {
     });
 
     const videos = data?.pages?.flatMap((page) => page.data) || [];
-    const partsCount = params.videoCount ? Number(params.videoCount) : videos.length;
+    const rawVideoCount = params.videoCount;
+    const parsedVideoCount =
+        rawVideoCount != null && rawVideoCount !== ''
+            ? Number(Array.isArray(rawVideoCount) ? rawVideoCount[0] : rawVideoCount)
+            : NaN;
+    const partsCount = Number.isFinite(parsedVideoCount) && parsedVideoCount > 0
+        ? parsedVideoCount
+        : videos.length;
 
     const onViewableItemsChanged = useCallback(({ viewableItems }) => {
         if (viewableItems.length > 0) {
@@ -258,6 +265,7 @@ export default function PlaylistFeed({ navigation }) {
                 <PlaylistBar
                     title={playlistName}
                     partsCount={partsCount}
+                    currentIndex={currentIndex}
                     bottomInset={insets.bottom}
                     onPress={() => setShowPlaylistVideos(true)}
                 />

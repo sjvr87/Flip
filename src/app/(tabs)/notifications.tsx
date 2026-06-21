@@ -193,7 +193,7 @@ export default function NotificationScreen() {
     const queryClient = useQueryClient();
     const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
     const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
     const [isExpanded, setIsExpanded] = useState(false);
 
     const { data, isLoading, isFetching } = useQuery({
@@ -360,11 +360,11 @@ export default function NotificationScreen() {
                     headerTitle: 'Inbox',
                     title: 'Inbox',
                     headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+                    headerTintColor: isDark ? '#fff' : '#000',
                     headerTitleStyle: {
                         fontSize: 24,
                         fontWeight: 'bold',
-                        color: colorScheme === 'dark' ? '#fff' : '#000',
+                        color: isDark ? '#fff' : '#000',
                     },
                     headerBackTitle: 'Back',
                     headerShadowVisible: false,

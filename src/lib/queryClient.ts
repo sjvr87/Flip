@@ -2,24 +2,19 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { QueryClient, focusManager } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { AppState, Platform } from 'react-native';
-import { createMMKV } from 'react-native-mmkv';
 import type { AppConfig } from '../services/config';
 import { useConfigStore } from '../stores/configStore';
+import { Storage } from '../utils/cache';
 
 const ONE_DAY = 1000 * 60 * 60 * 24;
 
-const mmkv = createMMKV({ id: 'loops-query-cache' });
-
 const mmkvStorage = {
-    getItem: (key: string): string | null => {
-        const v = mmkv.getString(key);
-        return v === undefined ? null : v;
-    },
+    getItem: (key: string): string | null => Storage.getString(key) ?? null,
     setItem: (key: string, value: string): void => {
-        mmkv.set(key, value);
+        Storage.set(key, value);
     },
     removeItem: (key: string): void => {
-        mmkv.remove(key);
+        Storage.remove(key);
     },
 };
 
@@ -36,14 +31,16 @@ const persister = createSyncStoragePersister({
     key: 'LOOPS_QUERY_CACHE',
 });
 
-persistQueryClient({
-    queryClient,
-    persister,
-    maxAge: ONE_DAY * 7,
-    dehydrateOptions: {
-        shouldDehydrateQuery: (q) => q.queryKey[0] === 'server-config',
-    },
-});
+if (typeof window !== 'undefined') {
+    persistQueryClient({
+        queryClient,
+        persister,
+        maxAge: ONE_DAY * 7,
+        dehydrateOptions: {
+            shouldDehydrateQuery: (q) => q.queryKey[0] === 'server-config',
+        },
+    });
+}
 
 AppState.addEventListener('change', (status) => {
     if (Platform.OS !== 'web') {

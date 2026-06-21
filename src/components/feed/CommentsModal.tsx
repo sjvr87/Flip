@@ -10,27 +10,28 @@ import {
     commentDelete,
     commentLike,
     commentPost,
-    commentPostMedia,
     commentReplyDelete,
     commentReplyLike,
     commentReplyUnlike,
     commentUnlike,
     fetchVideoComments,
     fetchVideoReplies,
-    type KlipyItem,
-    type KlipyMediaType,
-} from '@/utils/requests';
+} from '@/atproto';
+import { commentPostMedia, type KlipyItem, type KlipyMediaType } from '@/utils/requests';
+import { toProfilePath } from '@/utils/profileNavigation';
 import { shareContent } from '@/utils/sharer';
 import { timeAgo } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useSafeNativeShims } from '@/utils/runtime';
+import React, { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Dimensions,
     FlatList,
+    KeyboardAvoidingView as RNKeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -39,10 +40,25 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import KlipyMedia from './KlipyMedia';
+
+function SafeKeyboardAvoidingView(
+    props: React.ComponentProps<typeof RNKeyboardAvoidingView>,
+) {
+    if (useSafeNativeShims) {
+        return <RNKeyboardAvoidingView {...props} />;
+    }
+
+    try {
+        const { KeyboardAvoidingView } = require('react-native-keyboard-controller');
+        return <KeyboardAvoidingView {...props} />;
+    } catch (error) {
+        console.warn('[CommentsModal] KeyboardAvoidingView fallback:', error);
+        return <RNKeyboardAvoidingView {...props} />;
+    }
+}
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_HEIGHT = 60;
@@ -146,7 +162,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     onMentionPress={(username, profileId) => {
                         onNavigate?.();
                         onClose();
-                        router.push(`/private/search?query=${username}`);
+                        router.push(toProfilePath(profileId ?? username));
                     }}
                 />
             </View>
@@ -390,7 +406,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     pages: oldData.pages.map((page) => ({
                         ...page,
                         data: page.data.map((reply) => {
-                            if (reply.id === variables.replyId) {
+                            if (reply.id === variables.commentId) {
                                 const isLiking = variables.likeState === 'like';
                                 return {
                                     ...reply,
@@ -415,7 +431,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     pages: oldData.pages.map((page) => ({
                         ...page,
                         data: page.data.map((reply) =>
-                            reply.id === variables.replyId
+                            reply.id === variables.commentId
                                 ? { ...reply, liked: res.liked, likes: res.likes }
                                 : reply,
                         ),
@@ -436,7 +452,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     const commentShare = async (item) => {
         try {
             await shareContent({
-                message: `Check out this comment on Loops by @${item.account.username}!`,
+                message: `Check out this comment on Flip by @${item.account.username}!`,
                 url: item?.url,
             });
         } catch (error) {
@@ -544,8 +560,9 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     };
 
     const handleProfilePress = (id) => {
+        if (!id) return;
         onClose();
-        router.push(`/private/profile/${id}`);
+        router.push(toProfilePath(id));
     };
 
     const handleSendComment = async () => {
@@ -588,7 +605,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     onMentionPress={(username, profileId) => {
                         onNavigate?.();
                         onClose();
-                        router.push(`/private/search?query=${username}`);
+                        router.push(toProfilePath(profileId ?? username));
                     }}
                 />
                 <View style={tw`flex-row gap-4 mt-2`}>
@@ -723,7 +740,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         onMentionPress={(username, profileId) => {
                             onNavigate?.();
                             onClose();
-                            router.push(`/private/search?query=${username}`);
+                            router.push(toProfilePath(profileId ?? username));
                         }}
                     />
                     {comment.media?.[0]?.provider === 'klipy' && (
@@ -852,7 +869,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
 
     return (
         <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-            <KeyboardAvoidingView
+            <SafeKeyboardAvoidingView
                 behavior={'padding'}
                 style={tw`flex-1 justify-end`}
                 keyboardVerticalOffset={Platform.OS === 'android' ? -20 : 0}>
@@ -956,7 +973,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         onSelect={handleKlipySelect}
                     />
                 </View>
-            </KeyboardAvoidingView>
+            </SafeKeyboardAvoidingView>
         </Modal>
     );
 }

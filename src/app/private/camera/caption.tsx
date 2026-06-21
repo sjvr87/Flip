@@ -1,17 +1,22 @@
 import Avatar from '@/components/Avatar';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
+import { uploadMediaPost } from '@/atproto/upload';
 import {
     composeAutocompleteMentions,
     composeAutocompleteTags,
+    uploadImage,
     uploadVideo,
+    usesAtprotoBackend,
 } from '@/utils/requests';
 import { prettyCount } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { Image } from 'expo-image';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -27,12 +32,25 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Video as VideoCompressor } from 'react-native-compressor';
+import { Image as ImageCompressor, Video as VideoCompressor } from 'react-native-compressor';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 const MAX_CAPTION_LENGTH = 200;
 const MAX_ALT_TEXT_LENGTH = 2000;
+
+function CaptionVideoThumb({ uri }: { uri: string }) {
+    const player = useVideoPlayer(uri, () => {});
+    return (
+        <VideoView
+            style={tw`flex-1 w-full h-full bg-black`}
+            player={player}
+            allowsPictureInPicture={false}
+            nativeControls={false}
+            surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+        />
+    );
+}
 
 const LANGUAGES = [
     { code: 'en', name: 'English' },
@@ -116,12 +134,24 @@ const LANGUAGES = [
     { code: 'zu', name: 'Zulu' },
 ];
 
+const VISIBILITY_STORAGE_KEY = 'flip:camera:visibility';
+
+/** Bluesky has no followers-only / local / private posts; preference is stored and shown in UI. */
+const ATPROTO_VISIBILITY_DESCRIPTIONS: Record<number, string> = {
+    1: 'Public post on Bluesky',
+    2: 'Preference saved; Bluesky posts are public (no server-local option)',
+    3: 'Preference saved; Bluesky posts are public (no followers-only option)',
+    4: 'Preference saved; Bluesky posts are public (no friends-only option)',
+    5: 'Preference saved; Bluesky posts are public (no private posts)',
+};
+
 const VISIBILITY = [
     {
         name: 'Everyone',
         title: 'Everyone can view this post',
         icon: 'earth-outline',
         id: 1,
+        apiValue: 1,
         disabled: false,
         description: 'Anyone can see this post',
     },
@@ -130,7 +160,8 @@ const VISIBILITY = [
         title: 'Only people on your server can view',
         icon: 'map-outline',
         id: 2,
-        disabled: true,
+        apiValue: 2,
+        disabled: false,
         description: 'Visible only to people on your server',
     },
     {
@@ -138,7 +169,8 @@ const VISIBILITY = [
         title: 'Only followers can view this post',
         icon: 'people-outline',
         id: 3,
-        disabled: true,
+        apiValue: 4,
+        disabled: false,
         description: 'Visible only to your followers',
     },
     {
@@ -146,7 +178,8 @@ const VISIBILITY = [
         title: 'Only friends can view this post',
         icon: 'people-circle-outline',
         id: 4,
-        disabled: true,
+        apiValue: 5,
+        disabled: false,
         description: 'Followers you follow back',
     },
     {
@@ -154,7 +187,8 @@ const VISIBILITY = [
         title: 'Only you can view this post',
         icon: 'lock-closed-outline',
         id: 5,
-        disabled: true,
+        apiValue: 3,
+        disabled: false,
         description: 'Visible only to you',
     },
 ];
@@ -163,7 +197,9 @@ export default function CaptionScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const params = useLocalSearchParams();
-    const { videoPath, duration, selectedSound } = params;
+    const { videoPath, duration, selectedSound, imagePath, mediaType } = params;
+    const isPhoto = mediaType === 'photo' || (!!imagePath && !videoPath);
+    const mediaSourcePath = isPhoto ? String(imagePath) : String(videoPath);
     const [caption, setCaption] = useState('');
     const [altText, setAltText] = useState('');
     const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGES[0]);
@@ -195,11 +231,27 @@ export default function CaptionScreen() {
     const inputRef = useRef<TextInput>(null);
     const altTextInputRef = useRef<TextInput>(null);
     const isFocused = useIsFocused();
+    const queryClient = useQueryClient();
+    const atprotoUpload = usesAtprotoBackend();
+    const visibilityOptions = VISIBILITY.map((item) => ({
+        ...item,
+        description: atprotoUpload
+            ? (ATPROTO_VISIBILITY_DESCRIPTIONS[item.id] ?? item.description)
+            : item.description,
+    }));
 
-    const videoUri = (videoPath as string)?.startsWith('file://')
-        ? (videoPath as string)
-        : `file://${videoPath}`;
-    const player = useVideoPlayer(videoUri, () => {});
+    useEffect(() => {
+        AsyncStorage.getItem(VISIBILITY_STORAGE_KEY).then((stored) => {
+            if (!stored) return;
+            const id = Number(stored);
+            const match = VISIBILITY.find((item) => item.id === id);
+            if (match) setSelectedVisibility(match);
+        });
+    }, []);
+
+    const videoUri = mediaSourcePath?.startsWith('file://')
+        ? mediaSourcePath
+        : `file://${mediaSourcePath}`;
 
     const { data: hashtagSuggestions = [] } = useQuery({
         queryKey: ['autoComplete_hashtags', autocompleteQuery],
@@ -233,40 +285,84 @@ export default function CaptionScreen() {
         isAd,
         isAi,
         selectedSound,
+        isPhotoPost,
     }: any) => {
         setOverlayVisible(true);
         setOverlayMessage('Compressing… 0%');
         setProgressPct(0);
 
-        const compressedUri = await VideoCompressor.compress(
-            originalPath,
-            {
-                maxSize: 1920,
-                compressionMethod: 'auto',
-            },
-            (progress) => {
-                const pct = Math.round(progress * 100);
-                setProgressPct(pct);
-                setOverlayMessage(`Compressing… ${pct}%`);
-            },
-        );
+        let uploadUri: string;
+        let filename: string;
+        let fileField: Record<string, { uri: string; name: string; type: string }>;
 
-        const uploadUri = compressedUri.startsWith('file://')
-            ? compressedUri
-            : `file://${compressedUri}`;
-        const filename = `upload_${Date.now()}.mp4`;
+        if (isPhotoPost) {
+            const compressedUri = await ImageCompressor.compress(originalPath, {
+                maxWidth: 1920,
+                maxHeight: 1920,
+                quality: 0.9,
+            });
+            uploadUri = compressedUri.startsWith('file://')
+                ? compressedUri
+                : `file://${compressedUri}`;
+            filename = `upload_${Date.now()}.jpg`;
+            fileField = {
+                image: {
+                    uri: uploadUri,
+                    name: filename,
+                    type: 'image/jpeg',
+                },
+            };
+        } else {
+            const compressedUri = await VideoCompressor.compress(
+                originalPath,
+                {
+                    maxSize: 1920,
+                    compressionMethod: 'auto',
+                },
+                (progress) => {
+                    const pct = Math.round(progress * 100);
+                    setProgressPct(pct);
+                    setOverlayMessage(`Compressing… ${pct}%`);
+                },
+            );
+
+            uploadUri = compressedUri.startsWith('file://')
+                ? compressedUri
+                : `file://${compressedUri}`;
+            filename = `upload_${Date.now()}.mp4`;
+            fileField = {
+                video: {
+                    uri: uploadUri,
+                    name: filename,
+                    type: 'video/mp4',
+                },
+            };
+        }
 
         setOverlayMessage('Uploading…');
 
-        const params = {
-            video: {
-                uri: uploadUri,
-                name: filename,
-                type: 'video/mp4',
-            },
+        if (usesAtprotoBackend()) {
+            const result = await uploadMediaPost({
+                fileUri: uploadUri,
+                caption: caption ?? '',
+                altText: altText ?? '',
+                lang: language?.code ?? 'en',
+                isSensitive,
+                isPhoto: isPhotoPost,
+                visibility: visibility
+                    ? { id: visibility.id, apiValue: visibility.apiValue, name: visibility.name }
+                    : undefined,
+                onProgress: setOverlayMessage,
+            });
+            return { json: result, uploadUri };
+        }
+
+        const uploadParams = {
+            ...fileField,
             description: caption ?? null,
             alt_text: altText ?? null,
             lang: language?.code ?? 'en',
+            visibility: String(visibility?.apiValue ?? visibility?.id ?? 1),
             comment_state: allowComments ? '4' : '0',
             can_download: allowDownloads ? '1' : '0',
             can_duet: allowDuets ? '1' : '0',
@@ -276,7 +372,7 @@ export default function CaptionScreen() {
             contains_ai: isAi ? '1' : '0',
         };
 
-        const res = await uploadVideo(params);
+        const res = isPhotoPost ? await uploadImage(uploadParams) : await uploadVideo(uploadParams);
 
         if (!res.ok) {
             const text = await res.text();
@@ -289,20 +385,23 @@ export default function CaptionScreen() {
 
     const postMutation = useMutation({
         mutationFn: uploadLoop,
-        onSuccess: async ({ json, uploadUri }) => {
+        onSuccess: async () => {
             setOverlayMessage('Done!');
+            await queryClient.invalidateQueries({ queryKey: ['videos'] });
+            await queryClient.invalidateQueries({ queryKey: ['userSelfVideos'] });
             setOverlayVisible(false);
             router.replace('/');
         },
         onError: (err: any) => {
             setOverlayVisible(false);
-            Alert.alert('Upload failed', String(err?.message || err));
+            const message = String(err?.message || err);
+            Alert.alert('Upload failed', message || 'Something went wrong. Please try again.');
         },
     });
 
     const handlePost = () => {
         postMutation.mutate({
-            originalPath: String(videoPath),
+            originalPath: mediaSourcePath,
             caption,
             altText,
             language: selectedLanguage,
@@ -315,6 +414,7 @@ export default function CaptionScreen() {
             isAd,
             isAi,
             selectedSound,
+            isPhotoPost: isPhoto,
         });
     };
 
@@ -417,7 +517,9 @@ export default function CaptionScreen() {
                         color={colorScheme === 'dark' ? '#fff' : '#000'}
                     />
                 </TouchableOpacity>
-                <Text style={tw`text-lg font-bold text-black dark:text-white`}>Upload Loop</Text>
+                <Text style={tw`text-lg font-bold text-black dark:text-white`}>
+                    {isPhoto ? 'Upload Photo' : 'Upload Loop'}
+                </Text>
                 <TouchableOpacity style={tw`w-11 h-11 justify-center`}>
                     <Ionicons name="chevron-back" size={32} color="transparent" />
                 </TouchableOpacity>
@@ -447,17 +549,16 @@ export default function CaptionScreen() {
                     </View>
 
                     <View style={tw`w-20 h-[150px] bg-black rounded-lg overflow-hidden relative`}>
-                        {isFocused && (
-                            <VideoView
-                                style={tw`flex-1 w-full h-full bg-black`}
-                                player={player}
-                                allowsPictureInPicture={false}
-                                nativeControls={false}
-                                surfaceType={
-                                    Platform.OS === 'android' ? 'textureView' : 'surfaceView'
-                                }
-                            />
-                        )}
+                        {isFocused &&
+                            (isPhoto ? (
+                                <Image
+                                    source={{ uri: videoUri }}
+                                    style={tw`flex-1 w-full h-full bg-black`}
+                                    contentFit="cover"
+                                />
+                            ) : isFocused ? (
+                                <CaptionVideoThumb uri={videoUri} />
+                            ) : null)}
                     </View>
                 </View>
 
@@ -614,7 +715,7 @@ export default function CaptionScreen() {
                             <YStack>
                                 <Text
                                     style={tw`text-[15px] font-semibold text-gray-900 dark:text-gray-100`}>
-                                    Video Language
+                                    {isPhoto ? 'Photo Language' : 'Video Language'}
                                 </Text>
                                 <Text
                                     style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
@@ -663,7 +764,8 @@ export default function CaptionScreen() {
                 style={tw`flex-row px-5 py-4 pb-10 mb-3 gap-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black`}>
                 <TouchableOpacity
                     onPress={handlePost}
-                    style={tw`flex-1 flex-row items-center justify-center bg-[#F02C56] py-4 rounded-full gap-2`}
+                    disabled={postMutation.isPending}
+                    style={tw`flex-1 flex-row items-center justify-center bg-[#F02C56] py-4 rounded-full gap-2 ${postMutation.isPending ? 'opacity-60' : ''}`}
                     activeOpacity={0.7}>
                     <Feather name="upload" size={20} color="#fff" />
                     <Text style={tw`text-[22px] font-bold text-white`}>Post</Text>
@@ -968,7 +1070,7 @@ export default function CaptionScreen() {
                     </View>
 
                     <Text style={tw`text-sm text-gray-600 dark:text-gray-400 px-5 py-3`}>
-                        Select the primary language spoken in your video
+                        Select the primary language for this {isPhoto ? 'photo' : 'video'}
                     </Text>
 
                     <FlatList
@@ -1024,15 +1126,17 @@ export default function CaptionScreen() {
                     </Text>
 
                     <FlatList
-                        data={VISIBILITY}
+                        data={visibilityOptions}
                         keyExtractor={(item) => item.id.toString()}
                         showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
                         renderItem={({ item }) => (
                             <TouchableOpacity
                                 style={tw`flex-row justify-between items-center px-5 py-4 ${item.disabled ? 'opacity-50' : 'opacity-100'}`}
                                 disabled={item.disabled}
                                 onPress={() => {
                                     setSelectedVisibility(item);
+                                    AsyncStorage.setItem(VISIBILITY_STORAGE_KEY, String(item.id));
                                     setShowVisibilityModal(false);
                                 }}>
                                 <YStack gap={1}>

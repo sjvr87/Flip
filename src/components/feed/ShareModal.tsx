@@ -59,7 +59,7 @@ export default function ShareModal({ visible, item, onClose }) {
     const handleNativeShare = async () => {
         try {
             const result = await shareContent({
-                message: `Check out this video on Loops!`,
+                message: `Check out this video on Flip!`,
                 url: item?.url,
             });
 

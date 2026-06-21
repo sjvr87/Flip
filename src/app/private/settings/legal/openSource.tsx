@@ -130,7 +130,7 @@ export default function OpenSourceScreen() {
                 </Text>
                 <Text style={tw`text-sm text-gray-600 mb-2 dark:text-gray-300`}>
                     Our app is powered by {licenseArray.length} open source{' '}
-                    {licenseArray.length === 1 ? 'library' : 'libraries'}.
+                    {licenseArray.length === 1 ? 'library.' : 'libraries.'}
                 </Text>
             </View>
         ),

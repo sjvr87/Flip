@@ -1,6 +1,5 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
-import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import Feather from '@expo/vector-icons/Feather';
 import { Tabs } from 'expo-router';
@@ -8,14 +7,13 @@ import { useMemo } from 'react';
 import { Platform } from 'react-native';
 
 export default function TabsLayout() {
-    const { user } = useAuthStore();
     const { badgeCount } = useNotificationStore();
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const displayBadgeCount = useMemo(() => {
-        if (badgeCount == 0) return undefined;
+        if (!badgeCount || badgeCount <= 0) return undefined;
         if (badgeCount > 99) return '99+';
-        return badgeCount;
+        return String(badgeCount);
     }, [badgeCount]);
 
     useNotificationPolling(900000);
@@ -25,12 +23,12 @@ export default function TabsLayout() {
             initialRouteName="index"
             screenOptions={{
                 backBehavior: 'order',
-                tabBarActiveTintColor: colorScheme === 'dark' ? '#fff' : '#000',
-                tabBarInactiveTintColor: colorScheme === 'dark' ? '#555' : '#999',
+                tabBarActiveTintColor: isDark ? '#fff' : '#000',
+                tabBarInactiveTintColor: isDark ? '#555' : '#999',
                 tabBarStyle: {
-                    backgroundColor: colorScheme === 'dark' ? '#000' : '#fff',
+                    backgroundColor: isDark ? '#000' : '#fff',
                     borderTopWidth: 1,
-                    borderTopColor: colorScheme === 'dark' ? '#1e2939' : '#eee',
+                    borderTopColor: isDark ? '#1e2939' : '#eee',
                     height: Platform.OS === 'ios' ? 94 : 94,
                     paddingTop: Platform.OS === 'ios' ? 11 : 5,
                     paddingBottom: Platform.OS === 'ios' ? 8 : 5,
@@ -79,8 +77,12 @@ export default function TabsLayout() {
                     title: 'Notifications',
                     tabBarAccessibilityLabel: 'Notifications',
                     tabBarShowLabel: false,
-                    tabBarBadge: displayBadgeCount,
-                    tabBarBadgeStyle: { fontSize: 12 },
+                    ...(Platform.OS !== 'web' && displayBadgeCount
+                        ? {
+                              tabBarBadge: displayBadgeCount,
+                              tabBarBadgeStyle: { fontSize: 12 },
+                          }
+                        : {}),
                     tabBarIcon: ({ color }) => <Feather size={28} name="inbox" color={color} />,
                 }}
             />

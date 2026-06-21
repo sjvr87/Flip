@@ -188,7 +188,7 @@ export default function OtherModal({
         },
     ].filter((option) => option.show);
 
-    if (item.permissions.can_download) {
+    if (item.permissions?.can_download) {
         // options.unshift({
         //     icon: 'download-outline',
         //     label: 'Download',

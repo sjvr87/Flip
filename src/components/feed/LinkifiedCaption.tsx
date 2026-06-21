@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeNativeShims } from '@/utils/runtime';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     LayoutChangeEvent,
@@ -9,7 +10,16 @@ import {
     TextStyle,
     View,
 } from 'react-native';
-import { UITextView } from 'react-native-uitextview';
+
+type UITextViewComponent = typeof Text;
+let UITextView: UITextViewComponent = Text;
+if (!useSafeNativeShims) {
+    try {
+        UITextView = require('react-native-uitextview').UITextView;
+    } catch (error) {
+        console.warn('[LinkifiedCaption] UITextView unavailable:', error);
+    }
+}
 
 type Mention = {
     username: string;
@@ -283,6 +293,14 @@ export default function LinkifiedCaption({
                     )}
                 </View>
             </View>
+        );
+    }
+
+    if (useSafeNativeShims) {
+        return (
+            <Text style={style} selectable>
+                {renderCaptionForText()}
+            </Text>
         );
     }
 

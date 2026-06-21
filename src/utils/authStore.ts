@@ -10,13 +10,13 @@ import {
   updatePreferences,
   type FlipSessionUser,
 } from '@/atproto/auth'
+import { hasStoredSession } from '@/atproto/agent'
 import { setAuthFailureHandler } from '@/utils/authEvents'
 import { resetAuthFailureFlag } from '@/utils/requests'
-import * as SecureStore from 'expo-secure-store'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Alert } from 'react-native'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { Storage } from './cache'
 
 type UserState = {
   isLoggedIn: boolean
@@ -53,6 +53,29 @@ type UserState = {
   setHideForYouFeed: (value: boolean) => Promise<void>
   setDefaultFeed: (feed: 'following' | 'local' | 'forYou') => Promise<void>
   updatePreference: (key: string, value: unknown) => Promise<void>
+}
+
+let sessionRestorePromise: Promise<void> | null = null
+
+const SESSION_RESTORE_TIMEOUT_MS = 8_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      console.warn(`[auth] ${label} timed out after ${ms}ms`)
+      reject(new Error(`${label} timed out`))
+    }, ms)
+
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
 }
 
 export const useAuthStore = create(
@@ -122,11 +145,13 @@ export const useAuthStore = create(
       },
 
       syncAuthState: () => {
-        set({
-          isLoggedIn: isAuthenticated(),
-          user: getCurrentUser(),
+        const sessionActive = isAuthenticated()
+        const profile = getCurrentUser()
+        set((state) => ({
+          isLoggedIn: sessionActive,
+          user: profile ?? (sessionActive ? state.user : null),
           server: getCurrentServer(),
-        })
+        }))
       },
 
       syncPreferencesFromServer: async () => {
@@ -193,7 +218,6 @@ export const useAuthStore = create(
           user: null,
           server: null,
         })
-        SecureStore.deleteItemAsync('auth-store.v0.5').catch(() => {})
       },
 
       completeOnboarding: () => {
@@ -205,35 +229,63 @@ export const useAuthStore = create(
       },
 
       setHasHydrated: (value) => {
-        set((state) => ({ ...state, _hasHydrated: value }))
+        if (!value) {
+          set((state) => ({ ...state, _hasHydrated: false }))
+          return
+        }
 
-        if (value) {
-          setAuthFailureHandler((reason) => {
-            get().logOut()
-            Alert.alert(
-              'Session expired',
-              reason || 'Please sign in again.',
+        if (get()._hasHydrated) return
+        if (sessionRestorePromise) return
+
+        // Unblock routing and splash immediately; restore session in the background.
+        set((state) => ({ ...state, _hasHydrated: true }))
+        console.warn('[auth] store ready — restoring session in background')
+
+        setAuthFailureHandler((reason) => {
+          get().logOut()
+          Alert.alert(
+            'Session expired',
+            reason || 'Please sign in again.',
+          )
+        })
+
+        sessionRestorePromise = (async () => {
+          try {
+            const ok = await withTimeout(
+              hydrateSession(),
+              SESSION_RESTORE_TIMEOUT_MS,
+              'hydrateSession',
             )
-          })
-
-          hydrateSession().then((ok) => {
             if (ok) {
               get().syncAuthState()
-              get().syncPreferencesFromServer()
+              await withTimeout(
+                get().syncPreferencesFromServer(),
+                SESSION_RESTORE_TIMEOUT_MS,
+                'syncPreferencesFromServer',
+              )
+            } else if (get().isLoggedIn && !(await hasStoredSession())) {
+              get().clearUser()
             }
-          })
-        }
+            console.warn(`[auth] session restore complete (restored=${ok})`)
+          } catch (error) {
+            console.warn('[auth] session restore failed:', error)
+            if (get().isLoggedIn && !(await hasStoredSession())) {
+              get().clearUser()
+            }
+          } finally {
+            sessionRestorePromise = null
+          }
+        })()
       },
     }),
     {
       name: 'auth-store.v0.5',
-      storage: createJSONStorage(() => ({
-        getItem: (name) => Storage.getString(name) ?? null,
-        setItem: (name, value) => Storage.set(name, value),
-        removeItem: (name) => Storage.delete(name),
-      })),
+      storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) =>
         ({
+          isLoggedIn: state.isLoggedIn,
+          user: state.user,
+          server: state.server,
           hideForYouFeed: state.hideForYouFeed,
           defaultFeed: state.defaultFeed,
           autoplayVideos: state.autoplayVideos,
@@ -243,9 +295,16 @@ export const useAuthStore = create(
           appearance: state.appearance,
           hasCompletedOnboarding: state.hasCompletedOnboarding,
         }) as UserState,
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.warn('[auth] store rehydrate failed:', error)
+        } else {
+          console.warn('[auth] store rehydrate complete')
+        }
+        const store = state ?? useAuthStore.getState()
+        store.setHasHydrated(true)
       },
+      skipHydration: true,
     },
   ),
 )

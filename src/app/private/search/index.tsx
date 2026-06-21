@@ -1,7 +1,8 @@
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
-import { followAccount, searchContent, unfollowAccount } from '@/utils/requests';
+import { followAccount, searchContent, unfollowAccount } from '@/atproto';
+import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation';
 import { prettyCount } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -176,7 +177,7 @@ export default function SearchScreen() {
         return (
             <TouchableOpacity
                 style={tw`flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800`}
-                onPress={() => router.push(`/private/profile/${item.id}`)}
+                onPress={() => router.push(toProfilePath(item.id))}
                 activeOpacity={0.7}>
                 <Image
                     source={{ uri: item.avatar }}
@@ -204,7 +205,7 @@ export default function SearchScreen() {
                         style={tw`bg-gray-200 dark:bg-gray-700 px-6 py-2 rounded-md`}
                         onPress={(e) => {
                             e.stopPropagation();
-                            router.push(`/private/profile/${item.id}`);
+                            router.push(toProfilePath(item.id));
                         }}>
                         <Text style={tw`text-black dark:text-white font-semibold text-sm`}>
                             View
@@ -247,7 +248,7 @@ export default function SearchScreen() {
         <TouchableOpacity
             style={tw`w-[48%] mb-3 ${index % 2 === 0 ? 'mr-[4%]' : ''}`}
             onPress={() =>
-                router.push(`/private/profile/feed/${item.id}?profileId=${item?.account?.id}`)
+                router.push(toProfileFeedPath(item.id, item?.account?.id ?? ''))
             }
             activeOpacity={0.9}>
             <View style={tw`relative`}>

@@ -1,7 +1,12 @@
 package expo.modules.flipcamerawesome
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.util.Log
 import androidx.camera.view.PreviewView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -11,20 +16,25 @@ import java.io.File
 class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   ExpoView(context, appContext) {
 
+  override val shouldUseAndroidLayout: Boolean = true
+
   private val previewView =
     PreviewView(context).also {
-      it.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+      // COMPATIBLE (TextureView) avoids black preview with RN view hierarchies on Samsung devices.
+      it.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
       it.scaleType = PreviewView.ScaleType.FILL_CENTER
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
   private var session: FlipCameraSession? = null
-  private var isRecordingProp = false
   private var pendingStartRecording = false
+  private var bindRetryCount = 0
 
   val onCameraReady by EventDispatcher()
   val onRecordingFinished by EventDispatcher()
   val onRecordingError by EventDispatcher()
+  val onPhotoCaptured by EventDispatcher()
+  val onPhotoCaptureError by EventDispatcher()
   val onCameraError by EventDispatcher()
 
   var facing: String = "back"
@@ -62,16 +72,48 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       }
     }
 
+  var photoRequestId: Int = 0
+    set(value) {
+      if (value <= 0 || value == field) return
+      field = value
+      takePhotoInternal()
+    }
+
   init {
+    installHierarchyFitter()
     post { bindSession() }
   }
 
+  private fun resolveLifecycleOwner(): LifecycleOwner? {
+    findViewTreeLifecycleOwner()?.let { return it }
+    return appContext.currentActivity as? LifecycleOwner
+  }
+
+  private fun hasCameraPermission(): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+      PackageManager.PERMISSION_GRANTED
+
   private fun bindSession() {
     if (!isActive) return
-    val lifecycleOwner = findViewTreeLifecycleOwner() ?: run {
-      postDelayed({ bindSession() }, 100)
+
+    if (!hasCameraPermission()) {
+      Log.w(TAG, "bindSession: CAMERA permission not granted")
+      onCameraError(mapOf("message" to "Camera permission not granted"))
       return
     }
+
+    val lifecycleOwner = resolveLifecycleOwner() ?: run {
+      if (bindRetryCount++ < MAX_BIND_RETRIES) {
+        postDelayed({ bindSession() }, 100)
+      } else {
+        Log.e(TAG, "bindSession: no LifecycleOwner after $MAX_BIND_RETRIES retries")
+        onCameraError(mapOf("message" to "Camera lifecycle not available"))
+      }
+      return
+    }
+
+    bindRetryCount = 0
+    Log.d(TAG, "bindSession: preview=${previewView.width}x${previewView.height} facing=$facing")
 
     session?.unbind()
     session =
@@ -82,8 +124,14 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       )
 
     session?.bind(
-      onReady = { onCameraReady(mapOf("ready" to true)) },
-      onError = { msg -> onCameraError(mapOf("message" to msg)) },
+      onReady = {
+        Log.d(TAG, "CameraX bound; preview=${previewView.width}x${previewView.height}")
+        onCameraReady(mapOf("ready" to true))
+      },
+      onError = { msg ->
+        Log.e(TAG, "CameraX bind failed: $msg")
+        onCameraError(mapOf("message" to msg))
+      },
     )
     session?.setLensFacing(facing)
     session?.setZoom(zoom)
@@ -117,9 +165,32 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
     )
   }
 
+  private fun takePhotoInternal() {
+    val activeSession = session ?: run {
+      onPhotoCaptureError(mapOf("message" to "Camera not ready"))
+      return
+    }
+
+    val outputFile = File(context.cacheDir, "flip_${System.currentTimeMillis()}.jpg")
+    activeSession.takePicture(
+      outputFile = outputFile,
+      onFinished = { path ->
+        onPhotoCaptured(mapOf("path" to path, "uri" to "file://$path"))
+      },
+      onFailed = { msg ->
+        onPhotoCaptureError(mapOf("message" to msg))
+      },
+    )
+  }
+
   override fun onDetachedFromWindow() {
     session?.unbind()
     session = null
     super.onDetachedFromWindow()
+  }
+
+  companion object {
+    private const val TAG = "FlipCamerawesome"
+    private const val MAX_BIND_RETRIES = 50
   }
 }

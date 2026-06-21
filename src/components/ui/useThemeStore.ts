@@ -94,30 +94,34 @@ interface ThemeStore {
     toggleMode: () => void;
 }
 
-export const useThemeStore = create<ThemeStore>((set) => {
-    // Load theme from storage
-    const savedMode = Storage.getString('theme_mode') as ThemeMode | undefined;
-    const initialMode = savedMode || 'light';
+export const useThemeStore = create<ThemeStore>((set) => ({
+    mode: 'light',
+    theme: lightTheme,
+    setMode: (mode) => {
+        Storage.set('theme_mode', mode);
+        set({
+            mode,
+            theme: mode === 'light' ? lightTheme : darkTheme,
+        });
+    },
+    toggleMode: () => {
+        set((state) => {
+            const newMode = state.mode === 'light' ? 'dark' : 'light';
+            Storage.set('theme_mode', newMode);
+            return {
+                mode: newMode,
+                theme: newMode === 'light' ? lightTheme : darkTheme,
+            };
+        });
+    },
+}));
 
-    return {
-        mode: initialMode,
-        theme: initialMode === 'light' ? lightTheme : darkTheme,
-        setMode: (mode) => {
-            Storage.set('theme_mode', mode);
-            set({
-                mode,
-                theme: mode === 'light' ? lightTheme : darkTheme,
-            });
-        },
-        toggleMode: () => {
-            set((state) => {
-                const newMode = state.mode === 'light' ? 'dark' : 'light';
-                Storage.set('theme_mode', newMode);
-                return {
-                    mode: newMode,
-                    theme: newMode === 'light' ? lightTheme : darkTheme,
-                };
-            });
-        },
-    };
-});
+if (typeof window !== 'undefined') {
+    const savedMode = Storage.getString('theme_mode') as ThemeMode | undefined;
+    if (savedMode === 'light' || savedMode === 'dark') {
+        useThemeStore.setState({
+            mode: savedMode,
+            theme: savedMode === 'light' ? lightTheme : darkTheme,
+        });
+    }
+}

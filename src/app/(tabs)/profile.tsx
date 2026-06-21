@@ -11,6 +11,7 @@ import {
     fetchAccountLikes,
     fetchAccountPlaylists,
 } from '@/utils/requests';
+import { toProfileFeedPath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
@@ -23,7 +24,7 @@ export default function ProfileScreen() {
     const [activeTab, setActiveTab] = useState('videos');
     const [sortBy, setSortBy] = useState('Latest');
     const flatListRef = useRef(null);
-    const { colorScheme } = useTheme();
+    const { isDark } = useTheme();
 
     const { data: user, isLoading: userLoading } = useQuery({
         queryKey: ['fetchSelfAccount', 'self'],
@@ -171,7 +172,7 @@ export default function ProfileScreen() {
             console.warn('Invalid video data:', video);
             return;
         }
-        router.push(`/private/profile/feed/${video.id}?profileId=${video.account.id}`);
+        router.push(toProfileFeedPath(video.id, video.account.id));
     };
 
     const handleSettingsPress = () => {
@@ -247,10 +248,10 @@ export default function ProfileScreen() {
         () => ({
             title: 'Profile',
             headerStyle: tw`bg-white dark:bg-black`,
-            headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+            headerTintColor: isDark ? '#fff' : '#000',
             headerTitleStyle: {
                 fontWeight: 'bold',
-                color: colorScheme === 'dark' ? '#fff' : '#000',
+                color: isDark ? '#fff' : '#000',
             },
             headerShadowVisible: false,
             headerShown: true,
@@ -265,7 +266,7 @@ export default function ProfileScreen() {
                         <Ionicons
                             name="footsteps-outline"
                             size={25}
-                            color={colorScheme === 'dark' ? '#fff' : '#000'}
+                            color={isDark ? '#fff' : '#000'}
                         />
                     </PressableHaptics>
 
@@ -277,19 +278,19 @@ export default function ProfileScreen() {
                         <Ionicons
                             name="menu"
                             size={30}
-                            color={colorScheme === 'dark' ? '#fff' : '#000'}
+                            color={isDark ? '#fff' : '#000'}
                         />
                     </PressableHaptics>
                 </XStack>
             ),
         }),
-        [colorScheme],
+        [isDark],
     );
 
     if (userLoading || !user) {
         return (
             <View style={tw`flex-1 bg-white dark:bg-black justify-center items-center`}>
-                <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#fff' : '#000'} />
+                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
             </View>
         );
     }

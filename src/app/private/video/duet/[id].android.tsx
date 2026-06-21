@@ -1,10 +1,18 @@
-import FlipCameraScreenAndroid from '@/camera/FlipCameraScreen.android'
+import MobileOnlyScreen from '@/components/MobileOnlyScreen'
+import { canUseFlipCamera } from '@/utils/runtime'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 
-/** Android duet entry — CameraX 1080p60 recorder (PiP duet layout planned). */
+/** Android duet entry — CameraX 1080p60 recorder (dev build only). */
 export default function DuetCameraScreenAndroid() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+
+  if (!canUseFlipCamera) {
+    return <MobileOnlyScreen title="Duet" />
+  }
+
+  const FlipCameraScreenAndroid =
+    require('@/camera/FlipCameraScreen.android').default
 
   return (
     <FlipCameraScreenAndroid onClose={() => router.replace(`/private/video/${id}`)} />

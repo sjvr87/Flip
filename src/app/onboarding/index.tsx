@@ -88,7 +88,7 @@ export default function OnboardingStepOne() {
                         textColor="text-white/70"
                         style={tw`mt-2 text-center max-w-xs`}
                         lineHeight={Platform.OS === 'android' ? 20 : 'relaxed'}>
-                        Join millions sharing short videos on Loops.
+                        Join millions sharing short videos on Flip.
                     </StackText>
                 </Animated.View>
             </View>
