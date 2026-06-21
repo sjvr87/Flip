@@ -1,0 +1,12 @@
+{
+  "name": "flip-camerawesome",
+  "version": "1.0.0",
+  "description": "CameraX-native camera module for Flip (Android). Mirrors camerawesome + CameraX APIs.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}
