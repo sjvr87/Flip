@@ -10,7 +10,7 @@ export default function VideoGrid({ video, onPress }) {
             onPress={() => onPress(video)}
             style={{
                 width: '33.33%',
-                aspectRatio: 9 / 16,
+                aspectRatio: video.is_photo || video.media_type === 'photo' ? 1 : 9 / 16,
                 padding: 1,
             }}>
             <View style={{ flex: 1, position: 'relative' }}>

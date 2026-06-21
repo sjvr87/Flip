@@ -1229,6 +1229,32 @@ export async function fetchSelfAccountVideos({
   return postsToMediaPage(
     res.data.feed.map((item) => ({ ...item, post: { ...item.post, author: item.post.author } })),
     res.data.cursor,
+    'video',
+  )
+}
+
+export async function fetchSelfAccountPhotos({
+  queryKey,
+  pageParam = false,
+}: {
+  queryKey?: unknown[]
+  pageParam?: PageParam
+} = {}): Promise<FlipFeedPage> {
+  const agent = getAgent()
+  const actor = agent.session?.did
+  if (!actor) throw new Error('Not authenticated')
+
+  const res = await agent.app.bsky.feed.getAuthorFeed({
+    actor,
+    filter: 'posts_with_media',
+    limit: 30,
+    cursor: normalizeCursor(pageParam),
+  })
+
+  return postsToMediaPage(
+    res.data.feed.map((item) => ({ ...item, post: { ...item.post, author: item.post.author } })),
+    res.data.cursor,
+    'photo',
   )
 }
 
@@ -1249,7 +1275,27 @@ export async function fetchUserVideos({
     cursor: normalizeCursor(pageParam),
   })
 
-  return postsToMediaPage(res.data.feed, res.data.cursor)
+  return postsToMediaPage(res.data.feed, res.data.cursor, 'video')
+}
+
+export async function fetchUserPhotos({
+  queryKey,
+  pageParam = false,
+}: {
+  queryKey: unknown[]
+  pageParam?: PageParam
+}): Promise<FlipFeedPage> {
+  const actor = queryKey[1] as string
+  const agent = getAgent()
+
+  const res = await agent.app.bsky.feed.getAuthorFeed({
+    actor,
+    filter: 'posts_with_media',
+    limit: 30,
+    cursor: normalizeCursor(pageParam),
+  })
+
+  return postsToMediaPage(res.data.feed, res.data.cursor, 'photo')
 }
 
 async function hydratePostView(

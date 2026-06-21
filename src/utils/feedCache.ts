@@ -164,6 +164,9 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
     await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['videos'] }),
         queryClient.invalidateQueries({ queryKey: ['userSelfVideos'] }),
+        queryClient.invalidateQueries({ queryKey: ['userSelfPhotos'] }),
+        queryClient.invalidateQueries({ queryKey: ['userVideos'] }),
+        queryClient.invalidateQueries({ queryKey: ['userPhotos'] }),
         queryClient.invalidateQueries({ queryKey: ['fetchSelfAccount', 'self'] }),
     ]);
 
@@ -171,5 +174,6 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
         queryClient.refetchQueries({ queryKey: ['videos', 'following'] }),
         queryClient.refetchQueries({ queryKey: ['videos', 'local'] }),
         queryClient.refetchQueries({ queryKey: ['userSelfVideos'] }),
+        queryClient.refetchQueries({ queryKey: ['userSelfPhotos'] }),
     ]);
 }

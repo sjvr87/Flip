@@ -5,7 +5,7 @@ import VideoGrid from '@/components/profile/VideoGrid';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { fetchSelfAccount, fetchSelfAccountVideos } from '@/atproto';
+import { fetchSelfAccount, fetchSelfAccountPhotos, fetchSelfAccountVideos } from '@/atproto';
 import {
     fetchAccountFavorites,
     fetchAccountLikes,
@@ -14,14 +14,17 @@ import {
 import { toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function ProfileScreen() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState('videos');
+    const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+    const [activeTab, setActiveTab] = useState(
+        tabParam === 'photos' ? 'photos' : 'videos',
+    );
     const [sortBy, setSortBy] = useState('Latest');
     const flatListRef = useRef(null);
     const { isDark } = useTheme();
@@ -35,6 +38,12 @@ export default function ProfileScreen() {
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
     });
+
+    useEffect(() => {
+        if (tabParam === 'photos') {
+            setActiveTab('photos');
+        }
+    }, [tabParam]);
 
     useEffect(() => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -55,6 +64,23 @@ export default function ProfileScreen() {
         refetchOnWindowFocus: true,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
         enabled: activeTab === 'videos',
+    });
+
+    const {
+        data: photosData,
+        fetchNextPage: photosFetchNextPage,
+        hasNextPage: photosHasNextPage,
+        isFetchingNextPage: photosIsFetchingNextPage,
+        refetch: photosRefetch,
+        isLoading: photosLoading,
+        isFetching: photosIsFetching,
+    } = useInfiniteQuery({
+        queryKey: ['userSelfPhotos', sortBy],
+        queryFn: fetchSelfAccountPhotos,
+        initialPageParam: undefined,
+        refetchOnWindowFocus: true,
+        getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
+        enabled: activeTab === 'photos',
     });
 
 
@@ -107,6 +133,11 @@ export default function ProfileScreen() {
         return videosData.pages.flatMap((p: any) => p?.data ?? []);
     }, [videosData]);
 
+    const photos = useMemo(() => {
+        if (!photosData?.pages?.length) return [];
+        return photosData.pages.flatMap((p: any) => p?.data ?? []);
+    }, [photosData]);
+
     const favorites = useMemo(() => {
         if (!favoritesData?.pages?.length) return [];
         return favoritesData.pages.flatMap((p: any) => p?.data ?? []);
@@ -118,10 +149,17 @@ export default function ProfileScreen() {
     }, [likesData]);
 
     const activeData = useMemo(() => {
-        const list = activeTab === 'favorites' ? favorites : activeTab === 'likes' ? likes : videos;
+        const list =
+            activeTab === 'favorites'
+                ? favorites
+                : activeTab === 'likes'
+                  ? likes
+                  : activeTab === 'photos'
+                    ? photos
+                    : videos;
 
         return (list ?? []).filter((x) => x && x.id != null);
-    }, [activeTab, videos, favorites, likes]);
+    }, [activeTab, videos, photos, favorites, likes]);
 
     const isLoading = useMemo(() => {
         switch (activeTab) {
@@ -129,10 +167,12 @@ export default function ProfileScreen() {
                 return favoritesLoading;
             case 'likes':
                 return likesLoading;
+            case 'photos':
+                return photosLoading;
             default:
                 return videosLoading;
         }
-    }, [activeTab, favoritesLoading, likesLoading, videosLoading]);
+    }, [activeTab, favoritesLoading, likesLoading, photosLoading, videosLoading]);
 
     const isFetching = useMemo(() => {
         switch (activeTab) {
@@ -140,10 +180,12 @@ export default function ProfileScreen() {
                 return favoritesIsFetching;
             case 'likes':
                 return likesIsFetching;
+            case 'photos':
+                return photosIsFetching;
             default:
                 return videosIsFetching;
         }
-    }, [activeTab, favoritesIsFetching, likesIsFetching, videosIsFetching]);
+    }, [activeTab, favoritesIsFetching, likesIsFetching, photosIsFetching, videosIsFetching]);
 
     const isFetchingNextPage = useMemo(() => {
         switch (activeTab) {
@@ -151,10 +193,18 @@ export default function ProfileScreen() {
                 return favoritesIsFetchingNextPage;
             case 'likes':
                 return likesIsFetchingNextPage;
+            case 'photos':
+                return photosIsFetchingNextPage;
             default:
                 return videosIsFetchingNextPage;
         }
-    }, [activeTab, favoritesIsFetchingNextPage, likesIsFetchingNextPage, videosIsFetchingNextPage]);
+    }, [
+        activeTab,
+        favoritesIsFetchingNextPage,
+        likesIsFetchingNextPage,
+        photosIsFetchingNextPage,
+        videosIsFetchingNextPage,
+    ]);
 
     const hasNextPage = useMemo(() => {
         switch (activeTab) {
@@ -162,10 +212,12 @@ export default function ProfileScreen() {
                 return favoritesHasNextPage;
             case 'likes':
                 return likesHasNextPage;
+            case 'photos':
+                return photosHasNextPage;
             default:
                 return videosHasNextPage;
         }
-    }, [activeTab, favoritesHasNextPage, likesHasNextPage, videosHasNextPage]);
+    }, [activeTab, favoritesHasNextPage, likesHasNextPage, photosHasNextPage, videosHasNextPage]);
 
     const handleVideoPress = (video) => {
         if (!video?.id || !video?.account?.id) {
@@ -208,6 +260,9 @@ export default function ProfileScreen() {
                 case 'likes':
                     likesFetchNextPage();
                     break;
+                case 'photos':
+                    photosFetchNextPage();
+                    break;
                 default:
                     videosFetchNextPage();
                     break;
@@ -223,6 +278,9 @@ export default function ProfileScreen() {
             case 'likes':
                 likesRefetch();
                 break;
+            case 'photos':
+                photosRefetch();
+                break;
             default:
                 videosRefetch();
                 break;
@@ -237,7 +295,8 @@ export default function ProfileScreen() {
     const renderEmpty = () => (
         <YStack paddingY="$8" flex={1} alignItems="center" justifyContent="center">
             <StackText fontSize="$4" textColor="text-gray-700 dark:text-gray-300">
-                {activeTab === 'videos' && 'No posts yet'}
+                {activeTab === 'videos' && 'No videos yet'}
+                {activeTab === 'photos' && 'No photos yet'}
                 {activeTab === 'favorites' && 'No favorites yet'}
                 {activeTab === 'likes' && 'No likes yet'}
                 {activeTab === 'reblogs' && 'No reblogs'}

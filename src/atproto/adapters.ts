@@ -242,13 +242,23 @@ export function postsToFeedPage(
   }
 }
 
+export type MediaPageFilter = 'all' | 'video' | 'photo'
+
+function matchesMediaFilter(item: FlipVideo, filter: MediaPageFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'photo') return item.media_type === 'photo' || item.is_photo === true
+  return item.media_type === 'video' || !item.is_photo
+}
+
 export function postsToMediaPage(
   items: AppBskyFeedDefs.FeedViewPost[],
   cursor?: string,
+  filter: MediaPageFilter = 'all',
 ): { data: FlipVideo[]; meta: FlipVideo extends never ? never : import('./types').FlipFeedPage['meta'] } {
   const data = items
     .map((item) => postToFlipItem(item))
     .filter((v): v is FlipVideo => v !== null)
+    .filter((item) => matchesMediaFilter(item, filter))
 
   return {
     data,

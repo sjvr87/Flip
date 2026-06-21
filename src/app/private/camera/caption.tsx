@@ -430,10 +430,10 @@ export default function CaptionScreen() {
             await invalidateFeedAfterPost(queryClient);
             setOverlayVisible(false);
             if (variables?.isPhotoPost) {
-                Alert.alert('Posted to Bluesky', 'Your photo is on your profile.');
-                router.replace('/(tabs)/profile');
+                Alert.alert('Posted', 'Your photo is on your profile. Open the Photos tab to see it.');
+                router.replace({ pathname: '/(tabs)/profile', params: { tab: 'photos' } });
             } else {
-                Alert.alert('Posted to Bluesky', 'Your video is on your profile. It may take a moment to appear in feeds while processing.');
+                Alert.alert('Posted', 'Your video is on your profile. It may take a moment to appear in feeds while processing.');
                 router.replace('/(tabs)/profile');
             }
         },

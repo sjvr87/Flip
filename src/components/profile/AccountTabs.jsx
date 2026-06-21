@@ -65,7 +65,10 @@ export default function AccountTabs({
         };
     }, []);
 
-    const tabs = [{ id: 'videos', icon: 'apps-sharp', iconActive: 'apps-sharp', customIcon: true }];
+    const tabs = [
+        { id: 'videos', icon: 'apps-sharp', iconActive: 'apps-sharp', customIcon: true },
+        { id: 'photos', icon: 'image-outline', iconActive: 'image' },
+    ];
 
     if (isOwner) {
         tabs.push(

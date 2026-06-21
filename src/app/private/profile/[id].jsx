@@ -11,6 +11,7 @@ import {
     fetchAccount as atprotoFetchAccount,
     fetchAccountState as atprotoFetchAccountState,
     fetchUserVideos as atprotoFetchUserVideos,
+    fetchUserPhotos as atprotoFetchUserPhotos,
     followAccount as atprotoFollowAccount,
     unblockAccount as atprotoUnblockAccount,
     unfollowAccount as atprotoUnfollowAccount,
@@ -50,7 +51,8 @@ import tw from 'twrnc';
 const EmptyVideos = memo(({ activeTab }) => (
     <YStack paddingY="$8" alignItems="center" justifyContent="center">
         <StackText fontSize="$4" style={tw`dark:text-gray-400`}>
-            {activeTab === 'videos' && 'No posts yet'}
+            {activeTab === 'videos' && 'No videos yet'}
+            {activeTab === 'photos' && 'No photos yet'}
             {activeTab === 'favorites' && 'No favorites yet'}
             {activeTab === 'reblogs' && 'No reblogs yet'}
         </StackText>
@@ -121,18 +123,34 @@ export default function ProfileScreen() {
 
     const {
         data: videosData,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-        refetch,
+        fetchNextPage: videosFetchNextPage,
+        hasNextPage: videosHasNextPage,
+        isFetchingNextPage: videosIsFetchingNextPage,
+        refetch: videosRefetch,
         isLoading: videosLoading,
-        isError: videosError,
     } = useInfiniteQuery({
         queryKey: ['userVideos', id?.toString(), sortBy],
         queryFn: atproto ? atprotoFetchUserVideos : fetchUserVideos,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: !!user && !!id,
+        enabled: !!user && !!id && activeTab === 'videos',
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+
+    const {
+        data: photosData,
+        fetchNextPage: photosFetchNextPage,
+        hasNextPage: photosHasNextPage,
+        isFetchingNextPage: photosIsFetchingNextPage,
+        refetch: photosRefetch,
+        isLoading: photosLoading,
+    } = useInfiniteQuery({
+        queryKey: ['userPhotos', id?.toString(), sortBy],
+        queryFn: atproto ? atprotoFetchUserPhotos : fetchUserVideos,
+        initialPageParam: undefined,
+        getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
+        enabled: !!user && !!id && activeTab === 'photos' && atproto,
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
     });
@@ -142,11 +160,23 @@ export default function ProfileScreen() {
         return videosData.pages.flatMap((page) => page?.data ?? []);
     }, [videosData?.pages]);
 
+    const photos = useMemo(() => {
+        if (!photosData?.pages) return [];
+        return photosData.pages.flatMap((page) => page?.data ?? []);
+    }, [photosData?.pages]);
+
+    const gridItems = activeTab === 'photos' ? photos : videos;
+    const gridLoading = activeTab === 'photos' ? photosLoading : videosLoading;
+    const gridHasNextPage = activeTab === 'photos' ? photosHasNextPage : videosHasNextPage;
+    const gridIsFetchingNextPage =
+        activeTab === 'photos' ? photosIsFetchingNextPage : videosIsFetchingNextPage;
+    const gridFetchNextPage = activeTab === 'photos' ? photosFetchNextPage : videosFetchNextPage;
+
     const handleEndReached = useCallback(() => {
-        if (hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
+        if (gridHasNextPage && !gridIsFetchingNextPage) {
+            gridFetchNextPage();
         }
-    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [gridHasNextPage, gridIsFetchingNextPage, gridFetchNextPage]);
 
     const followMutation = useMutation({
         mutationFn: async () => {
@@ -320,15 +350,15 @@ export default function ProfileScreen() {
     }, [user, userState, followMutation]);
 
     const renderEmpty = useCallback(() => {
-        if (videosLoading) {
+        if (gridLoading) {
             return <LoadingIndicator />;
         }
         return <EmptyVideos activeTab={activeTab} />;
-    }, [videosLoading, activeTab]);
+    }, [gridLoading, activeTab]);
 
     const renderFooter = useCallback(() => {
-        return isFetchingNextPage ? <FooterLoader /> : null;
-    }, [isFetchingNextPage]);
+        return gridIsFetchingNextPage ? <FooterLoader /> : null;
+    }, [gridIsFetchingNextPage]);
 
     const renderItem = useCallback(
         ({ item }) => <VideoGrid video={item} onPress={handleVideoPress} />,
@@ -411,7 +441,7 @@ export default function ProfileScreen() {
             />
 
             <FlatList
-                data={videos}
+                data={gridItems}
                 numColumns={3}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
