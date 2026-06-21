@@ -1,5 +1,6 @@
 import Avatar from '@/components/Avatar';
 import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
+import RepostArrowIcon, { REPOST_ARROW_DESIGN_SIZE } from '@/components/icons/RepostArrowIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
@@ -71,6 +72,17 @@ function LikeActionIcon({ active }: { active: boolean }) {
             <FoldedHeartIcon
                 size={LIKE_ICON_SIZE}
                 variant={active ? 'filled' : 'outline'}
+            />
+        </View>
+    );
+}
+
+function RepostActionIcon({ active }: { active: boolean }) {
+    return (
+        <View style={styles.iconShadow}>
+            <RepostArrowIcon
+                size={REPOST_ARROW_DESIGN_SIZE}
+                active={active}
             />
         </View>
     );
@@ -195,11 +207,7 @@ function FeedActionRail({
                 }
                 accessibilityRole="button"
                 accessibilityState={{ selected: isReposted }}>
-                <FeedActionIcon
-                    name="repeat-outline"
-                    activeName="repeat"
-                    active={isReposted}
-                />
+                <RepostActionIcon active={isReposted} />
                 <Text style={styles.actionText} accessibilityElementsHidden>
                     {repostCount}
                 </Text>
