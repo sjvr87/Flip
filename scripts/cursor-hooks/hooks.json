@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"./hooks/auto-sync-in.ps1\""
+      }
+    ],
+    "stop": [
+      {
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"./hooks/auto-save-out.ps1\""
+      }
+    ]
+  }
+}
