@@ -17,24 +17,26 @@ const OUTLINE_STROKE = 1.75;
 /**
  * Single continuous ribbon centerline traced from reference PNG:
  * top-left start → outer left lobe → bottom point → right lobe →
- * top-right fold tuck → inward dive → nested inner V tip → left arm → end.
+ * top-right fold tuck → inward descent → nested inner V tip → up to end cap.
  */
 const RIBBON_CENTERLINE =
-    'M 6.2 3.4' +
-    'C 4.2 3.8 2.4 6.2 2.6 9.2' +
-    'C 3.2 13.8 7.2 18.2 13 19.5' +
-    'C 18.8 18.2 22.8 13.8 23.4 9.2' +
-    'C 23.6 6.2 21.8 3.8 19.8 3.4' +
-    'C 19.2 2.9 18.5 3.5 18.0 4.8' +
-    'C 17.5 6.0 16.5 6.8 15.5 7.8' +
-    'C 14.5 9.0 13.8 11.0 13.3 12.5' +
-    'C 13.1 13.2 13.0 13.8 13.0 14.2' +
-    'C 12.5 13.2 11.8 11.5 11.2 10.0' +
-    'C 10.6 8.8 11.0 7.5 12.5 7.0' +
-    'C 13.8 6.6 15.0 6.5 15.8 7.0';
+    'M 6.6 2.8' +
+    'C 5.0 2.0 2.8 3.8 2.1 6.0' +
+    'C 1.5 8.5 1.7 11.0 2.8 13.5' +
+    'C 4.2 16.0 6.5 17.5 9.7 17.8' +
+    'C 11.5 19.0 12.5 21.5 13.0 23.2' +
+    'C 13.5 21.5 14.5 19.0 16.3 17.8' +
+    'C 18.5 17.0 21.0 14.0 23.0 11.0' +
+    'C 24.5 8.0 25.5 5.0 24.3 2.8' +
+    'C 23.0 2.0 21.0 3.0 19.5 5.0' +
+    'C 18.5 6.5 17.8 8.5 17.2 10.5' +
+    'C 16.5 12.5 15.5 14.5 14.5 16.5' +
+    'C 13.8 18.5 13.3 20.0 13.0 21.5' +
+    'C 14.0 18.5 15.5 15.0 16.5 12.0' +
+    'C 17.2 9.5 17.6 7.5 17.5 6.2';
 
 /** Dark tuck shadow at top-right fold where ribbon passes under itself. */
-const FOLD_SHADOW = 'M 18.8 2.6 L 22.4 3.2 L 20.2 4.6 Z';
+const FOLD_SHADOW = 'M 19.5 2.0 L 23.5 2.8 L 21.0 4.2 Z';
 
 const STROKE_PROPS = {
     strokeLinecap: 'round',
