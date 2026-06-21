@@ -1,4 +1,4 @@
-import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
+import FoldedHeartIcon, { FOLDED_HEART_ACTIVITY_SIZE } from '@/components/icons/FoldedHeartIcon';
 import MentionText from '@/components/MentionText';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -82,7 +82,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'video.like':
             case 'comment.like':
             case 'commentReply.like':
-                return <FoldedHeartIcon size={20} variant="filled" />;
+                return (
+                    <FoldedHeartIcon size={FOLDED_HEART_ACTIVITY_SIZE} variant="filled" />
+                );
             case 'video.commentReply':
             case 'video.comment':
                 return <Ionicons name="chatbubble" size={16} color="#007AFF" />;

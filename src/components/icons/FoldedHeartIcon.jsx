@@ -1,5 +1,11 @@
 import { memo, useId } from 'react';
+import { View } from 'react-native';
 import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
+
+/** Design-space canvas — feed like button renders at this size. */
+export const FOLDED_HEART_DESIGN_SIZE = 26;
+/** Activities / notification badge size — same shape, proportionally smaller. */
+export const FOLDED_HEART_ACTIVITY_SIZE = 20;
 
 /** Light-purple ribbon palette — matches @mention purple preference. */
 export const HEART_SHADOW = '#7C3AED';
@@ -8,7 +14,7 @@ export const HEART_MID = '#C084FC';
 export const HEART_LIGHT = '#E9D5FF';
 export const HEART_OUTLINE = '#C084FC';
 
-const VIEWBOX = '0 0 26 26';
+const VIEWBOX = `0 0 ${FOLDED_HEART_DESIGN_SIZE} ${FOLDED_HEART_DESIGN_SIZE}`;
 
 /** Uniform ribbon width traced from reference (~4.2px at 26×26). */
 const RIBBON_STROKE = 4.2;
@@ -111,17 +117,46 @@ export function FoldedHeartGroup({
     );
 }
 
-/**
- * Folded-ribbon heart — continuous light-purple gradient stroke with fold shadow.
- * Scales via size prop (~26px action rail, ~11px mailbox overlay at scale 0.42).
- */
-const FoldedHeartIcon = memo(function FoldedHeartIcon({ size = 26, variant = 'filled' }) {
-    const gradientId = useId();
-
+function FoldedHeartSvg({ variant, gradientId }) {
     return (
-        <Svg width={size} height={size} viewBox={VIEWBOX} fill="none">
+        <Svg
+            width={FOLDED_HEART_DESIGN_SIZE}
+            height={FOLDED_HEART_DESIGN_SIZE}
+            viewBox={VIEWBOX}
+            fill="none">
             <FoldedHeartPaths variant={variant} gradientId={gradientId} />
         </Svg>
+    );
+}
+
+/**
+ * Folded-ribbon heart — continuous light-purple gradient stroke with fold shadow.
+ * Renders at design size then uniformly scales so ribbon proportions match feed at any size.
+ */
+const FoldedHeartIcon = memo(function FoldedHeartIcon({
+    size = FOLDED_HEART_DESIGN_SIZE,
+    variant = 'filled',
+}) {
+    const gradientId = useId();
+
+    if (size === FOLDED_HEART_DESIGN_SIZE) {
+        return <FoldedHeartSvg variant={variant} gradientId={gradientId} />;
+    }
+
+    const scale = size / FOLDED_HEART_DESIGN_SIZE;
+
+    return (
+        <View
+            style={{
+                width: size,
+                height: size,
+                alignItems: 'center',
+                justifyContent: 'center',
+            }}>
+            <View style={{ transform: [{ scale }] }}>
+                <FoldedHeartSvg variant={variant} gradientId={gradientId} />
+            </View>
+        </View>
     );
 });
 

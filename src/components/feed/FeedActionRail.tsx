@@ -1,5 +1,5 @@
 import Avatar from '@/components/Avatar';
-import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
+import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 const ICON_SIZE = 30;
-const LIKE_ICON_SIZE = 26;
+const LIKE_ICON_SIZE = FOLDED_HEART_DESIGN_SIZE;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 
