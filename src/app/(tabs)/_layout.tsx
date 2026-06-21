@@ -16,7 +16,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 /** Fixed square slot so every tab icon shares the same footprint and center. */
 const TAB_ICON_SLOT_SIZE = 42;
-const ICON_SIZE = 40;
+const ICON_SIZE = 42;
 /** Mailbox SVG uses a 30×30 viewBox; other tab icons use 26×26. */
 const MAILBOX_ICON_SIZE = Math.round(ICON_SIZE * (30 / 26));
 
