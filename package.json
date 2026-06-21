@@ -21,7 +21,9 @@
     "dev:connect": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1",
     "android:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-reinstall.ps1",
     "dev:connect:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -RestartMetro",
-    "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1"
+    "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
+    "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
+    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
