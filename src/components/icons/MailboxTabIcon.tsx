@@ -43,10 +43,10 @@ function FoldedHeart({ x, y, scale }: { x: number; y: number; scale: number }) {
 }
 
 /**
- * Classic US mailbox on a post — side profile, domed top, open door lip, side flag.
+ * Classic US mailbox on a post — traced from user reference at 26px.
  *
+ * Side-profile domed body, white open-mouth curve, yellow-orange flag + envelope.
  * Priority when multiple unread: messages > likes > follows.
- * Documented in notificationStore.mailboxIconState.
  */
 const MailboxTabIcon = memo(function MailboxTabIcon({
     size = 26,
@@ -56,75 +56,81 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
 }: MailboxTabIconProps) {
     const hasUnread = state !== 'allRead';
     const flagUp = hasUnread;
+    const lipStroke = focused ? 0.95 : 0.82;
+    const lipWidth = focused ? 0.9 : 0.8;
 
     return (
         <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-            {/* Post — thick stake centered under body */}
-            <Rect x={11.1} y={19.6} width={3.8} height={6.4} rx={0.6} fill={color} />
+            {/* Post — thick stake, centered under body */}
+            <Rect x={11.5} y={19.7} width={3} height={5.8} rx={0.55} fill={color} />
 
-            {/* Mailbox shell — side profile, flat bottom, domed top */}
-            <Path
-                d="M5.2 19.6h15.3V11.4a7.65 4.4 0 0 0-15.3 0v8.2z"
-                fill={color}
-            />
-
-            {/* Open-door cavity — white curved lip like reference */}
-            <Path
-                d="M5.4 11.9c-1.15.7-1.45 2.2-.9 4.05"
-                stroke="#FFFFFF"
-                strokeWidth={0.9}
-                strokeLinecap="round"
-                fill="none"
-                opacity={focused ? 0.96 : 0.84}
-            />
-
-            {/* Flag mount hinge on right side of body */}
-            <Rect x={19.5} y={16.85} width={2.3} height={2.3} rx={1.15} fill={color} />
-
-            {flagUp ? (
-                <>
-                    {/* Flag stem — vertical when unread */}
-                    <Rect x={20.05} y={7.2} width={1.2} height={9.85} rx={0.6} fill={color} />
-                    {/* Swallowtail pennant — up, accent yellow-orange */}
-                    <Path
-                        d="M20.65 6.9h5.1l-1.5 1.9 1.5 1.9H20.65V6.9z"
-                        fill={UNREAD_ACCENT}
-                    />
-                </>
-            ) : (
-                <>
-                    {/* Flag stem — horizontal when all read */}
-                    <Rect x={12.4} y={17.3} width={7.7} height={1.4} rx={0.7} fill={color} />
-                    {/* Swallowtail pennant — down, points left with fly-notch */}
-                    <Path
-                        d="M12.4 16.35v3.45H8.15l1.55-1.72L8.15 16.35H12.4z"
-                        fill={color}
-                    />
-                </>
-            )}
-
-            {/* Envelope (unread DMs) — peeks out of open door */}
+            {/* Envelope (messages) — behind body, peeks from left opening */}
             {state === 'messages' ? (
                 <>
-                    <Rect x={2.2} y={12.3} width={7.4} height={5} rx={0.45} fill={UNREAD_ACCENT} />
+                    <Rect x={1.5} y={12.35} width={7.7} height={4.85} rx={0.35} fill={UNREAD_ACCENT} />
                     <Path
-                        d="M2.2 12.75 5.9 15.3 9.6 12.75"
-                        stroke="#E6A600"
-                        strokeWidth={0.72}
+                        d="M1.5 12.7 5.35 15.05 9.2 12.7"
+                        stroke="#FFFFFF"
+                        strokeWidth={0.68}
                         strokeLinejoin="round"
                         fill="none"
                     />
                 </>
             ) : null}
 
+            {/* Mailbox body — side profile, flat bottom, domed top */}
+            <Path
+                d="M5.1 19.5 H20.4 V11.3 A7.65 4.1 0 0 0 5.1 11.3 V19.5 Z"
+                fill={color}
+            />
+
+            {/* Open-door mouth — white curved cavity lip */}
+            <Path
+                d="M5.2 12.05 C4.3 13.75 4.2 16.05 5.25 18.35"
+                stroke="#FFFFFF"
+                strokeWidth={lipWidth}
+                strokeLinecap="round"
+                fill="none"
+                opacity={lipStroke}
+            />
+
+            {flagUp ? (
+                <>
+                    {/* White halo between flag stem and mailbox body */}
+                    <Rect x={19.7} y={6.65} width={1.6} height={10.55} rx={0.5} fill="#FFFFFF" />
+                    <Rect x={19.75} y={16.85} width={2.35} height={1.45} rx={0.725} fill="#FFFFFF" />
+                    {/* Flag stem — vertical, accent when unread */}
+                    <Rect x={19.95} y={6.85} width={1.1} height={10.15} rx={0.55} fill={UNREAD_ACCENT} />
+                    {/* Hinge pill at body junction */}
+                    <Rect x={19.85} y={16.95} width={2.2} height={1.25} rx={0.625} fill={UNREAD_ACCENT} />
+                    {/* Swallowtail pennant — up, points right */}
+                    <Path
+                        d="M20.45 6.6 H25.15 L23.6 8.5 25.15 10.4 H20.45 V6.6 Z"
+                        fill={UNREAD_ACCENT}
+                    />
+                </>
+            ) : (
+                <>
+                    {/* Hinge knob on right side */}
+                    <Rect x={19.55} y={17.05} width={2.25} height={1.3} rx={0.65} fill={color} />
+                    {/* Flag stem — horizontal when all read */}
+                    <Rect x={11.4} y={17.35} width={8.4} height={1.2} rx={0.6} fill={color} />
+                    {/* Swallowtail pennant — down, points left */}
+                    <Path
+                        d="M11.4 16.55 V19.35 H7.2 L8.75 17.95 7.2 16.55 H11.4 Z"
+                        fill={color}
+                    />
+                </>
+            )}
+
             {/* Heart (unread likes) */}
-            {state === 'likes' ? <FoldedHeart x={3.4} y={11.8} scale={0.92} /> : null}
+            {state === 'likes' ? <FoldedHeart x={2.6} y={11.5} scale={0.92} /> : null}
 
             {/* Three people (unread follows) */}
             {state === 'follows' ? (
                 <FollowPeopleGroup
-                    x={3}
-                    y={11.6}
+                    x={2.4}
+                    y={11.3}
                     scale={0.44}
                     color={color}
                     strokeWidth={focused ? 1.2 : 1.05}
