@@ -120,15 +120,42 @@ $devicesOut = & $adb devices 2>&1 | Out-String
 Write-Host $devicesOut.TrimEnd()
 
 $serials = @()
+$unauthorized = @()
+$offline = @()
 foreach ($line in ($devicesOut -split "`n")) {
   if ($line -match "^\s*(\S+)\s+device\s*$") {
     $serials += $Matches[1]
+  } elseif ($line -match "^\s*(\S+)\s+unauthorized\s*$") {
+    $unauthorized += $Matches[1]
+  } elseif ($line -match "^\s*(\S+)\s+offline\s*$") {
+    $offline += $Matches[1]
   }
 }
 
+function Write-UsbDeviceHelp {
+  param([string]$Reason)
+  Write-Host ""
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host "  PHONE NOT READY FOR USB DEV - $Reason" -ForegroundColor Red
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host ""
+  Write-Host "On your Samsung phone:" -ForegroundColor Yellow
+  Write-Host "  1. Use a data USB cable (not charge-only)"
+  Write-Host "  2. Settings -> Developer options -> USB debugging ON"
+  Write-Host "  3. When plugged in, tap Allow on the USB debugging prompt"
+  Write-Host "  4. USB mode: File transfer / MTP (not Charging only)"
+  Write-Host ""
+  Write-Host "Then unplug, replug, and run flip-dev.bat again." -ForegroundColor Yellow
+  Write-Host ""
+}
+
 $reverseOk = $false
-if ($serials.Count -eq 0) {
-  Write-Host "WARN: No device in 'device' state - enable USB debugging, accept RSA prompt, use a data USB cable." -ForegroundColor Yellow
+if ($unauthorized.Count -gt 0) {
+  Write-UsbDeviceHelp "adb shows unauthorized ($($unauthorized -join ', '))"
+} elseif ($offline.Count -gt 0) {
+  Write-UsbDeviceHelp "adb shows offline ($($offline -join ', '))"
+} elseif ($serials.Count -eq 0) {
+  Write-UsbDeviceHelp "no device listed"
 } else {
   Write-Host "[3/6] adb reverse tcp:8081 tcp:8081"
   foreach ($serial in $serials) {
@@ -189,6 +216,8 @@ Write-Host "USB URL: exp://127.0.0.1:8081 (requires adb reverse)"
 if ($lanIp) { Write-Host "LAN URL: exp://${lanIp}:8081 (npm run start:lan + same Wi-Fi)" }
 Write-Host ""
 Write-Host "=== Troubleshooting ===" -ForegroundColor Cyan
+Write-Host "- Must run flip-dev.bat (or npm run dev:connect:restart) — opening Flip alone does not start Metro"
+Write-Host "- Beta/preview app (flip-beta.bat) is standalone — it cannot load live JS from your PC"
 Write-Host "- Stale Metro / port conflict: npm run dev:connect -- -RestartMetro"
 Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run npm run start:clear"
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
