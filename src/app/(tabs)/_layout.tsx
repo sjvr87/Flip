@@ -11,20 +11,31 @@ import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarL
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tabs } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-const ICON_SIZE = 34;
-const CREATE_ADD_SIZE = Math.round(ICON_SIZE * (24 / 26));
+/** Fixed square slot so every tab icon shares the same footprint and center. */
+const TAB_ICON_SLOT_SIZE = 40;
+const ICON_SIZE = 37;
+/** Mailbox SVG uses a 30×30 viewBox; other tab icons use 26×26. */
+const MAILBOX_ICON_SIZE = Math.round(ICON_SIZE * (30 / 26));
+const CREATE_BUTTON_HEIGHT = Math.round(TAB_ICON_SLOT_SIZE * (30 / 48));
+const CREATE_ADD_SIZE = Math.round(CREATE_BUTTON_HEIGHT * (24 / 30));
+
+function TabIconSlot({ children }: { children: ReactNode }) {
+    return <View style={styles.tabIconSlot}>{children}</View>;
+}
 
 function CreateTabIcon({ isDark }: { isDark: boolean }) {
     const backgroundColor = isDark ? '#ffffff' : '#000000';
     const iconColor = isDark ? '#000000' : '#ffffff';
 
     return (
-        <View style={[styles.createButton, { backgroundColor }]}>
-            <Ionicons name="add" size={CREATE_ADD_SIZE} color={iconColor} />
-        </View>
+        <TabIconSlot>
+            <View style={[styles.createButton, { backgroundColor }]}>
+                <Ionicons name="add" size={CREATE_ADD_SIZE} color={iconColor} />
+            </View>
+        </TabIconSlot>
     );
 }
 
@@ -70,7 +81,15 @@ export default function TabsLayout() {
                     shadowOpacity: 0,
                 },
                 tabBarItemStyle: {
-                    paddingTop: 2,
+                    flex: 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingTop: 0,
+                    paddingHorizontal: 0,
+                },
+                tabBarIconStyle: {
+                    width: TAB_ICON_SLOT_SIZE,
+                    height: TAB_ICON_SLOT_SIZE,
                 },
             }}>
             <Tabs.Screen
@@ -81,7 +100,9 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <HomeTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        <TabIconSlot>
+                            <HomeTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -93,7 +114,9 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <ExploreTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        <TabIconSlot>
+                            <ExploreTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -124,12 +147,14 @@ export default function TabsLayout() {
                           }
                         : {}),
                     tabBarIcon: ({ color, focused }) => (
-                        <MailboxTabIcon
-                            color={color}
-                            focused={focused}
-                            size={ICON_SIZE}
-                            state={mailboxIconState}
-                        />
+                        <TabIconSlot>
+                            <MailboxTabIcon
+                                color={color}
+                                focused={focused}
+                                size={MAILBOX_ICON_SIZE}
+                                state={mailboxIconState}
+                            />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -141,7 +166,9 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <ProfileTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        <TabIconSlot>
+                            <ProfileTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -150,9 +177,15 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+    tabIconSlot: {
+        width: TAB_ICON_SLOT_SIZE,
+        height: TAB_ICON_SLOT_SIZE,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     createButton: {
-        width: Math.round(48 * (ICON_SIZE / 26)),
-        height: Math.round(30 * (ICON_SIZE / 26)),
+        width: TAB_ICON_SLOT_SIZE,
+        height: CREATE_BUTTON_HEIGHT,
         borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
