@@ -13,7 +13,7 @@ if not exist "package.json" (
 call npm.cmd run beta:build
 if errorlevel 1 (
   echo.
-  echo Beta build failed. See errors above.
+  echo Beta build failed. See the message above for what to try.
   pause
   exit /b 1
 )

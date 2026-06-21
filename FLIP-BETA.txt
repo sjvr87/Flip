@@ -1,23 +1,8 @@
-Flip beta — EAS preview APK (no Metro)
-========================================
+Flip on your phone — 5 steps
+============================
 
-BEST: double-click flip-beta.bat in the Flip repo folder:
-  C:\Users\tomas\Documents\Flip\flip-beta.bat
-
-PowerShell (ONE line — copy only the line below, not "PS C:\...>"):
-  powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\tomas\Documents\Flip\scripts\Start-FlipBeta.ps1"
-
-From repo root (npm.cmd avoids PowerShell blocking npm.ps1):
-  cd /d C:\Users\tomas\Documents\Flip
-  npm.cmd run beta:build
-
-First time only:
-  npx eas-cli login
-
-Build runs in Expo's cloud (~10-20 min). When done, open the build link to download/install the APK.
-List recent builds: npx eas-cli build:list --platform android --limit 5
-
-NEVER paste a PowerShell prompt into the terminal (lines starting with "PS C:\...>").
-NEVER use bare "npm" in PowerShell — use npm.cmd or the scripts above.
-
-No Metro or dev server required — this is a standalone preview build.
+1. Double-click flip-beta.bat in your Flip folder (C:\Users\tomas\Documents\Flip).
+2. When your browser opens, sign in to Expo (one time only — free account is fine).
+3. Wait about 15 minutes while Flip builds in the cloud. Leave the window open.
+4. When you see a link, open it on your Samsung phone and tap Install.
+5. Use Flip like a normal app — your PC can be off; you do not need flip-dev.bat.
