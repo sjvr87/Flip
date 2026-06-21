@@ -7,12 +7,12 @@ export const FOLDED_HEART_DESIGN_SIZE = 26;
 /** Activities / notification badge size — same shape, proportionally smaller. */
 export const FOLDED_HEART_ACTIVITY_SIZE = 20;
 
-/** Light-purple ribbon palette — matches @mention purple preference. */
-export const HEART_SHADOW = '#7C3AED';
-export const HEART_DEEP = '#A78BFA';
-export const HEART_MID = '#C084FC';
-export const HEART_LIGHT = '#E9D5FF';
-export const HEART_OUTLINE = '#C084FC';
+/** Magenta / raspberry ribbon palette — matches reference PNG. */
+export const HEART_SHADOW = '#8E1040';
+export const HEART_DEEP = '#C2185B';
+export const HEART_MID = '#E8387A';
+export const HEART_LIGHT = '#FF5C9A';
+export const HEART_OUTLINE = '#FFB8D4';
 
 const VIEWBOX = `0 0 ${FOLDED_HEART_DESIGN_SIZE} ${FOLDED_HEART_DESIGN_SIZE}`;
 
@@ -22,29 +22,33 @@ const OUTLINE_STROKE = 1.75;
 
 /**
  * Single continuous ribbon centerline traced from reference PNG:
- * top-left start → outer left lobe → bottom point → right lobe →
- * top-right fold tuck → inward descent → nested inner V tip → up to end cap.
+ * top-center flat cap → outer left lobe → bottom point → outer right wall →
+ * top-right lobe → inward fold tuck → nested inner V tip → middle-left flat cap.
  */
 const RIBBON_CENTERLINE =
-    'M 6.6 2.8' +
-    'C 5.0 2.0 2.8 3.8 2.1 6.0' +
-    'C 1.5 8.5 1.7 11.0 2.8 13.5' +
-    'C 4.2 16.0 6.5 17.5 9.7 17.8' +
-    'C 11.5 19.0 12.5 21.5 13.0 23.2' +
-    'C 13.5 21.5 14.5 19.0 16.3 17.8' +
-    'C 18.5 17.0 21.0 14.0 23.0 11.0' +
-    'C 24.5 8.0 25.5 5.0 24.3 2.8' +
-    'C 23.0 2.0 21.0 3.0 19.5 5.0' +
-    'C 18.5 6.5 17.8 8.5 17.2 10.5' +
-    'C 16.5 12.5 15.5 14.5 14.5 16.5' +
-    'C 13.8 18.5 13.3 20.0 13.0 21.5' +
-    'C 14.0 18.5 15.5 15.0 16.5 12.0' +
-    'C 17.2 9.5 17.6 7.5 17.5 6.2';
+    'M 13.0 2.7' +
+    'C 9.2 2.3 5.2 3.8 3.0 7.0' +
+    'C 1.4 9.8 1.5 13.2 3.2 16.4' +
+    'C 5.5 19.8 9.0 22.6 13.0 24.0' +
+    'C 17.0 22.6 20.5 19.8 22.8 16.4' +
+    'C 24.5 13.2 24.6 9.8 23.2 7.2' +
+    'C 24.2 5.5 24.5 3.8 23.5 2.6' +
+    'C 22.0 4.2 21.0 6.0 20.2 7.8' +
+    'C 19.0 10.0 17.2 12.5 15.2 14.5' +
+    'C 14.2 16.0 13.5 17.5 13.0 18.8' +
+    'C 11.5 17.0 10.0 14.5 9.0 12.0' +
+    'C 8.5 10.0 8.3 8.0 8.8 6.5';
 
 /** Dark tuck shadow at top-right fold where ribbon passes under itself. */
-const FOLD_SHADOW = 'M 19.5 2.0 L 23.5 2.8 L 21.0 4.2 Z';
+const FOLD_SHADOW = 'M 21.8 2.2 L 24.2 3.0 L 22.5 5.5 Z';
 
-const STROKE_PROPS = {
+const FILLED_STROKE_PROPS = {
+    strokeLinecap: 'butt',
+    strokeLinejoin: 'round',
+    fill: 'none',
+};
+
+const OUTLINE_STROKE_PROPS = {
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
     fill: 'none',
@@ -56,8 +60,8 @@ function HeartGradientDefs({ id }) {
             <LinearGradient
                 id={id}
                 x1="2"
-                y1="22"
-                x2="24"
+                y1="24"
+                x2="22"
                 y2="2"
                 gradientUnits="userSpaceOnUse">
                 <Stop offset="0" stopColor={HEART_SHADOW} />
@@ -80,7 +84,8 @@ export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
                 d={RIBBON_CENTERLINE}
                 stroke={HEART_OUTLINE}
                 strokeWidth={OUTLINE_STROKE}
-                {...STROKE_PROPS}
+                opacity={0.92}
+                {...OUTLINE_STROKE_PROPS}
             />
         );
     }
@@ -92,9 +97,9 @@ export function FoldedHeartPaths({ variant = 'filled', gradientId }) {
                 d={RIBBON_CENTERLINE}
                 stroke={`url(#${gradientId})`}
                 strokeWidth={RIBBON_STROKE}
-                {...STROKE_PROPS}
+                {...FILLED_STROKE_PROPS}
             />
-            <Path d={FOLD_SHADOW} fill={HEART_SHADOW} opacity={0.42} />
+            <Path d={FOLD_SHADOW} fill={HEART_SHADOW} opacity={0.58} />
         </>
     );
 }
@@ -130,7 +135,7 @@ function FoldedHeartSvg({ variant, gradientId }) {
 }
 
 /**
- * Folded-ribbon heart — continuous light-purple gradient stroke with fold shadow.
+ * Folded-ribbon heart — continuous magenta gradient stroke with fold shadow.
  * Renders at design size then uniformly scales so ribbon proportions match feed at any size.
  */
 const FoldedHeartIcon = memo(function FoldedHeartIcon({
