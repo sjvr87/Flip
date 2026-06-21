@@ -1,16 +1,25 @@
-﻿Flip dev — quick start
-======================
+﻿Flip dev — how to start (Windows)
+=================================
 
-From repo root (C:\Users\tomas\Documents\Flip):
+BEST: double-click flip-dev.bat in the Flip repo folder:
+  C:\Users\tomas\Documents\Flip\flip-dev.bat
 
-  Double-click: flip-dev.bat
+PowerShell (ONE line — copy only the line below, not "PS C:\...>"):
+  powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\tomas\Documents\Flip\scripts\Start-FlipDev.ps1"
 
-  Or PowerShell:
-    cd C:\Users\tomas\Documents\Flip
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Start-FlipDev.ps1
+From repo root (npm.cmd avoids PowerShell blocking npm.ps1):
+  cd /d C:\Users\tomas\Documents\Flip
+  npm.cmd run flip:dev
 
-  Or npm:
-    cd /d C:\Users\tomas\Documents\Flip
-    npm.cmd run dev:connect:restart
+cmd.exe (3 lines):
+  cd /d C:\Users\tomas\Documents\Flip
+  npm.cmd run dev:connect:restart
 
-What it does: git pull, adb reverse, restart Metro (clear cache), launch the dev client.
+Or from anywhere:
+  C:\Users\tomas\Documents\Flip\scripts\flip-dev.cmd
+
+NEVER paste a PowerShell prompt into the terminal (lines starting with "PS C:\...>").
+
+NEVER use bare "npm" in PowerShell — use npm.cmd or the scripts above.
+
+Leave the dev window open while Metro is running.
