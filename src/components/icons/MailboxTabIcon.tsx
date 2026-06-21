@@ -1,8 +1,6 @@
 import { FollowPeopleGroup } from '@/components/icons/FollowPeopleIcon';
-import { Image } from 'expo-image';
 import { memo } from 'react';
-import { View, type ViewStyle } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 export type MailboxIconState = 'allRead' | 'messages' | 'likes' | 'follows';
 
@@ -13,28 +11,18 @@ type MailboxTabIconProps = {
     state?: MailboxIconState;
 };
 
-const MAILBOX_MESSAGES = require('../../../assets/images/mailbox-tab-reference.png');
-const MAILBOX_EMPTY = require('../../../assets/images/mailbox-tab-empty.png');
-const MAILBOX_UNREAD_BASE = require('../../../assets/images/mailbox-tab-unread-base.png');
-
-/** Envelope slot on the reference art — fraction of icon box. */
-const SLOT = { left: 0.17, top: 0.04, width: 0.33, height: 0.58 } as const;
+const UNREAD_ACCENT = '#FFB800';
 
 /** Folded ribbon heart overlay for unread likes. */
-function FoldedHeart({ size }: { size: number }) {
-    const slotW = size * SLOT.width;
-    const slotH = size * SLOT.height;
+function FoldedHeart({ x, y, scale }: { x: number; y: number; scale: number }) {
     return (
         <Svg
-            width={slotW}
-            height={slotH}
+            x={x}
+            y={y}
+            width={10 * scale}
+            height={9 * scale}
             viewBox="0 0 20 18"
-            fill="none"
-            style={{
-                position: 'absolute',
-                left: size * SLOT.left,
-                top: size * SLOT.top,
-            }}>
+            fill="none">
             <Defs>
                 <LinearGradient id="mailboxHeartGrad" x1="2" y1="16" x2="18" y2="2">
                     <Stop offset="0" stopColor="#C0005A" />
@@ -51,64 +39,143 @@ function FoldedHeart({ size }: { size: number }) {
 }
 
 /**
- * Inbox tab icon — user reference PNG at 26px for exact mailbox fidelity.
+ * Classic US mailbox on a post — stroke-only line art at 26px.
+ * Tint follows tabBarActiveTintColor / tabBarInactiveTintColor like other tab icons.
  * Priority when multiple unread: messages > likes > follows.
  */
 const MailboxTabIcon = memo(function MailboxTabIcon({
     size = 26,
+    color = '#000000',
     focused = false,
     state = 'allRead',
 }: MailboxTabIconProps) {
-    const opacity = focused ? 1 : 0.72;
-    const imageStyle: ViewStyle = { width: size, height: size, opacity };
+    const strokeWidth = focused ? 1.75 : 1.3;
+    const strokeOpacity = focused ? 1 : 0.72;
+    const flagUp = state !== 'allRead';
 
-    if (state === 'messages') {
-        return (
-            <Image
-                source={MAILBOX_MESSAGES}
-                style={imageStyle}
-                contentFit="contain"
-                accessibilityIgnoresInvertColors
-            />
-        );
-    }
-
-    if (state === 'allRead') {
-        return (
-            <Image
-                source={MAILBOX_EMPTY}
-                style={imageStyle}
-                contentFit="contain"
-                accessibilityIgnoresInvertColors
-            />
-        );
-    }
+    const stroke = {
+        stroke: color,
+        strokeWidth,
+        strokeOpacity,
+        strokeLinecap: 'round' as const,
+        strokeLinejoin: 'round' as const,
+        fill: 'none' as const,
+    };
 
     return (
-        <View style={{ width: size, height: size }}>
-            <Image
-                source={MAILBOX_UNREAD_BASE}
-                style={imageStyle}
-                contentFit="contain"
-                accessibilityIgnoresInvertColors
+        <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
+            {/* Post — centered under body */}
+            <Rect
+                x={11.5}
+                y={19.7}
+                width={3}
+                height={5.8}
+                rx={0.55}
+                {...stroke}
             />
-            {state === 'likes' ? <FoldedHeart size={size} /> : null}
-            {state === 'follows' ? (
-                <Svg
-                    width={size}
-                    height={size}
-                    viewBox={`0 0 ${size} ${size}`}
-                    style={{ position: 'absolute', left: 0, top: 0 }}>
-                    <FollowPeopleGroup
-                        x={size * SLOT.left}
-                        y={size * (SLOT.top + 0.02)}
-                        scale={(size / 26) * 0.44}
-                        color="#000000"
-                        strokeWidth={focused ? 1.2 : 1.05}
+
+            {/* Envelope (messages) — peeks from left opening */}
+            {state === 'messages' ? (
+                <>
+                    <Rect
+                        x={1.5}
+                        y={12.35}
+                        width={7.7}
+                        height={4.85}
+                        rx={0.35}
+                        fill={UNREAD_ACCENT}
                     />
-                </Svg>
+                    <Path
+                        d="M1.5 12.7 5.35 15.05 9.2 12.7"
+                        stroke="#E6A600"
+                        strokeWidth={0.68}
+                        strokeLinejoin="round"
+                        fill="none"
+                    />
+                </>
             ) : null}
-        </View>
+
+            {/* Mailbox body — side profile, domed top; left wall omitted for door gap */}
+            <Path d="M5.1 19.5 H20.4 V11.3 A7.65 4.1 0 0 0 5.1 11.3" {...stroke} />
+            {/* Left wall above door */}
+            <Path d="M5.1 11.3 V12.2" {...stroke} />
+            {/* Left wall below door */}
+            <Path d="M5.1 18.2 V19.5" {...stroke} />
+            {/* Open-door lip — curved arc in tab color, not a white fill */}
+            <Path
+                d="M5.2 12.05 C4.3 13.75 4.2 16.05 5.25 18.35"
+                {...stroke}
+            />
+
+            {flagUp ? (
+                <>
+                    {/* Flag stem — vertical when unread */}
+                    <Rect
+                        x={19.95}
+                        y={6.85}
+                        width={1.1}
+                        height={10.15}
+                        rx={0.55}
+                        fill={UNREAD_ACCENT}
+                    />
+                    {/* Hinge pill at body junction */}
+                    <Rect
+                        x={19.85}
+                        y={16.95}
+                        width={2.2}
+                        height={1.25}
+                        rx={0.625}
+                        fill={UNREAD_ACCENT}
+                    />
+                    {/* Swallowtail pennant — up, points right */}
+                    <Path
+                        d="M20.45 6.6 H25.15 L23.6 8.5 25.15 10.4 H20.45 V6.6 Z"
+                        fill={UNREAD_ACCENT}
+                    />
+                </>
+            ) : (
+                <>
+                    {/* Hinge knob on right side */}
+                    <Rect
+                        x={19.55}
+                        y={17.05}
+                        width={2.25}
+                        height={1.3}
+                        rx={0.65}
+                        fill={color}
+                        opacity={strokeOpacity}
+                    />
+                    {/* Flag stem — horizontal when all read */}
+                    <Rect
+                        x={11.4}
+                        y={17.35}
+                        width={8.4}
+                        height={1.2}
+                        rx={0.6}
+                        fill={color}
+                        opacity={strokeOpacity}
+                    />
+                    {/* Swallowtail pennant — down, points left */}
+                    <Path
+                        d="M11.4 16.55 V19.35 H7.2 L8.75 17.95 7.2 16.55 H11.4 Z"
+                        fill={color}
+                        opacity={strokeOpacity}
+                    />
+                </>
+            )}
+
+            {state === 'likes' ? <FoldedHeart x={2.6} y={11.5} scale={0.92} /> : null}
+
+            {state === 'follows' ? (
+                <FollowPeopleGroup
+                    x={2.4}
+                    y={11.3}
+                    scale={0.44}
+                    color={color}
+                    strokeWidth={focused ? 1.2 : 1.05}
+                />
+            ) : null}
+        </Svg>
     );
 });
 
