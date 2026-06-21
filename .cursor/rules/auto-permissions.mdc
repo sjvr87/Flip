@@ -1,0 +1,28 @@
+---
+description: User pre-authorizes tool permissions; agents should act without asking for routine approval.
+alwaysApply: true
+---
+
+# Auto-permissions (pre-authorized)
+
+The user has **pre-authorized** all standard agent tool permissions for this project:
+
+- `git_write` — stage, commit, branch operations
+- `network` / `full_network` — npm install, gh, adb, API calls, package registries
+- `all` — disable sandbox when a command needs broader filesystem or system access
+
+## How agents should behave
+
+1. **Request permissions proactively** — when a shell command or tool call needs `git_write`, `full_network`, `network`, or `all`, include `required_permissions` on the first attempt. Do not run a doomed sandboxed command first and retry only after failure.
+2. **Do not pause for permission** — for routine dev work (build, test, install deps, push, adb, CI checks, gh), proceed without asking "may I run this?" or "should I push?"
+3. **Pair with auto-push** — after meaningful Flip work, follow [auto-push-progress.mdc](auto-push-progress.mdc) unless the user says not to push.
+
+## Still required (non-negotiable)
+
+- **Never commit secrets** — `.env`, credentials, API keys, tokens.
+- **Git safety** — no force push to `main`/`master`; no destructive git unless explicitly requested; follow existing commit/amend/hook rules.
+- **Scope** — only request `all` or elevated permissions when the task actually needs them.
+
+## Cursor UI note
+
+Cursor may still show approval cards for some operations (sandbox, network, git). The user intends to approve those when prompted; agents should not treat UI prompts as a reason to stop and ask in chat first.
