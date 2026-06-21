@@ -1,4 +1,4 @@
-import { useTheme } from '@/contexts/ThemeContext';
+import MentionText from '@/components/MentionText';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -14,7 +14,6 @@ import {
 import tw from 'twrnc';
 
 export default function EditUsernameScreen() {
-    const { colors } = useTheme();
     const params = useLocalSearchParams();
     const [username, setUsername] = useState(params.username || '');
     const [isChecking, setIsChecking] = useState(false);
@@ -146,7 +145,7 @@ export default function EditUsernameScreen() {
                         </Text>
                         <Text style={tw`text-sm font-medium text-gray-900 mt-1`}>
                             loops.video/
-                            <Text style={{ color: colors.accent }}>@{username || 'username'}</Text>
+                            <MentionText username={username || 'username'} style={tw`text-sm font-medium`} />
                         </Text>
                     </View>
                 </View>

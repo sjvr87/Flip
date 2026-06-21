@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
@@ -12,7 +13,7 @@ import tw from 'twrnc';
 import ExpandableBio from './ExpandableBio';
 
 export default function AccountHeader(props) {
-    const { isDark, colors } = useTheme();
+    const { isDark } = useTheme();
 
     const isOwner = props?.is_owner || props.user?.is_owner;
 
@@ -38,12 +39,10 @@ export default function AccountHeader(props) {
             <Avatar url={props.user?.avatar} theme="xl" />
 
             <XStack gap="$2" alignItems="center">
-                <StackText
-                    fontWeight="bold"
-                    fontSize="$6"
-                    style={{ color: colors.accent }}>
-                    {props.user?.username ? '@' + props.user?.username : ''}
-                </StackText>
+                <MentionText
+                    username={props.user?.username}
+                    style={{ fontWeight: 'bold', fontSize: 24 }}
+                />
             </XStack>
 
             <XStack justifyContent="center" alignItems="center" gap="$10">

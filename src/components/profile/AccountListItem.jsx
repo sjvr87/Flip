@@ -1,6 +1,6 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { Link, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
@@ -8,7 +8,6 @@ import tw from 'twrnc';
 
 export default function AccountListItem(props) {
     const { user } = useAuthStore();
-    const { colors } = useTheme();
     const router = useRouter();
     const isLoading = props.isLoading || false;
 
@@ -43,12 +42,10 @@ export default function AccountListItem(props) {
                                 {props.item?.name || props.item?.username}
                             </StackText>
                         </XStack>
-                        <StackText
-                            fontSize="$3"
-                            style={{ color: colors.accent }}
-                            numberOfLines={1}>
-                            @{props.item?.username}
-                        </StackText>
+                        <MentionText
+                            username={props.item?.username}
+                            style={{ fontSize: 14, fontWeight: '600' }}
+                        />
                     </YStack>
                 </XStack>
 

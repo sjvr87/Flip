@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
@@ -175,13 +176,11 @@ const SuggestedAccountCard = ({
         </PressableHaptics>
         <View style={tw`flex-1`}>
             <PressableHaptics onPress={() => onView(account.id)}>
-                <StackText
-                    fontSize="$4"
-                    fontWeight="semibold"
-                    style={{ color: LOOP_ACCENT }}
-                    numberOfLines={1}>
-                    @{account.username}
-                </StackText>
+                <MentionText
+                    username={account.username}
+                    style={{ fontSize: 16, fontWeight: '600' }}
+                    numberOfLines={1}
+                />
                 {account.bio ? (
                     <StackText
                         fontSize="$3"

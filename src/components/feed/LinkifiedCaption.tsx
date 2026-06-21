@@ -1,4 +1,4 @@
-import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { LOOP_ACCENT, MENTION_AT_COLOR, MENTION_HANDLE_COLOR } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeNativeShims } from '@/utils/runtime';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -158,12 +158,20 @@ export default function LinkifiedCaption({
                 );
             }
 
+            const segment = caption.substring(link.start, link.end);
             elements.push(
                 <Text
                     key={`link-${index}`}
                     style={styles.linkText}
                     onPress={() => handleLinkPress(link)}>
-                    {caption.substring(link.start, link.end)}
+                    {link.type === 'mention' && segment.startsWith('@') ? (
+                        <>
+                            <Text style={styles.mentionAt}>@</Text>
+                            <Text style={styles.mentionHandle}>{segment.slice(1)}</Text>
+                        </>
+                    ) : (
+                        segment
+                    )}
                 </Text>,
             );
 
@@ -192,12 +200,20 @@ export default function LinkifiedCaption({
                 elements.push(caption.substring(lastIndex, link.start));
             }
 
+            const segment = caption.substring(link.start, link.end);
             elements.push(
                 <UITextView
                     key={`link-${index}`}
                     style={styles.linkText}
                     onPress={() => handleLinkPress(link)}>
-                    {caption.substring(link.start, link.end)}
+                    {link.type === 'mention' && segment.startsWith('@') ? (
+                        <>
+                            <UITextView style={styles.mentionAt}>@</UITextView>
+                            <UITextView style={styles.mentionHandle}>{segment.slice(1)}</UITextView>
+                        </>
+                    ) : (
+                        segment
+                    )}
                 </UITextView>,
             );
 
@@ -351,6 +367,16 @@ const styles = StyleSheet.create({
     linkText: {
         fontWeight: '700',
         color: LOOP_ACCENT,
+    },
+
+    mentionAt: {
+        fontWeight: '700',
+        color: MENTION_AT_COLOR,
+    },
+
+    mentionHandle: {
+        fontWeight: '700',
+        color: MENTION_HANDLE_COLOR,
     },
 
     moreInline: {

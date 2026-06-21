@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Storage } from '@/utils/cache';
@@ -256,7 +257,8 @@ export default function EditProfileScreen() {
                     <Text style={tw`text-base text-gray-600 dark:text-white`}>Profile</Text>
                     <View style={tw`flex flex-row`}>
                         <Text style={tw`text-sm text-gray-600 dark:text-white mr-2`}>
-                            {server}/@{username}
+                            {server}/
+                            <MentionText username={username} style={tw`text-sm`} />
                         </Text>
                         <Ionicons name="copy-outline" size={18} color="#999" />
                     </View>

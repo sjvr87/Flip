@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import KlipyKeyboard from '@/components/feed/KlipyKeyboard';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
@@ -144,9 +145,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     }}>
                     <Avatar url={item?.account.avatar} size={36} />
                     <View style={tw`ml-3 flex-1`}>
-                        <Text style={[tw`text-[15px] font-bold`, { color: colors.accent }]}>
-                            @{item?.account?.username}
-                        </Text>
+                        <MentionText
+                            username={item?.account?.username}
+                            style={tw`text-[15px] font-bold`}
+                        />
                         <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
                             {timeAgo(item?.created_at)}
                         </Text>
@@ -584,9 +586,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             <View style={tw`flex-1`}>
                 <View style={tw`flex-row items-center gap-2 mb-1`}>
                     <PressableHaptics onPress={() => handleProfilePress(reply.account?.id)}>
-                        <Text style={[tw`text-sm font-bold`, { color: colors.accent }]}>
-                            @{reply.account.username}
-                        </Text>
+                        <MentionText
+                            username={reply.account.username}
+                            style={tw`text-sm font-bold`}
+                        />
                     </PressableHaptics>
                     <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
                         {timeAgo(reply.created_at)}
@@ -719,9 +722,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                 <View style={tw`flex-1`}>
                     <View style={tw`flex flex-row items-center gap-2 mb-1`}>
                         <PressableHaptics onPress={() => handleProfilePress(comment.account?.id)}>
-                            <Text style={[tw`text-sm font-bold`, { color: colors.accent }]}>
-                                @{comment.account.username}
-                            </Text>
+                            <MentionText
+                                username={comment.account.username}
+                                style={tw`text-sm font-bold`}
+                            />
                         </PressableHaptics>
                         <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
                             {timeAgo(comment.created_at)}
@@ -924,10 +928,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         <View
                             style={tw`flex-row justify-between items-center px-4 py-2 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700`}>
                             <Text style={tw`text-sm text-gray-600 dark:text-gray-400`}>
-                                Replying to{' '}
-                                <Text style={{ color: colors.accent, fontWeight: '700' }}>
-                                    @{replyingTo.account.username}
-                                </Text>
+                                Replying to <MentionText username={replyingTo.account.username} />
                             </Text>
                             <TouchableOpacity onPress={cancelReply}>
                                 <Ionicons

@@ -1,4 +1,4 @@
-import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import MentionText from '@/components/MentionText';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
@@ -519,7 +519,10 @@ function VideoPlayerCore({
                     accessible={true}
                     accessibilityLabel={`View @${item.account.username}'s profile`}
                     accessibilityRole="link">
-                    <Text style={styles.username}>@{item.account.username}</Text>
+                    <MentionText
+                        username={item.account.username}
+                        style={styles.username}
+                    />
                 </TouchableOpacity>
                 {item.caption && (
                     <LinkifiedCaption
@@ -683,7 +686,6 @@ const styles = StyleSheet.create({
         right: 80,
     },
     username: {
-        color: LOOP_ACCENT,
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 4,

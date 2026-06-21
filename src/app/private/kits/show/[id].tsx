@@ -1,4 +1,4 @@
-import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchStarterKit, fetchStarterKitUsed } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
@@ -114,9 +114,7 @@ function AccountCard({ account, onFollow, isFollowing, isLoading, onPress }: Acc
                         {account.name}
                     </Text>
                 </View>
-                <Text style={[tw`text-xs mb-1`, { color: LOOP_ACCENT }]}>
-                    @{account.username}
-                </Text>
+                <MentionText username={account.username} style={tw`text-xs mb-1`} />
                 {account.bio ? (
                     <Text
                         style={tw`text-gray-600 dark:text-gray-300 text-xs leading-4`}
@@ -345,10 +343,7 @@ export default function StarterKitShow() {
                             style={tw`w-5 h-5 rounded-full bg-gray-800`}
                         />
                         <Text style={tw`text-gray-600 dark:text-gray-400 text-base`}>
-                            Curated by{' '}
-                            <Text style={[tw`font-semibold`, { color: colors.accent }]}>
-                                @{kit.creator.username}
-                            </Text>
+                            Curated by <MentionText username={kit.creator.username} style={tw`font-semibold text-base`} />
                         </Text>
                     </Pressable>
 

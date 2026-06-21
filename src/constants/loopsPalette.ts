@@ -6,6 +6,11 @@
 export const LOOP_ACCENT = '#22D3EE';
 export const LOOP_ACCENT_PRESSED = '#06B6D4';
 
+/** `@` symbol in @mentions (blue). */
+export const MENTION_AT_COLOR = '#3B82F6';
+/** Username/handle in @mentions (creamsicle orange). */
+export const MENTION_HANDLE_COLOR = '#FF9F43';
+
 export type LoopsThemeColors = {
     accent: string;
     accentPressed: string;

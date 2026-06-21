@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -609,13 +610,10 @@ export default function CaptionScreen() {
                                             <Avatar url={item?.avatar} />
                                             <YStack style={tw`flex-1`} justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
-                                                    <Text
-                                                        style={[
-                                                            tw`text-[15px] font-semibold`,
-                                                            { color: colors.accent },
-                                                        ]}>
-                                                        @{item.username}
-                                                    </Text>
+                                                    <MentionText
+                                                        username={item.username}
+                                                        style={tw`text-[15px] font-semibold`}
+                                                    />
                                                     <Text
                                                         style={tw`text-gray-600 dark:text-gray-400`}>
                                                         ·

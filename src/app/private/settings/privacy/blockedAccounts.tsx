@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDebounce } from '@/hooks/useDebounce';
 import { fetchAccountBlocks, searchAccountBlocks, unblockAccount } from '@/utils/requests';
@@ -22,7 +23,7 @@ export default function BlockedAccountsScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const queryClient = useQueryClient();
-    const { isDark, colors } = useTheme();
+    const { isDark } = useTheme();
 
     const isSearching = debouncedSearch.trim().length > 0;
 
@@ -89,9 +90,7 @@ export default function BlockedAccountsScreen() {
                 <Text style={tw`text-base font-semibold text-gray-900 dark:text-white`}>
                     {item.account.name}
                 </Text>
-                <Text style={[tw`text-sm font-semibold`, { color: colors.accent }]}>
-                    @{item.account.username}
-                </Text>
+                <MentionText username={item.account.username} style={tw`text-sm font-semibold`} />
                 <Text style={tw`text-xs text-gray-500 dark:text-gray-400 mt-1`}>
                     {formatBlockedDate(item.blocked_at)}
                 </Text>

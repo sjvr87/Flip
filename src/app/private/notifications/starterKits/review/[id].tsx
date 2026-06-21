@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchStarterKit, fetchStarterKitMembership, fetchStarterKitMembershipDecide } from '@/utils/requests';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -188,9 +189,7 @@ export default function StarterKitInviteScreen() {
                             source={{ uri: kit.creator.avatar }}
                             style={tw`w-4 h-4 rounded-full`}
                         />
-                        <Text style={[tw`text-xs font-semibold`, { color: textSub }]}>
-                            @{kit.creator.username}
-                        </Text>
+                        <MentionText username={kit.creator.username} style={tw`text-xs font-semibold`} />
                     </View>
                     <Text style={{ color: divider, fontSize: 14 }}>·</Text>
                     <View style={tw`flex-row items-center gap-1`}>
@@ -226,9 +225,7 @@ export default function StarterKitInviteScreen() {
                             >
                                 {account.name}
                             </Text>
-                            <Text style={[tw`text-xs leading-tight`, { color: textMuted }]}>
-                                @{account.username}
-                            </Text>
+                            <MentionText username={account.username} style={tw`text-xs leading-tight`} />
                         </View>
                         <View style={tw`flex-row items-center gap-1`}>
                             <Feather name="users" size={11} color={textMuted} />
