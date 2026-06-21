@@ -17,8 +17,8 @@ const FLAG_RED = '#E53935';
 const ENVELOPE_FILL = '#FFFFFF';
 
 /**
- * US mailbox on a post — outlined silhouette at 30px (viewBox 30×30).
- * Body/post keep theme contrast; accent tint applies to body outline only when focused.
+ * US mailbox on a post — hollow outline silhouette at 30px (viewBox 30×30).
+ * Body/post are stroke-defined (transparent interior); accent tint on outlines when focused.
  * White envelope + red flag stay visible in all tab states.
  * Priority when multiple unread: messages > likes > follows.
  */
@@ -30,10 +30,9 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
 }: MailboxTabIconProps) {
     const { isDark } = useTheme();
     const iconOpacity = focused ? 1 : 0.72;
-    const bodyFill = isDark ? '#E8E8E8' : '#1C1C1C';
-    const detailStroke = isDark ? '#555555' : '#666666';
-    const bodyStroke = focused ? color : detailStroke;
-    const bodyStrokeWidth = focused ? 1.15 : 0.9;
+    const detailStroke = isDark ? '#666666' : '#777777';
+    const bodyStroke = focused ? color : isDark ? '#CCCCCC' : '#1C1C1C';
+    const bodyStrokeWidth = focused ? 1.3 : 1.05;
     const envelopeStroke = isDark ? '#2A2A2A' : '#3A3A3A';
     const slotPeopleColor = isDark ? '#2A2A2A' : '#F0F0F0';
 
@@ -59,17 +58,16 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
 
     return (
         <Svg width={size} height={size} viewBox="0 0 30 30" fill="none">
-            {/* Post — centered under body */}
+            {/* Post — hollow stroke, centered under body */}
             <Rect
                 x={13.4}
                 y={22.6}
                 width={3.2}
                 height={6.9}
                 rx={0.65}
-                fill={bodyFill}
-                fillOpacity={iconOpacity}
+                fill="none"
                 stroke={bodyStroke}
-                strokeWidth={bodyStrokeWidth * 0.85}
+                strokeWidth={bodyStrokeWidth * 0.9}
                 strokeOpacity={iconOpacity}
             />
 
@@ -88,33 +86,33 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
                 />
             ) : null}
 
-            {/* Mailbox body — domed top, arched opening on left */}
+            {/* Mailbox body — hollow outline: dome, sides, arched opening */}
             <Path
                 d={bodyPath}
-                fill={bodyFill}
-                fillOpacity={iconOpacity}
+                fill="none"
                 stroke={bodyStroke}
                 strokeWidth={bodyStrokeWidth}
                 strokeOpacity={iconOpacity}
                 strokeLinejoin="round"
+                strokeLinecap="round"
             />
 
-            {/* Dome seam — defines curved roof */}
+            {/* Dome seam — curved roof ridge */}
             <Path
                 d={`M ${bodyL + 0.5} ${bodyTop + 0.35} A 6.5 3.8 0 0 1 ${bodyR - 0.5} ${bodyTop + 0.35}`}
                 stroke={detailStroke}
-                strokeWidth={0.55}
-                strokeOpacity={iconOpacity * 0.75}
+                strokeWidth={0.65}
+                strokeOpacity={iconOpacity * 0.85}
                 fill="none"
                 strokeLinecap="round"
             />
 
-            {/* Opening inner edge */}
+            {/* Opening inner edge — depth inside the mail slot */}
             <Path
                 d={`M ${bodyL} ${openTop + 0.15} C ${bodyL - 1.55} ${openTop + 0.65} ${bodyL - 1.55} ${openBot - 0.65} ${bodyL} ${openBot - 0.15}`}
                 stroke={detailStroke}
-                strokeWidth={0.6}
-                strokeOpacity={iconOpacity * 0.8}
+                strokeWidth={0.7}
+                strokeOpacity={iconOpacity * 0.9}
                 fill="none"
                 strokeLinecap="round"
             />
@@ -123,10 +121,20 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
             <Path
                 d={`M ${bodyL - 0.1} ${bodyTop + 0.35} Q ${bodyL - 3.6} ${bodyTop + 1.1} ${bodyL - 4.0} ${openTop - 0.15}`}
                 stroke={bodyStroke}
-                strokeWidth={focused ? 0.95 : 0.75}
+                strokeWidth={focused ? 1.05 : 0.85}
                 strokeLinecap="round"
                 fill="none"
                 opacity={iconOpacity}
+            />
+
+            {/* Base lip — bottom edge of mailbox body */}
+            <Path
+                d={`M ${bodyL + 0.4} ${bodyBot - 0.15} H ${bodyR - 0.4}`}
+                stroke={detailStroke}
+                strokeWidth={0.55}
+                strokeOpacity={iconOpacity * 0.8}
+                fill="none"
+                strokeLinecap="round"
             />
 
             <FlagRaised bodyRight={bodyR} opacity={iconOpacity} />
@@ -134,16 +142,16 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
     );
 });
 
-/** White envelope — larger rectangle + V flap, emerging from left opening. */
+/** White envelope — large rectangle + V flap, emerging from left opening. */
 function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity: number }) {
-    const l = 0.35;
-    const r = 8.1;
-    const bot = 20.75;
-    const top = 17.05;
-    const flapBase = 16.95;
-    const flapTip = 13.85;
+    const l = -0.6;
+    const r = 8.9;
+    const bot = 21.7;
+    const top = 14.5;
+    const flapBase = 14.4;
+    const flapTip = 10.9;
     const mid = (l + r) / 2;
-    const sw = 0.7;
+    const sw = 0.8;
 
     return (
         <>
@@ -153,13 +161,14 @@ function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity
                 fillOpacity={opacity}
                 stroke={strokeColor}
                 strokeWidth={sw}
+                strokeLinejoin="round"
             />
             <Path
                 d={`M ${l} ${flapBase} L ${l} ${flapTip} L ${mid} ${flapBase} Z`}
                 fill={ENVELOPE_FILL}
                 fillOpacity={opacity}
                 stroke={strokeColor}
-                strokeWidth={sw * 0.85}
+                strokeWidth={sw * 0.9}
                 strokeLinejoin="round"
             />
             <Path
@@ -167,24 +176,35 @@ function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity
                 fill={ENVELOPE_FILL}
                 fillOpacity={opacity}
                 stroke={strokeColor}
-                strokeWidth={sw * 0.85}
+                strokeWidth={sw * 0.9}
                 strokeLinejoin="round"
             />
+            {/* V crease — center fold of flap */}
             <Path
-                d={`M ${l + 0.35} ${flapBase} L ${mid} ${flapTip + 0.45} L ${r - 0.35} ${flapBase}`}
+                d={`M ${l + 0.4} ${flapBase} L ${mid} ${flapTip + 0.5} L ${r - 0.4} ${flapBase}`}
                 stroke={strokeColor}
-                strokeWidth={sw * 0.65}
+                strokeWidth={sw * 0.7}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={opacity}
             />
+            {/* Flap hinge line */}
             <Path
-                d={`M ${l + 0.25} ${flapBase} H ${r - 0.25}`}
+                d={`M ${l + 0.3} ${flapBase} H ${r - 0.3}`}
                 stroke={strokeColor}
-                strokeWidth={sw * 0.5}
+                strokeWidth={sw * 0.55}
                 fill="none"
-                opacity={opacity * 0.75}
+                opacity={opacity * 0.85}
+            />
+            {/* Body fold — horizontal crease below flap */}
+            <Path
+                d={`M ${l + 0.5} ${top + 2.1} H ${r - 0.5}`}
+                stroke={strokeColor}
+                strokeWidth={sw * 0.45}
+                fill="none"
+                strokeLinecap="round"
+                opacity={opacity * 0.7}
             />
         </>
     );
