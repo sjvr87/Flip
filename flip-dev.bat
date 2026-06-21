@@ -1,4 +1,4 @@
 @echo off
-cd /d "C:\Users\tomas\Documents\Flip"
-npm.cmd run dev:connect -- -RestartMetro
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Start-FlipDev.ps1"
 if errorlevel 1 pause

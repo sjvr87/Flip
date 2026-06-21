@@ -1,3 +1,16 @@
-cd /d C:\Users\tomas\Documents\Flip
-npm.cmd run dev:connect -- -RestartMetro
-pause
+﻿Flip dev — quick start
+======================
+
+From repo root (C:\Users\tomas\Documents\Flip):
+
+  Double-click: flip-dev.bat
+
+  Or PowerShell:
+    cd C:\Users\tomas\Documents\Flip
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Start-FlipDev.ps1
+
+  Or npm:
+    cd /d C:\Users\tomas\Documents\Flip
+    npm.cmd run dev:connect:restart
+
+What it does: git pull, adb reverse, restart Metro (clear cache), launch the dev client.
