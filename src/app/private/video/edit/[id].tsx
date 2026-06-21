@@ -175,6 +175,7 @@ export default function EditScreen() {
     const [allowDownloads, setAllowDownloads] = useState(true);
     const [allowDuets, setAllowDuets] = useState(true);
     const [allowStitches, setAllowStitches] = useState(true);
+    const [allowUseAudio, setAllowUseAudio] = useState(true);
     const [isSensitive, setIsSensitive] = useState(false);
     const [isPinned, setIsPinned] = useState(false);
     const [isAd, setIsAd] = useState(false);
@@ -235,6 +236,7 @@ export default function EditScreen() {
             setAllowDownloads(video.permissions?.can_download ?? true);
             setAllowDuets(video.permissions?.can_duet ?? false);
             setAllowStitches(video.permissions?.can_stitch ?? false);
+            setAllowUseAudio(video.permissions?.can_use_audio ?? true);
 
             const sensitiveValue = video.is_sensitive ?? false;
             setIsSensitive(sensitiveValue);
@@ -292,6 +294,7 @@ export default function EditScreen() {
             can_comment: allowComments,
             can_duet: allowDuets,
             can_stitch: allowStitches,
+            can_use_audio: allowUseAudio,
             is_pinned: isPinned,
             alt_text: altText,
             is_sensitive: isSensitive,
@@ -786,6 +789,28 @@ export default function EditScreen() {
                                 </YStack>
                             </View>
                             <Switch value={allowStitches} onValueChange={setAllowStitches} />
+                        </View>
+
+                        <View style={tw`flex-row items-center justify-between px-5 py-4`}>
+                            <View style={tw`flex-row items-center max-w-[70%] gap-3 flex-1`}>
+                                <View style={tw`pr-2.5`}>
+                                    <Ionicons
+                                        name="musical-notes-outline"
+                                        size={20}
+                                        color={isDark ? '#9ca3af' : '#999'}
+                                    />
+                                </View>
+                                <YStack>
+                                    <Text
+                                        style={tw`text-[15px] font-semibold text-gray-900 dark:text-gray-100`}>
+                                        Allow audio reuse
+                                    </Text>
+                                    <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
+                                        Others can create videos using your audio
+                                    </Text>
+                                </YStack>
+                            </View>
+                            <Switch value={allowUseAudio} onValueChange={setAllowUseAudio} />
                         </View>
 
                         <View style={tw`bg-gray-50 dark:bg-gray-800 h-2.5`} />

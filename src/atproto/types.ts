@@ -24,6 +24,21 @@ export type FlipPermissions = {
   can_comment?: boolean
   can_download?: boolean
   can_duet?: boolean
+  can_stitch?: boolean
+  can_use_audio?: boolean
+}
+
+export type FlipAudioSource = {
+  username: string
+  profileId?: string
+  postUri?: string
+  /** When true or when postUri matches this post, audio is from the poster. */
+  isOriginal?: boolean
+}
+
+export type FlipVideoMeta = {
+  contains_ai?: boolean
+  contains_ad?: boolean
 }
 
 export type FlipVideo = {
@@ -53,6 +68,8 @@ export type FlipVideo = {
     end_index: number
   }>
   permissions?: FlipPermissions
+  meta?: FlipVideoMeta
+  audioSource?: FlipAudioSource
 }
 
 export type FlipFeedPage = {

@@ -3,6 +3,7 @@ import { File } from 'expo-file-system'
 import { Image } from 'react-native'
 
 import { getAgent } from './agent'
+import type { FlipAudioSource, FlipPermissions } from './types'
 
 export type AtprotoUploadOptions = {
   fileUri: string
@@ -12,6 +13,8 @@ export type AtprotoUploadOptions = {
   isSensitive?: boolean
   isPhoto?: boolean
   onProgress?: (message: string) => void
+  permissions?: Partial<FlipPermissions>
+  audioSource?: FlipAudioSource
 }
 
 export type AtprotoUploadResult = {
@@ -45,6 +48,43 @@ function selfLabels(isSensitive: boolean) {
   return {
     $type: 'com.atproto.label.defs#selfLabels' as const,
     values: [{ val: '!warn', neg: false as const }],
+  }
+}
+
+function flipRecordExtension(options: AtprotoUploadOptions) {
+  const permissions = options.permissions
+  const audioSource = options.audioSource
+  if (!permissions && !audioSource) return undefined
+
+  return {
+    permissions: permissions
+      ? {
+          can_comment: permissions.can_comment,
+          can_download: permissions.can_download,
+          can_duet: permissions.can_duet,
+          can_stitch: permissions.can_stitch,
+          can_use_audio: permissions.can_use_audio,
+        }
+      : undefined,
+    audioSource: audioSource
+      ? {
+          username: audioSource.username,
+          profileId: audioSource.profileId,
+          postUri: audioSource.postUri,
+          isOriginal: audioSource.isOriginal,
+        }
+      : undefined,
+  }
+}
+
+function postRecordBase(options: AtprotoUploadOptions, langs: string[], labels: ReturnType<typeof selfLabels>) {
+  const flip = flipRecordExtension(options)
+  return {
+    text: options.caption || '',
+    langs,
+    labels,
+    ...(flip ? { flip } : {}),
+    createdAt: new Date().toISOString(),
   }
 }
 
@@ -155,9 +195,7 @@ export async function uploadMediaPost(
 
     options.onProgress?.('Posting…')
     const result = await agent.post({
-      text: options.caption || '',
-      langs,
-      labels,
+      ...postRecordBase(options, langs, labels),
       embed: {
         $type: 'app.bsky.embed.images',
         images: [
@@ -168,7 +206,6 @@ export async function uploadMediaPost(
           },
         ],
       },
-      createdAt: new Date().toISOString(),
     })
 
     return { uri: result.uri, cid: result.cid }
@@ -183,15 +220,12 @@ export async function uploadMediaPost(
 
   options.onProgress?.('Posting…')
   const result = await agent.post({
-    text: options.caption || '',
-    langs,
-    labels,
+    ...postRecordBase(options, langs, labels),
     embed: {
       $type: 'app.bsky.embed.video',
       video: blob,
       aspectRatio: { width: 9, height: 16 },
     } satisfies AppBskyEmbedVideo.Main,
-    createdAt: new Date().toISOString(),
   })
 
   return { uri: result.uri, cid: result.cid }

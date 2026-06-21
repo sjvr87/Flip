@@ -20,11 +20,13 @@ type FeedActionRailProps = {
     isLiked: boolean;
     isBookmarked: boolean;
     isReposted: boolean;
+    isMuted: boolean;
     likeCount: number;
     commentCount: number;
     bookmarkCount: number;
     repostCount: number;
     canComment?: boolean;
+    canUseAudio?: boolean;
     bottomInset: number;
     tabBarHeight?: number;
     /** When set, overrides bottomInset + tabBarHeight (Good Lock–aware total). */
@@ -35,6 +37,8 @@ type FeedActionRailProps = {
     onBookmark: () => void;
     onRepost: () => void;
     onShare: () => void;
+    onMuteToggle: () => void;
+    onUseAudio?: () => void;
     onOther: () => void;
 };
 
@@ -78,11 +82,13 @@ function FeedActionRail({
     isLiked,
     isBookmarked,
     isReposted,
+    isMuted,
     likeCount,
     commentCount,
     bookmarkCount,
     repostCount,
     canComment = true,
+    canUseAudio = false,
     bottomInset,
     tabBarHeight = 20,
     overlayBottom,
@@ -92,6 +98,8 @@ function FeedActionRail({
     onBookmark,
     onRepost,
     onShare,
+    onMuteToggle,
+    onUseAudio,
     onOther,
 }: FeedActionRailProps) {
     const railBottom = overlayBottom ?? bottomInset + tabBarHeight + 20;
@@ -205,6 +213,30 @@ function FeedActionRail({
                 accessibilityRole="button">
                 <FeedActionIcon name="arrow-redo-outline" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+                style={styles.actionButton}
+                onPress={onMuteToggle}
+                accessible
+                accessibilityLabel={isMuted ? 'Unmute feed videos' : 'Mute feed videos'}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isMuted }}>
+                <FeedActionIcon
+                    name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
+                    active={isMuted}
+                />
+            </TouchableOpacity>
+
+            {canUseAudio && onUseAudio ? (
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={onUseAudio}
+                    accessible
+                    accessibilityLabel="Use this audio"
+                    accessibilityRole="button">
+                    <FeedActionIcon name="musical-notes-outline" />
+                </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
                 style={styles.actionButton}

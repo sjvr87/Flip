@@ -11,6 +11,7 @@ import {
     usesAtprotoBackend,
 } from '@/utils/requests';
 import { invalidateFeedAfterPost } from '@/utils/feedCache';
+import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { prettyCount } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -36,6 +37,7 @@ import {
 } from 'react-native';
 import { Image as ImageCompressor, Video as VideoCompressor } from 'react-native-compressor';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { FlipAudioSource } from '@/atproto/types';
 import tw from 'twrnc';
 
 const MAX_CAPTION_LENGTH = 200;
@@ -211,6 +213,8 @@ export default function CaptionScreen() {
     const [allowDownloads, setAllowDownloads] = useState(true);
     const [allowDuets, setAllowDuets] = useState(true);
     const [allowStitches, setAllowStitches] = useState(true);
+    const [allowUseAudio, setAllowUseAudio] = useState(true);
+    const [reusedAudioSource, setReusedAudioSource] = useState<FlipAudioSource | null>(null);
     const [isSensitive, setIsSensitive] = useState(false);
     const [isAd, setIsAd] = useState(false);
     const [isAi, setIsAi] = useState(false);
@@ -235,6 +239,7 @@ export default function CaptionScreen() {
     const isFocused = useIsFocused();
     const queryClient = useQueryClient();
     const atprotoUpload = usesAtprotoBackend();
+    const takePendingAudioReuse = usePendingAudioReuseStore((s) => s.takePending);
     const visibilityOptions = VISIBILITY.map((item) => ({
         ...item,
         description: atprotoUpload
@@ -250,6 +255,13 @@ export default function CaptionScreen() {
             if (match) setSelectedVisibility(match);
         });
     }, []);
+
+    useEffect(() => {
+        const pending = takePendingAudioReuse();
+        if (pending) {
+            setReusedAudioSource(pending);
+        }
+    }, [takePendingAudioReuse]);
 
     const videoUri = mediaSourcePath?.startsWith('file://')
         ? mediaSourcePath
@@ -283,11 +295,13 @@ export default function CaptionScreen() {
         allowDownloads,
         allowDuets,
         allowStitches,
+        allowUseAudio,
         isSensitive,
         isAd,
         isAi,
         selectedSound,
         isPhotoPost,
+        reusedAudioSource,
     }: any) => {
         setOverlayVisible(true);
         setOverlayMessage('Compressing… 0%');
@@ -355,6 +369,21 @@ export default function CaptionScreen() {
                     ? { id: visibility.id, apiValue: visibility.apiValue, name: visibility.name }
                     : undefined,
                 onProgress: setOverlayMessage,
+                permissions: {
+                    can_comment: allowComments,
+                    can_download: allowDownloads,
+                    can_duet: allowDuets,
+                    can_stitch: allowStitches,
+                    can_use_audio: allowUseAudio,
+                },
+                audioSource: reusedAudioSource
+                    ? {
+                          username: reusedAudioSource.username,
+                          profileId: reusedAudioSource.profileId,
+                          postUri: reusedAudioSource.postUri,
+                          isOriginal: false,
+                      }
+                    : undefined,
             });
             return { json: result, uploadUri };
         }
@@ -369,9 +398,16 @@ export default function CaptionScreen() {
             can_download: allowDownloads ? '1' : '0',
             can_duet: allowDuets ? '1' : '0',
             can_stitch: allowStitches ? '1' : '0',
+            can_use_audio: allowUseAudio ? '1' : '0',
             is_sensitive: isSensitive ? '1' : '0',
             contains_ad: isAd ? '1' : '0',
             contains_ai: isAi ? '1' : '0',
+            ...(reusedAudioSource?.postUri
+                ? {
+                      audio_source_post_uri: reusedAudioSource.postUri,
+                      audio_source_username: reusedAudioSource.username,
+                  }
+                : {}),
         };
 
         const res = isPhotoPost ? await uploadImage(uploadParams) : await uploadVideo(uploadParams);
@@ -417,11 +453,13 @@ export default function CaptionScreen() {
             allowDownloads,
             allowDuets,
             allowStitches,
+            allowUseAudio,
             isSensitive,
             isAd,
             isAi,
             selectedSound,
             isPhotoPost: isPhoto,
+            reusedAudioSource,
         });
     };
 
@@ -531,6 +569,16 @@ export default function CaptionScreen() {
                     <Ionicons name="chevron-back" size={32} color="transparent" />
                 </TouchableOpacity>
             </View>
+
+            {reusedAudioSource ? (
+                <View
+                    style={tw`mx-5 mt-3 flex-row items-center gap-2 self-start rounded-full bg-cyan-500/10 px-3 py-2`}>
+                    <Ionicons name="musical-notes" size={16} color="#22D3EE" />
+                    <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300`}>
+                        Audio from @{reusedAudioSource.username}
+                    </Text>
+                </View>
+            ) : null}
 
             <View>
                 <View style={tw`flex-row p-5 gap-3`}>
@@ -882,6 +930,28 @@ export default function CaptionScreen() {
                                 </YStack>
                             </View>
                             <Switch value={allowStitches} onValueChange={setAllowStitches} />
+                        </View>
+
+                        <View style={tw`flex-row items-center justify-between px-5 py-4`}>
+                            <View style={tw`flex-row items-center max-w-[70%] gap-3 flex-1`}>
+                                <View style={tw`pr-2.5`}>
+                                    <Ionicons
+                                        name="musical-notes-outline"
+                                        size={20}
+                                        color={isDark ? '#999' : '#999'}
+                                    />
+                                </View>
+                                <YStack>
+                                    <Text
+                                        style={tw`text-[15px] font-semibold text-gray-900 dark:text-gray-100`}>
+                                        Allow audio reuse
+                                    </Text>
+                                    <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
+                                        Others can create videos using your audio
+                                    </Text>
+                                </YStack>
+                            </View>
+                            <Switch value={allowUseAudio} onValueChange={setAllowUseAudio} />
                         </View>
 
                         <View style={tw`bg-gray-50 dark:bg-black h-2.5`} />

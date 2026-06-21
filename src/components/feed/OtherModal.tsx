@@ -16,6 +16,7 @@ const DEFAULT_PERMISSIONS = {
     can_comment: true,
     can_download: false,
     can_duet: false,
+    can_use_audio: false,
 };
 
 export default function OtherModal({

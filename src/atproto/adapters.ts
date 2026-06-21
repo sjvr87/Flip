@@ -1,5 +1,12 @@
 import { AppBskyEmbedImages, AppBskyEmbedVideo, RichText, type AppBskyFeedDefs } from '@atproto/api'
-import type { FlipAccount, FlipUserProfile, FlipVideo } from './types'
+import type {
+  FlipAccount,
+  FlipAudioSource,
+  FlipPermissions,
+  FlipUserProfile,
+  FlipVideo,
+  FlipVideoMeta,
+} from './types'
 import { getAgent } from './agent'
 import { hasAdultLabels, isSensitivePost, shouldHideAdultContent } from './contentLabels'
 import { extractMentionsFromRecord, extractTagsFromRecord } from './mentions'
@@ -58,6 +65,56 @@ export function isMediaPost(post: AppBskyFeedDefs.PostView): boolean {
   return isVideoPost(post) || isPhotoPost(post)
 }
 
+type FlipRecordExtension = {
+  flip?: {
+    permissions?: Partial<FlipPermissions>
+    audioSource?: Partial<FlipAudioSource>
+    meta?: FlipVideoMeta
+  }
+}
+
+function extractFlipExtensions(
+  post: AppBskyFeedDefs.PostView,
+  author: FlipAccount,
+): {
+  permissions: FlipPermissions
+  audioSource: FlipAudioSource
+  meta?: FlipVideoMeta
+} {
+  const record = post.record as FlipRecordExtension
+  const flip = record.flip
+
+  const audioSource: FlipAudioSource = flip?.audioSource?.username
+    ? {
+        username: flip.audioSource.username,
+        profileId: flip.audioSource.profileId,
+        postUri: flip.audioSource.postUri,
+        isOriginal:
+          flip.audioSource.isOriginal ??
+          (!flip.audioSource.postUri || flip.audioSource.postUri === post.uri),
+      }
+    : {
+        username: author.username,
+        profileId: author.id,
+        postUri: post.uri,
+        isOriginal: true,
+      }
+
+  const permissions: FlipPermissions = {
+    can_comment: flip?.permissions?.can_comment ?? true,
+    can_download: flip?.permissions?.can_download ?? false,
+    can_duet: flip?.permissions?.can_duet ?? false,
+    can_stitch: flip?.permissions?.can_stitch ?? false,
+    can_use_audio: flip?.permissions?.can_use_audio ?? true,
+  }
+
+  return {
+    permissions,
+    audioSource,
+    meta: flip?.meta,
+  }
+}
+
 function toAccount(author: AppBskyFeedDefs.PostView['author']): FlipAccount {
   const handle = author.handle || author.did
   const username = handle.includes('.') ? handle.split('.')[0] : handle
@@ -79,11 +136,13 @@ function baseFlipItem(
   const agent = getAgent()
   const isOwner = options?.forceOwner ?? post.author.did === agent.session?.did
   const record = post.record as { text?: string; facets?: RichText['facets'] }
+  const account = toAccount(post.author)
+  const { permissions, audioSource, meta } = extractFlipExtensions(post, account)
 
   return {
     id: post.uri,
     cid: post.cid,
-    account: toAccount(post.author),
+    account,
     caption: record.text || '',
     tags: extractTagsFromRecord(record),
     mentions: extractMentionsFromRecord(record),
@@ -98,11 +157,9 @@ function baseFlipItem(
     has_bookmarked: !!post.viewer?.bookmarked,
     has_reposted: !!post.viewer?.repost,
     created_at: (post.record as { createdAt?: string }).createdAt || new Date().toISOString(),
-    permissions: {
-      can_comment: true,
-      can_download: false,
-      can_duet: false,
-    },
+    permissions,
+    audioSource,
+    meta,
   }
 }
 

@@ -3,6 +3,10 @@ import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
+import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
+import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
+import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
+import { canUseFlipCamera } from '@/utils/runtime';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Dimensions,
     Pressable,
     StyleSheet,
@@ -155,16 +160,23 @@ function VideoPlayerCore({
     const [isLiked, setIsLiked] = useState(item.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
-    const [showControls, setShowControls] = useState(false);
+    const [showPauseHint, setShowPauseHint] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
-    const manualControlRef = useRef(false);
+    const pauseHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isMountedRef = useRef(true);
     const wasActiveRef = useRef(false);
     const everActiveRef = useRef(false);
     const router = useRouter();
+    const feedMuted = useFeedPlaybackStore((s) => s.feedMuted);
+    const toggleFeedMuted = useFeedPlaybackStore((s) => s.toggleFeedMuted);
+    const isManuallyPaused = useFeedPlaybackStore((s) => s.isManuallyPaused(item.id));
+    const setManuallyPaused = useFeedPlaybackStore((s) => s.setManuallyPaused);
+    const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
-    const controlsTimeoutRef = useRef(null);
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
+    const audioLabel = audioAttributionLabel(item);
+    const showRemixedAudio = !isOriginalAudio(item);
+    const canUseAudio = !!item.permissions?.can_use_audio && !item.is_photo;
 
     const playbackRate = videoPlaybackRates[item.id] || 1.0;
 
@@ -262,13 +274,22 @@ function VideoPlayerCore({
 
     useEffect(() => {
         if (!player) return;
+        try {
+            player.muted = feedMuted;
+        } catch (error) {
+            console.log('Mute control error:', error);
+        }
+    }, [feedMuted, player]);
+
+    useEffect(() => {
+        if (!player) return;
 
         try {
-            if (manualControlRef.current) {
-                return;
-            }
-
-            const shouldPlay = isActive && screenFocused && !(item.is_sensitive && !playSensitive);
+            const shouldPlay =
+                isActive &&
+                screenFocused &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive);
 
             if (isActive && !wasActiveRef.current && everActiveRef.current) {
                 player.currentTime = 0;
@@ -298,6 +319,7 @@ function VideoPlayerCore({
         player,
         item.is_sensitive,
         playSensitive,
+        isManuallyPaused,
     ]);
 
     useEffect(() => {
@@ -313,7 +335,6 @@ function VideoPlayerCore({
 
     useEffect(() => {
         if (!isActive) {
-            manualControlRef.current = false;
             setPlaySensitive(false);
         }
     }, [isActive]);
@@ -333,18 +354,32 @@ function VideoPlayerCore({
         onRepost(item.id, !isReposted);
     };
 
+    const flashPauseHint = () => {
+        if (pauseHintTimeoutRef.current) {
+            clearTimeout(pauseHintTimeoutRef.current);
+        }
+        setShowPauseHint(true);
+        pauseHintTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+                setShowPauseHint(false);
+            }
+        }, 600);
+    };
+
     const togglePlayPause = () => {
-        if (!player || !isMountedRef.current) return;
+        if (!player || !isMountedRef.current || !isActive) return;
 
         try {
-            manualControlRef.current = true;
-
             if (isPlaying) {
                 player.pause();
                 setIsPlaying(false);
+                setManuallyPaused(item.id, true);
+                flashPauseHint();
             } else {
                 player.play();
                 setIsPlaying(true);
+                setManuallyPaused(item.id, false);
+                flashPauseHint();
             }
         } catch (error) {
             console.log('Toggle play/pause error:', error);
@@ -352,34 +387,40 @@ function VideoPlayerCore({
     };
 
     const handleScreenPress = () => {
-        if (!isMountedRef.current) {
+        if (!isMountedRef.current || !isActive) {
+            return;
+        }
+        togglePlayPause();
+    };
+
+    const handleUseAudio = () => {
+        if (!item.permissions?.can_use_audio) {
+            Alert.alert('Not available', 'The creator has not allowed reuse of this audio.');
+            return;
+        }
+        if (!canUseFlipCamera) {
+            Alert.alert(
+                'Camera required',
+                'Open the Create tab to record a new video using this audio.',
+            );
             return;
         }
 
-        const newShowControls = !showControls;
-        setShowControls(newShowControls);
+        const source = item.audioSource ?? {
+            username: item.account.username,
+            profileId: item.account.id,
+            postUri: item.id,
+            isOriginal: true,
+        };
 
-        if (controlsTimeoutRef.current) {
-            clearTimeout(controlsTimeoutRef.current);
-            controlsTimeoutRef.current = null;
-        }
-
-        if (newShowControls) {
-            controlsTimeoutRef.current = setTimeout(() => {
-                if (isMountedRef.current) {
-                    setShowControls(false);
-                    manualControlRef.current = false;
-                }
-            }, 3000);
-        } else {
-            manualControlRef.current = false;
-        }
+        setPendingAudioReuse(source);
+        router.push('/(tabs)/create');
     };
 
     useEffect(() => {
         return () => {
-            if (controlsTimeoutRef.current) {
-                clearTimeout(controlsTimeoutRef.current);
+            if (pauseHintTimeoutRef.current) {
+                clearTimeout(pauseHintTimeoutRef.current);
             }
         };
     }, []);
@@ -454,29 +495,22 @@ function VideoPlayerCore({
 
                 <Pressable
                     style={StyleSheet.absoluteFill}
-                    onPress={() => handleScreenPress()}
-                    disabled={showControls}
+                    onPress={handleScreenPress}
                     accessible={true}
                     accessibilityLabel="Video"
-                    accessibilityHint="Tap to show playback controls"
+                    accessibilityHint="Tap to pause or play"
                     accessibilityRole="button"
                 />
 
-                {showControls && (
-                    <View style={styles.controlsOverlay} pointerEvents="box-none">
-                        <TouchableOpacity
-                            onPress={(e) => {
-                                e?.stopPropagation?.();
-                                togglePlayPause();
-                            }}
-                            style={styles.playButton}
-                            activeOpacity={0.7}
-                            accessible={true}
-                            accessibilityLabel={isPlaying ? 'Pause video' : 'Play video'}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: isPlaying }}>
-                            <Ionicons name={isPlaying ? 'pause' : 'play'} size={60} color="white" />
-                        </TouchableOpacity>
+                {showPauseHint && (
+                    <View style={styles.controlsOverlay} pointerEvents="none">
+                        <View style={styles.playButton}>
+                            <Ionicons
+                                name={isPlaying ? 'play' : 'pause'}
+                                size={60}
+                                color="white"
+                            />
+                        </View>
                     </View>
                 )}
             </View>
@@ -493,11 +527,13 @@ function VideoPlayerCore({
                 isLiked={isLiked}
                 isBookmarked={isBookmarked}
                 isReposted={isReposted}
+                isMuted={feedMuted}
                 likeCount={likeCount}
                 commentCount={safeCount(item.comments)}
                 bookmarkCount={bookmarkCount}
                 repostCount={repostCount}
                 canComment={item.permissions?.can_comment}
+                canUseAudio={canUseAudio}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
                 overlayBottom={actionRailBottom ?? overlayBottom}
@@ -507,6 +543,8 @@ function VideoPlayerCore({
                 onBookmark={handleBookmark}
                 onRepost={handleRepost}
                 onShare={() => onShare(item)}
+                onMuteToggle={toggleFeedMuted}
+                onUseAudio={handleUseAudio}
                 onOther={() => onOther(item)}
             />
 
@@ -557,19 +595,33 @@ function VideoPlayerCore({
                     </View>
                 )}
 
-                <View
+                <TouchableOpacity
                     style={styles.audioInfo}
+                    onPress={() => {
+                        const target = showRemixedAudio
+                            ? item.audioSource?.profileId ?? item.audioSource?.username
+                            : item.account.id;
+                        if (!target) return;
+                        onNavigate?.();
+                        router.push(toProfilePath(target));
+                    }}
                     accessible={true}
-                    accessibilityLabel="Original Audio"
-                    accessibilityRole="text">
+                    accessibilityLabel={
+                        showRemixedAudio
+                            ? `Audio from ${audioLabel}`
+                            : 'Original audio from this creator'
+                    }
+                    accessibilityRole="button">
                     <Ionicons
                         name="musical-notes"
                         size={14}
                         color="white"
                         importantForAccessibility="no"
                     />
-                    <Text style={styles.audioText}>Original Audio</Text>
-                </View>
+                    <Text style={styles.audioText}>
+                        {showRemixedAudio ? `♪ ${audioLabel}` : audioLabel}
+                    </Text>
+                </TouchableOpacity>
 
                 {item?.meta?.contains_ad && (
                     <View>
@@ -709,7 +761,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        opacity: 0.6,
+        opacity: 0.85,
+        alignSelf: 'flex-start',
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 14,
+        marginTop: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
