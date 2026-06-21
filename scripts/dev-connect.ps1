@@ -1,4 +1,4 @@
-﻿# Flip dev connect: pull, adb reverse, Metro (dev-client + clear), launch app.
+# Flip dev connect: pull, adb reverse, Metro (dev-client + clear), launch app.
 param(
   [switch]$RestartMetro,
   [switch]$Lan
@@ -158,8 +158,11 @@ if (-not $metroHealthy) {
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
   foreach ($serial in $serials) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
-    $start = & $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1
+    $start = (& $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1 | Out-String).Trim()
+    $ErrorActionPreference = $prevEap
     Write-Host "  $serial : $start"
   }
 } else {
