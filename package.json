@@ -17,7 +17,9 @@
     "android:dev:setup": "expo prebuild --platform android && node ./scripts/android-build.js",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "dev:connect": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1",
+    "android:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-reinstall.ps1"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
