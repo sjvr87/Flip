@@ -288,7 +288,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         <ReferenceAudioPlayer
           url={remixReferenceUrl}
           active={isFocused && isCameraActive}
-          recordingActive={isRecording}
         />
       ) : null}
       <GestureDetector gesture={cameraGestures}>

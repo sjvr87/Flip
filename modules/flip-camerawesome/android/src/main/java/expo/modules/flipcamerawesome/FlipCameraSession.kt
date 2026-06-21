@@ -45,9 +45,9 @@ class FlipCameraSession(
 ) {
   companion object {
     private const val TAG = "FlipCameraSession"
-    /** Preview target — 4K with CameraX fallback to nearest supported size. */
-    const val TARGET_WIDTH = 3840
-    const val TARGET_HEIGHT = 2160
+    /** Preview — 1080p keeps TextureView live while UHD/FHD video encodes on Samsung devices. */
+    const val PREVIEW_TARGET_WIDTH = 1920
+    const val PREVIEW_TARGET_HEIGHT = 1080
     const val TARGET_FPS = 60
     /** 45 Mbps for UHD60; CameraX falls back to FHD when UHD is unsupported. */
     const val VIDEO_BITRATE = 45_000_000
@@ -223,7 +223,7 @@ class FlipCameraSession(
         ResolutionSelector.Builder()
           .setResolutionStrategy(
             ResolutionStrategy(
-              Size(TARGET_WIDTH, TARGET_HEIGHT),
+              Size(PREVIEW_TARGET_WIDTH, PREVIEW_TARGET_HEIGHT),
               ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
             ),
           )
