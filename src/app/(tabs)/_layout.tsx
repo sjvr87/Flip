@@ -85,7 +85,10 @@ export default function TabsLayout() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     paddingTop: 0,
+                    paddingBottom: 0,
                     paddingHorizontal: 0,
+                    marginTop: 0,
+                    marginBottom: 0,
                 },
                 tabBarIconStyle: {
                     width: TAB_ICON_SLOT_SIZE,

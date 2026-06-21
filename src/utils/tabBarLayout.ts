@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Flip tab icon row — layout chrome only; system nav uses `insets.bottom`. */
-export const TAB_BAR_PADDING_TOP = 10;
-export const TAB_BAR_ICON_ROW_HEIGHT = Platform.OS === 'ios' ? 49 : 48;
+export const TAB_BAR_PADDING_TOP = 2;
+/** Matches `TAB_ICON_SLOT_SIZE` in `(tabs)/_layout.tsx`. */
+export const TAB_BAR_ICON_ROW_HEIGHT = 40;
 
 /** @deprecated Prefer `useFlipTabBarMetrics().contentHeight` */
 export const TAB_BAR_CONTENT_HEIGHT = TAB_BAR_ICON_ROW_HEIGHT;
@@ -25,9 +25,7 @@ export type FlipTabBarMetrics = {
 
 export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics {
     const paddingTop = TAB_BAR_PADDING_TOP;
-    // iOS home indicator has a sensible minimum; Android/Samsung — trust SafeAreaProvider only.
-    const paddingBottom =
-        Platform.OS === 'ios' ? Math.max(bottomInset, 21) : bottomInset;
+    const paddingBottom = bottomInset;
     const contentHeight = TAB_BAR_ICON_ROW_HEIGHT;
     const totalHeight = paddingTop + contentHeight + paddingBottom;
 
