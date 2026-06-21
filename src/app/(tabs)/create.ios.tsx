@@ -1,5 +1,6 @@
 import { LoopsFilterPreview } from '@/components/camera/LoopsFilterPreview';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
+import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { loopsFilter, type FilterName } from '@/plugins/loopsFilter';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -101,6 +102,7 @@ export default function CameraScreen() {
 
     const recordingProgress = useRef(new Animated.Value(0)).current;
     const recordingTimer = useRef<NodeJS.Timeout | null>(null);
+    const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending);
 
     const handleRequestPermission = useCallback(async () => {
         setIsRequestingPermission(true);
@@ -373,6 +375,7 @@ export default function CameraScreen() {
             clearInterval(recordingTimer.current);
             recordingTimer.current = null;
         }
+        clearPendingRemix();
         router.canGoBack() ? router.back() : router.replace('/');
     };
 

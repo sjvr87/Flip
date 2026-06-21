@@ -184,6 +184,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   const handleClose = () => {
     if (isRecording) stopRecording()
+    clearPendingRemix()
     if (onClose) onClose()
     else router.canGoBack() ? router.back() : router.replace('/')
   }

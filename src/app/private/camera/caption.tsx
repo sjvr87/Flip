@@ -539,6 +539,10 @@ export default function CaptionScreen() {
         router.back();
     };
 
+    const handleRemoveRemix = () => {
+        setReusedAudioSource(null);
+    };
+
     const charsRemaining = MAX_CAPTION_LENGTH - caption.length;
     const isNearLimit = charsRemaining <= 20;
 
@@ -582,10 +586,21 @@ export default function CaptionScreen() {
                     <View
                         style={tw`mx-5 mt-3 flex-row items-center gap-2 self-start rounded-full bg-cyan-500/10 px-3 py-2`}>
                         <Ionicons name="musical-notes" size={16} color="#22D3EE" />
-                        <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300`}>
+                        <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300 flex-shrink`}>
                             Remix · audio credit @{reusedAudioSource.username}
                             {reusedAudioSource.referenceVideoUrl ? ' · reference playing' : ''}
                         </Text>
+                        <TouchableOpacity
+                            onPress={handleRemoveRemix}
+                            hitSlop={8}
+                            accessibilityLabel="Remove remix audio"
+                            accessibilityHint="Stops reference audio and clears remix credit from this post">
+                            <Ionicons
+                                name="close"
+                                size={18}
+                                color={isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.55)'}
+                            />
+                        </TouchableOpacity>
                     </View>
                 </>
             ) : null}
