@@ -369,14 +369,14 @@ export default function Screen() {
                 ListHeaderComponent={
                     isFetching && !isFetchingNextPage && feedData.length === 0 ? (
                         <YStack paddingY="$6" alignItems="center">
-                            <ActivityIndicator color="#F02C56" size="large" />
+                            <ActivityIndicator color="#22D3EE" size="large" />
                         </YStack>
                     ) : null
                 }
                 ListFooterComponent={
                     isFetchingNextPage ? (
                         <YStack paddingY="$6" alignItems="center">
-                            <ActivityIndicator color="#F02C56" />
+                            <ActivityIndicator color="#22D3EE" />
                         </YStack>
                     ) : null
                 }
@@ -386,8 +386,8 @@ export default function Screen() {
                     <RefreshControl
                         refreshing={isFetching && !isFetchingNextPage && feedData.length > 0}
                         onRefresh={refetch}
-                        colors={['#F02C56']}
-                        tintColor="#F02C56"
+                        colors={['#22D3EE']}
+                        tintColor="#22D3EE"
                     />
                 }
             />

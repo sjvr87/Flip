@@ -226,7 +226,7 @@ export default function StarterKitNotificationsScreen() {
                                 color={
                                     markAllReadMutation.isPending || notifications.length === 0
                                         ? '#ccc'
-                                        : '#F02C56'
+                                        : '#22D3EE'
                                 }
                             />
                         </PressableHaptics>

@@ -927,7 +927,7 @@ const styles = StyleSheet.create({
     },
     activeTab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#F02C56',
+        borderBottomColor: '#22D3EE',
     },
     tabText: {
         color: 'rgba(255,255,255,0.6)',

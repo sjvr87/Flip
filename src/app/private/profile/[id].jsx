@@ -58,13 +58,13 @@ const EmptyVideos = memo(({ activeTab }) => (
 
 const LoadingIndicator = memo(() => (
     <YStack paddingY="$8" alignItems="center">
-        <ActivityIndicator size="large" color="#F02C56" />
+        <ActivityIndicator size="large" color="#22D3EE" />
     </YStack>
 ));
 
 const FooterLoader = memo(() => (
     <YStack paddingY="$6" alignItems="center">
-        <ActivityIndicator color="#F02C56" />
+        <ActivityIndicator color="#22D3EE" />
     </YStack>
 ));
 
@@ -353,7 +353,7 @@ export default function ProfileScreen() {
                         ),
                     }}
                 />
-                <ActivityIndicator size="large" color="#F02C56" />
+                <ActivityIndicator size="large" color="#22D3EE" />
             </View>
         );
     }

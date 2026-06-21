@@ -112,7 +112,7 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
                     onPress={content.primary.onPress}
                     accessibilityRole="button"
                     accessibilityLabel={content.primary.label}
-                    style={tw`px-6 py-3 rounded-full bg-[#F02C56]`}>
+                    style={tw`px-6 py-3 rounded-full bg-[#22D3EE]`}>
                     <Text style={tw`font-semibold text-base text-white`}>
                         {content.primary.label}
                     </Text>

@@ -229,7 +229,7 @@ export default function StarterKitShow() {
                         ),
                     }}
                 />
-                <ActivityIndicator size="large" color="#F02C56" />
+                <ActivityIndicator size="large" color="#22D3EE" />
             </View>
         );
     }
@@ -356,7 +356,7 @@ export default function StarterKitShow() {
                             disabled={usingKit == true || kitUsed == true || kit.is_owner === true}
                             style={[
                                 tw`flex-1 rounded-xl py-4 items-center justify-center`,
-                                kitUsed ? tw`bg-[#F02C56]/50` : tw`bg-[#F02C56]`,
+                                kitUsed ? tw`bg-[#22D3EE]/50` : tw`bg-[#22D3EE]`,
                             ]}
                             activeOpacity={0.8}>
                             {usingKit ? (

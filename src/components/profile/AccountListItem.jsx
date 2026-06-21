@@ -79,7 +79,7 @@ export default function AccountListItem(props) {
                     </Pressable>
                 ) : (
                     <Pressable
-                        style={tw`bg-[#F02C56] px-6 py-2 rounded-lg min-w-[100px] items-center justify-center`}
+                        style={tw`bg-[#22D3EE] px-6 py-2 rounded-lg min-w-[100px] items-center justify-center`}
                         onPress={() => {
                             if (!isLoading) {
                                 props.handleFollow(props.item?.id);

@@ -756,7 +756,7 @@ const styles = StyleSheet.create({
         lineHeight: 24,
     },
     permissionButton: {
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingHorizontal: 40,
         paddingVertical: 16,
         borderRadius: 12,
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     recordButtonActive: {
-        borderColor: '#F02C56',
+        borderColor: '#22D3EE',
     },
     recordButtonInner: {
         width: 52,
@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 4,
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
     },
     recordHint: {
         color: 'rgba(255,255,255,0.7)',

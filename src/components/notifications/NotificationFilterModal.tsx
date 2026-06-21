@@ -65,8 +65,8 @@ export function NotificationFilterModal({
                             'flex-row items-center justify-center gap-2 mx-4 mt-2 mb-3 py-3.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800',
                             markAllDisabled && 'opacity-40',
                         )}>
-                        <Ionicons name="checkmark-done-outline" size={20} color="#F02C56" />
-                        <StackText style={tw`text-[15px] font-semibold text-[#F02C56]`}>
+                        <Ionicons name="checkmark-done-outline" size={20} color="#22D3EE" />
+                        <StackText style={tw`text-[15px] font-semibold text-[#22D3EE]`}>
                             Mark all as read
                         </StackText>
                     </PressableHaptics>
@@ -90,7 +90,7 @@ export function NotificationFilterModal({
                                     <Ionicons
                                         name={opt.icon}
                                         size={22}
-                                        color={active ? '#F02C56' : iconColor}
+                                        color={active ? '#22D3EE' : iconColor}
                                     />
                                     <StackText
                                         style={tw.style(
@@ -100,7 +100,7 @@ export function NotificationFilterModal({
                                         {opt.label}
                                     </StackText>
                                     {active && (
-                                        <Ionicons name="checkmark" size={20} color="#F02C56" />
+                                        <Ionicons name="checkmark" size={20} color="#22D3EE" />
                                     )}
                                 </PressableHaptics>
                             );

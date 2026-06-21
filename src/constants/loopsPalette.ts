@@ -1,10 +1,10 @@
 /**
  * Loops-inspired design tokens for light and dark mode.
- * Accent pink (#F02C56) is shared across themes.
+ * Accent cyan (#22D3EE) is shared across themes.
  */
 
-export const LOOP_ACCENT = '#F02C56';
-export const LOOP_ACCENT_PRESSED = '#d02647';
+export const LOOP_ACCENT = '#22D3EE';
+export const LOOP_ACCENT_PRESSED = '#06B6D4';
 
 export type LoopsThemeColors = {
     accent: string;

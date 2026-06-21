@@ -1052,7 +1052,7 @@ export default function EditScreen() {
 
                                 {selectedVisibility.id === item.id ? (
                                     <View
-                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#F02C56] justify-center items-center`}>
+                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#22D3EE] justify-center items-center`}>
                                         <View style={tw`w-3.75 h-3.75 rounded-full bg-white`} />
                                     </View>
                                 ) : (

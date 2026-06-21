@@ -190,7 +190,7 @@ const ExploreAccountCard = memo(function ExploreAccountCard({
                 </XStack>
 
                 <PressableHaptics onPress={onFollow} disabled={isFollowing}>
-                    <View style={[tw`rounded-full px-4 py-1.5`, { backgroundColor: '#F02C56' }]}>
+                    <View style={[tw`rounded-full px-4 py-1.5`, { backgroundColor: '#22D3EE' }]}>
                         <Text style={tw`text-white font-semibold text-xs`}>
                             {isFollowing ? 'Following...' : 'Follow'}
                         </Text>
@@ -214,7 +214,7 @@ const ExploreTagChip = memo(function ExploreTagChip({
         <PressableHaptics
             style={[
                 tw`mr-2.5 rounded-xl px-4 py-2.5`,
-                isSelected ? tw`bg-[#F02C56]` : tw`bg-gray-100 dark:bg-gray-900`,
+                isSelected ? tw`bg-[#22D3EE]` : tw`bg-gray-100 dark:bg-gray-900`,
             ]}
             onPress={onSelect}>
             <View style={tw`w-[${TAG_CARD_WIDTH}px] items-center`}>

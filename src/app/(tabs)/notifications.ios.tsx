@@ -132,7 +132,7 @@ const SuggestedAccountCard = ({
                     disabled={isFollowing || isHiding}
                     style={({ pressed }) => [
                         tw`rounded-2xl px-6 py-2`,
-                        { backgroundColor: '#F02C56' },
+                        { backgroundColor: '#22D3EE' },
                         (pressed || isFollowing) && tw`opacity-70`,
                     ]}>
                     {isFollowing ? (
@@ -307,7 +307,7 @@ export default function NotificationScreen() {
             id: 'activity',
             icon: 'notifications' as const,
             iconColor: '#FFFFFF',
-            iconBgColor: '#F02C56',
+            iconBgColor: '#22D3EE',
             title: 'Activities',
             subtitle: latestNotifications.activity
                 ? getNotificationMessage(latestNotifications.activity)
@@ -410,7 +410,7 @@ export default function NotificationScreen() {
                         <RefreshControl
                             refreshing={isRefetching && !isLoading}
                             onRefresh={handleRefresh}
-                            tintColor={isDark ? '#fff' : '#F02C56'}
+                            tintColor={isDark ? '#fff' : '#22D3EE'}
                         />
                     }>
                     {isError ? (

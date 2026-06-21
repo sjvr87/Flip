@@ -34,8 +34,8 @@ const RadioOption = ({
         style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
         <View style={tw`mr-4`}>
             <View
-                style={tw`w-6 h-6 rounded-full border-2 ${selected ? 'border-[#F02C56]' : 'border-gray-300'} items-center justify-center`}>
-                {selected && <View style={tw`w-3 h-3 rounded-full bg-[#F02C56]`} />}
+                style={tw`w-6 h-6 rounded-full border-2 ${selected ? 'border-[#22D3EE]' : 'border-gray-300'} items-center justify-center`}>
+                {selected && <View style={tw`w-3 h-3 rounded-full bg-[#22D3EE]`} />}
             </View>
         </View>
         <YStack flex={1}>

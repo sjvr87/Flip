@@ -92,7 +92,7 @@ function FeedActionRail({
                 accessibilityLabel={profileLabel}
                 accessibilityRole="button">
                 <LinearGradient
-                    colors={['#F02C56', '#FF6B6B', '#FFC371']}
+                    colors={['#22D3EE', '#06B6D4', '#0891B2']}
                     start={{ x: 0, y: 1 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.avatarRing}>

@@ -150,13 +150,13 @@ export default function OtherModal({
                                 <Text
                                     style={tw`text-base flex-1 ${
                                         currentPlaybackRate === speed.value
-                                            ? 'text-[#F02C56] font-semibold'
+                                            ? 'text-[#22D3EE] font-semibold'
                                             : 'text-black dark:text-white'
                                     }`}>
                                     {speed.label}
                                 </Text>
                                 {currentPlaybackRate === speed.value && (
-                                    <Ionicons name="checkmark" size={24} color="#F02C56" />
+                                    <Ionicons name="checkmark" size={24} color="#22D3EE" />
                                 )}
                             </TouchableOpacity>
                         ))}

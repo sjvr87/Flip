@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     nextButton: {
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingHorizontal: 40,
         paddingVertical: 16,
         borderRadius: 25,

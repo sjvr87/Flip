@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import tw from 'twrnc';
 
-const ACCENT = '#F02C56';
+const ACCENT = '#22D3EE';
 
 type MetricId = 'all' | 'pinned' | 'processing';
 

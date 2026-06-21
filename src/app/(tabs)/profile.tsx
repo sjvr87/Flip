@@ -338,7 +338,7 @@ export default function ProfileScreen() {
                 ListEmptyComponent={
                     isLoading || isFetching ? (
                         <YStack style={tw`my-6`} alignItems="center">
-                            <ActivityIndicator size="large" color={isDark ? '#fff' : '#F02C56'} />
+                            <ActivityIndicator size="large" color={isDark ? '#fff' : '#22D3EE'} />
                         </YStack>
                     ) : (
                         renderEmpty()
@@ -347,7 +347,7 @@ export default function ProfileScreen() {
                 ListFooterComponent={
                     isFetchingNextPage ? (
                         <YStack paddingVertical="$6" alignItems="center">
-                            <ActivityIndicator color={isDark ? '#fff' : '#F02C56'} />
+                            <ActivityIndicator color={isDark ? '#fff' : '#22D3EE'} />
                         </YStack>
                     ) : null
                 }

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 /**
  * Stylized house inside a circle — matches tab bar reference at 26px.
@@ -10,20 +10,32 @@ const HomeTabIcon = memo(function HomeTabIcon({
     color = '#000000',
     focused = false,
 }) {
-    const strokeWidth = focused ? 1.85 : 1.55;
+    const strokeWidth = focused ? 1.9 : 1.5;
+    const dotRadius = focused ? 0.55 : 0.48;
+    const knobRadius = focused ? 0.42 : 0.36;
 
     return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            {/* Circle with a small gap at the upper-right */}
+            {/* Circle — long arc with intentional gap at upper-right (~2 o'clock) */}
             <Path
-                d="M12 3.25a8.75 8.75 0 1 0 7.35 12.1"
+                d="M17.35 6.65 A7.6 7.6 0 1 1 19.3 10.05"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
             />
-            {/* Roof */}
+            {/* Short pill segment in the gap */}
             <Path
-                d="M8.25 12.75 12 9.25l3.75 3.5"
+                d="M16.05 5.55 A7.6 7.6 0 0 0 15.1 5.25"
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+            />
+            {/* Dot on circle at ~10 o'clock */}
+            <Circle cx={5.45} cy={8.2} r={dotRadius} fill={color} />
+
+            {/* Roof with eaves */}
+            <Path
+                d="M8.15 12.35 12 9.1 15.85 12.35"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
@@ -31,33 +43,42 @@ const HomeTabIcon = memo(function HomeTabIcon({
             />
             {/* Left wall */}
             <Path
-                d="M9 12.75V17"
+                d="M8.7 12.35V16.85"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
             />
             {/* Right wall */}
             <Path
-                d="M15 12.75V17"
+                d="M15.3 12.35V16.85"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
             />
             {/* Floor */}
             <Path
-                d="M9 17h6"
+                d="M8.7 16.85h6.6"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
             />
-            {/* Door */}
+            {/* Door frame */}
             <Path
-                d="M11.15 17v-2.35h1.7V17"
+                d="M10.8 16.85v-2.55h2.4V16.85"
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
             />
+            {/* Door panel line */}
+            <Path
+                d="M11.25 14.3v2.55"
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+            />
+            {/* Door knob */}
+            <Circle cx={12.6} cy={15.6} r={knobRadius} fill={color} />
         </Svg>
     );
 });

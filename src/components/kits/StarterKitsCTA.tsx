@@ -16,7 +16,7 @@ export const StarterKitsCTA = () => {
     const textMuted = isDark ? '#6b7280' : '#9ca3af';
     const accentBg = isDark ? 'rgba(138, 138, 142, 0.15)' : '#eee';
     const accentBorder = isDark ? 'rgba(99,102,241,0.3)' : '#e3e3e3';
-    const accentText = isDark ? '#F02C56' : '#F02C56';
+    const accentText = isDark ? '#22D3EE' : '#22D3EE';
 
     return (
         <View style={tw`px-4 mb-5`}>

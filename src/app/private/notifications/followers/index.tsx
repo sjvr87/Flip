@@ -223,7 +223,7 @@ export default function FollowerNotificationsScreen() {
                                 color={
                                     markAllReadMutation.isPending || notifications.length === 0
                                         ? '#ccc'
-                                        : '#F02C56'
+                                        : '#22D3EE'
                                 }
                             />
                         </PressableHaptics>

@@ -80,7 +80,7 @@ export default function EditBioScreen() {
                             <Text
                                 style={[
                                     tw`text-base font-semibold`,
-                                    bio.trim() ? tw`text-[#F02C56]` : tw`text-gray-400`,
+                                    bio.trim() ? tw`text-[#22D3EE]` : tw`text-gray-400`,
                                 ]}>
                                 Save
                             </Text>

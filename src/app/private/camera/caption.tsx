@@ -771,7 +771,7 @@ export default function CaptionScreen() {
                 <TouchableOpacity
                     onPress={handlePost}
                     disabled={postMutation.isPending}
-                    style={tw`flex-1 flex-row items-center justify-center bg-[#F02C56] py-4 rounded-full gap-2 ${postMutation.isPending ? 'opacity-60' : ''}`}
+                    style={tw`flex-1 flex-row items-center justify-center bg-[#22D3EE] py-4 rounded-full gap-2 ${postMutation.isPending ? 'opacity-60' : ''}`}
                     activeOpacity={0.7}>
                     <Feather name="upload" size={20} color="#fff" />
                     <Text style={tw`text-[22px] font-bold text-white`}>Post</Text>
@@ -1008,7 +1008,7 @@ export default function CaptionScreen() {
                                 Alt Text
                             </Text>
                             <TouchableOpacity onPress={() => setShowAltTextModal(false)}>
-                                <Text style={tw`text-base font-semibold text-[#F02C56]`}>Done</Text>
+                                <Text style={tw`text-base font-semibold text-[#22D3EE]`}>Done</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -1094,7 +1094,7 @@ export default function CaptionScreen() {
                                     {item.name}
                                 </Text>
                                 {selectedLanguage.code === item.code && (
-                                    <Ionicons name="checkmark" size={24} color="#F02C56" />
+                                    <Ionicons name="checkmark" size={24} color="#22D3EE" />
                                 )}
                             </TouchableOpacity>
                         )}
@@ -1157,7 +1157,7 @@ export default function CaptionScreen() {
 
                                 {selectedVisibility.id === item.id ? (
                                     <View
-                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#F02C56] justify-center items-center`}>
+                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#22D3EE] justify-center items-center`}>
                                         <View style={tw`w-3.5 h-3.5 rounded-full bg-white`} />
                                     </View>
                                 ) : (

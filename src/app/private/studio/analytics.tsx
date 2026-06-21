@@ -51,7 +51,7 @@ const RANGES: { id: 7 | 30 | 60; label: string }[] = [
     { id: 60, label: '60d' },
 ];
 
-const ACCENT = '#F02C56';
+const ACCENT = '#22D3EE';
 
 const formatCompact = (n: number): string => {
     'worklet';

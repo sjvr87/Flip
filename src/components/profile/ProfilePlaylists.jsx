@@ -27,7 +27,7 @@ const ProfilePlaylists = memo(({ playlists, isLoading, onPlaylistPress }) => {
     if (isLoading) {
         return (
             <View style={tw`px-4 py-3`}>
-                <ActivityIndicator color="#F02C56" />
+                <ActivityIndicator color="#22D3EE" />
             </View>
         );
     }

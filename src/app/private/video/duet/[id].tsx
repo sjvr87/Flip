@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
     duetBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
@@ -797,7 +797,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     recordButtonActive: {
-        borderColor: '#F02C56',
+        borderColor: '#22D3EE',
     },
     recordButtonPaused: {
         borderColor: '#FFA500',
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 4,
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
     },
     recordButtonInnerPaused: {
         width: 24,
@@ -831,7 +831,7 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         justifyContent: 'center',
         alignItems: 'center',
     },

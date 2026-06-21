@@ -592,7 +592,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         {timeAgo(reply.created_at)}
                     </Text>
                     {reply.account.id == item.account.id && (
-                        <Text style={tw`text-xs font-bold text-[#F02C56]`}>Creator</Text>
+                        <Text style={tw`text-xs font-bold text-[#22D3EE]`}>Creator</Text>
                     )}
                 </View>
                 <LinkifiedCaption
@@ -697,7 +697,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                                         color={isDark ? '#666' : '#999'}
                                     />
                                 ) : (
-                                    <Text style={tw`text-[13px] font-semibold text-[#F02C56]`}>
+                                    <Text style={tw`text-[13px] font-semibold text-[#22D3EE]`}>
                                         Load more replies
                                     </Text>
                                 )}
@@ -727,7 +727,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             {timeAgo(comment.created_at)}
                         </Text>
                         {comment.account.id == item.account.id && (
-                            <Text style={tw`text-xs font-bold text-[#F02C56]`}>Creator</Text>
+                            <Text style={tw`text-xs font-bold text-[#22D3EE]`}>Creator</Text>
                         )}
                     </View>
                     <LinkifiedCaption
@@ -752,7 +752,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     <View style={tw`flex-row mt-2 gap-4`}>
                         {comment.replies > 0 && (
                             <PressableHaptics onPress={() => toggleReplies(comment.id)}>
-                                <Text style={tw`text-[13px] font-semibold text-[#F02C56]`}>
+                                <Text style={tw`text-[13px] font-semibold text-[#22D3EE]`}>
                                     {expandedComments.has(comment.id)
                                         ? 'Hide replies'
                                         : `View ${comment.replies} ${comment.replies === 1 ? 'reply' : 'replies'}`}
@@ -965,7 +965,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <Feather
                                 name="send"
                                 size={24}
-                                color={comment.trim() ? '#F02C56' : isDark ? '#555' : '#CCC'}
+                                color={comment.trim() ? '#22D3EE' : isDark ? '#555' : '#CCC'}
                             />
                         </TouchableOpacity>
                     </View>
