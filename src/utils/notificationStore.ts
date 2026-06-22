@@ -12,6 +12,8 @@ interface NotificationState {
     unreadMessages: number;
     unreadLikes: number;
     unreadFollows: number;
+    /** Non-follower notifications (likes, comments, etc.) — matches inbox activity row. */
+    unreadActivity: number;
     /** Messages > likes > follows when multiple categories are unread. */
     mailboxIconState: MailboxIconState;
     isLoading: boolean;
@@ -43,6 +45,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     unreadMessages: 0,
     unreadLikes: 0,
     unreadFollows: 0,
+    unreadActivity: 0,
     mailboxIconState: 'allRead',
     isLoading: false,
     lastFetched: null,
@@ -66,6 +69,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                 unreadMessages,
                 unreadLikes: breakdown.unreadLikes,
                 unreadFollows: breakdown.unreadFollows,
+                unreadActivity: breakdown.unreadActivity,
                 mailboxIconState: computeMailboxState(
                     unreadMessages,
                     breakdown.unreadLikes,
@@ -93,6 +97,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                 unreadMessages,
                 unreadLikes: breakdown.unreadLikes,
                 unreadFollows: breakdown.unreadFollows,
+                unreadActivity: breakdown.unreadActivity,
                 mailboxIconState: computeMailboxState(
                     unreadMessages,
                     breakdown.unreadLikes,
@@ -117,6 +122,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             ]);
             set({
                 unreadLikes: 0,
+                unreadActivity: 0,
                 unreadMessages,
                 unreadFollows,
                 mailboxIconState: computeMailboxState(unreadMessages, 0, unreadFollows),
@@ -133,6 +139,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             unreadMessages: 0,
             unreadLikes: 0,
             unreadFollows: 0,
+            unreadActivity: 0,
             mailboxIconState: 'allRead',
             lastFetched: null,
         }),

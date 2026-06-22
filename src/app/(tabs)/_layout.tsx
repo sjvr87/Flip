@@ -39,7 +39,7 @@ function HomeTabBarBackground() {
 }
 
 export default function TabsLayout() {
-    const { badgeCount, mailboxIconState } = useNotificationStore();
+    const { badgeCount, mailboxIconState, unreadActivity, unreadMessages } = useNotificationStore();
     const { colors, isDark } = useTheme();
     const tabBarMetrics = useFlipTabBarMetrics();
     const solidTabBarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder;
@@ -159,6 +159,8 @@ export default function TabsLayout() {
                                 focused={focused}
                                 size={MAILBOX_ICON_SIZE}
                                 state={mailboxIconState}
+                                hasUnreadActivity={unreadActivity > 0}
+                                hasUnreadMessages={unreadMessages > 0}
                             />
                         </TabIconSlot>
                     ),

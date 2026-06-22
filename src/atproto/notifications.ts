@@ -311,12 +311,17 @@ export async function fetchUnreadNotificationCount(): Promise<number> {
 
 const LIKE_NOTIFICATION_TYPES = new Set(['video.like', 'comment.like', 'commentReply.like'])
 
-async function countUnreadLikesAndFollows(): Promise<{ unreadLikes: number; unreadFollows: number }> {
+async function countUnreadLikesAndFollows(): Promise<{
+  unreadLikes: number
+  unreadFollows: number
+  unreadActivity: number
+}> {
   const { notifications } = await listNotificationsPage(undefined, 50)
   const unread = notifications.filter((n) => !n.read_at)
   return {
     unreadLikes: unread.filter((n) => LIKE_NOTIFICATION_TYPES.has(n.type)).length,
     unreadFollows: unread.filter((n) => n.type === 'new_follower').length,
+    unreadActivity: unread.filter((n) => n.type !== 'new_follower').length,
   }
 }
 
@@ -348,18 +353,19 @@ export type InboxUnreadBreakdown = {
   badgeCount: number
   unreadLikes: number
   unreadFollows: number
+  unreadActivity: number
   unreadMessages: number
 }
 
 export async function fetchInboxUnreadBreakdown(
   unreadMessages: number,
 ): Promise<InboxUnreadBreakdown> {
-  const [badgeCount, { unreadLikes, unreadFollows }] = await Promise.all([
+  const [badgeCount, { unreadLikes, unreadFollows, unreadActivity }] = await Promise.all([
     fetchUnreadNotificationCount(),
     countUnreadLikesAndFollows(),
   ])
 
-  return { badgeCount, unreadLikes, unreadFollows, unreadMessages }
+  return { badgeCount, unreadLikes, unreadFollows, unreadActivity, unreadMessages }
 }
 
 export async function fetchNotifications({

@@ -10,15 +10,24 @@ type MailboxTabIconProps = {
     color?: string;
     focused?: boolean;
     state?: MailboxIconState;
+    /** Activity notifications (likes, comments, etc.) — turns flag bright green. */
+    hasUnreadActivity?: boolean;
+    /** DM/inbox messages — turns envelope bright green. */
+    hasUnreadMessages?: boolean;
 };
 
 const FLAG_RED = '#E53935';
+const FLAG_RED_STROKE = '#B71C1C';
+const FLAG_GREEN = '#22C55E';
+const FLAG_GREEN_STROKE = '#15803D';
 const ENVELOPE_FILL = '#FFFFFF';
+const ENVELOPE_UNREAD_FILL = '#22C55E';
 
 /**
  * US mailbox on a post — hollow outline silhouette for tab bar.
  * Body/post are stroke-defined (transparent interior); tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  * White envelope + red flag stay visible in all tab states.
+ * Flag/envelope turn bright green when their category has unread items.
  * Priority when multiple unread: messages > likes > follows.
  */
 const MailboxTabIcon = memo(function MailboxTabIcon({
@@ -26,6 +35,8 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
     color = '#000000',
     focused = false,
     state = 'allRead',
+    hasUnreadActivity = false,
+    hasUnreadMessages = false,
 }: MailboxTabIconProps) {
     const strokeOpacity = focused ? 1 : 0.72;
     const strokeWidth = focused ? 1.75 : 1.3;
@@ -70,7 +81,11 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
 
             {/* Slot accent: envelope (default) / heart / people */}
             {showEnvelope ? (
-                <EnvelopeAccent strokeColor={envelopeStroke} opacity={strokeOpacity} />
+                <EnvelopeAccent
+                    strokeColor={envelopeStroke}
+                    opacity={strokeOpacity}
+                    unread={hasUnreadMessages}
+                />
             ) : state === 'likes' ? (
                 <FoldedHeartGroup x={0.8} y={12.4} scale={0.42} />
             ) : state === 'follows' ? (
@@ -134,13 +149,22 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
                 strokeLinecap="round"
             />
 
-            <FlagRaised bodyRight={bodyR} opacity={strokeOpacity} />
+            <FlagRaised bodyRight={bodyR} opacity={strokeOpacity} unread={hasUnreadActivity} />
         </Svg>
     );
 });
 
 /** White envelope — large rectangle + V flap, emerging from left opening. */
-function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity: number }) {
+function EnvelopeAccent({
+    strokeColor,
+    opacity,
+    unread = false,
+}: {
+    strokeColor: string;
+    opacity: number;
+    unread?: boolean;
+}) {
+    const fill = unread ? ENVELOPE_UNREAD_FILL : ENVELOPE_FILL;
     const l = -0.6;
     const r = 8.9;
     const bot = 21.7;
@@ -154,7 +178,7 @@ function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity
         <>
             <Path
                 d={`M ${l} ${bot} H ${r} V ${top} H ${l} Z`}
-                fill={ENVELOPE_FILL}
+                fill={fill}
                 fillOpacity={opacity}
                 stroke={strokeColor}
                 strokeWidth={sw}
@@ -162,7 +186,7 @@ function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity
             />
             <Path
                 d={`M ${l} ${flapBase} L ${l} ${flapTip} L ${mid} ${flapBase} Z`}
-                fill={ENVELOPE_FILL}
+                fill={fill}
                 fillOpacity={opacity}
                 stroke={strokeColor}
                 strokeWidth={sw * 0.9}
@@ -170,7 +194,7 @@ function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity
             />
             <Path
                 d={`M ${r} ${flapBase} L ${r} ${flapTip} L ${mid} ${flapBase} Z`}
-                fill={ENVELOPE_FILL}
+                fill={fill}
                 fillOpacity={opacity}
                 stroke={strokeColor}
                 strokeWidth={sw * 0.9}
@@ -208,7 +232,15 @@ function EnvelopeAccent({ strokeColor, opacity }: { strokeColor: string; opacity
 }
 
 /** Raised flag — circular base on mailbox side, stem, right swallowtail pennant. */
-function FlagRaised({ bodyRight, opacity }: { bodyRight: number; opacity: number }) {
+function FlagRaised({
+    bodyRight,
+    opacity,
+    unread = false,
+}: {
+    bodyRight: number;
+    opacity: number;
+    unread?: boolean;
+}) {
     const baseCx = bodyRight - 1.05;
     const baseCy = 20.15;
     const baseR = 1.15;
@@ -221,7 +253,8 @@ function FlagRaised({ bodyRight, opacity }: { bodyRight: number; opacity: number
     const pennantTop = stemTop - 0.15;
     const pennantBot = stemTop + 2.15;
     const notchX = 27.05;
-    const flagStroke = '#B71C1C';
+    const flagFill = unread ? FLAG_GREEN : FLAG_RED;
+    const flagStroke = unread ? FLAG_GREEN_STROKE : FLAG_RED_STROKE;
 
     return (
         <>
@@ -229,7 +262,7 @@ function FlagRaised({ bodyRight, opacity }: { bodyRight: number; opacity: number
                 cx={baseCx}
                 cy={baseCy}
                 r={baseR}
-                fill={FLAG_RED}
+                fill={flagFill}
                 fillOpacity={opacity}
                 stroke={flagStroke}
                 strokeWidth={0.45}
@@ -241,7 +274,7 @@ function FlagRaised({ bodyRight, opacity }: { bodyRight: number; opacity: number
                 width={stemW}
                 height={stemBot - stemTop}
                 rx={0.4}
-                fill={FLAG_RED}
+                fill={flagFill}
                 fillOpacity={opacity}
                 stroke={flagStroke}
                 strokeWidth={0.4}
@@ -249,7 +282,7 @@ function FlagRaised({ bodyRight, opacity }: { bodyRight: number; opacity: number
             />
             <Path
                 d={`M ${pennantL} ${pennantTop} H ${pennantR} L ${notchX} ${(pennantTop + pennantBot) / 2} L ${pennantR} ${pennantBot} H ${pennantL} Z`}
-                fill={FLAG_RED}
+                fill={flagFill}
                 fillOpacity={opacity}
                 stroke={flagStroke}
                 strokeWidth={0.45}
