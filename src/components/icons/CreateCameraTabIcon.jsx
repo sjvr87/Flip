@@ -5,30 +5,30 @@ const CX = 13;
 
 /**
  * FLIP (above) + camera (center) + IT (below) — Create tab icon.
- * Taller viewBox fits straight labels without clipping; stroke-only line art.
+ * Square 26×26 viewBox matches other tab icons; camera scaled to same visual weight.
  */
 const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
     size = 30,
     color = '#000000',
     focused = false,
 }) {
-    const strokeWidth = 1.35;
-    const innerStroke = 0.88;
+    const strokeWidth = focused ? 1.75 : 1.3;
+    const innerStroke = focused ? 1.1 : 0.85;
     const strokeOpacity = focused ? 1 : 0.72;
 
-    const lensCy = 17.8;
-    const lensR = 4.6;
+    const lensCy = 15.0;
+    const lensR = 5.2;
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 26 36" fill="none">
+        <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
             <Text
                 x={CX}
-                y={7.2}
+                y={5.6}
                 fill={color}
                 opacity={strokeOpacity}
-                fontSize={6.6}
+                fontSize={5.4}
                 fontWeight="700"
-                letterSpacing={0.28}
+                letterSpacing={0.65}
                 textAnchor="middle"
             >
                 FLIP
@@ -36,11 +36,11 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Camera body — scaled to match other tab icon visual weight */}
             <Rect
-                x={3.2}
-                y={11.8}
-                width={19.6}
-                height={10.2}
-                rx={1}
+                x={2.6}
+                y={9.0}
+                width={20.8}
+                height={12.0}
+                rx={1.1}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
@@ -48,10 +48,10 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Viewfinder / hot shoe */}
             <Rect
-                x={6.8}
-                y={10.0}
-                width={9.4}
-                height={2.2}
+                x={6.2}
+                y={7.2}
+                width={10.2}
+                height={2.1}
                 rx={0.35}
                 stroke={color}
                 strokeWidth={innerStroke}
@@ -60,10 +60,10 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Shutter / mode button */}
             <Rect
-                x={18.75}
-                y={10.55}
-                width={2.15}
-                height={2.15}
+                x={19.2}
+                y={7.7}
+                width={2.3}
+                height={2.3}
                 rx={0.25}
                 stroke={color}
                 strokeWidth={innerStroke}
@@ -72,10 +72,10 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Front sensor / flash pill */}
             <Ellipse
-                cx={5.05}
-                cy={17.5}
-                rx={0.9}
-                ry={0.52}
+                cx={4.5}
+                cy={14.8}
+                rx={1.0}
+                ry={0.58}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -93,7 +93,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             <Circle
                 cx={CX}
                 cy={lensCy}
-                r={3.35}
+                r={3.85}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity * 0.92}
@@ -101,21 +101,21 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             <Circle
                 cx={CX}
                 cy={lensCy}
-                r={1.95}
+                r={2.25}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity * 0.88}
             />
-            <Circle cx={CX} cy={lensCy} r={0.48} fill={color} opacity={strokeOpacity} />
+            <Circle cx={CX} cy={lensCy} r={0.55} fill={color} opacity={strokeOpacity} />
 
             <Text
                 x={CX}
-                y={33.4}
+                y={24.1}
                 fill={color}
                 opacity={strokeOpacity}
-                fontSize={6.6}
+                fontSize={5.4}
                 fontWeight="700"
-                letterSpacing={0.36}
+                letterSpacing={0.5}
                 textAnchor="middle"
             >
                 IT
