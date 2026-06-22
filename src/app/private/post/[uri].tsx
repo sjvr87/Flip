@@ -21,6 +21,7 @@ import {
     toProfilePath,
 } from '@/utils/profileNavigation';
 import { findCachedProfileMedia } from '@/utils/feedCache';
+import { patchExploreTextPostLike } from '@/utils/exploreCache';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
     usesAtprotoBackend,
@@ -134,7 +135,20 @@ export default function PostViewScreen({ navigation }) {
     }, [shouldOpenComments, postContent]);
 
     const handleLike = (videoId, liked) => {
-        videoLikeMutation.mutate({ type: liked ? 'like' : 'unlike', id: videoId });
+        patchExploreTextPostLike(queryClient, videoId, liked);
+        videoLikeMutation.mutate(
+            { type: liked ? 'like' : 'unlike', id: videoId },
+            {
+                onError: () => {
+                    patchExploreTextPostLike(queryClient, videoId, !liked);
+                },
+                onSuccess: (result) => {
+                    if (result) {
+                        patchExploreTextPostLike(queryClient, videoId, result.has_liked, result.likes);
+                    }
+                },
+            },
+        );
     };
 
     const handleBookmark = (videoId, bookmarked) => {

@@ -8,6 +8,7 @@ import {
     EXPLORE_DEFAULT_TAG,
     EXPLORE_GC_MS,
     EXPLORE_STALE_MS,
+    patchExploreTextPostLike,
     readExploreFeedCache,
     readExploreTagsCache,
     readExploreTextPostsCache,
@@ -19,7 +20,7 @@ import { toPostViewPath, toProfilePath } from '@/utils/profileNavigation';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { timeAgo } from '@/utils/ui';
 import { Feather } from '@expo/vector-icons';
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { memo, useCallback, useMemo, useState } from 'react';
@@ -140,15 +141,12 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
     onHashtagPress: (tag: string) => void;
     onMentionPress: (username: string, profileId?: string | number) => void;
 }) {
-    const [isLiked, setIsLiked] = useState(false);
-    const [likeCount, setLikeCount] = useState(item.likes);
+    const isLiked = !!item.has_liked;
+    const likeCount = item.likes ?? 0;
     const cardHeight = estimateTextPostCardHeight(item);
 
     const handleLike = useCallback(() => {
-        const nextLiked = !isLiked;
-        setIsLiked(nextLiked);
-        setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
-        onLike(item.id, nextLiked);
+        onLike(item.id, !isLiked);
     }, [isLiked, item.id, onLike]);
 
     return (
@@ -423,6 +421,7 @@ const ExploreListHeader = memo(function ExploreListHeader({
 
 export default function ExploreScreen() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
     const { isDark } = useTheme();
 
@@ -567,6 +566,17 @@ export default function ExploreScreen() {
         mutationFn: async ({ postId, liked }: { postId: string; liked: boolean }) => {
             return liked ? videoLike(postId) : videoUnlike(postId);
         },
+        onMutate: ({ postId, liked }) => {
+            patchExploreTextPostLike(queryClient, postId, liked);
+        },
+        onError: (_error, { postId, liked }) => {
+            patchExploreTextPostLike(queryClient, postId, !liked);
+        },
+        onSuccess: (result, { postId }) => {
+            if (result) {
+                patchExploreTextPostLike(queryClient, postId, result.has_liked, result.likes);
+            }
+        },
     });
 
     const handleLikeTextPost = useCallback(
@@ -606,7 +616,7 @@ export default function ExploreScreen() {
     const showTagsSkeleton = tagsLoading && validTags.length === 0;
     const showVideosSkeleton = videosLoading && allVideos.length === 0;
 
-    const renderListHeader = useCallback(
+    const listHeaderElement = useMemo(
         () => (
             <ExploreListHeader
                 isDark={isDark}
@@ -712,7 +722,7 @@ export default function ExploreScreen() {
                 numColumns={3}
                 keyExtractor={(item) => item.id}
                 renderItem={renderVideoThumbnail}
-                ListHeaderComponent={renderListHeader}
+                ListHeaderComponent={listHeaderElement}
                 ListFooterComponent={listFooter}
                 ListEmptyComponent={listEmpty}
                 onEndReached={handleLoadMore}

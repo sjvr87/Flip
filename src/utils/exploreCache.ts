@@ -1,6 +1,11 @@
 import type { FlipFeedPage, FlipTextPost } from '@/atproto/types';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 import { Storage } from '@/utils/cache';
+
+function safeCount(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
 
 /** Explore tab — warm cache so revisits feel instant. */
 export const EXPLORE_STALE_MS = 10 * 60_000;
@@ -109,4 +114,66 @@ export function writeExploreTextPostsCache(
   pageParams: (string | false | null)[],
 ): void {
   writeJson(`${CACHE_PREFIX}text-posts`, { pages, pageParams });
+}
+
+export type ExploreTextPostsInfiniteData = InfiniteData<
+  { data: FlipTextPost[]; meta: { path: string; per_page: number; next_cursor: string | null } },
+  string | false | null
+>;
+
+export function patchExploreTextPost(
+  queryClient: QueryClient,
+  postId: string,
+  updater: (post: FlipTextPost) => FlipTextPost,
+): void {
+  queryClient.setQueriesData<ExploreTextPostsInfiniteData>(
+    { queryKey: ['explore', 'text-posts'] },
+    (old) => {
+      if (!old?.pages?.length) return old;
+
+      let changed = false;
+      const next: ExploreTextPostsInfiniteData = {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          data: (page.data ?? []).map((post) => {
+            if (post.id !== postId) return post;
+            const updated = updater(post);
+            if (updated !== post) changed = true;
+            return updated;
+          }),
+        })),
+      };
+
+      if (changed) {
+        queueMicrotask(() => writeExploreTextPostsCache(next.pages, next.pageParams));
+      }
+
+      return changed ? next : old;
+    },
+  );
+}
+
+/** Optimistically sync like state for Explore "From the network" carousel cards. */
+export function patchExploreTextPostLike(
+  queryClient: QueryClient,
+  postId: string,
+  liked: boolean,
+  likes?: number,
+): void {
+  patchExploreTextPost(queryClient, postId, (post) => {
+    if (typeof likes === 'number' && Number.isFinite(likes)) {
+      if (post.has_liked === liked && post.likes === likes) return post;
+      return { ...post, has_liked: liked, likes };
+    }
+
+    const wasLiked = !!post.has_liked;
+    if (wasLiked === liked) return post;
+
+    return {
+      ...post,
+      has_liked: liked,
+      likes: Math.max(0, safeCount(post.likes) + (liked ? 1 : -1)),
+    };
+  });
 }
