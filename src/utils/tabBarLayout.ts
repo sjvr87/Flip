@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { Platform, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** Semi-transparent overlay on Home feed so video shows through the tab bar. */
-export const TAB_BAR_HOME_OVERLAY_BG = 'rgba(0, 0, 0, 0.45)';
+/** Uniform semi-transparent scrim on Home feed tab bar (icons + system nav inset). */
+export const TAB_BAR_HOME_OVERLAY_BG = 'rgba(0, 0, 0, 0.5)';
 export const TAB_BAR_SOLID_BG_DARK = 'rgba(0, 0, 0, 0.96)';
 export const TAB_BAR_SOLID_BG_LIGHT = 'rgba(255, 255, 255, 0.98)';
 

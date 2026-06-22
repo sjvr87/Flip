@@ -176,6 +176,7 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
+    const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
     const showRemixedAudio = !isOriginalAudio(item);
     const canUseAudio = !!item.permissions?.can_use_audio && !item.is_photo;
@@ -557,7 +558,9 @@ function VideoPlayerCore({
                     </View>
                 )}
 
-                <View pointerEvents="none" style={styles.gradientOverlay}>
+                <View
+                    pointerEvents="none"
+                    style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
                     <LinearGradient
                         colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
                         style={StyleSheet.absoluteFillObject}
@@ -839,7 +842,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 0,
         height: '20%',
         zIndex: 3,
         elevation: 3,

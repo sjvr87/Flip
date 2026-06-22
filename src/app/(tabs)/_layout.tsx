@@ -14,7 +14,6 @@ import {
     useFlipTabBarMetrics,
 } from '@/utils/tabBarLayout';
 import { useQueryClient } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -29,16 +28,13 @@ function TabIconSlot({ children }: { children: ReactNode }) {
     return <View style={styles.tabIconSlot}>{children}</View>;
 }
 
-/** Dark semi-transparent bar behind Home tab icons; video shows through. */
+/** Single uniform scrim behind Home tab icons (including safe-area inset). */
 function HomeTabBarBackground() {
     return (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <View style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]} />
-            <LinearGradient
-                colors={['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0)']}
-                style={styles.homeTabBarTopGradient}
-            />
-        </View>
+        <View
+            style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]}
+            pointerEvents="none"
+        />
     );
 }
 
@@ -195,12 +191,5 @@ const styles = StyleSheet.create({
     },
     homeTabBarOverlay: {
         backgroundColor: TAB_BAR_HOME_OVERLAY_BG,
-    },
-    homeTabBarTopGradient: {
-        position: 'absolute',
-        top: -14,
-        left: 0,
-        right: 0,
-        height: 14,
     },
 });
