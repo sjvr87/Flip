@@ -21,9 +21,10 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   private val previewView =
     PreviewView(context).also {
-      // COMPATIBLE (TextureView) avoids black preview with RN view hierarchies on Samsung devices.
+      // TextureView composites correctly over RN; PERFORMANCE can black-screen on some stacks.
       it.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
       it.scaleType = PreviewView.ScaleType.FILL_CENTER
+      it.setBackgroundColor(android.graphics.Color.BLACK)
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
@@ -67,6 +68,10 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       } else {
         ++bindGeneration
         isBinding = false
+        pendingStartRecording = false
+        if (recording) {
+          recording = false
+        }
         session?.unbind()
         session = null
       }
@@ -79,6 +84,7 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       if (value) {
         startRecordingInternal()
       } else {
+        pendingStartRecording = false
         session?.stopRecording()
       }
     }
@@ -118,19 +124,26 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   private fun syncPreviewLayout() {
     if (width <= 0 || height <= 0) return
-    if (previewView.width == width && previewView.height == height) return
     previewView.measure(
       View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
       View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
     )
     previewView.layout(0, 0, width, height)
+    previewView.requestLayout()
   }
 
   private fun maybeBindAfterLayout() {
     if (!isActive) return
     syncPreviewLayout()
     if (!hasUsableLayout()) return
-    if (session == null && !isBinding) {
+
+    val activeSession = session
+    if (activeSession != null) {
+      previewView.post { activeSession.refreshPreviewSurface() }
+      return
+    }
+
+    if (!isBinding) {
       post { bindSession() }
     }
   }
@@ -191,6 +204,9 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         previewView,
         lifecycleOwner,
         context.mainExecutor,
+        facing,
+        zoom,
+        torchEnabled,
       )
     session = newSession
 
@@ -199,10 +215,14 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         if (!isActive || generation != bindGeneration || session !== newSession) return@bind
         isBinding = false
         Log.d(TAG, "CameraX bound; preview=${previewView.width}x${previewView.height}")
-        onCameraReady(mapOf("ready" to true))
-        if (pendingStartRecording || recording) {
-          pendingStartRecording = false
-          startRecordingInternal()
+        previewView.post {
+          newSession.refreshPreviewSurface()
+          val profileMap = newSession.currentProfile().toMap()
+          onCameraReady(mapOf("ready" to true, "profile" to profileMap))
+          if (pendingStartRecording || recording) {
+            pendingStartRecording = false
+            startRecordingInternal()
+          }
         }
       },
       onError = { msg ->
@@ -212,9 +232,6 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         onCameraError(mapOf("message" to msg))
       },
     )
-    newSession.setLensFacing(facing)
-    newSession.setZoom(zoom)
-    newSession.setTorch(torchEnabled)
   }
 
   private fun startRecordingInternal() {
@@ -235,6 +252,9 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       },
       onFailed = { msg ->
         onRecordingError(mapOf("message" to msg))
+        if (recording) {
+          recording = false
+        }
       },
     )
   }

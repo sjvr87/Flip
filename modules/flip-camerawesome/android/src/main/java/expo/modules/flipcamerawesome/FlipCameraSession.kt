@@ -15,10 +15,8 @@ import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
@@ -32,35 +30,35 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * CameraX session tuned for flagship Android devices (Samsung Galaxy Ultra class sensors):
- * - FHD 1080p recording via Quality.FHD
- * - 60 FPS target where hardware supports it
- * - Video stabilization (OIS/EIS) when available
- * - Center-weighted exposure compensation for bright outdoor scenes
+ * CameraX session with flagship (UHD60 @ 45 Mbps) and standard (FHD60 @ 12 Mbps) tiers.
  */
 class FlipCameraSession(
   private val previewView: PreviewView,
   private val lifecycleOwner: LifecycleOwner,
   private val mainExecutor: Executor,
+  initialFacing: String = "back",
+  initialZoom: Float = 1f,
+  initialTorch: Boolean = false,
 ) {
   companion object {
     private const val TAG = "FlipCameraSession"
-    /** Preview — 1080p keeps TextureView live while UHD/FHD video encodes on Samsung devices. */
-    const val PREVIEW_TARGET_WIDTH = 1920
-    const val PREVIEW_TARGET_HEIGHT = 1080
-    const val TARGET_FPS = 60
-    /** 45 Mbps for UHD60; CameraX falls back to FHD when UHD is unsupported. */
-    const val VIDEO_BITRATE = 45_000_000
   }
 
   private var cameraProvider: ProcessCameraProvider? = null
   private var camera: Camera? = null
+  private var preview: Preview? = null
   private var videoCapture: VideoCapture<Recorder>? = null
   private var imageCapture: ImageCapture? = null
   private var activeRecording: Recording? = null
-  private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
-  private var zoomRatio: Float = 1f
-  private var torchEnabled: Boolean = false
+  private var profile: ResolvedCaptureProfile = FlipCaptureProfile.defaultStandardProfile()
+  private var lensFacing: Int =
+    if (initialFacing == "front") CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+  private var zoomRatio: Float = initialZoom
+  private var torchEnabled: Boolean = initialTorch
+
+  fun isRecording(): Boolean = activeRecording != null
+
+  fun currentProfile(): ResolvedCaptureProfile = profile
 
   fun bind(onReady: () -> Unit, onError: (String) -> Unit) {
     val context = previewView.context
@@ -78,6 +76,7 @@ class FlipCameraSession(
         try {
           val provider = future.get()
           cameraProvider = provider
+          profile = FlipCaptureProfile.resolve(context, provider)
           rebindCamera()
           onReady()
         } catch (e: Exception) {
@@ -89,8 +88,10 @@ class FlipCameraSession(
   }
 
   fun setLensFacing(facing: String) {
-    lensFacing =
+    val nextFacing =
       if (facing == "front") CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+    if (nextFacing == lensFacing && camera != null) return
+    lensFacing = nextFacing
     rebindCamera()
   }
 
@@ -106,12 +107,12 @@ class FlipCameraSession(
     camera?.cameraControl?.setExposureCompensationIndex(clamped)
   }
 
-  /** Slight negative compensation helps prevent blown highlights on Samsung HDR sensors. */
+  /** Light negative EV — avoids over-darkening flagship HDR sensors. */
   fun applyFlagshipExposureProfile() {
     val info = camera?.cameraInfo ?: return
     val range = info.exposureState.exposureCompensationRange
     if (range.upper <= range.lower) return
-    val target = (range.lower + (range.upper - range.lower) * 0.35f).toInt()
+    val target = (range.lower + (range.upper - range.lower) * 0.15f).toInt()
     setExposureCompensation(target.coerceIn(range.lower, range.upper))
   }
 
@@ -202,20 +203,44 @@ class FlipCameraSession(
   }
 
   fun stopRecording() {
-    activeRecording?.stop()
+    val recording = activeRecording ?: return
+    activeRecording = null
+    recording.stop()
+  }
+
+  fun refreshPreviewSurface() {
+    val previewUseCase = preview ?: return
+    if (previewView.width <= 0 || previewView.height <= 0) return
+    previewUseCase.surfaceProvider = previewView.surfaceProvider
+    previewView.invalidate()
+    Log.d(
+      TAG,
+      "refreshPreviewSurface ${profile.badgeLabel} preview=${previewView.width}x${previewView.height}",
+    )
   }
 
   fun unbind() {
-    activeRecording?.stop()
-    activeRecording = null
+    stopRecording()
     cameraProvider?.unbindAll()
     camera = null
+    preview = null
     videoCapture = null
     imageCapture = null
   }
 
+  private fun clearRecordingBeforeRebind() {
+    val recording = activeRecording ?: return
+    activeRecording = null
+    try {
+      recording.stop()
+    } catch (e: Exception) {
+      Log.w(TAG, "clearRecordingBeforeRebind: stop failed", e)
+    }
+  }
+
   private fun rebindCamera() {
     val provider = cameraProvider ?: return
+    clearRecordingBeforeRebind()
     provider.unbindAll()
 
     try {
@@ -223,7 +248,7 @@ class FlipCameraSession(
         ResolutionSelector.Builder()
           .setResolutionStrategy(
             ResolutionStrategy(
-              Size(PREVIEW_TARGET_WIDTH, PREVIEW_TARGET_HEIGHT),
+              Size(profile.previewWidth, profile.previewHeight),
               ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
             ),
           )
@@ -232,11 +257,10 @@ class FlipCameraSession(
       val previewBuilder =
         Preview.Builder().setResolutionSelector(previewResolutionSelector)
 
-      // Prefer 60fps but allow fallback — strict Range(60, 60) can fail to bind on some devices.
       Camera2Interop.Extender(previewBuilder)
         .setCaptureRequestOption(
           CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-          Range(30, TARGET_FPS),
+          Range(30, profile.targetFps),
         )
         .setCaptureRequestOption(
           CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
@@ -247,20 +271,14 @@ class FlipCameraSession(
           CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON,
         )
 
-      val preview =
+      val previewUseCase =
         previewBuilder.build().also { it.surfaceProvider = previewView.surfaceProvider }
-
-      // Prefer UHD (4K) on flagship devices; fall back to FHD when hardware cannot bind UHD60.
-      val qualitySelector =
-        QualitySelector.fromOrderedList(
-          listOf(Quality.UHD, Quality.FHD),
-          FallbackStrategy.lowerQualityOrHigherThan(Quality.FHD),
-        )
+      preview = previewUseCase
 
       val recorder =
         Recorder.Builder()
-          .setQualitySelector(qualitySelector)
-          .setTargetVideoEncodingBitRate(VIDEO_BITRATE)
+          .setQualitySelector(profile.qualitySelector)
+          .setTargetVideoEncodingBitRate(profile.videoBitrate)
           .build()
 
       val videoBuilder = VideoCapture.Builder(recorder).setVideoStabilizationEnabled(true)
@@ -268,7 +286,7 @@ class FlipCameraSession(
       Camera2Interop.Extender(videoBuilder)
         .setCaptureRequestOption(
           CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-          Range(30, TARGET_FPS),
+          Range(30, profile.targetFps),
         )
         .setCaptureRequestOption(
           CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
@@ -280,12 +298,22 @@ class FlipCameraSession(
         )
 
       val capture = videoBuilder.build()
-
       videoCapture = capture
+
+      val photoResolutionSelector =
+        ResolutionSelector.Builder()
+          .setResolutionStrategy(
+            ResolutionStrategy(
+              Size(profile.previewWidth, profile.previewHeight),
+              ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+            ),
+          )
+          .build()
 
       val photoCapture =
         ImageCapture.Builder()
           .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+          .setResolutionSelector(photoResolutionSelector)
           .build()
 
       imageCapture = photoCapture
@@ -294,11 +322,16 @@ class FlipCameraSession(
         CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
       camera =
-        provider.bindToLifecycle(lifecycleOwner, selector, preview, capture, photoCapture)
+        provider.bindToLifecycle(lifecycleOwner, selector, previewUseCase, capture, photoCapture)
 
       camera?.cameraControl?.setZoomRatio(zoomRatio)
+      camera?.cameraControl?.enableTorch(torchEnabled)
       applyFlagshipExposureProfile()
-      Log.d(TAG, "CameraX bound lensFacing=$lensFacing preview=${previewView.width}x${previewView.height}")
+      Log.d(
+        TAG,
+        "CameraX bound ${profile.badgeLabel} lensFacing=$lensFacing " +
+          "preview=${previewView.width}x${previewView.height} bitrate=${profile.videoBitrate}",
+      )
     } catch (e: Exception) {
       Log.e(TAG, "rebindCamera failed", e)
       throw e

@@ -7,7 +7,7 @@ import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability'
 import { PressableHaptics } from '@/components/ui/PressableHaptics'
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare'
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore'
-import { FlipCamerawesomeView } from 'flip-camerawesome'
+import { FlipCamerawesomeView, getCaptureProfile, type CaptureProfile } from 'flip-camerawesome'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router'
@@ -41,6 +41,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video')
   const [photoRequestId, setPhotoRequestId] = useState(0)
+  const [captureBadge, setCaptureBadge] = useState<string | null>(null)
 
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const recordingRef = useRef(false)
@@ -77,6 +78,9 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   useEffect(() => {
     requestAndroidPermissions().then(setHasPermissions)
+    getCaptureProfile()
+      .then((profile: CaptureProfile) => setCaptureBadge(profile.badge))
+      .catch(() => undefined)
   }, [requestAndroidPermissions])
 
   useFocusEffect(
@@ -84,15 +88,15 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
       // Release feed decoders before CameraX binds — same tick as focus so MediaCodec is free.
       prepareForCameraCapture()
       setIsCameraReady(false)
+      setIsRecording(false)
+      recordingRef.current = false
       requestAndroidPermissions().then(setHasPermissions)
       ensureAndroidMediaReadPermissions()
         .catch(() => undefined)
         .finally(() => reloadGalleryThumb())
       return () => {
-        if (recordingRef.current) {
-          setIsRecording(false)
-          recordingRef.current = false
-        }
+        recordingRef.current = false
+        setIsRecording(false)
         setIsCameraReady(false)
       }
     }, [requestAndroidPermissions, reloadGalleryThumb]),
@@ -102,33 +106,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const interval = setInterval(() => setZoomLevel(zoom.value), 50)
     return () => clearInterval(interval)
   }, [zoom])
-
-  useEffect(() => {
-    if (!isRecording) {
-      setRecordingDuration(0)
-      if (recordingTimer.current) {
-        clearInterval(recordingTimer.current)
-        recordingTimer.current = null
-      }
-      return
-    }
-
-    const startTime = Date.now()
-    recordingTimer.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000)
-      setRecordingDuration(elapsed)
-      if (elapsed >= MAX_RECORDING_SECONDS) {
-        stopRecording()
-      }
-    }, 250)
-
-    return () => {
-      if (recordingTimer.current) {
-        clearInterval(recordingTimer.current)
-        recordingTimer.current = null
-      }
-    }
-  }, [isRecording])
 
   const navigateToPreview = (mediaPath: string, duration: number, mediaType: 'video' | 'photo' = 'video') => {
     if (mediaType === 'photo') {
@@ -162,6 +139,39 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     setIsRecording(false)
     zoom.value = withSpring(1)
   }, [zoom])
+
+  useEffect(() => {
+    if (captureMode === 'photo' && isRecording) {
+      stopRecording()
+    }
+  }, [captureMode, isRecording, stopRecording])
+
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordingDuration(0)
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current)
+        recordingTimer.current = null
+      }
+      return
+    }
+
+    const startTime = Date.now()
+    recordingTimer.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      setRecordingDuration(elapsed)
+      if (elapsed >= MAX_RECORDING_SECONDS) {
+        stopRecording()
+      }
+    }, 250)
+
+    return () => {
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current)
+        recordingTimer.current = null
+      }
+    }
+  }, [isRecording, stopRecording])
 
   const toggleRecording = useCallback(() => {
     if (!isCameraReady || captureMode !== 'video') return
@@ -300,13 +310,17 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             isActive={isFocused}
             recording={isRecording}
             photoRequestId={photoRequestId}
-            onCameraReady={() => {
+            onCameraReady={(e) => {
               setIsCameraReady(true)
+              const badge = e.nativeEvent.profile?.badge
+              if (badge) setCaptureBadge(badge)
               if (__DEV__ && remixReferenceUrl) {
                 console.log('[FlipCamera] ready; remix url:', remixReferenceUrl.slice(0, 80))
               }
             }}
             onRecordingFinished={(e) => {
+              recordingRef.current = false
+              setIsRecording(false)
               const path = e.nativeEvent.uri || e.nativeEvent.path
               navigateToPreview(path, recordingDuration, 'video')
             }}
@@ -357,13 +371,20 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             </PressableHaptics>
           </View>
         ) : (
-          <View style={styles.topButton} />
+          <View style={styles.topButton}>
+            {captureBadge ? (
+              <Text style={styles.profileBadge}>{captureBadge}</Text>
+            ) : null}
+          </View>
         )}
       </View>
 
       <View style={styles.rightControls}>
         <PressableHaptics
-          onPress={() => setCameraPosition((p) => (p === 'back' ? 'front' : 'back'))}
+          onPress={() => {
+            if (isRecording) stopRecording()
+            setCameraPosition((p) => (p === 'back' ? 'front' : 'back'))
+          }}
           style={styles.controlButton}
         >
           <Ionicons name="camera-reverse" size={28} color="#fff" />
@@ -495,6 +516,12 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+  profileBadge: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   remixBanner: {
     flex: 1,
     flexDirection: 'row',

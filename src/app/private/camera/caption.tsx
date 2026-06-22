@@ -37,8 +37,11 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Image as ImageCompressor, Video as VideoCompressor } from 'react-native-compressor';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+    prepareImageForUpload,
+    prepareVideoForUpload,
+} from '@/utils/uploadCompression';
 import type { FlipAudioSource } from '@/atproto/types';
 import tw from 'twrnc';
 
@@ -314,14 +317,7 @@ export default function CaptionScreen() {
         let fileField: Record<string, { uri: string; name: string; type: string }>;
 
         if (isPhotoPost) {
-            const compressedUri = await ImageCompressor.compress(originalPath, {
-                maxWidth: 1920,
-                maxHeight: 1920,
-                quality: 0.9,
-            });
-            uploadUri = compressedUri.startsWith('file://')
-                ? compressedUri
-                : `file://${compressedUri}`;
+            uploadUri = await prepareImageForUpload(originalPath);
             filename = `upload_${Date.now()}.jpg`;
             fileField = {
                 image: {
@@ -331,22 +327,10 @@ export default function CaptionScreen() {
                 },
             };
         } else {
-            const compressedUri = await VideoCompressor.compress(
-                originalPath,
-                {
-                    maxSize: 1920,
-                    compressionMethod: 'auto',
-                },
-                (progress) => {
-                    const pct = Math.round(progress * 100);
-                    setProgressPct(pct);
-                    setOverlayMessage(`Compressing… ${pct}%`);
-                },
-            );
-
-            uploadUri = compressedUri.startsWith('file://')
-                ? compressedUri
-                : `file://${compressedUri}`;
+            uploadUri = await prepareVideoForUpload(originalPath, (pct) => {
+                setProgressPct(pct);
+                setOverlayMessage(`Compressing… ${pct}%`);
+            });
             filename = `upload_${Date.now()}.mp4`;
             fileField = {
                 video: {
