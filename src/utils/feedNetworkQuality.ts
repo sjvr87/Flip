@@ -11,7 +11,11 @@ function loadNetInfo(): NetInfoModule | null {
     }
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        return require('@react-native-community/netinfo').default as NetInfoModule;
+        const mod = require('@react-native-community/netinfo').default as NetInfoModule;
+        if (typeof mod?.fetch !== 'function' || typeof mod?.addEventListener !== 'function') {
+            return null;
+        }
+        return mod;
     } catch {
         return null;
     }
@@ -146,6 +150,9 @@ export function subscribeFeedNetworkProfile(listener: (profile: FeedNetworkProfi
 }
 
 function emitProfile(profile: FeedNetworkProfile) {
+    if (profile.tier === currentProfile.tier) {
+        return;
+    }
     currentProfile = profile;
     for (const listener of listeners) {
         listener(profile);
@@ -174,9 +181,16 @@ export function startFeedNetworkMonitoring(): () => void {
         })
         .catch(() => {});
 
-    netInfoUnsub = NetInfo.addEventListener((state) => {
-        emitProfile(profileFromNetInfo(state));
-    });
+    try {
+        netInfoUnsub = NetInfo.addEventListener((state) => {
+            emitProfile(profileFromNetInfo(state));
+        });
+    } catch (error) {
+        if (__DEV__) {
+            console.warn('[feed] NetInfo.addEventListener failed:', error);
+        }
+        return () => {};
+    }
 
     return () => {
         netInfoUnsub?.();

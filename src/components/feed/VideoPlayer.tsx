@@ -45,6 +45,17 @@ const POSTER_BG = '#1a1a1a';
 
 type ExpoVideoPlayer = ReturnType<typeof createVideoPlayer>;
 
+function isPlayerUsable(player: ExpoVideoPlayer | null | undefined): player is ExpoVideoPlayer {
+    if (!player) {
+        return false;
+    }
+    try {
+        return typeof player.addListener === 'function';
+    } catch {
+        return false;
+    }
+}
+
 /** Release after VideoView unmounts so native prop updates don't race teardown. */
 function releasePlayerDeferred(player: ExpoVideoPlayer) {
     queueMicrotask(() => {
@@ -207,7 +218,9 @@ function VideoPlayerCore({
     const thumbnail = item.media?.thumbnail;
     const playerRef = useRef<ExpoVideoPlayer | null>(null);
     const boundSrcRef = useRef<string | undefined>(undefined);
+    const playerEpochRef = useRef(0);
     const [player, setPlayer] = useState<ExpoVideoPlayer | null>(null);
+    const [playerEpoch, setPlayerEpoch] = useState(0);
     const [videoReady, setVideoReady] = useState(false);
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
@@ -248,7 +261,23 @@ function VideoPlayerCore({
         }
 
         const source = buildFeedVideoSource(srcUrl);
+        if (!source) {
+            boundSrcRef.current = undefined;
+            setPlayer(null);
+            setPlayerEpoch(0);
+            return;
+        }
+
         const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(source);
+        if (!isPlayerUsable(nextPlayer)) {
+            boundSrcRef.current = undefined;
+            setPlayer(null);
+            setPlayerEpoch(0);
+            return;
+        }
+
+        const epoch = playerEpochRef.current + 1;
+        playerEpochRef.current = epoch;
         nextPlayer.loop = true;
         try {
             nextPlayer.bufferOptions = networkProfile.bufferOptions;
@@ -258,6 +287,7 @@ function VideoPlayerCore({
         playerRef.current = nextPlayer;
         boundSrcRef.current = srcUrl;
         setPlayer(nextPlayer);
+        setPlayerEpoch(epoch);
         setVideoReady(nextPlayer.status === 'readyToPlay');
         setPlayerStatus(nextPlayer.status);
 
@@ -266,6 +296,8 @@ function VideoPlayerCore({
                 playerRef.current = null;
                 boundSrcRef.current = undefined;
             }
+            setPlayer(null);
+            setPlayerEpoch(0);
             releasePlayerDeferred(nextPlayer);
         };
     }, [srcUrl, videoOpacity]);
@@ -286,12 +318,12 @@ function VideoPlayerCore({
     }, [thumbnail]);
 
     useEffect(() => {
-        if (!player) {
+        if (!isPlayerUsable(player)) {
             return;
         }
 
         const onStatus = ({ status }: { status: string }) => {
-            if (!isMountedRef.current) {
+            if (!isMountedRef.current || playerRef.current !== player) {
                 return;
             }
             setPlayerStatus(status);
@@ -310,20 +342,27 @@ function VideoPlayerCore({
             }
         };
         const onPlaying = ({ isPlaying: playing }: { isPlaying: boolean }) => {
-            if (isMountedRef.current) {
-                setVideoReady(true);
-                setIsPlaying(playing);
+            if (!isMountedRef.current || playerRef.current !== player) {
+                return;
             }
+            setVideoReady(true);
+            setIsPlaying(playing);
         };
 
-        const statusSub = player.addListener('statusChange', onStatus);
-        const playingSub = player.addListener('playingChange', onPlaying);
+        let statusSub: { remove: () => void } | null = null;
+        let playingSub: { remove: () => void } | null = null;
+        try {
+            statusSub = player.addListener('statusChange', onStatus);
+            playingSub = player.addListener('playingChange', onPlaying);
+        } catch {
+            return;
+        }
 
         return () => {
-            statusSub.remove();
-            playingSub.remove();
+            statusSub?.remove();
+            playingSub?.remove();
         };
-    }, [player, isActive, isPlaying]);
+    }, [player, playerEpoch, isActive, isPlaying]);
 
     const showVideoFrame =
         videoReady && playerStatus === 'readyToPlay' && (isActive ? isPlaying || isManuallyPaused : true);
@@ -355,25 +394,25 @@ function VideoPlayerCore({
     }, []);
 
     useEffect(() => {
-        if (!player) return;
+        if (!isPlayerUsable(player)) return;
         try {
             player.playbackRate = playbackRate;
         } catch (error) {
             console.log('Playback rate error:', error);
         }
-    }, [playbackRate, player]);
+    }, [playbackRate, player, playerEpoch]);
 
     useEffect(() => {
-        if (!player) return;
+        if (!isPlayerUsable(player)) return;
         try {
             player.muted = feedMuted;
         } catch (error) {
             console.log('Mute control error:', error);
         }
-    }, [feedMuted, player]);
+    }, [feedMuted, player, playerEpoch]);
 
     useEffect(() => {
-        if (!player) return;
+        if (!isPlayerUsable(player)) return;
 
         try {
             const shouldPlay =
@@ -411,6 +450,7 @@ function VideoPlayerCore({
         item.is_sensitive,
         playSensitive,
         isManuallyPaused,
+        playerEpoch,
     ]);
 
     useEffect(() => {
@@ -459,7 +499,7 @@ function VideoPlayerCore({
     }, []);
 
     const togglePlayPause = useCallback(() => {
-        if (!player || !isMountedRef.current || !isActive) return;
+        if (!isPlayerUsable(player) || !isMountedRef.current || !isActive) return;
 
         try {
             // player.playing can lag on Android; fall back to synced playingChange state.
@@ -566,7 +606,7 @@ function VideoPlayerCore({
         (isReposted && !item.has_reposted ? 1 : 0) -
         (!isReposted && item.has_reposted ? 1 : 0);
 
-    if (!player) {
+    if (!isPlayerUsable(player)) {
         return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
@@ -610,6 +650,7 @@ function VideoPlayerCore({
                     <VideoPoster thumbnail={thumbnail} />
                     <Animated.View style={[styles.videoLayer, { opacity: videoOpacity }]}>
                         <VideoView
+                            key={`${srcUrl}-${playerEpoch}`}
                             style={styles.video}
                             player={player}
                             allowsPictureInPicture={false}

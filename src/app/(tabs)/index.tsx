@@ -667,7 +667,7 @@ export default function LoopsFeed({ navigation }) {
             }
         }
         prefetchThumbnails(thumbUrls);
-    }, [currentIndex, videos, feedPlaybackEnabled, networkProfile]);
+    }, [currentIndex, videos, feedPlaybackEnabled, networkProfile.tier, networkProfile.prefetchAhead, networkProfile.playerPreloadDistance]);
 
     useEffect(() => {
         if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
@@ -679,7 +679,7 @@ export default function LoopsFeed({ navigation }) {
         }
         const nextUrl = videos[1]?.media?.src_url;
         prefetchVideoUrls(nextUrl ? [nextUrl] : []);
-    }, [activeTab, videos.length, feedPlaybackEnabled, networkProfile, currentIndex]);
+    }, [activeTab, videos.length, feedPlaybackEnabled, networkProfile.tier, networkProfile.prefetchAhead, currentIndex]);
 
     const handleLike = useCallback((videoId: string, liked: boolean) => {
         const dir = liked ? 'like' : 'unlike';

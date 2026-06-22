@@ -6,11 +6,12 @@ export function isHlsFeedUrl(url: string): boolean {
 }
 
 export function buildFeedVideoSource(url: string | undefined | null): VideoSource {
-    if (!url) {
+    const trimmed = url?.trim();
+    if (!trimmed) {
         return null;
     }
-    if (isHlsFeedUrl(url)) {
-        return { uri: url, contentType: 'hls' };
+    if (isHlsFeedUrl(trimmed)) {
+        return { uri: trimmed, contentType: 'hls' };
     }
-    return url;
+    return trimmed;
 }
