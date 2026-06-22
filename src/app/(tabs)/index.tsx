@@ -361,8 +361,7 @@ export default function LoopsFeed({ navigation }) {
         () => dedupeFeedVideos(rawVideos, activeTab),
         [rawVideos, activeTab],
     );
-    const feedTrulyEmpty =
-        !isLoading && !isFetching && rawVideos.length === 0;
+    const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
     const feedExhausted =
         !isLoading &&
         !isFetchingNextPage &&
@@ -744,7 +743,11 @@ export default function LoopsFeed({ navigation }) {
     );
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
-    const showInitialLoader = !feedQueryEnabled || (isLoading && !hasFeedData);
+    const feedListEmpty = videosWithEnd.length === 0;
+    const showInitialLoader =
+        !feedQueryEnabled ||
+        (isLoading && !hasFeedData) ||
+        (feedListEmpty && !feedTrulyEmpty && !feedCaughtUp && (isFetching || isFetchingNextPage));
 
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
@@ -910,11 +913,12 @@ export default function LoopsFeed({ navigation }) {
 
 const styles = StyleSheet.create({
     container: {
-        ...StyleSheet.absoluteFillObject,
+        flex: 1,
         backgroundColor: '#000',
     },
     feedList: {
         flex: 1,
+        backgroundColor: '#000',
     },
     loadingContainer: {
         flex: 1,
