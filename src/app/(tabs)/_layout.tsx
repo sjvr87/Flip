@@ -133,9 +133,9 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Create',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: ({ focused }) => (
+                    tabBarIcon: ({ color, focused }) => (
                         <TabIconSlot>
-                            <CreateCameraTabIcon focused={focused} size={ICON_SIZE} />
+                            <CreateCameraTabIcon color={color} focused={focused} size={ICON_SIZE} />
                         </TabIconSlot>
                     ),
                 }}
