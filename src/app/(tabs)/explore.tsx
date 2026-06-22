@@ -33,7 +33,7 @@ import {
 } from '@/utils/exploreCache';
 import { postAtUriToBskyUrl, toPostViewPath, toProfilePath } from '@/utils/profileNavigation';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
-import { timeAgo } from '@/utils/ui';
+import { prettyCount, timeAgo } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -62,7 +62,22 @@ const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
 const EXPLORE_ACTION_ICON_SIZE = 19;
 const EXPLORE_REPOST_ICON_SIZE = 19;
 const EXPLORE_ACTION_RAIL_HEIGHT = 32;
+const EXPLORE_ACTION_SLOT_WIDTH = TEXT_POST_CARD_WIDTH / 5;
+const EXPLORE_ACTION_COUNT_MAX_WIDTH =
+    EXPLORE_ACTION_SLOT_WIDTH - EXPLORE_ACTION_ICON_SIZE - 6;
 const EXPLORE_ACTION_MUTED = '#9CA3AF';
+const exploreActionCellStyle = { flex: 1, minWidth: 0, alignItems: 'center' as const, justifyContent: 'center' as const };
+const exploreActionGroupStyle = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    maxWidth: EXPLORE_ACTION_SLOT_WIDTH,
+    gap: 4,
+};
+const exploreActionCountStyle = [
+    tw`text-gray-500 text-[11px] dark:text-gray-400`,
+    { flexShrink: 1, maxWidth: EXPLORE_ACTION_COUNT_MAX_WIDTH },
+];
 
 interface Tag {
     id: number;
@@ -288,75 +303,79 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
 
             <View
                 style={[
-                    tw`flex-row items-center`,
-                    { height: EXPLORE_ACTION_RAIL_HEIGHT },
+                    tw`flex-row items-center overflow-hidden`,
+                    { height: EXPLORE_ACTION_RAIL_HEIGHT, width: '100%' },
                 ]}>
-                <PressableHaptics
-                    onPress={handleLike}
-                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
-                    hitSlop={10}>
-                    <Feather
-                        name="heart"
-                        size={EXPLORE_ACTION_ICON_SIZE}
-                        color={isLiked ? '#EF4444' : EXPLORE_ACTION_MUTED}
-                    />
-                    <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                        {likeCount.toLocaleString()}
-                    </Text>
+                <PressableHaptics onPress={handleLike} style={exploreActionCellStyle} hitSlop={10}>
+                    <View style={exploreActionGroupStyle}>
+                        <Feather
+                            name="heart"
+                            size={EXPLORE_ACTION_ICON_SIZE}
+                            color={isLiked ? '#EF4444' : EXPLORE_ACTION_MUTED}
+                        />
+                        <Text numberOfLines={1} style={exploreActionCountStyle}>
+                            {prettyCount(likeCount)}
+                        </Text>
+                    </View>
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleComment}
-                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
+                    style={exploreActionCellStyle}
                     hitSlop={10}>
-                    <Feather
-                        name="message-circle"
-                        size={EXPLORE_ACTION_ICON_SIZE}
-                        color={EXPLORE_ACTION_MUTED}
-                    />
-                    <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                        {item.comments.toLocaleString()}
-                    </Text>
+                    <View style={exploreActionGroupStyle}>
+                        <Feather
+                            name="message-circle"
+                            size={EXPLORE_ACTION_ICON_SIZE}
+                            color={EXPLORE_ACTION_MUTED}
+                        />
+                        <Text numberOfLines={1} style={exploreActionCountStyle}>
+                            {prettyCount(item.comments)}
+                        </Text>
+                    </View>
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleBookmark}
-                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
+                    style={exploreActionCellStyle}
                     hitSlop={10}>
-                    <Ionicons
-                        name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
-                        size={EXPLORE_ACTION_ICON_SIZE}
-                        color={isBookmarked ? LOOP_ACCENT : EXPLORE_ACTION_MUTED}
-                    />
-                    {bookmarkCount > 0 ? (
-                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                            {bookmarkCount.toLocaleString()}
-                        </Text>
-                    ) : null}
+                    <View style={exploreActionGroupStyle}>
+                        <Ionicons
+                            name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                            size={EXPLORE_ACTION_ICON_SIZE}
+                            color={isBookmarked ? LOOP_ACCENT : EXPLORE_ACTION_MUTED}
+                        />
+                        {bookmarkCount > 0 ? (
+                            <Text numberOfLines={1} style={exploreActionCountStyle}>
+                                {prettyCount(bookmarkCount)}
+                            </Text>
+                        ) : null}
+                    </View>
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleRepost}
-                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
+                    style={exploreActionCellStyle}
                     hitSlop={10}>
-                    <RepostArrowIcon
-                        size={EXPLORE_REPOST_ICON_SIZE}
-                        color={EXPLORE_ACTION_MUTED}
-                        active={isReposted}
-                        activeColor={LOOP_ACCENT}
-                    />
-                    {repostCount > 0 ? (
-                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                            {repostCount.toLocaleString()}
-                        </Text>
-                    ) : null}
+                    <View style={exploreActionGroupStyle}>
+                        <RepostArrowIcon
+                            size={EXPLORE_REPOST_ICON_SIZE}
+                            color={EXPLORE_ACTION_MUTED}
+                            active={isReposted}
+                            activeColor={LOOP_ACCENT}
+                        />
+                        {repostCount > 0 ? (
+                            <Text numberOfLines={1} style={exploreActionCountStyle}>
+                                {prettyCount(repostCount)}
+                            </Text>
+                        ) : null}
+                    </View>
                 </PressableHaptics>
-                <PressableHaptics
-                    onPress={handleShare}
-                    style={tw`flex-1 items-center justify-center`}
-                    hitSlop={10}>
-                    <Ionicons
-                        name="arrow-redo-outline"
-                        size={EXPLORE_ACTION_ICON_SIZE}
-                        color={EXPLORE_ACTION_MUTED}
-                    />
+                <PressableHaptics onPress={handleShare} style={exploreActionCellStyle} hitSlop={10}>
+                    <View style={exploreActionGroupStyle}>
+                        <Ionicons
+                            name="arrow-redo-outline"
+                            size={EXPLORE_ACTION_ICON_SIZE}
+                            color={EXPLORE_ACTION_MUTED}
+                        />
+                    </View>
                 </PressableHaptics>
             </View>
         </View>
