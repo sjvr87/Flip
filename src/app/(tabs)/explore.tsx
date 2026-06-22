@@ -23,7 +23,7 @@ import { Feather } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -41,58 +41,9 @@ import tw from 'twrnc';
 const { width } = Dimensions.get('window');
 const TAG_CARD_WIDTH = 120;
 const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);
+const TEXT_POST_CARD_HEIGHT = 210;
 const TEXT_POST_CARD_GAP = 12;
-const NETWORK_POSTS_MAX_HEIGHT = 228;
 const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
-
-function estimateTextPostCardHeight(post: FlipTextPost, cardWidth = TEXT_POST_CARD_WIDTH): number {
-    const charsPerLine = Math.max(18, Math.floor(cardWidth / 7));
-    const lineCount = Math.min(6, Math.max(1, Math.ceil(post.text.length / charsPerLine)));
-    return 112 + lineCount * 20;
-}
-
-type NetworkPostColumn = {
-    posts: FlipTextPost[];
-    height: number;
-};
-
-/** Pack text posts into vertical columns (shortest-column-first) within max height. */
-function packNetworkPostsIntoColumns(
-    posts: FlipTextPost[],
-    maxHeight: number,
-    cardWidth = TEXT_POST_CARD_WIDTH,
-): NetworkPostColumn[] {
-    if (posts.length === 0) return [];
-
-    const columns: NetworkPostColumn[] = [{ posts: [], height: 0 }];
-
-    for (const post of posts) {
-        const cardHeight = estimateTextPostCardHeight(post, cardWidth);
-        let bestIdx = -1;
-        let bestHeight = Number.POSITIVE_INFINITY;
-
-        for (let i = 0; i < columns.length; i++) {
-            const column = columns[i];
-            const gap = column.posts.length > 0 ? TEXT_POST_CARD_GAP : 0;
-            const nextHeight = column.height + gap + cardHeight;
-            if (nextHeight <= maxHeight && column.height < bestHeight) {
-                bestIdx = i;
-                bestHeight = column.height;
-            }
-        }
-
-        if (bestIdx >= 0) {
-            const column = columns[bestIdx];
-            const gap = column.posts.length > 0 ? TEXT_POST_CARD_GAP : 0;
-            column.posts.push(post);
-            column.height += gap + cardHeight;
-        } else {
-            columns.push({ posts: [post], height: cardHeight });
-        }
-    }
-
-    return columns.filter((column) => column.posts.length > 0);
-}
 
 interface Tag {
     id: number;
@@ -146,12 +97,12 @@ function SectionSkeleton({ height = 120 }: { height?: number }) {
     );
 }
 
-function TextPostCardSkeleton({ height = 148 }: { height?: number }) {
+function TextPostCardSkeleton() {
     return (
         <View
             style={[
                 tw`rounded-xl bg-gray-100 dark:bg-[#1c1c1e]`,
-                { width: TEXT_POST_CARD_WIDTH, height },
+                { width: TEXT_POST_CARD_WIDTH, height: TEXT_POST_CARD_HEIGHT },
             ]}
         />
     );
@@ -159,21 +110,18 @@ function TextPostCardSkeleton({ height = 148 }: { height?: number }) {
 
 function NetworkPostsSkeleton() {
     return (
-        <View style={{ maxHeight: NETWORK_POSTS_MAX_HEIGHT, overflow: 'hidden' }}>
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={tw`px-4`}>
-                <View style={{ width: TEXT_POST_CARD_WIDTH, marginRight: TEXT_POST_CARD_GAP }}>
-                    <TextPostCardSkeleton height={168} />
-                    <View style={{ height: TEXT_POST_CARD_GAP }} />
-                    <TextPostCardSkeleton height={132} />
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={tw`px-4`}>
+            {Array.from({ length: 3 }, (_, index) => (
+                <View
+                    key={`network-post-skel-${index}`}
+                    style={{ marginRight: TEXT_POST_CARD_GAP }}>
+                    <TextPostCardSkeleton />
                 </View>
-                <View style={{ width: TEXT_POST_CARD_WIDTH, marginRight: TEXT_POST_CARD_GAP }}>
-                    <TextPostCardSkeleton height={196} />
-                </View>
-            </ScrollView>
-        </View>
+            ))}
+        </ScrollView>
     );
 }
 
@@ -208,58 +156,96 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
 }) {
     const isLiked = !!item.has_liked;
     const likeCount = item.likes ?? 0;
+    const scrollingRef = useRef(false);
 
-    const handleLike = useCallback(() => {
-        onLike(item.id, !isLiked);
-    }, [isLiked, item.id, onLike]);
+    const handleLike = useCallback(
+        (event?: { stopPropagation?: () => void }) => {
+            event?.stopPropagation?.();
+            onLike(item.id, !isLiked);
+        },
+        [isLiked, item.id, onLike],
+    );
+
+    const handleComment = useCallback(
+        (event?: { stopPropagation?: () => void }) => {
+            event?.stopPropagation?.();
+            onOpenPost(true);
+        },
+        [item.id, onOpenPost],
+    );
+
+    const handleTextPress = useCallback(() => {
+        if (scrollingRef.current) return;
+        onOpenPost(false);
+    }, [onOpenPost]);
 
     return (
-        <PressableHaptics
-            onPress={() => onOpenPost(false)}
+        <View
             style={[
-                tw`rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4 overflow-hidden`,
-                { width: TEXT_POST_CARD_WIDTH },
+                tw`rounded-xl bg-gray-100 dark:bg-[#1c1c1e] overflow-hidden`,
+                { width: TEXT_POST_CARD_WIDTH, height: TEXT_POST_CARD_HEIGHT },
             ]}>
-            <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-3`}>
-                <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
-                <View style={tw`ml-2.5 flex-1`}>
-                    <Text
-                        style={tw`text-black font-semibold text-sm dark:text-white`}
-                        numberOfLines={1}>
-                        {item.account.name || item.account.username}
-                    </Text>
-                    <Text style={tw`text-gray-500 text-xs dark:text-gray-400`} numberOfLines={1}>
-                        @{item.account.username} · {timeAgo(item.created_at)}
-                    </Text>
-                </View>
-            </Pressable>
+            <View style={[tw`flex-1 px-4 pt-4`, { minHeight: 0 }]}>
+                <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-2`}>
+                    <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
+                    <View style={tw`ml-2.5 flex-1`}>
+                        <Text
+                            style={tw`text-black font-semibold text-sm dark:text-white`}
+                            numberOfLines={1}>
+                            {item.account.name || item.account.username}
+                        </Text>
+                        <Text
+                            style={tw`text-gray-500 text-xs dark:text-gray-400`}
+                            numberOfLines={1}>
+                            @{item.account.username} · {timeAgo(item.created_at)}
+                        </Text>
+                    </View>
+                </Pressable>
 
-            <LinkifiedCaption
-                caption={item.text}
-                tags={item.tags}
-                mentions={item.mentions}
-                style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
-                numberOfLines={6}
-                onHashtagPress={onHashtagPress}
-                onMentionPress={onMentionPress}
-            />
+                <ScrollView
+                    style={tw`flex-1`}
+                    contentContainerStyle={tw`pb-1`}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                    onScrollBeginDrag={() => {
+                        scrollingRef.current = true;
+                    }}
+                    onScrollEndDrag={() => {
+                        setTimeout(() => {
+                            scrollingRef.current = false;
+                        }, 120);
+                    }}
+                    onMomentumScrollEnd={() => {
+                        setTimeout(() => {
+                            scrollingRef.current = false;
+                        }, 120);
+                    }}>
+                    <Pressable onPress={handleTextPress}>
+                        <LinkifiedCaption
+                            caption={item.text}
+                            tags={item.tags}
+                            mentions={item.mentions}
+                            style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
+                            onHashtagPress={onHashtagPress}
+                            onMentionPress={onMentionPress}
+                        />
+                    </Pressable>
+                </ScrollView>
+            </View>
 
-            <View style={tw`flex-row items-center gap-4 mt-3`}>
+            <View
+                style={tw`flex-row items-center gap-4 px-4 py-2.5 border-t border-gray-200 dark:border-gray-800`}>
                 <PressableHaptics
                     onPress={handleLike}
                     style={tw`flex-row items-center gap-1`}
                     hitSlop={8}>
-                    <Feather
-                        name="heart"
-                        size={13}
-                        color={isLiked ? '#EF4444' : '#9CA3AF'}
-                    />
+                    <Feather name="heart" size={13} color={isLiked ? '#EF4444' : '#9CA3AF'} />
                     <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
                         {likeCount.toLocaleString()}
                     </Text>
                 </PressableHaptics>
                 <PressableHaptics
-                    onPress={() => onOpenPost(true)}
+                    onPress={handleComment}
                     style={tw`flex-row items-center gap-1`}
                     hitSlop={8}>
                     <Feather name="message-circle" size={13} color="#9CA3AF" />
@@ -268,7 +254,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                     </Text>
                 </PressableHaptics>
             </View>
-        </PressableHaptics>
+        </View>
     );
 });
 
@@ -399,11 +385,6 @@ const ExploreListHeader = memo(function ExploreListHeader({
     onMentionPress,
     renderEmptyState,
 }: ExploreListHeaderProps) {
-    const networkPostColumns = useMemo(
-        () => packNetworkPostsIntoColumns(textPosts, NETWORK_POSTS_MAX_HEIGHT),
-        [textPosts],
-    );
-
     return (
         <>
             <View style={tw`px-4 pt-4 pb-3 flex justify-between items-center flex-row`}>
@@ -420,44 +401,25 @@ const ExploreListHeader = memo(function ExploreListHeader({
                 {showTextPostsSkeleton ? (
                     <NetworkPostsSkeleton />
                 ) : textPosts.length > 0 ? (
-                    <View style={{ maxHeight: NETWORK_POSTS_MAX_HEIGHT, overflow: 'hidden' }}>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={tw`px-4`}>
-                            {networkPostColumns.map((column, columnIndex) => (
-                                <View
-                                    key={`network-col-${columnIndex}`}
-                                    style={{
-                                        width: TEXT_POST_CARD_WIDTH,
-                                        marginRight: TEXT_POST_CARD_GAP,
-                                    }}>
-                                    {column.posts.map((item, itemIndex) => (
-                                        <View
-                                            key={item.id}
-                                            style={
-                                                itemIndex > 0
-                                                    ? { marginTop: TEXT_POST_CARD_GAP }
-                                                    : undefined
-                                            }>
-                                            <ExploreTextPostCard
-                                                item={item}
-                                                onOpenPost={(openComments) =>
-                                                    onOpenTextPost(item, openComments)
-                                                }
-                                                onOpenProfile={() =>
-                                                    onOpenProfile(item.account.id)
-                                                }
-                                                onLike={onLikeTextPost}
-                                                onHashtagPress={onHashtagPress}
-                                                onMentionPress={onMentionPress}
-                                            />
-                                        </View>
-                                    ))}
-                                </View>
-                            ))}
-                        </ScrollView>
-                    </View>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={tw`px-4`}>
+                        {textPosts.map((item) => (
+                            <View key={item.id} style={{ marginRight: TEXT_POST_CARD_GAP }}>
+                                <ExploreTextPostCard
+                                    item={item}
+                                    onOpenPost={(openComments) =>
+                                        onOpenTextPost(item, openComments)
+                                    }
+                                    onOpenProfile={() => onOpenProfile(item.account.id)}
+                                    onLike={onLikeTextPost}
+                                    onHashtagPress={onHashtagPress}
+                                    onMentionPress={onMentionPress}
+                                />
+                            </View>
+                        ))}
+                    </ScrollView>
                 ) : textPostsError ? (
                     renderEmptyState('Unable to load text posts. Pull down to refresh.')
                 ) : null}
