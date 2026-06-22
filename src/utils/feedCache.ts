@@ -301,9 +301,10 @@ export async function prependPostedMediaToProfile(
 
     const queryKeyRoot = options.isPhoto ? 'userSelfPhotos' : 'userSelfVideos';
     prependToProfileMediaCache(queryClient, queryKeyRoot, hydrated);
+    await queryClient.cancelQueries({ queryKey: [queryKeyRoot] });
 }
 
-/** After a new post: trim pagination, invalidate, and refetch feeds + profile. */
+/** After a new post: trim pagination, invalidate feeds, keep profile grid prepend intact. */
 export async function invalidateFeedAfterPost(queryClient: QueryClient) {
     for (const tab of FEED_TABS) {
         trimFeedToFirstPage(queryClient, tab);
@@ -311,23 +312,12 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
 
     await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['videos'] }),
-        queryClient.invalidateQueries({ queryKey: ['userSelfVideos'] }),
-        queryClient.invalidateQueries({ queryKey: ['userSelfPhotos'] }),
         queryClient.invalidateQueries({ queryKey: ['userVideos'] }),
-        queryClient.invalidateQueries({ queryKey: ['userPhotos'] }),
         queryClient.invalidateQueries({ queryKey: ['fetchSelfAccount', 'self'] }),
     ]);
 
     await Promise.all([
         queryClient.refetchQueries({ queryKey: ['videos', 'following'] }),
         queryClient.refetchQueries({ queryKey: ['videos', 'local'] }),
-        queryClient.refetchQueries({
-            queryKey: ['userSelfVideos'],
-            type: 'all',
-        }),
-        queryClient.refetchQueries({
-            queryKey: ['userSelfPhotos'],
-            type: 'all',
-        }),
     ]);
 }

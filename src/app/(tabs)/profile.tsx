@@ -79,16 +79,10 @@ export default function ProfileScreen() {
         queryFn: fetchSelfAccountPhotos,
         initialPageParam: undefined,
         refetchOnWindowFocus: true,
+        staleTime: 30_000,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
         enabled: activeTab === 'photos',
     });
-
-    useEffect(() => {
-        if (tabParam === 'photos' && activeTab === 'photos') {
-            void photosRefetch();
-        }
-    }, [tabParam, activeTab, photosRefetch]);
-
 
     const { data: playlists, isLoading: playlistsLoading } = useQuery({
         queryKey: ['accountPlaylists', user?.id?.toString()],

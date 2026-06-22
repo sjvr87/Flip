@@ -34,7 +34,7 @@ import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -60,7 +60,8 @@ export default function ProfileFeed({ navigation }) {
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
     const [screenFocused, setScreenFocused] = useState(true);
-    const [feedHeight, setFeedHeight] = useState(0);
+    const { height: windowHeight } = useWindowDimensions();
+    const feedHeight = Math.round(windowHeight);
     const flatListRef = useRef(null);
     const router = useRouter();
 
@@ -76,11 +77,6 @@ export default function ProfileFeed({ navigation }) {
             };
         }, []),
     );
-
-    const onContainerLayout = useCallback((e) => {
-        const h = e.nativeEvent.layout.height;
-        setFeedHeight((prev) => (h > 0 && Math.abs(h - prev) > 1 ? h : prev));
-    }, []);
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
         queryKey: ['profileVideoFeed', profileId, id, mediaKind],
@@ -145,7 +141,7 @@ export default function ProfileFeed({ navigation }) {
     }, [id, profileId, targetIndex]);
 
     useEffect(() => {
-        if (hasScrolledToTarget.current || feedHeight === 0 || videos.length === 0) {
+        if (hasScrolledToTarget.current || videos.length === 0) {
             return;
         }
 
@@ -278,7 +274,7 @@ export default function ProfileFeed({ navigation }) {
         }
     };
 
-    const showEmptyFeed = !isLoading && feedHeight > 0 && videos.length === 0;
+    const showEmptyFeed = !isLoading && videos.length === 0;
     const bskyPostUrl = postAtUriToBskyUrl(id);
 
     const handleOpenOnBsky = () => {
@@ -292,7 +288,7 @@ export default function ProfileFeed({ navigation }) {
     };
 
     return (
-        <View style={styles.container} onLayout={onContainerLayout}>
+        <View style={styles.container}>
             <StatusBar style="light" />
             <Stack.Screen options={{ headerShown: false }} />
 
@@ -303,7 +299,7 @@ export default function ProfileFeed({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {isLoading || feedHeight === 0 ? (
+            {isLoading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#fff" />
                 </View>
@@ -342,9 +338,13 @@ export default function ProfileFeed({ navigation }) {
                         keyExtractor={(item, index) => `${item.id}-${index}`}
                         pagingEnabled
                         showsVerticalScrollIndicator={false}
-                        snapToInterval={feedHeight}
-                        snapToAlignment="start"
-                        decelerationRate="fast"
+                        {...(Platform.OS === 'ios'
+                            ? {
+                                  snapToInterval: feedHeight,
+                                  snapToAlignment: 'start' as const,
+                                  decelerationRate: 'fast' as const,
+                              }
+                            : {})}
                         viewabilityConfig={viewabilityConfig.current}
                         onViewableItemsChanged={onViewableItemsChanged}
                         onEndReached={handleEndReached}

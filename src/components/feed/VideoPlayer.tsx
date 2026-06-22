@@ -64,7 +64,7 @@ function VideoPoster({ thumbnail }: { thumbnail?: string }) {
                 <Image
                     source={{ uri: thumbnail }}
                     style={styles.posterImage}
-                    contentFit="contain"
+                    contentFit="cover"
                     cachePolicy="memory-disk"
                     transition={0}
                     placeholder={{ color: POSTER_BG }}
@@ -665,7 +665,8 @@ function VideoPlayerCore({
         );
     }
 
-    const hidePoster = videoReady && isActive;
+    const showVideoSurface = isActive && (videoReady || isPlaying || playerStatus === 'readyToPlay');
+    const hidePoster = showVideoSurface;
 
     const videoBody = (
             <View style={[styles.videoContainer, { height: slideHeight }]}>
@@ -674,7 +675,7 @@ function VideoPlayerCore({
                     {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
+                        style={[styles.video, !showVideoSurface && styles.videoHiddenUntilReady]}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -683,7 +684,7 @@ function VideoPlayerCore({
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}
                         accessibilityHint="Tap to pause or play"
-                        contentFit="contain"
+                        contentFit="cover"
                     />
                     ) : null}
                 </View>
