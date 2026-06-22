@@ -2,7 +2,14 @@
 let feedPlaybackActive = true;
 
 type PlayerPauseFn = () => void;
-const registeredPlayers = new Set<PlayerPauseFn>();
+type PlayerReleaseFn = () => void;
+
+type FeedPlayerRegistration = {
+    pause: PlayerPauseFn;
+    release: PlayerReleaseFn;
+};
+
+const registeredPlayers = new Set<FeedPlayerRegistration>();
 const playbackActiveListeners = new Set<(active: boolean) => void>();
 
 export function isFeedPlaybackActive(): boolean {
@@ -15,26 +22,47 @@ export function subscribeFeedPlaybackActive(listener: (active: boolean) => void)
     return () => playbackActiveListeners.delete(listener);
 }
 
-/** Register a pause handler for an mounted feed player (home feed, post viewer, etc.). */
-export function registerFeedPlayer(pause: PlayerPauseFn): () => void {
-    registeredPlayers.add(pause);
+/** Register pause + release handlers for a mounted feed player. */
+export function registerFeedPlayer(
+    pause: PlayerPauseFn,
+    release: PlayerReleaseFn,
+): () => void {
+    const registration = { pause, release };
+    registeredPlayers.add(registration);
     if (!feedPlaybackActive) {
+        try {
+            pause();
+            release();
+        } catch {
+            // player may already be released
+        }
+    }
+    return () => registeredPlayers.delete(registration);
+}
+
+/** Immediately pause every registered expo-video player. */
+export function pauseAllFeedPlayers(): void {
+    for (const { pause } of registeredPlayers) {
         try {
             pause();
         } catch {
             // player may already be released
         }
     }
-    return () => registeredPlayers.delete(pause);
 }
 
-/** Immediately pause every registered expo-video player. */
-export function pauseAllFeedPlayers(): void {
-    for (const pause of registeredPlayers) {
+/** Pause and release every registered player — call on feed index change to free decoders. */
+export function releaseAllFeedPlayers(): void {
+    for (const { pause, release } of registeredPlayers) {
         try {
             pause();
         } catch {
-            // player may already be released
+            // ignore
+        }
+        try {
+            release();
+        } catch {
+            // ignore
         }
     }
 }
@@ -42,13 +70,13 @@ export function pauseAllFeedPlayers(): void {
 export function setFeedPlaybackActive(active: boolean): void {
     if (feedPlaybackActive === active) {
         if (!active) {
-            pauseAllFeedPlayers();
+            releaseAllFeedPlayers();
         }
         return;
     }
     feedPlaybackActive = active;
     if (!active) {
-        pauseAllFeedPlayers();
+        releaseAllFeedPlayers();
     }
     for (const listener of playbackActiveListeners) {
         listener(active);

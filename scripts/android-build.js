@@ -19,7 +19,27 @@ const apkPath = path.join(
 );
 const isWin = process.platform === 'win32';
 const gradlew = path.join(androidDir, isWin ? 'gradlew.bat' : 'gradlew');
-const adb = process.env.ADB || 'adb';
+
+function resolveAdb() {
+  if (process.env.ADB) {
+    return process.env.ADB;
+  }
+  const sdkRoot =
+    process.env.ANDROID_HOME ||
+    process.env.ANDROID_SDK_ROOT ||
+    (process.env.LOCALAPPDATA
+      ? path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk')
+      : null);
+  if (sdkRoot) {
+    const sdkAdb = path.join(sdkRoot, 'platform-tools', isWin ? 'adb.exe' : 'adb');
+    if (fs.existsSync(sdkAdb)) {
+      return sdkAdb;
+    }
+  }
+  return 'adb';
+}
+
+const adb = resolveAdb();
 const launchApp = !process.argv.includes('--no-launch');
 
 function run(label, command, args, options = {}) {

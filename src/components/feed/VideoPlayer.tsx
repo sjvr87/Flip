@@ -2,7 +2,7 @@ import MentionText from '@/components/MentionText';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
-import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
+import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
 import { isFeedPlaybackActive, registerFeedPlayer, subscribeFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import {
@@ -133,7 +133,7 @@ function VideoPlayer({
             setHoldPlayer(true);
             return;
         }
-        const timer = setTimeout(() => setHoldPlayer(false), 400);
+        const timer = setTimeout(() => setHoldPlayer(false), feedPlayerReleaseDelayMs);
         return () => clearTimeout(timer);
     }, [wantsPlayer]);
 
@@ -373,7 +373,40 @@ function VideoPlayerCore({
         }
     }, []);
 
-    useEffect(() => registerFeedPlayer(pauseThisPlayer), [pauseThisPlayer]);
+    const releaseThisPlayer = useCallback(() => {
+        const activePlayer = playerRef.current;
+        playerRef.current = null;
+        boundSrcRef.current = undefined;
+        if (isMountedRef.current) {
+            setPlayer(null);
+            setPlayerEpoch(0);
+            setViewPlayer(null);
+            setViewEpoch(0);
+            setVideoReady(false);
+            setPlayerStatus('idle');
+            setIsPlaying(false);
+        }
+        if (activePlayer) {
+            try {
+                activePlayer.release?.();
+            } catch {
+                // already released
+            }
+        }
+        const pending = pendingReleaseRef.current.splice(0);
+        for (const released of pending) {
+            try {
+                released.release?.();
+            } catch {
+                // already released
+            }
+        }
+    }, []);
+
+    useEffect(() => registerFeedPlayer(pauseThisPlayer, releaseThisPlayer), [
+        pauseThisPlayer,
+        releaseThisPlayer,
+    ]);
 
     useEffect(() => {
         if (!player) {
@@ -709,8 +742,8 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface = isActive && (videoReady || isPlaying || playerStatus === 'readyToPlay');
-    const hidePoster = showVideoSurface;
+    const showVideoSurface = isActive && videoReady;
+    const hidePoster = !showVideoSurface;
 
     const videoBody = (
             <View style={[styles.videoContainer, { height: slideHeight }]}>

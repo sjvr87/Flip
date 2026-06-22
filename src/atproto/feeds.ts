@@ -1379,6 +1379,64 @@ async function hydratePostView(
   }
 }
 
+/** Resolve a post URI to a hydrated media PostView playable in Flip (photos + video). */
+async function resolveMediaPostForViewer(
+  agent: ReturnType<typeof getAgent>,
+  rawUri: string,
+): Promise<AppBskyFeedDefs.PostView | null> {
+  const normalizedUri = await normalizeToPostUri(agent, rawUri)
+  const hydratedThread = await hydratePostView(agent, normalizedUri)
+
+  let targetPost: AppBskyFeedDefs.PostView | undefined = hydratedThread ?? undefined
+
+  if (
+    !targetPost ||
+    !isMediaPost(targetPost) ||
+    !postToFlipItem({ post: targetPost, reply: undefined })
+  ) {
+    try {
+      const postRes = await agent.getPosts({ uris: [normalizedUri] })
+      const fetched = postRes.data.posts[0]
+      if (fetched && fetched.$type !== 'app.bsky.feed.defs#notFoundPost') {
+        targetPost = fetched
+      }
+    } catch {
+      // Fall through to resolve chain.
+    }
+  }
+
+  if (targetPost && !isMediaPost(targetPost)) {
+    const hydrated = hydratedThread ?? (await hydratePostView(agent, normalizedUri))
+    if (hydrated) {
+      targetPost = hydrated
+    }
+  }
+
+  if (targetPost && isMediaPost(targetPost)) {
+    if (postToFlipItem({ post: targetPost, reply: undefined })) {
+      return targetPost
+    }
+    const hydrated = hydratedThread ?? (await hydratePostView(agent, normalizedUri))
+    if (hydrated && postToFlipItem({ post: hydrated, reply: undefined })) {
+      return hydrated
+    }
+  }
+
+  const resolved = await resolveMediaPostView(agent, normalizedUri)
+  if (!resolved) {
+    return null
+  }
+
+  if (!postToFlipItem({ post: resolved, reply: undefined })) {
+    const hydrated = await hydratePostView(agent, resolved.uri)
+    if (hydrated && postToFlipItem({ post: hydrated, reply: undefined })) {
+      return hydrated
+    }
+  }
+
+  return resolved
+}
+
 function mediaPageWithResolvedPost(
   resolvedPost: AppBskyFeedDefs.PostView,
   feedItems: AppBskyFeedDefs.FeedViewPost[],
@@ -1447,34 +1505,7 @@ export async function fetchUserVideoCursor({
     return withAuthenticatedFetch(async () => {
       const agent = getAgent()
       const normalizedUri = await normalizeToPostUri(agent, videoUri)
-      const postRes = await agent.getPosts({ uris: [normalizedUri] })
-      let targetPost = postRes.data.posts[0]
-
-      if (targetPost && !isMediaPost(targetPost)) {
-        const hydrated = await hydratePostView(agent, normalizedUri)
-        if (hydrated) {
-          targetPost = hydrated
-        }
-      }
-
-      let resolvedPost = targetPost && isMediaPost(targetPost) ? targetPost : null
-      if (!resolvedPost) {
-        resolvedPost = await resolveMediaPostView(agent, normalizedUri)
-      }
-
-      if (resolvedPost && !isMediaPost(resolvedPost)) {
-        const hydrated = await hydratePostView(agent, resolvedPost.uri)
-        if (hydrated && isMediaPost(hydrated)) {
-          resolvedPost = hydrated
-        }
-      }
-
-      if (resolvedPost && !postToFlipItem({ post: resolvedPost, reply: undefined })) {
-        const hydrated = await hydratePostView(agent, resolvedPost.uri)
-        if (hydrated) {
-          resolvedPost = hydrated
-        }
-      }
+      const resolvedPost = await resolveMediaPostForViewer(agent, videoUri)
 
       const pageFilter = routeMediaFilter ?? mediaPageFilterForPost(resolvedPost)
 
@@ -1541,38 +1572,7 @@ export async function fetchPostForViewer(
       console.log('[postViewer] fetch', { videoUri, normalizedUri })
     }
 
-    const postRes = await agent.getPosts({ uris: [normalizedUri] })
-    let targetPost = postRes.data.posts[0]
-
-    if (targetPost?.$type === 'app.bsky.feed.defs#notFoundPost') {
-      targetPost = undefined
-    }
-
-    if (targetPost && !isMediaPost(targetPost)) {
-      const hydrated = await hydratePostView(agent, normalizedUri)
-      if (hydrated) {
-        targetPost = hydrated
-      }
-    }
-
-    let resolvedPost = targetPost && isMediaPost(targetPost) ? targetPost : null
-    if (!resolvedPost) {
-      resolvedPost = await resolveMediaPostView(agent, normalizedUri)
-    }
-
-    if (resolvedPost && !isMediaPost(resolvedPost)) {
-      const hydrated = await hydratePostView(agent, resolvedPost.uri)
-      if (hydrated && isMediaPost(hydrated)) {
-        resolvedPost = hydrated
-      }
-    }
-
-    if (resolvedPost && !postToFlipItem({ post: resolvedPost, reply: undefined })) {
-      const hydrated = await hydratePostView(agent, resolvedPost.uri)
-      if (hydrated) {
-        resolvedPost = hydrated
-      }
-    }
+    const resolvedPost = await resolveMediaPostForViewer(agent, videoUri)
 
     const mediaItem = resolvedPost
       ? postToFlipItem({ post: resolvedPost, reply: undefined })
@@ -1584,12 +1584,25 @@ export async function fetchPostForViewer(
           videoUri,
           normalizedUri,
           resolvedUri: resolvedPost?.uri,
+          isPhoto: mediaItem.is_photo ?? mediaItem.media_type === 'photo',
         })
       }
       return mediaItem
     }
 
-    const textSource = resolvedPost ?? targetPost
+    let textSource = resolvedPost
+    if (!textSource) {
+      try {
+        const postRes = await agent.getPosts({ uris: [normalizedUri] })
+        const fetched = postRes.data.posts[0]
+        if (fetched && fetched.$type !== 'app.bsky.feed.defs#notFoundPost') {
+          textSource = fetched
+        }
+      } catch {
+        // no text fallback
+      }
+    }
+
     const textItem = textSource
       ? postToFlipTextPost({ post: textSource, reply: undefined })
       : null
@@ -1598,7 +1611,7 @@ export async function fetchPostForViewer(
       console.log('[postViewer] result', {
         videoUri,
         normalizedUri,
-        resolvedUri: resolvedPost?.uri ?? targetPost?.uri,
+        resolvedUri: resolvedPost?.uri ?? textSource?.uri,
         playable: !!textItem,
         kind: textItem ? 'text' : 'none',
       })

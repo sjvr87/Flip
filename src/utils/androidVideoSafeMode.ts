@@ -8,14 +8,17 @@ export const ANDROID_VIDEO_SAFE_MODE = Platform.OS === 'android';
 
 export const shouldPrefetchVideo = !ANDROID_VIDEO_SAFE_MODE;
 
-/** Mount at most one neighbor player so swipe lands warm without multi-decode churn. */
-export const feedPlayerPreloadDistance = 1;
+/** Android: active slide only — extra decoders OOM MediaCodec on fast swipe. */
+export const feedPlayerPreloadDistance = ANDROID_VIDEO_SAFE_MODE ? 0 : 1;
 
-export const feedFlatListWindowSize = ANDROID_VIDEO_SAFE_MODE ? 5 : 6;
+export const feedFlatListWindowSize = ANDROID_VIDEO_SAFE_MODE ? 3 : 6;
 
-export const feedInitialNumToRender = ANDROID_VIDEO_SAFE_MODE ? 2 : 2;
+export const feedInitialNumToRender = ANDROID_VIDEO_SAFE_MODE ? 1 : 2;
 
-export const feedMaxToRenderPerBatch = ANDROID_VIDEO_SAFE_MODE ? 2 : 2;
+export const feedMaxToRenderPerBatch = ANDROID_VIDEO_SAFE_MODE ? 1 : 2;
+
+/** Release inactive slide player immediately on Android (no warm handoff). */
+export const feedPlayerReleaseDelayMs = ANDROID_VIDEO_SAFE_MODE ? 0 : 400;
 
 /** HLS player prefetch stays off on Android — thumbnail prefetch is handled separately. */
 export const feedPrefetchAhead = ANDROID_VIDEO_SAFE_MODE ? 0 : 1;

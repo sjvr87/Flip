@@ -28,7 +28,7 @@ import {
     unfollowAccount,
     usesAtprotoBackend,
 } from '@/utils/requests';
-import { decodeRouteParam, toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
+import { decodeRouteParam, toPlaylistFeedRoute, toPostViewPath, toProfileFeedPath } from '@/utils/profileNavigation';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -236,11 +236,15 @@ export default function ProfileScreen() {
     const handleVideoPress = useCallback(
         (video) => {
             if (!video?.id || !video?.account?.id) return;
-            const mediaKind =
-                video.is_photo || video.media_type === 'photo' ? 'photo' : 'video';
+            const isPhoto = video.is_photo || video.media_type === 'photo';
+            if (isPhoto && atproto) {
+                router.push(toPostViewPath(video.id));
+                return;
+            }
+            const mediaKind = isPhoto ? 'photo' : 'video';
             router.push(toProfileFeedPath(video.id, video.account.id, { mediaKind }));
         },
-        [router],
+        [router, atproto],
     );
 
     const handleOnOpenMenu = useCallback(() => {

@@ -18,6 +18,7 @@ import {
     postAtUriToBskyUrl,
     toProfilePath,
 } from '@/utils/profileNavigation';
+import { findCachedProfileMedia } from '@/utils/feedCache';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
     usesAtprotoBackend,
@@ -27,7 +28,7 @@ import {
     videoUnlike,
 } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -50,6 +51,7 @@ export default function PostViewScreen({ navigation }) {
 
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
     const [showShare, setShowShare] = useState(false);
@@ -75,7 +77,11 @@ export default function PostViewScreen({ navigation }) {
 
     const { data: postContent, isLoading, isError, refetch } = useQuery({
         queryKey: ['postViewer', uri],
-        queryFn: () => fetchPostForViewer(uri),
+        queryFn: async () => {
+            const fetched = await fetchPostForViewer(uri);
+            if (fetched) return fetched;
+            return findCachedProfileMedia(queryClient, uri);
+        },
         enabled: !!uri && atproto,
         staleTime: 0,
     });

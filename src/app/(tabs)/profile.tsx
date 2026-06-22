@@ -12,7 +12,8 @@ import {
     fetchAccountPlaylists,
 } from '@/utils/requests';
 import { reconcilePendingProfilePosts } from '@/utils/feedCache';
-import { toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
+import { toPlaylistFeedRoute, toPostViewPath, toProfileFeedPath } from '@/utils/profileNavigation';
+import { usesAtprotoBackend } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -231,8 +232,12 @@ export default function ProfileScreen() {
             console.warn('Invalid video data:', video);
             return;
         }
-        const mediaKind =
-            video.is_photo || video.media_type === 'photo' ? 'photo' : 'video';
+        const isPhoto = video.is_photo || video.media_type === 'photo';
+        if (isPhoto && usesAtprotoBackend()) {
+            router.push(toPostViewPath(video.id));
+            return;
+        }
+        const mediaKind = isPhoto ? 'photo' : 'video';
         router.push(toProfileFeedPath(video.id, video.account.id, { mediaKind }));
     };
 

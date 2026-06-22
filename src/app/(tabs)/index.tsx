@@ -9,6 +9,7 @@ import {
     feedMaxToRenderPerBatch,
     feedPlayerPreloadDistance,
     feedPrefetchAhead,
+    ANDROID_VIDEO_SAFE_MODE,
 } from '@/utils/androidVideoSafeMode';
 import { useAuthStore } from '@/utils/authStore';
 import {
@@ -19,6 +20,7 @@ import {
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
+    markVideoSeenInSession,
     resetSessionSeen,
     softRefreshFeed,
 } from '@/utils/feedCache';
@@ -28,7 +30,7 @@ import {
     subscribeFeedNetworkProfile,
     type FeedNetworkProfile,
 } from '@/utils/feedNetworkQuality';
-import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { setFeedPlaybackActive, releaseAllFeedPlayers } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -75,7 +77,7 @@ const LOAD_MORE_THRESHOLD = 4;
 /** Preload HLS for the next video only (network tier may disable entirely). */
 const PREFETCH_AHEAD = feedPrefetchAhead;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
-const MAX_EMPTY_DEDUPE_FETCHES = 2;
+const MAX_EMPTY_DEDUPE_FETCHES = 8;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = feedPlayerPreloadDistance;
 
@@ -407,6 +409,8 @@ export default function LoopsFeed({ navigation }) {
         : (data?.pages?.[0]?.meta?.error ?? null);
     const videosRef = useRef(videos);
     videosRef.current = videos;
+    const currentIndexRef = useRef(currentIndex);
+    currentIndexRef.current = currentIndex;
 
     const hasNextPageRef = useRef(hasNextPage);
     hasNextPageRef.current = hasNextPage;
@@ -607,11 +611,20 @@ export default function LoopsFeed({ navigation }) {
             const prevVideo = currentVideoRef.current;
             const prevWatchStart = watchStartTimeRef.current;
 
+            if (newIndex !== currentIndexRef.current) {
+                releaseAllFeedPlayers();
+                releaseAllVideoPrefetch();
+            }
+
             maybeLoadMoreVideos(newIndex);
 
             setCurrentIndex(newIndex);
             currentVideoRef.current = newVideo;
             watchStartTimeRef.current = Date.now();
+
+            if (newVideo) {
+                markVideoSeenInSession(activeTabRef.current, newVideo);
+            }
 
             if (prevVideo && prevWatchStart) {
                 InteractionManager.runAfterInteractions(() => {
@@ -758,6 +771,7 @@ export default function LoopsFeed({ navigation }) {
 
                 const shouldPreloadPlayer =
                     feedPlaybackEnabled &&
+                    !ANDROID_VIDEO_SAFE_MODE &&
                     (index === currentIndex ||
                         Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE);
 

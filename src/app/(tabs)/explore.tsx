@@ -39,34 +39,13 @@ import tw from 'twrnc';
 
 const { width } = Dimensions.get('window');
 const TAG_CARD_WIDTH = 120;
-const MOSAIC_GAP = 10;
-const MOSAIC_COLUMN_WIDTH = (width - 32 - MOSAIC_GAP) / 2;
+const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);
 const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
 
-function estimateTextPostHeight(post: FlipTextPost): number {
-    const charsPerLine = Math.max(16, Math.floor(MOSAIC_COLUMN_WIDTH / 7));
-    const lineCount = Math.min(14, Math.max(2, Math.ceil(post.text.length / charsPerLine)));
-    return 78 + lineCount * 21 + 36;
-}
-
-function buildMosaicColumns(posts: FlipTextPost[]) {
-    const left: FlipTextPost[] = [];
-    const right: FlipTextPost[] = [];
-    let leftHeight = 0;
-    let rightHeight = 0;
-
-    for (const post of posts) {
-        const blockHeight = estimateTextPostHeight(post) + MOSAIC_GAP;
-        if (leftHeight <= rightHeight) {
-            left.push(post);
-            leftHeight += blockHeight;
-        } else {
-            right.push(post);
-            rightHeight += blockHeight;
-        }
-    }
-
-    return { left, right };
+function estimateTextPostCardHeight(post: FlipTextPost): number {
+    const charsPerLine = Math.max(18, Math.floor(TEXT_POST_CARD_WIDTH / 7));
+    const lineCount = Math.min(8, Math.max(2, Math.ceil(post.text.length / charsPerLine)));
+    return 108 + lineCount * 21;
 }
 
 interface Tag {
@@ -121,12 +100,12 @@ function SectionSkeleton({ height = 120 }: { height?: number }) {
     );
 }
 
-function TextPostCardSkeleton({ tall = false }: { tall?: boolean }) {
+function TextPostCardSkeleton() {
     return (
         <View
             style={[
-                tw`mb-2.5 rounded-xl bg-gray-100 dark:bg-[#1c1c1e]`,
-                { width: '100%', height: tall ? 196 : 132 },
+                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e]`,
+                { width: TEXT_POST_CARD_WIDTH, height: 148 },
             ]}
         />
     );
@@ -159,13 +138,18 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
     onHashtagPress: (tag: string) => void;
     onMentionPress: (username: string, profileId?: string | number) => void;
 }) {
+    const cardHeight = estimateTextPostCardHeight(item);
+
     return (
         <PressableHaptics
             onPress={() => onOpenPost(false)}
-            style={[tw`mb-2.5 rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-3.5`, { width: '100%' }]}>
-            <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-2.5`}>
-                <Avatar url={item.account.avatar} width={32} onPress={onOpenProfile} />
-                <View style={tw`ml-2 flex-1`}>
+            style={[
+                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4`,
+                { width: TEXT_POST_CARD_WIDTH, height: cardHeight },
+            ]}>
+            <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-3`}>
+                <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
+                <View style={tw`ml-2.5 flex-1`}>
                     <Text
                         style={tw`text-black font-semibold text-sm dark:text-white`}
                         numberOfLines={1}>
@@ -182,6 +166,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 tags={item.tags}
                 mentions={item.mentions}
                 style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
+                numberOfLines={6}
                 onHashtagPress={onHashtagPress}
                 onMentionPress={onMentionPress}
             />
@@ -191,7 +176,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                     onPress={() => onOpenPost(false)}
                     style={tw`flex-row items-center gap-1`}
                     hitSlop={8}>
-                    <Feather name="heart" size={14} color="#9CA3AF" />
+                    <Feather name="heart" size={13} color="#9CA3AF" />
                     <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
                         {item.likes.toLocaleString()}
                     </Text>
@@ -200,48 +185,13 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                     onPress={() => onOpenPost(true)}
                     style={tw`flex-row items-center gap-1`}
                     hitSlop={8}>
-                    <Feather name="message-circle" size={14} color="#9CA3AF" />
+                    <Feather name="message-circle" size={13} color="#9CA3AF" />
                     <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
                         {item.comments.toLocaleString()}
                     </Text>
                 </PressableHaptics>
             </View>
         </PressableHaptics>
-    );
-});
-
-const ExploreTextPostMosaic = memo(function ExploreTextPostMosaic({
-    posts,
-    onOpenPost,
-    onOpenProfile,
-    onHashtagPress,
-    onMentionPress,
-}: {
-    posts: FlipTextPost[];
-    onOpenPost: (post: FlipTextPost, openComments?: boolean) => void;
-    onOpenProfile: (id: string) => void;
-    onHashtagPress: (tag: string) => void;
-    onMentionPress: (username: string, profileId?: string | number) => void;
-}) {
-    const { left, right } = useMemo(() => buildMosaicColumns(posts), [posts]);
-
-    const renderColumn = (columnPosts: FlipTextPost[]) =>
-        columnPosts.map((item) => (
-            <ExploreTextPostCard
-                key={item.id}
-                item={item}
-                onOpenPost={(openComments) => onOpenPost(item, openComments)}
-                onOpenProfile={() => onOpenProfile(item.account.id)}
-                onHashtagPress={onHashtagPress}
-                onMentionPress={onMentionPress}
-            />
-        ));
-
-    return (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: MOSAIC_GAP }}>
-            <View style={{ flex: 1 }}>{renderColumn(left)}</View>
-            <View style={{ flex: 1 }}>{renderColumn(right)}</View>
-        </View>
     );
 });
 
@@ -384,24 +334,30 @@ const ExploreListHeader = memo(function ExploreListHeader({
                     From the network
                 </Text>
                 {showTextPostsSkeleton ? (
-                    <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: MOSAIC_GAP }}>
-                        <View style={{ flex: 1 }}>
-                            <TextPostCardSkeleton />
-                            <TextPostCardSkeleton tall />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <TextPostCardSkeleton tall />
-                            <TextPostCardSkeleton />
-                        </View>
-                    </View>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={tw`px-4`}>
+                        {Array.from({ length: 4 }, (_, item) => (
+                            <TextPostCardSkeleton key={`text-skel-${item}`} />
+                        ))}
+                    </ScrollView>
                 ) : textPosts.length > 0 ? (
-                    <ExploreTextPostMosaic
-                        posts={textPosts}
-                        onOpenPost={onOpenTextPost}
-                        onOpenProfile={onOpenProfile}
-                        onHashtagPress={onHashtagPress}
-                        onMentionPress={onMentionPress}
-                    />
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={tw`px-4`}>
+                        {textPosts.map((item) => (
+                            <ExploreTextPostCard
+                                key={item.id}
+                                item={item}
+                                onOpenPost={(openComments) => onOpenTextPost(item, openComments)}
+                                onOpenProfile={() => onOpenProfile(item.account.id)}
+                                onHashtagPress={onHashtagPress}
+                                onMentionPress={onMentionPress}
+                            />
+                        ))}
+                    </ScrollView>
                 ) : textPostsError ? (
                     renderEmptyState('Unable to load text posts. Pull down to refresh.')
                 ) : null}

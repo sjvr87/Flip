@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { postToFlipItem } from '@/atproto/adapters';
 import { getAgent } from '@/atproto/agent';
 import type { FlipFeedPage, FlipVideo } from '@/atproto/types';
+import { decodeRouteParam } from '@/utils/profileNavigation';
 
 /** For You — refresh sooner so reopen feels algorithmically fresh. */
 export const FEED_FYP_STALE_MS = 6_000;
@@ -381,4 +382,38 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
         queryClient.refetchQueries({ queryKey: ['videos', 'following'] }),
         queryClient.refetchQueries({ queryKey: ['videos', 'local'] }),
     ]);
+}
+
+/** Profile grid / optimistic post fallback when App View resolution is slow or incomplete. */
+export function findCachedProfileMedia(
+    queryClient: QueryClient,
+    uri: string,
+): FlipVideo | null {
+    const normalized = decodeRouteParam(uri);
+    if (!normalized) return null;
+
+    const pending = pendingProfilePosts.get(normalized);
+    if (pending?.item) return pending.item;
+
+    const cacheKeys = [
+        'userSelfPhotos',
+        'userSelfVideos',
+        'userPhotos',
+        'userVideos',
+    ] as const;
+
+    for (const key of cacheKeys) {
+        const entries = queryClient.getQueriesData<InfiniteProfileCache>({
+            queryKey: [key],
+            exact: false,
+        });
+        for (const [, data] of entries) {
+            const found = data?.pages
+                ?.flatMap((page) => page?.data ?? [])
+                .find((entry) => decodeRouteParam(entry.id) === normalized);
+            if (found) return found;
+        }
+    }
+
+    return null;
 }

@@ -30,22 +30,6 @@ export default function VideoGrid({ video, onPress }) {
                     />
                 )}
 
-                {video.is_photo && (
-                    <YStack
-                        position="absolute"
-                        top={8}
-                        right={8}
-                        flexDirection="row"
-                        alignItems="center"
-                        gap={1}
-                        backgroundColor="rgba(0,0,0,0.55)"
-                        paddingY={1}
-                        paddingX={2}
-                        style={{ borderRadius: 4 }}>
-                        <Ionicons name="image-outline" size={12} color="white" />
-                    </YStack>
-                )}
-
                 <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
                     style={styles.gradientOverlay}

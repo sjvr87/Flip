@@ -28,6 +28,7 @@ import {
     videoUnlike,
 } from '@/utils/requests';
 import { decodeRouteParam, parseRepoDidFromAtUri, postAtUriToBskyUrl, toProfilePath } from '@/utils/profileNavigation';
+import { feedFlatListWindowSize, feedMaxToRenderPerBatch } from '@/utils/androidVideoSafeMode';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
@@ -244,6 +245,7 @@ export default function ProfileFeed({ navigation }) {
                 <VideoPlayer
                     {...sharedProps}
                     isActive={index === currentIndex}
+                    shouldPreload={index === currentIndex}
                     itemHeight={feedHeight}
                     commentsOpen={showComments && selectedVideo?.id === item.id}
                     shareOpen={showShare && selectedVideo?.id === item.id}
@@ -355,8 +357,8 @@ export default function ProfileFeed({ navigation }) {
                             index,
                         })}
                         removeClippedSubviews={false}
-                        maxToRenderPerBatch={3}
-                        windowSize={5}
+                        maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                        windowSize={feedFlatListWindowSize}
                         initialNumToRender={Math.min(Math.max(targetIndex + 1, 1), 5)}
                         initialScrollIndex={targetIndex > 0 ? targetIndex : undefined}
                         onScrollToIndexFailed={({ index }) => {
