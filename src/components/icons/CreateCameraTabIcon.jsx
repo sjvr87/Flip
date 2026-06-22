@@ -1,29 +1,17 @@
 import { memo } from 'react';
-import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Defs, Ellipse, Path, Rect, Text, TextPath } from 'react-native-svg';
 
 const CX = 13;
 const CY = 13;
-const RING_R = 11;
+const TEXT_R = 10.55;
+const TEXT_LEFT = CX - TEXT_R;
+const TEXT_RIGHT = CX + TEXT_R;
 
-function polar(cx, cy, r, angleDeg) {
-    const rad = ((angleDeg - 90) * Math.PI) / 180;
-    return {
-        x: cx + r * Math.cos(rad),
-        y: cy + r * Math.sin(rad),
-    };
-}
-
-/** Small chevron arrowhead at (x,y) pointing along angleDeg (0=north, clockwise). */
-function arrowHeadPath(x, y, angleDeg, length, halfAngleDeg) {
-    const tip = { x, y };
-    const baseR = length * 0.55;
-    const left = polar(x, y, baseR, angleDeg - 180 - halfAngleDeg);
-    const right = polar(x, y, baseR, angleDeg - 180 + halfAngleDeg);
-    return `M ${left.x.toFixed(2)} ${left.y.toFixed(2)} L ${tip.x.toFixed(2)} ${tip.y.toFixed(2)} L ${right.x.toFixed(2)} ${right.y.toFixed(2)}`;
-}
+const TOP_ARC_ID = 'createCamTopArc';
+const BOTTOM_ARC_ID = 'createCamBottomArc';
 
 /**
- * Flip camera inside circular flip arrows — Create tab icon.
+ * Camera with FLIP / IT curved text — Create tab icon.
  * Stroke-only line art; tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  */
 const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
@@ -31,75 +19,50 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
     color = '#000000',
     focused = false,
 }) {
-    const strokeWidth = focused ? 1.75 : 1.3;
+    const strokeWidth = 1.35;
+    const innerStroke = 0.88;
     const strokeOpacity = focused ? 1 : 0.72;
-    const innerStroke = focused ? 1.15 : 0.85;
-    const dotRadius = focused ? 0.42 : 0.36;
 
-    const topStart = polar(CX, CY, RING_R, 315);
-    const topEnd = polar(CX, CY, RING_R, 45);
-    const bottomStart = polar(CX, CY, RING_R, 135);
-    const bottomEnd = polar(CX, CY, RING_R, 225);
+    const topArcD = `M ${TEXT_LEFT.toFixed(2)} ${CY} A ${TEXT_R} ${TEXT_R} 0 0 1 ${TEXT_RIGHT.toFixed(2)} ${CY}`;
+    const bottomArcD = `M ${TEXT_LEFT.toFixed(2)} ${CY} A ${TEXT_R} ${TEXT_R} 0 0 0 ${TEXT_RIGHT.toFixed(2)} ${CY}`;
 
     return (
         <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-            {/* Top flip arc — gaps at east/west */}
-            <Path
-                d={`M ${topStart.x.toFixed(2)} ${topStart.y.toFixed(2)} A ${RING_R} ${RING_R} 0 0 1 ${topEnd.x.toFixed(2)} ${topEnd.y.toFixed(2)}`}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeOpacity={strokeOpacity}
-                strokeLinecap="round"
-            />
-            <Path
-                d={arrowHeadPath(topStart.x, topStart.y, 45, 2.1, 22)}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeOpacity={strokeOpacity}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-            <Path
-                d={arrowHeadPath(topEnd.x, topEnd.y, 225, 2.1, 22)}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeOpacity={strokeOpacity}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
+            <Defs>
+                <Path id={TOP_ARC_ID} d={topArcD} />
+                <Path id={BOTTOM_ARC_ID} d={bottomArcD} />
+            </Defs>
 
-            {/* Bottom flip arc */}
-            <Path
-                d={`M ${bottomStart.x.toFixed(2)} ${bottomStart.y.toFixed(2)} A ${RING_R} ${RING_R} 0 0 1 ${bottomEnd.x.toFixed(2)} ${bottomEnd.y.toFixed(2)}`}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeOpacity={strokeOpacity}
-                strokeLinecap="round"
-            />
-            <Path
-                d={arrowHeadPath(bottomStart.x, bottomStart.y, 225, 2.1, 22)}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeOpacity={strokeOpacity}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-            <Path
-                d={arrowHeadPath(bottomEnd.x, bottomEnd.y, 45, 2.1, 22)}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeOpacity={strokeOpacity}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
+            <Text
+                fill={color}
+                opacity={strokeOpacity}
+                fontSize={3.55}
+                fontWeight="700"
+                letterSpacing={0.38}
+            >
+                <TextPath href={`#${TOP_ARC_ID}`} startOffset="50%" textAnchor="middle">
+                    FLIP
+                </TextPath>
+            </Text>
+            <Text
+                fill={color}
+                opacity={strokeOpacity}
+                fontSize={3.85}
+                fontWeight="700"
+                letterSpacing={0.45}
+            >
+                <TextPath href={`#${BOTTOM_ARC_ID}`} startOffset="50%" textAnchor="middle">
+                    IT
+                </TextPath>
+            </Text>
 
             {/* Camera body */}
             <Rect
-                x={7.4}
-                y={11.6}
-                width={11.2}
-                height={6.6}
-                rx={0.75}
+                x={5.5}
+                y={11.1}
+                width={15}
+                height={7.8}
+                rx={0.9}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
@@ -107,11 +70,11 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Viewfinder / hot shoe */}
             <Rect
-                x={10.8}
-                y={9.9}
-                width={4.4}
-                height={1.45}
-                rx={0.25}
+                x={9.2}
+                y={9.25}
+                width={6.6}
+                height={1.7}
+                rx={0.3}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -119,11 +82,11 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Shutter / mode button */}
             <Rect
-                x={16.9}
-                y={10.55}
-                width={1.45}
-                height={1.45}
-                rx={0.2}
+                x={17.55}
+                y={9.95}
+                width={1.65}
+                height={1.65}
+                rx={0.22}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -131,10 +94,10 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Front sensor / flash pill */}
             <Ellipse
-                cx={8.55}
-                cy={14.5}
-                rx={0.65}
-                ry={0.38}
+                cx={6.75}
+                cy={14.9}
+                rx={0.78}
+                ry={0.45}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -143,29 +106,29 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             {/* Lens — concentric rings */}
             <Circle
                 cx={CX}
-                cy={14.35}
-                r={3.05}
+                cy={15}
+                r={3.75}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
             />
             <Circle
                 cx={CX}
-                cy={14.35}
-                r={2.2}
+                cy={15}
+                r={2.7}
                 stroke={color}
                 strokeWidth={innerStroke}
-                strokeOpacity={strokeOpacity * 0.9}
+                strokeOpacity={strokeOpacity * 0.92}
             />
             <Circle
                 cx={CX}
-                cy={14.35}
-                r={1.35}
+                cy={15}
+                r={1.62}
                 stroke={color}
                 strokeWidth={innerStroke}
-                strokeOpacity={strokeOpacity * 0.85}
+                strokeOpacity={strokeOpacity * 0.88}
             />
-            <Circle cx={CX} cy={14.35} r={dotRadius} fill={color} opacity={strokeOpacity} />
+            <Circle cx={CX} cy={15} r={0.42} fill={color} opacity={strokeOpacity} />
         </Svg>
     );
 });
