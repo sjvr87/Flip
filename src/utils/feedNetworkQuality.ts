@@ -1,5 +1,21 @@
-import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
+import type { NetInfoState } from '@react-native-community/netinfo';
 import type { BufferOptions } from 'expo-video';
+import { NativeModules } from 'react-native';
+
+type NetInfoModule = typeof import('@react-native-community/netinfo').default;
+
+/** Lazy-load NetInfo only when the native module is linked (avoids throw on import). */
+function loadNetInfo(): NetInfoModule | null {
+    if (!NativeModules.RNCNetInfo) {
+        return null;
+    }
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        return require('@react-native-community/netinfo').default as NetInfoModule;
+    } catch {
+        return null;
+    }
+}
 
 export type FeedNetworkTier = 'wifi' | 'cellular' | 'slow' | 'offline';
 
@@ -142,9 +158,21 @@ export function startFeedNetworkMonitoring(): () => void {
         return netInfoUnsub;
     }
 
-    void NetInfo.fetch().then((state) => {
-        emitProfile(profileFromNetInfo(state));
-    });
+    const NetInfo = loadNetInfo();
+    if (!NetInfo) {
+        if (__DEV__) {
+            console.warn(
+                '[feed] NetInfo native module missing — using default cellular profile. Rebuild the app after adding @react-native-community/netinfo.',
+            );
+        }
+        return () => {};
+    }
+
+    void NetInfo.fetch()
+        .then((state) => {
+            emitProfile(profileFromNetInfo(state));
+        })
+        .catch(() => {});
 
     netInfoUnsub = NetInfo.addEventListener((state) => {
         emitProfile(profileFromNetInfo(state));
