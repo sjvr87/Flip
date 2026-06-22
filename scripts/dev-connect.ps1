@@ -21,9 +21,10 @@ $modeLabel = if ($ConnectOnly) {
 Write-Host "== Flip dev-connect ($modeLabel) ==" -ForegroundColor Cyan
 
 if (-not $ConnectOnly) {
-  Write-Host "[1/6] git pull origin main..."
+  $branch = (git branch --show-current).Trim()
+  Write-Host "[1/6] git pull origin $branch..."
   $ErrorActionPreference = 'Continue'
-  $pull = (cmd /c "git pull origin main 2>&1")
+  $pull = (cmd /c "git pull origin $branch 2>&1")
   $ErrorActionPreference = 'Stop'
   Write-Host $pull
 } else {
