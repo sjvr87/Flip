@@ -1,4 +1,5 @@
 # Flip dev connect: pull, adb reverse, Metro (reuse or start one window), launch app.
+# Metro and deep links use LAN IP (192.168.x.x) only — never 127.0.0.1 on the phone.
 #
 # Modes:
 #   (default)        flip-dev.bat          - pull + adb + reuse Metro (or start one window)
@@ -8,7 +9,6 @@
 #   -ConnectOnly -Reload  flip-reload.bat  - adb + POST /reload (JS tweak, app already running)
 param(
   [switch]$RestartMetro,
-  [switch]$Lan,
   [switch]$ConnectOnly,
   [switch]$Reload,
   [switch]$Reconnect
@@ -19,6 +19,20 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 $PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "R3GL10HN64A" }
+
+function Get-LanIp {
+  $ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPAddress -notlike "127.*" -and $_.PrefixOrigin -ne "WellKnown" -and $_.IPAddress -like "192.168.*" } |
+    Select-Object -First 1).IPAddress
+  if (-not $ip) {
+    $ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+      Where-Object { $_.IPAddress -notlike "127.*" -and $_.PrefixOrigin -ne "WellKnown" -and $_.IPAddress -notlike "169.254.*" } |
+      Select-Object -First 1).IPAddress
+  }
+  return $ip
+}
+
+$script:LanIp = Get-LanIp
 
 $modeLabel = if ($Reconnect) {
   "reconnect (post-crash)"
@@ -91,21 +105,13 @@ function Stop-MetroOnPort([int]$Port = 8081) {
 
 function Start-MetroInNewWindow([switch]$ClearCache) {
   if ($ClearCache) {
-    Write-Host "  Starting Metro (dev-client, clear cache) in new window..."
+    Write-Host "  Starting Metro (dev-client, LAN, clear cache) in new window..."
     $launcher = Join-Path $PSScriptRoot "start-metro-window.cmd"
   } else {
-    Write-Host "  Starting Metro (dev-client, no cache clear) in new window..."
+    Write-Host "  Starting Metro (dev-client, LAN, no cache clear) in new window..."
     $launcher = Join-Path $PSScriptRoot "start-metro-window-fast.cmd"
   }
-  if ($Lan) {
-    $npm = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
-    $startScript = if ($ClearCache) { "start:lan" } else { "start:lan" }
-    $inner = "cd /d $Root && set CI= && set EXPO_NO_INTERACTIVE= && $npm run $startScript"
-    $argument = "/c start `"Flip Metro`" cmd /k $inner"
-    Start-Process -FilePath "cmd.exe" -ArgumentList $argument -WorkingDirectory $Root
-  } else {
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "start", "`"Flip Metro`"", "`"$launcher`""
-  }
+  Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "start", "`"Flip Metro`"", "`"$launcher`""
 }
 
 function Wait-MetroHealthy([int]$TimeoutSec = 45) {
@@ -232,15 +238,15 @@ function Start-FlipApp {
   param(
     [string]$Serial,
     [string]$AdbPath,
-    [switch]$UseDevServerUrl
+    [string]$DevServerHost
   )
 
   $prevEap = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   & $AdbPath -s $Serial shell am force-stop social.flip.app 2>&1 | Out-Null
 
-  if ($UseDevServerUrl) {
-    $encodedUrl = [System.Uri]::EscapeDataString("exp://127.0.0.1:8081")
+  if ($DevServerHost) {
+    $encodedUrl = [System.Uri]::EscapeDataString("exp://${DevServerHost}:8081")
     $deepLink = "flip://expo-development-client/?url=$encodedUrl"
     $start = (& $AdbPath -s $Serial shell am start -a android.intent.action.VIEW -d "$deepLink" 2>&1 | Out-String).Trim()
   } else {
@@ -249,6 +255,17 @@ function Start-FlipApp {
 
   $ErrorActionPreference = $prevEap
   Write-Host "  $Serial : $start"
+}
+
+function Write-NoLanIpHelp {
+  Write-Host ""
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host "  NO LAN IP FOUND - phone cannot reach Metro safely" -ForegroundColor Red
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host ""
+  Write-Host "Flip dev uses your PC LAN address (192.168.x.x), not 127.0.0.1." -ForegroundColor Yellow
+  Write-Host "Connect phone and PC to the same Wi-Fi, then re-run this script." -ForegroundColor Yellow
+  Write-Host ""
 }
 
 function Write-UsbDeviceHelp {
@@ -314,8 +331,12 @@ if ($ConnectOnly -and -not $Reconnect) {
     Invoke-MetroReload | Out-Null
   } elseif ($serials.Count -gt 0) {
     Write-Host "[5/6] Launch Flip on device"
+    if (-not $script:LanIp) {
+      Write-NoLanIpHelp
+      exit 1
+    }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
     }
   } else {
     Write-Host "[5/6] Launch/reload - skipped (no device)" -ForegroundColor Yellow
@@ -345,8 +366,12 @@ if ($Reconnect) {
 
   Write-Host "[5/6] Launch Flip with dev-server URL"
   if ($serials.Count -gt 0) {
+    if (-not $script:LanIp) {
+      Write-NoLanIpHelp
+      exit 1
+    }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -UseDevServerUrl
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -390,21 +415,15 @@ if (-not $metroHealthy) {
 
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
-  $useDeepLink = $RestartMetro.IsPresent
+  if (-not $script:LanIp) {
+    Write-NoLanIpHelp
+    exit 1
+  }
   foreach ($serial in $serials) {
-    Start-FlipApp -Serial $serial -AdbPath $adb -UseDevServerUrl:$useDeepLink
+    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
-}
-
-$lanIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-  Where-Object { $_.IPAddress -notlike "127.*" -and $_.PrefixOrigin -ne "WellKnown" -and $_.IPAddress -like "192.168.*" } |
-  Select-Object -First 1).IPAddress
-if (-not $lanIp) {
-  $lanIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-    Where-Object { $_.IPAddress -notlike "127.*" -and $_.PrefixOrigin -ne "WellKnown" } |
-    Select-Object -First 1).IPAddress
 }
 
 $finalMetroHealthy = Test-MetroHealthy
@@ -414,8 +433,11 @@ Write-Host "=== Status ===" -ForegroundColor Cyan
 Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
 Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped (no device)" } else { "FAILED" }))
 Write-Host ("Metro /status: {0}" -f $(if ($finalMetroHealthy) { "running" } else { "NOT running" }))
-Write-Host "USB URL: exp://127.0.0.1:8081 (requires adb reverse)"
-if ($lanIp) { Write-Host "LAN URL: exp://${lanIp}:8081 (npm run start:lan + same Wi-Fi)" }
+if ($script:LanIp) {
+  Write-Host "Dev server URL: exp://${script:LanIp}:8081 (LAN only; 127.0.0.1 is not used)"
+} else {
+  Write-Host "Dev server URL: (no LAN IP - connect PC and phone to same Wi-Fi)" -ForegroundColor Yellow
+}
 Write-Host ""
 Write-Host "=== Scripts ===" -ForegroundColor Cyan
 Write-Host "- flip-dev.bat: first connect / sync branch - pull + adb + reuse Metro"
@@ -430,7 +452,8 @@ Write-Host "- After crash: flip-reconnect.bat (not flip-dev.bat - avoids git pul
 Write-Host "- Stale Metro: flip-dev-restart.bat or npm run dev:connect:restart"
 Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run flip-dev-restart.bat"
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
-Write-Host "- LAN: npm run start:lan, phone on same Wi-Fi as PC ($lanIp), allow Node through Windows Firewall on 8081"
+Write-Host "- LAN: phone on same Wi-Fi as PC ($($script:LanIp)), allow Node through Windows Firewall on 8081"
+Write-Host "- Do not pick 127.0.0.1 in dev launcher; use RESET on Recently Opened if it appears"
 Write-Host "- Dev client only (not Expo Go); package social.flip.app"
 Write-Host "- Crash 'OkHttp TaskRunner' / MessageDeflater: dev-only Metro WebSocket race - flip-reconnect.bat or flip-dev-restart.bat"
 

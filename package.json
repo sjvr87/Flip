@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "postinstall": "node ./scripts/patch-foojay-gradle.js && node ./scripts/patch-android-node.js",
-    "start": "expo start --dev-client",
-    "start:clear": "expo start --dev-client --clear",
+    "start": "expo start --dev-client --lan",
+    "start:clear": "expo start --dev-client --lan --clear",
     "start:lan": "expo start --dev-client --lan",
     "start:tunnel": "expo start --dev-client --tunnel",
     "reset-project": "node ./scripts/reset-project.js",
