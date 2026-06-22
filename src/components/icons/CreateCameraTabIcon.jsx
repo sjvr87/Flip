@@ -16,14 +16,14 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
     const innerStroke = focused ? 1.1 : 0.85;
     const strokeOpacity = focused ? 1 : 0.72;
 
-    const lensCy = 15.0;
+    const lensCy = 13.5;
     const lensR = 5.2;
 
     return (
         <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
             <Text
                 x={CX}
-                y={5.6}
+                y={5.4}
                 fill={color}
                 opacity={strokeOpacity}
                 fontSize={5.4}
@@ -37,7 +37,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             {/* Camera body — scaled to match other tab icon visual weight */}
             <Rect
                 x={2.6}
-                y={9.0}
+                y={7.5}
                 width={20.8}
                 height={12.0}
                 rx={1.1}
@@ -49,7 +49,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             {/* Viewfinder / hot shoe */}
             <Rect
                 x={6.2}
-                y={7.2}
+                y={5.7}
                 width={10.2}
                 height={2.1}
                 rx={0.35}
@@ -61,7 +61,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             {/* Shutter / mode button */}
             <Rect
                 x={19.2}
-                y={7.7}
+                y={6.2}
                 width={2.3}
                 height={2.3}
                 rx={0.25}
@@ -73,7 +73,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             {/* Front sensor / flash pill */}
             <Ellipse
                 cx={4.5}
-                cy={14.8}
+                cy={13.3}
                 rx={1.0}
                 ry={0.58}
                 stroke={color}
@@ -110,7 +110,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             <Text
                 x={CX}
-                y={24.1}
+                y={25.3}
                 fill={color}
                 opacity={strokeOpacity}
                 fontSize={5.4}
