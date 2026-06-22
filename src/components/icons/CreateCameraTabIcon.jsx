@@ -3,6 +3,10 @@ import Svg, { Circle, Ellipse, Rect, Text } from 'react-native-svg';
 
 const CX = 13;
 
+/** Shared label styling — smaller caps avoid top clip; wider tracking preserves width. */
+const LABEL_FONT_SIZE = 5.0;
+const LABEL_LETTER_SPACING = 0.72;
+
 /**
  * FLIP (above) + camera (center) + IT (below) — Create tab icon.
  * Square 26×26 viewBox matches other tab icons; camera scaled to same visual weight.
@@ -26,9 +30,9 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
                 y={3.7}
                 fill={color}
                 opacity={strokeOpacity}
-                fontSize={5.4}
+                fontSize={LABEL_FONT_SIZE}
                 fontWeight="700"
-                letterSpacing={0.65}
+                letterSpacing={LABEL_LETTER_SPACING}
                 textAnchor="middle"
             >
                 FLIP
@@ -110,12 +114,12 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             <Text
                 x={CX}
-                y={25.3}
+                y={25.0}
                 fill={color}
                 opacity={strokeOpacity}
-                fontSize={5.4}
+                fontSize={LABEL_FONT_SIZE}
                 fontWeight="700"
-                letterSpacing={0.5}
+                letterSpacing={LABEL_LETTER_SPACING}
                 textAnchor="middle"
             >
                 IT
