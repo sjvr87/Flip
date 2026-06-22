@@ -187,11 +187,14 @@ export async function uploadMediaPost(
 
   if (options.isPhoto) {
     options.onProgress?.('Uploading photo…')
-    const { data } = await agent.uploadBlob(bytes, { encoding: 'image/jpeg' })
-    const aspectRatio = await getImageDimensions(options.fileUri).catch(() => ({
-      width: 1,
-      height: 1,
-    }))
+    const [uploadResult, aspectRatio] = await Promise.all([
+      agent.uploadBlob(bytes, { encoding: 'image/jpeg' }),
+      getImageDimensions(options.fileUri).catch(() => ({
+        width: 1,
+        height: 1,
+      })),
+    ])
+    const { data } = uploadResult
 
     options.onProgress?.('Posting…')
     const result = await agent.post({

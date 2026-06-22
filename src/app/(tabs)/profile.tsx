@@ -83,6 +83,12 @@ export default function ProfileScreen() {
         enabled: activeTab === 'photos',
     });
 
+    useEffect(() => {
+        if (tabParam === 'photos' && activeTab === 'photos') {
+            void photosRefetch();
+        }
+    }, [tabParam, activeTab, photosRefetch]);
+
 
     const { data: playlists, isLoading: playlistsLoading } = useQuery({
         queryKey: ['accountPlaylists', user?.id?.toString()],

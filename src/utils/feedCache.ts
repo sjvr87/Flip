@@ -1,6 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import type { FlipVideo } from '@/atproto/types';
+import { postToFlipItem } from '@/atproto/adapters';
+import { getAgent } from '@/atproto/agent';
+import type { FlipFeedPage, FlipVideo } from '@/atproto/types';
 
 /** For You — refresh sooner so reopen feels algorithmically fresh. */
 export const FEED_FYP_STALE_MS = 6_000;
@@ -155,6 +157,152 @@ export function hardRefreshFeed(queryClient: QueryClient, tab: string) {
     queryClient.removeQueries({ queryKey: ['videos', tab], exact: false });
 }
 
+type InfiniteProfileCache = {
+    pages?: FlipFeedPage[];
+    pageParams?: unknown[];
+};
+
+function prependToProfileMediaCache(
+    queryClient: QueryClient,
+    queryKeyRoot: 'userSelfPhotos' | 'userSelfVideos',
+    item: FlipVideo,
+) {
+    queryClient.setQueriesData<InfiniteProfileCache>(
+        { queryKey: [queryKeyRoot], exact: false },
+        (old) => {
+            const emptyPage: FlipFeedPage = {
+                data: [item],
+                meta: { path: 'atproto', per_page: 1, next_cursor: null },
+            };
+
+            if (!old?.pages?.length) {
+                return { pages: [emptyPage], pageParams: [undefined] };
+            }
+
+            const [firstPage, ...rest] = old.pages;
+            const existing = firstPage?.data ?? [];
+            if (existing.some((entry) => entry.id === item.id)) {
+                return old;
+            }
+
+            return {
+                ...old,
+                pages: [{ ...firstPage, data: [item, ...existing] }, ...rest],
+            };
+        },
+    );
+}
+
+function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Hydrate a freshly posted item from the App View (brief retry for indexing lag). */
+export async function hydratePostedMediaItem(
+    uri: string,
+    attempts = 3,
+): Promise<FlipVideo | null> {
+    const agent = getAgent();
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        try {
+            const res = await agent.getPosts({ uris: [uri] });
+            const post = res.data.posts[0];
+            if (post && !('error' in post)) {
+                const item = postToFlipItem({ post, reply: undefined }, { forceOwner: true });
+                if (item) return item;
+            }
+        } catch {
+            // retry
+        }
+
+        if (attempt < attempts - 1) {
+            await sleep(350);
+        }
+    }
+
+    return null;
+}
+
+function buildLocalPostedMediaItem(options: {
+    uri: string;
+    cid: string;
+    isPhoto: boolean;
+    localMediaUri: string;
+    caption: string;
+}): FlipVideo | null {
+    const agent = getAgent();
+    const did = agent.session?.did;
+    const handle = agent.session?.handle;
+    if (!did || !handle) return null;
+
+    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const uriSuffix = options.uri.split('/').pop() ?? '';
+    const mediaUri = options.localMediaUri.startsWith('file://')
+        ? options.localMediaUri
+        : `file://${options.localMediaUri}`;
+
+    return {
+        id: options.uri,
+        cid: options.cid,
+        account: {
+            id: did,
+            name: handle,
+            avatar: '',
+            username,
+            url: `https://bsky.app/profile/${handle}`,
+        },
+        caption: options.caption,
+        url: `https://bsky.app/profile/${handle}/post/${uriSuffix}`,
+        is_owner: true,
+        is_sensitive: false,
+        is_photo: options.isPhoto,
+        media_type: options.isPhoto ? 'photo' : 'video',
+        media: {
+            width: options.isPhoto ? 1 : 9,
+            height: options.isPhoto ? 1 : 16,
+            thumbnail: mediaUri,
+            src_url: mediaUri,
+            duration: 0,
+        },
+        likes: 0,
+        shares: 0,
+        comments: 0,
+        bookmarks: 0,
+        has_liked: false,
+        has_bookmarked: false,
+        has_reposted: false,
+        created_at: new Date().toISOString(),
+    };
+}
+
+/** Show a new post in the profile grid immediately, then let refetch reconcile. */
+export async function prependPostedMediaToProfile(
+    queryClient: QueryClient,
+    options: {
+        uri: string;
+        cid: string;
+        isPhoto: boolean;
+        localMediaUri: string;
+        caption?: string;
+    },
+) {
+    const hydrated =
+        (await hydratePostedMediaItem(options.uri)) ??
+        buildLocalPostedMediaItem({
+            uri: options.uri,
+            cid: options.cid,
+            isPhoto: options.isPhoto,
+            localMediaUri: options.localMediaUri,
+            caption: options.caption ?? '',
+        });
+
+    if (!hydrated) return;
+
+    const queryKeyRoot = options.isPhoto ? 'userSelfPhotos' : 'userSelfVideos';
+    prependToProfileMediaCache(queryClient, queryKeyRoot, hydrated);
+}
+
 /** After a new post: trim pagination, invalidate, and refetch feeds + profile. */
 export async function invalidateFeedAfterPost(queryClient: QueryClient) {
     for (const tab of FEED_TABS) {
@@ -173,7 +321,13 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
     await Promise.all([
         queryClient.refetchQueries({ queryKey: ['videos', 'following'] }),
         queryClient.refetchQueries({ queryKey: ['videos', 'local'] }),
-        queryClient.refetchQueries({ queryKey: ['userSelfVideos'] }),
-        queryClient.refetchQueries({ queryKey: ['userSelfPhotos'] }),
+        queryClient.refetchQueries({
+            queryKey: ['userSelfVideos'],
+            type: 'all',
+        }),
+        queryClient.refetchQueries({
+            queryKey: ['userSelfPhotos'],
+            type: 'all',
+        }),
     ]);
 }

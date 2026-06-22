@@ -73,16 +73,19 @@ function getVideoEmbed(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View |
 function galleryViewToImages(embed: GalleryView): ImageEmbedView | null {
   const first = embed.items?.find(
     (item): item is GalleryViewImage =>
-      isGalleryViewImage(item) && !!(item.thumbnail || item.fullsize),
+      isGalleryViewImage(item) &&
+      !!(item.thumbnail || item.fullsize || (item as { thumb?: string }).thumb),
   )
   if (!first) return null
+
+  const thumb = first.thumbnail || (first as { thumb?: string }).thumb
 
   return {
     $type: 'app.bsky.embed.images#view',
     images: [
       {
         $type: 'app.bsky.embed.images#viewImage',
-        thumb: first.thumbnail,
+        thumb,
         fullsize: first.fullsize,
         alt: first.alt,
         aspectRatio: first.aspectRatio,
@@ -91,7 +94,83 @@ function galleryViewToImages(embed: GalleryView): ImageEmbedView | null {
   }
 }
 
-function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
+type RecordBlobRef = {
+  ref?: { $link?: string } | string
+  mimeType?: string
+}
+
+type RecordImageEntry = {
+  alt?: string
+  image?: RecordBlobRef
+  aspectRatio?: { width: number; height: number }
+}
+
+type RecordImageEmbed = {
+  $type?: string
+  images?: RecordImageEntry[]
+  items?: RecordImageEntry[]
+}
+
+function blobRefToCid(blob?: RecordBlobRef): string | null {
+  if (!blob?.ref) return null
+  if (typeof blob.ref === 'string') return blob.ref
+  return blob.ref.$link ?? null
+}
+
+function mimeToCdnExtension(mimeType?: string): string {
+  if (!mimeType) return 'jpeg'
+  const subtype = mimeType.split('/')[1]?.toLowerCase() ?? 'jpeg'
+  if (subtype === 'jpg') return 'jpeg'
+  return subtype.replace(/[^a-z0-9]/g, '') || 'jpeg'
+}
+
+function cdnImageUrls(
+  did: string,
+  cid: string,
+  mimeType?: string,
+): { thumb: string; fullsize: string } {
+  const ext = mimeToCdnExtension(mimeType)
+  const base = `https://cdn.bsky.app/img`
+  return {
+    thumb: `${base}/feed_thumbnail/plain/${did}/${cid}@${ext}`,
+    fullsize: `${base}/feed_fullsize/plain/${did}/${cid}@${ext}`,
+  }
+}
+
+function getImageEmbedFromRecord(
+  post: AppBskyFeedDefs.PostView,
+): ImageEmbedView | null {
+  const record = post.record as { embed?: RecordImageEmbed }
+  const recordEmbed = record?.embed
+  if (!recordEmbed?.$type) return null
+
+  let first: RecordImageEntry | undefined
+  if (recordEmbed.$type === 'app.bsky.embed.images') {
+    first = recordEmbed.images?.[0]
+  } else if (recordEmbed.$type === 'app.bsky.embed.gallery') {
+    first = recordEmbed.items?.[0]
+  }
+
+  const cid = blobRefToCid(first?.image)
+  if (!cid) return null
+
+  const urls = cdnImageUrls(post.author.did, cid, first?.image?.mimeType)
+
+  return {
+    $type: 'app.bsky.embed.images#view',
+    images: [
+      {
+        $type: 'app.bsky.embed.images#viewImage',
+        thumb: urls.thumb,
+        fullsize: urls.fullsize,
+        alt: first?.alt,
+        aspectRatio: first?.aspectRatio,
+      },
+    ],
+  }
+}
+
+function getImageEmbedFromView(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
   const embed = post.embed
   if (!embed) return null
 
@@ -117,6 +196,25 @@ function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
   }
 
   return null
+}
+
+function viewImageHasUrl(images: ImageEmbedView | null): boolean {
+  const first = images?.images?.[0]
+  return !!(first?.fullsize || first?.thumb)
+}
+
+function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
+  const fromView = getImageEmbedFromView(post)
+  if (viewImageHasUrl(fromView)) {
+    return fromView
+  }
+
+  const fromRecord = getImageEmbedFromRecord(post)
+  if (fromRecord) {
+    return fromRecord
+  }
+
+  return fromView
 }
 
 export function isVideoPost(post: AppBskyFeedDefs.PostView): boolean {

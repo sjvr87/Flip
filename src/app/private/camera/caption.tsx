@@ -12,7 +12,7 @@ import {
     uploadVideo,
     usesAtprotoBackend,
 } from '@/utils/requests';
-import { invalidateFeedAfterPost } from '@/utils/feedCache';
+import { invalidateFeedAfterPost, prependPostedMediaToProfile } from '@/utils/feedCache';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { prettyCount } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -425,8 +425,19 @@ export default function CaptionScreen() {
 
     const postMutation = useMutation({
         mutationFn: uploadLoop,
-        onSuccess: async (_result, variables) => {
+        onSuccess: async (result, variables) => {
             setOverlayMessage('Done!');
+            const postUri = result?.json?.uri;
+            const postCid = result?.json?.cid;
+            if (postUri && postCid) {
+                await prependPostedMediaToProfile(queryClient, {
+                    uri: postUri,
+                    cid: postCid,
+                    isPhoto: !!variables?.isPhotoPost,
+                    localMediaUri: result.uploadUri,
+                    caption: variables?.caption ?? '',
+                });
+            }
             await invalidateFeedAfterPost(queryClient);
             setOverlayVisible(false);
             if (variables?.isPhotoPost) {
