@@ -2,9 +2,8 @@ import {
     ActivityFilterChips,
     type ActivityHubFilter,
 } from '@/components/notifications/ActivityFilterChips';
-import { FollowerNotificationRow } from '@/components/notifications/FollowerNotificationRow';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
-import { SuggestedAccountsSection } from '@/components/notifications/SuggestedAccountsSection';
+import { FollowersNotificationsPanel } from '@/app/private/notifications/followers/FollowersNotificationsPanel';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
@@ -22,7 +21,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -48,8 +47,14 @@ export default function NotificationsHubScreen() {
         refetchBadgeCount,
     } = useNotificationStore();
 
-    const initialTab: MainTab = params.tab === 'followers' ? 'followers' : 'activity';
+    const routeTab = Array.isArray(params.tab) ? params.tab[0] : params.tab;
+    const initialTab: MainTab = routeTab === 'followers' ? 'followers' : 'activity';
     const [mainTab, setMainTab] = useState<MainTab>(initialTab);
+
+    useEffect(() => {
+        if (routeTab === 'followers') setMainTab('followers');
+        else if (routeTab === 'activity') setMainTab('activity');
+    }, [routeTab]);
     const [activityFilter, setActivityFilter] = useState<ActivityHubFilter>('activity');
     const [followersExpanded, setFollowersExpanded] = useState(false);
     const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -421,6 +426,7 @@ export default function NotificationsHubScreen() {
             {renderMainTabs()}
             {mainTab === 'activity' ? (
                 <ActivityNotificationsPanel
+                    key="activity-panel"
                     notifications={activityNotifications}
                     activityFilter={activityFilter}
                     onFilterChange={setActivityFilter}
@@ -436,6 +442,7 @@ export default function NotificationsHubScreen() {
                 />
             ) : (
                 <FollowersNotificationsPanel
+                    key="followers-panel"
                     notifications={visibleFollowers}
                     totalFollowerCount={followerNotifications.length}
                     isLoading={followersLoading}
@@ -509,6 +516,7 @@ function ActivityNotificationsPanel({
 
     return (
         <FlatList
+            key="activity-notifications"
             style={tw`flex-1`}
             data={notifications}
             keyExtractor={(item) => item.id.toString()}
@@ -525,121 +533,6 @@ function ActivityNotificationsPanel({
             onEndReachedThreshold={0.4}
             onEndReached={() => {
                 if (hasNextPage && !isFetchingNextPage && !isRefetching) {
-                    onFetchNextPage();
-                }
-            }}
-            refreshing={isRefetching && !isFetchingNextPage}
-            onRefresh={onRefresh}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1 }}
-        />
-    );
-}
-
-type FollowersNotificationsPanelProps = {
-    notifications: any[];
-    totalFollowerCount: number;
-    isLoading: boolean;
-    isRefetching: boolean;
-    isFetchingNextPage: boolean;
-    hasNextPage: boolean | undefined;
-    followersExpanded: boolean;
-    showExpand: boolean;
-    onExpand: () => void;
-    onCollapse: () => void;
-    onFetchNextPage: () => void;
-    onRefresh: () => void;
-    onPress: (item: any) => void;
-    onProfilePress: (item: any) => void;
-    onAccept: (item: any) => void;
-    acceptingId: string | null;
-    acceptedIds: Set<string>;
-    renderEmpty: ReactElement;
-};
-
-function FollowersNotificationsPanel({
-    notifications,
-    totalFollowerCount,
-    isLoading,
-    isRefetching,
-    isFetchingNextPage,
-    hasNextPage,
-    followersExpanded,
-    showExpand,
-    onExpand,
-    onCollapse,
-    onFetchNextPage,
-    onRefresh,
-    onPress,
-    onProfilePress,
-    onAccept,
-    acceptingId,
-    acceptedIds,
-    renderEmpty,
-}: FollowersNotificationsPanelProps) {
-    const listHeader =
-        totalFollowerCount > 0 ? (
-            <View style={tw`px-4 pb-2`}>
-                <StackText fontSize="$3" textColor="text-gray-500 dark:text-gray-500">
-                    {totalFollowerCount} new follower
-                    {totalFollowerCount === 1 ? '' : 's'}
-                </StackText>
-            </View>
-        ) : null;
-
-    const listFooter = (
-        <View>
-            {showExpand ? (
-                <PressableHaptics onPress={onExpand} style={tw`py-4 items-center`}>
-                    <StackText fontSize="$4" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
-                        View all {totalFollowerCount} followers
-                    </StackText>
-                </PressableHaptics>
-            ) : null}
-            {followersExpanded && totalFollowerCount > FOLLOWERS_COLLAPSED_COUNT ? (
-                <PressableHaptics onPress={onCollapse} style={tw`py-3 items-center`}>
-                    <StackText fontSize="$3" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
-                        Show less
-                    </StackText>
-                </PressableHaptics>
-            ) : null}
-            {followersExpanded && hasNextPage && !isFetchingNextPage ? (
-                <PressableHaptics onPress={onFetchNextPage} style={tw`py-4 items-center`}>
-                    <StackText fontSize="$4" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
-                        View more
-                    </StackText>
-                </PressableHaptics>
-            ) : null}
-            {isFetchingNextPage ? (
-                <YStack paddingVertical="$6" alignItems="center">
-                    <ActivityIndicator color={LOOP_ACCENT} />
-                </YStack>
-            ) : null}
-            <SuggestedAccountsSection />
-        </View>
-    );
-
-    return (
-        <FlatList
-            style={tw`flex-1`}
-            data={notifications}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-                <FollowerNotificationRow
-                    item={item}
-                    onPress={() => onPress(item)}
-                    onProfilePress={() => onProfilePress(item)}
-                    onAccept={() => onAccept(item)}
-                    isAccepting={acceptingId === item.actor.id}
-                    isAccepted={acceptedIds.has(item.actor.id)}
-                />
-            )}
-            ListHeaderComponent={listHeader}
-            ListFooterComponent={listFooter}
-            ListEmptyComponent={renderEmpty}
-            onEndReachedThreshold={0.4}
-            onEndReached={() => {
-                if (followersExpanded && hasNextPage && !isFetchingNextPage && !isRefetching) {
                     onFetchNextPage();
                 }
             }}
