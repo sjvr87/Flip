@@ -3,6 +3,7 @@ import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import {
+    fetchAuthorRecentMediaThumbnails,
     followAccount,
     getExploreAccounts,
     postExploreAccountHideSuggestion,
@@ -12,7 +13,7 @@ import { toProfilePath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, View } from 'react-native';
 import tw from 'twrnc';
 
@@ -28,6 +29,8 @@ type ExploreAccount = {
 
 interface AccountRowProps {
     account: ExploreAccount;
+    postThumbnail?: string | null;
+    thumbsLoading: boolean;
     onFollow: (id: string) => void;
     onHide: (id: string) => void;
     onView: (id: string) => void;
@@ -35,8 +38,35 @@ interface AccountRowProps {
     isHiding: boolean;
 }
 
+function PostPreviewThumb({
+    thumbnailUrl,
+    loading,
+}: {
+    thumbnailUrl?: string | null;
+    loading: boolean;
+}) {
+    return (
+        <View
+            style={tw`w-16 h-16 rounded-lg overflow-hidden ml-2 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800`}>
+            {thumbnailUrl ? (
+                <Image source={{ uri: thumbnailUrl }} style={tw`w-full h-full`} resizeMode="cover" />
+            ) : loading ? (
+                <View style={tw`flex-1 items-center justify-center`}>
+                    <ActivityIndicator size="small" color={LOOP_ACCENT} />
+                </View>
+            ) : (
+                <View style={tw`flex-1 items-center justify-center`}>
+                    <Ionicons name="image-outline" size={20} color="#666" />
+                </View>
+            )}
+        </View>
+    );
+}
+
 function SuggestedAccountRow({
     account,
+    postThumbnail,
+    thumbsLoading,
     onFollow,
     onHide,
     onView,
@@ -127,6 +157,8 @@ function SuggestedAccountRow({
                         </PressableHaptics>
                     </View>
                 </View>
+
+                <PostPreviewThumb thumbnailUrl={postThumbnail} loading={thumbsLoading} />
             </View>
         </View>
     );
@@ -142,6 +174,16 @@ export function SuggestedAccountsSection() {
         queryKey: ['accounts', 'suggested'],
         queryFn: getExploreAccounts,
         retry: 2,
+    });
+
+    const accounts = accountsData || [];
+    const accountIds = useMemo(() => accounts.map((account: ExploreAccount) => account.id), [accounts]);
+
+    const { data: postThumbnails, isLoading: thumbsLoading } = useQuery({
+        queryKey: ['accounts', 'suggested', 'post-thumbs', accountIds],
+        queryFn: () => fetchAuthorRecentMediaThumbnails(accountIds),
+        enabled: accountIds.length > 0,
+        staleTime: 10 * 60_000,
     });
 
     const followMutation = useMutation({
@@ -179,7 +221,6 @@ export function SuggestedAccountsSection() {
         },
     });
 
-    const accounts = accountsData || [];
     if (accounts.length === 0) return null;
 
     return (
@@ -199,6 +240,8 @@ export function SuggestedAccountsSection() {
                 <SuggestedAccountRow
                     key={account.id}
                     account={account}
+                    postThumbnail={postThumbnails?.[account.id]}
+                    thumbsLoading={thumbsLoading}
                     onFollow={(id) => followMutation.mutate(id)}
                     onView={(id) => router.push(toProfilePath(id))}
                     onHide={(id) => hideSuggestionMutation.mutate(id)}

@@ -1298,6 +1298,46 @@ export async function fetchUserPhotos({
   return postsToMediaPage(res.data.feed, res.data.cursor, 'photo')
 }
 
+/** Latest media post thumbnail for a profile (suggested accounts, etc.). */
+export async function fetchAuthorRecentMediaThumbnail(actor: string): Promise<string | null> {
+  const agent = getAgent()
+
+  const res = await withAuthenticatedFetch(() =>
+    agent.app.bsky.feed.getAuthorFeed({
+      actor,
+      filter: 'posts_with_media',
+      limit: 5,
+    }),
+  )
+
+  for (const item of res.data.feed) {
+    const flipItem = postToFlipItem(item)
+    const thumbnail = flipItem?.media?.thumbnail
+    if (thumbnail) return thumbnail
+  }
+
+  return null
+}
+
+export async function fetchAuthorRecentMediaThumbnails(
+  actors: string[],
+): Promise<Record<string, string | null>> {
+  const uniqueActors = [...new Set(actors.filter(Boolean))]
+  const entries = await Promise.all(
+    uniqueActors.map(async (actor) => {
+      try {
+        const thumbnail = await fetchAuthorRecentMediaThumbnail(actor)
+        return [actor, thumbnail] as const
+      } catch (error) {
+        console.warn('[feed] author recent thumbnail failed:', actor, error)
+        return [actor, null] as const
+      }
+    }),
+  )
+
+  return Object.fromEntries(entries)
+}
+
 async function hydratePostView(
   agent: ReturnType<typeof getAgent>,
   uri: string,

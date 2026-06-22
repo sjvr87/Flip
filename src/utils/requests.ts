@@ -3,6 +3,7 @@ import {
     fetchAccountFavorites as atprotoFetchAccountFavorites,
     fetchAccountLikes as atprotoFetchAccountLikes,
     fetchActivityNotifications as atprotoFetchActivityNotifications,
+    fetchAuthorRecentMediaThumbnails as atprotoFetchAuthorRecentMediaThumbnails,
     fetchFollowerNotifications as atprotoFetchFollowerNotifications,
     fetchNotifications as atprotoFetchNotifications,
     blockAccount as atprotoBlockAccount,
@@ -1457,6 +1458,15 @@ export async function getExploreAccounts(): Promise<any> {
     }
     const res = await _selfGet('api/v1/accounts/suggested');
     return res.data as Account[];
+}
+
+export async function fetchAuthorRecentMediaThumbnails(
+    actors: string[],
+): Promise<Record<string, string | null>> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchAuthorRecentMediaThumbnails(actors);
+    }
+    return Object.fromEntries(actors.map((actor) => [actor, null]));
 }
 
 export async function getExploreTagsFeed({

@@ -10,6 +10,8 @@ export {
   fetchSelfAccountPhotos,
   fetchUserVideos,
   fetchUserPhotos,
+  fetchAuthorRecentMediaThumbnail,
+  fetchAuthorRecentMediaThumbnails,
   fetchUserVideoCursor,
   fetchPostForViewer,
   fetchAccountLikes,
