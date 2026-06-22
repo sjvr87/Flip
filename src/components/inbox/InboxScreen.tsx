@@ -1,26 +1,17 @@
-import MentionText from '@/components/MentionText';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
-import { toProfilePath } from '@/utils/profileNavigation';
-import {
-    fetchConvos,
-    fetchNotifications,
-    followAccount,
-    getExploreAccounts,
-    postExploreAccountHideSuggestion,
-} from '@/utils/requests';
+import { fetchConvos, fetchNotifications } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import {
     ActivityIndicator,
     Image,
-    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -153,75 +144,6 @@ function ConvoRow({ convo, myDid, onPress }: ConvoRowProps) {
     );
 }
 
-interface SuggestedAccountCardProps {
-    account: any;
-    onFollow: (id: string) => void;
-    onHide: (id: string) => void;
-    isFollowing: boolean;
-    isHiding: boolean;
-    onView: (id: string) => void;
-}
-
-const SuggestedAccountCard = ({
-    account,
-    onFollow,
-    onHide,
-    isFollowing,
-    isHiding,
-    onView,
-}: SuggestedAccountCardProps) => (
-    <View style={tw`flex-row items-center px-4 py-3`}>
-        <PressableHaptics onPress={() => onView(account.id)}>
-            <Image source={{ uri: account.avatar }} style={tw`w-12 h-12 rounded-full mr-3`} />
-        </PressableHaptics>
-        <View style={tw`flex-1`}>
-            <PressableHaptics onPress={() => onView(account.id)}>
-                <MentionText
-                    username={account.username}
-                    style={{ fontSize: 16, fontWeight: '600' }}
-                    numberOfLines={1}
-                />
-                {account.bio ? (
-                    <StackText
-                        fontSize="$3"
-                        textColor="text-gray-600 dark:text-gray-500"
-                        numberOfLines={1}>
-                        {account.bio}
-                    </StackText>
-                ) : null}
-            </PressableHaptics>
-        </View>
-        <View style={tw`flex-row items-center gap-2 ml-5`}>
-            <PressableHaptics
-                onPress={() => onFollow(account.id)}
-                disabled={isFollowing || isHiding}
-                style={({ pressed }) => [
-                    tw`rounded-2xl px-6 py-2`,
-                    { backgroundColor: LOOP_ACCENT },
-                    (pressed || isFollowing) && tw`opacity-70`,
-                ]}>
-                {isFollowing ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                    <StackText fontSize="$3" textColor="text-white" fontWeight="semibold">
-                        Follow
-                    </StackText>
-                )}
-            </PressableHaptics>
-            <PressableHaptics
-                onPress={() => onHide(account.id)}
-                disabled={isFollowing || isHiding}
-                style={({ pressed }) => [tw`p-2`, pressed && tw`opacity-50`]}>
-                {isHiding ? (
-                    <ActivityIndicator size="small" color="#666" />
-                ) : (
-                    <Ionicons name="close-circle-outline" size={24} color="#999" />
-                )}
-            </PressableHaptics>
-        </View>
-    </View>
-);
-
 const getNotificationMessage = (notification: any): string => {
     const username = notification.actor?.username || notification.actor?.name || 'Someone';
     switch (notification.type) {
@@ -257,8 +179,6 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
     const queryClient = useQueryClient();
     const { markInboxViewed, markActivityViewed, clearActivityUnread, refetchBadgeCount } =
         useNotificationStore();
-    const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
-    const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
     const { isDark } = useTheme();
     const myDid = user?.id ?? '';
 
@@ -288,12 +208,6 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
         staleTime: 30_000,
     });
 
-    const { data: accountsData } = useQuery({
-        queryKey: ['accounts', 'suggested'],
-        queryFn: getExploreAccounts,
-        retry: 2,
-    });
-
     useFocusEffect(
         useCallback(() => {
             void markInboxViewed().then(() => {
@@ -319,43 +233,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
         void refetch();
         void refetchConvos();
         void refetchBadgeCount();
-        queryClient.invalidateQueries({ queryKey: ['accounts', 'suggested'] });
-    }, [queryClient, refetch, refetchConvos, refetchBadgeCount]);
-
-    const followMutation = useMutation({
-        mutationFn: async (profileId: string) => {
-            setFollowingAccountId(profileId);
-            return await followAccount(profileId);
-        },
-        onSuccess: async () => {
-            queryClient.invalidateQueries({ queryKey: ['accounts', 'suggested'] });
-        },
-        onSettled: () => setFollowingAccountId(null),
-    });
-
-    const hideSuggestionMutation = useMutation({
-        mutationFn: async (profileId: string) => {
-            setHidingAccountId(profileId);
-            return await postExploreAccountHideSuggestion(profileId);
-        },
-        onMutate: async (profileId) => {
-            await queryClient.cancelQueries({ queryKey: ['accounts', 'suggested'] });
-            const previousAccounts = queryClient.getQueryData(['accounts', 'suggested']);
-            queryClient.setQueryData(['accounts', 'suggested'], (old: any[] | undefined) =>
-                old?.filter((account) => account.id !== profileId) || [],
-            );
-            return { previousAccounts };
-        },
-        onError: (_err, _profileId, context) => {
-            if (context?.previousAccounts) {
-                queryClient.setQueryData(['accounts', 'suggested'], context.previousAccounts);
-            }
-        },
-        onSettled: () => {
-            setHidingAccountId(null);
-            queryClient.invalidateQueries({ queryKey: ['accounts', 'suggested'] });
-        },
-    });
+    }, [refetch, refetchConvos, refetchBadgeCount]);
 
     const notifications = useMemo(() => {
         if (!data?.data?.length) return [];
@@ -382,37 +260,30 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
         ];
         const systemTypes = ['system', 'admin.notification', 'system.update', 'system.message'];
 
+        const activityOrFollower = notifications.find(
+            (n) => activityTypes.includes(n.type) || followerTypes.includes(n.type),
+        );
+
         return {
-            followers: notifications.find((n) => followerTypes.includes(n.type)),
-            activity: notifications.find((n) => activityTypes.includes(n.type)),
+            latest: activityOrFollower,
             system: notifications.find((n) => systemTypes.includes(n.type)),
         };
     }, [notifications]);
 
+    const notificationCount = unreadCounts.activity + unreadCounts.followers;
+
     const categories = [
         {
-            id: 'followers',
-            icon: 'people' as const,
-            iconColor: '#FFFFFF',
-            iconBgColor: '#00B8FF',
-            title: 'New followers',
-            subtitle: latestNotifications.followers
-                ? getNotificationMessage(latestNotifications.followers)
-                : 'See your new followers here.',
-            count: unreadCounts.followers,
-            route: '/private/notifications/followers',
-        },
-        {
-            id: 'activity',
+            id: 'notifications',
             icon: 'notifications' as const,
             iconColor: '#FFFFFF',
             iconBgColor: LOOP_ACCENT,
-            title: 'Activities',
-            subtitle: latestNotifications.activity
-                ? getNotificationMessage(latestNotifications.activity)
-                : 'See notifications here.',
-            count: unreadCounts.activity,
-            route: '/private/notifications/activity',
+            title: 'Notifications',
+            subtitle: latestNotifications.latest
+                ? getNotificationMessage(latestNotifications.latest)
+                : 'Activity, followers, and more.',
+            count: notificationCount,
+            route: '/private/notifications',
         },
         ...(unreadCounts.system > 0
             ? [
@@ -444,7 +315,6 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
             : []),
     ];
 
-    const suggestedAccounts = accountsData || [];
     const loading = isLoading || convosLoading;
 
     return (
@@ -539,7 +409,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                             subtitle={category.subtitle}
                             count={category.count}
                             onPress={() => {
-                                if (category.id === 'activity') {
+                                if (category.id === 'notifications') {
                                     clearActivityUnread();
                                     void markActivityViewed();
                                 }
@@ -547,30 +417,6 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                             }}
                         />
                     ))}
-
-                    {suggestedAccounts.length > 0 ? (
-                        <View style={tw`my-6`}>
-                            <View style={tw`px-4 py-2`}>
-                                <StackText
-                                    fontSize="$5"
-                                    fontWeight="semibold"
-                                    textColor="text-black dark:text-gray-400">
-                                    Suggested accounts
-                                </StackText>
-                            </View>
-                            {suggestedAccounts.map((account: any) => (
-                                <SuggestedAccountCard
-                                    key={account.id}
-                                    account={account}
-                                    onFollow={(id) => followMutation.mutate(id)}
-                                    onView={(id) => router.push(toProfilePath(id))}
-                                    onHide={(id) => hideSuggestionMutation.mutate(id)}
-                                    isFollowing={followingAccountId === account.id}
-                                    isHiding={hidingAccountId === account.id}
-                                />
-                            ))}
-                        </View>
-                    ) : null}
                 </ScrollView>
             )}
         </View>

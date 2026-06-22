@@ -253,6 +253,20 @@ async function mapNotification(
   }
 }
 
+const LIKES_FAVORITES_TYPES = new Set([
+  'video.like',
+  'comment.like',
+  'commentReply.like',
+  'video.share',
+])
+
+const COMMENT_ACTIVITY_TYPES_FILTER = new Set([
+  'video.comment',
+  'video.commentReply',
+  'comment.share',
+  'commentReply.share',
+])
+
 function matchesActivityFilter(
   notification: FlipNotification,
   filter: string,
@@ -260,12 +274,16 @@ function matchesActivityFilter(
   switch (filter) {
     case 'followers':
       return notification.type === 'new_follower'
+    case 'mentions':
+      return notification.type === 'video.mention'
+    case 'likesFavorites':
+      return LIKES_FAVORITES_TYPES.has(notification.type)
+    case 'comments':
+      return COMMENT_ACTIVITY_TYPES_FILTER.has(notification.type)
     case 'videoLike':
       return notification.type === 'video.like'
     case 'videoShare':
       return notification.type === 'video.share'
-    case 'comments':
-      return notification.type === 'video.comment'
     case 'commentLike':
       return notification.type === 'comment.like'
     case 'commentShare':
