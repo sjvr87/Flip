@@ -8,6 +8,7 @@ import type {
   FlipAccount,
   FlipAudioSource,
   FlipPermissions,
+  FlipTextPost,
   FlipUserProfile,
   FlipVideo,
   FlipVideoMeta,
@@ -227,6 +228,56 @@ export function isPhotoPost(post: AppBskyFeedDefs.PostView): boolean {
 
 export function isMediaPost(post: AppBskyFeedDefs.PostView): boolean {
   return isVideoPost(post) || isPhotoPost(post)
+}
+
+export function isTextOnlyPost(post: AppBskyFeedDefs.PostView): boolean {
+  const record = post.record as { text?: string }
+  const text = (record?.text || '').trim()
+  if (text.length === 0) return false
+  if (isVideoPost(post) || isPhotoPost(post)) return false
+
+  const embed = post.embed
+  if (!embed) return true
+
+  if (
+    embed.$type === 'app.bsky.embed.recordWithMedia#view' ||
+    embed.$type === 'app.bsky.embed.images#view' ||
+    embed.$type === 'app.bsky.embed.video#view'
+  ) {
+    return false
+  }
+
+  if (isGalleryView(embed)) return false
+
+  return true
+}
+
+export function postToFlipTextPost(
+  feedItem: AppBskyFeedDefs.FeedViewPost,
+): FlipTextPost | null {
+  const post = feedItem.post
+
+  if (!isTextOnlyPost(post)) return null
+  if (shouldHideAdultContent() && hasAdultLabels(post)) return null
+
+  const record = post.record as { text?: string; facets?: RichText['facets']; createdAt?: string }
+  const text = (record.text || '').trim()
+  if (!text) return null
+
+  const account = toAccount(post.author)
+
+  return {
+    id: post.uri,
+    cid: post.cid,
+    account,
+    text,
+    tags: extractTagsFromRecord(record),
+    mentions: extractMentionsFromRecord(record),
+    likes: post.likeCount ?? 0,
+    comments: post.replyCount ?? 0,
+    reposts: post.repostCount ?? 0,
+    created_at: record.createdAt || new Date().toISOString(),
+  }
 }
 
 type FlipRecordExtension = {

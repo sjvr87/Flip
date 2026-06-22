@@ -1,4 +1,4 @@
-import type { FlipFeedPage } from '@/atproto/types';
+import type { FlipFeedPage, FlipTextPost } from '@/atproto/types';
 
 import { Storage } from '@/utils/cache';
 
@@ -17,6 +17,10 @@ export const EXPLORE_DEFAULT_TAG = 'flip';
 
 export const EXPLORE_TAGS_LIMIT = 8;
 export const EXPLORE_ACCOUNTS_LIMIT = 10;
+
+/** Text-only posts shown in Explore header carousel. */
+export const EXPLORE_TEXT_POSTS_PAGE_SIZE = 12;
+export const EXPLORE_TEXT_CHAIN_FETCHES = 4;
 
 const CACHE_PREFIX = 'explore.cache.';
 
@@ -87,4 +91,22 @@ export function readExploreFeedCache(tag: string): ExploreFeedCache | undefined 
 export function writeExploreFeedCache(tag: string, pages: FlipFeedPage[], pageParams: (string | false | null)[]): void {
   const safeTag = tag.replace(/^#/, '').toLowerCase();
   writeJson(`${CACHE_PREFIX}feed.${safeTag}`, { pages, pageParams });
+}
+
+type ExploreTextPostsCache = {
+  pages: { data: FlipTextPost[]; meta: { path: string; per_page: number; next_cursor: string | null } }[];
+  pageParams: (string | false | null)[];
+};
+
+export function readExploreTextPostsCache(): ExploreTextPostsCache | undefined {
+  const data = readJson<ExploreTextPostsCache>(`${CACHE_PREFIX}text-posts`);
+  if (!data?.pages?.length) return undefined;
+  return data;
+}
+
+export function writeExploreTextPostsCache(
+  pages: ExploreTextPostsCache['pages'],
+  pageParams: (string | false | null)[],
+): void {
+  writeJson(`${CACHE_PREFIX}text-posts`, { pages, pageParams });
 }

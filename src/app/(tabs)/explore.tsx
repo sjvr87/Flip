@@ -1,29 +1,25 @@
 import Avatar from '@/components/Avatar';
+import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
-import { XStack } from '@/components/ui/Stack';
-import {
-    followAccount,
-    getExploreAccounts,
-    getExploreTags,
-    getExploreTagsFeed,
-    postExploreAccountHideSuggestion,
-} from '@/atproto';
+import { getExploreTags, getExploreTagsFeed, getExploreTextPosts } from '@/atproto';
+import type { FlipTextPost } from '@/atproto';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
     EXPLORE_DEFAULT_TAG,
     EXPLORE_GC_MS,
     EXPLORE_STALE_MS,
-    readExploreAccountsCache,
     readExploreFeedCache,
     readExploreTagsCache,
-    writeExploreAccountsCache,
+    readExploreTextPostsCache,
     writeExploreFeedCache,
     writeExploreTagsCache,
+    writeExploreTextPostsCache,
 } from '@/utils/exploreCache';
 import { toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
+import { timeAgo } from '@/utils/ui';
 import { Feather } from '@expo/vector-icons';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { memo, useCallback, useMemo, useState } from 'react';
@@ -42,24 +38,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 const { width } = Dimensions.get('window');
-const ACCOUNT_CARD_WIDTH = 160;
 const TAG_CARD_WIDTH = 120;
+const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);
 const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
 
 interface Tag {
     id: number;
     name: string;
     count: number;
-}
-
-interface Account {
-    id: string;
-    name: string;
-    avatar: string;
-    username: string;
-    bio: string;
-    follower_count: number;
-    post_count?: number;
 }
 
 interface Video {
@@ -83,10 +69,6 @@ interface Video {
     } | null;
 }
 
-const isValidAccount = (account: Account | null | undefined): account is Account => {
-    return !!(account?.id && account?.username && account?.name);
-};
-
 const isValidVideo = (video: Video | null | undefined): video is Video => {
     return !!(
         video?.id &&
@@ -100,6 +82,10 @@ const isValidTag = (tag: Tag | null | undefined): tag is Tag => {
     return !!(tag?.id && tag?.name && typeof tag?.count === 'number');
 };
 
+const isValidTextPost = (post: FlipTextPost | null | undefined): post is FlipTextPost => {
+    return !!(post?.id && post?.account?.id && post?.text?.trim());
+};
+
 function SectionSkeleton({ height = 120 }: { height?: number }) {
     return (
         <View style={tw`mx-4 my-3 rounded-xl bg-gray-100 dark:bg-gray-900`}>
@@ -108,12 +94,12 @@ function SectionSkeleton({ height = 120 }: { height?: number }) {
     );
 }
 
-function AccountCardSkeleton() {
+function TextPostCardSkeleton() {
     return (
         <View
             style={[
-                tw`mr-3 rounded-xl bg-gray-100 dark:bg-gray-900`,
-                { width: ACCOUNT_CARD_WIDTH, height: 200 },
+                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e]`,
+                { width: TEXT_POST_CARD_WIDTH, height: 148 },
             ]}
         />
     );
@@ -133,71 +119,63 @@ function VideoThumbnailSkeleton() {
     );
 }
 
-const ExploreAccountCard = memo(function ExploreAccountCard({
+const ExploreTextPostCard = memo(function ExploreTextPostCard({
     item,
-    isFollowing,
-    isHiding,
-    onFollow,
-    onHide,
     onOpenProfile,
+    onHashtagPress,
+    onMentionPress,
 }: {
-    item: Account;
-    isFollowing: boolean;
-    isHiding: boolean;
-    onFollow: () => void;
-    onHide: () => void;
+    item: FlipTextPost;
     onOpenProfile: () => void;
+    onHashtagPress: (tag: string) => void;
+    onMentionPress: (username: string, profileId?: string | number) => void;
 }) {
     return (
-        <View style={tw`mr-3 bg-gray-100 dark:bg-[#1c1c1e] rounded-xl overflow-hidden`}>
-            <View style={tw`w-[${ACCOUNT_CARD_WIDTH}px] p-3 items-center`}>
-                <PressableHaptics
-                    style={tw`absolute top-2 right-2 z-10 bg-opacity-50 rounded-full p-1`}
-                    onPress={onHide}
-                    disabled={isHiding}>
-                    <Feather name="x" size={16} color="gray" />
-                </PressableHaptics>
-
-                <Avatar url={item.avatar} width={64} onPress={onOpenProfile} />
-
-                <Pressable onPress={onOpenProfile}>
+        <PressableHaptics
+            onPress={onOpenProfile}
+            style={[
+                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4`,
+                { width: TEXT_POST_CARD_WIDTH },
+            ]}>
+            <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-3`}>
+                <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
+                <View style={tw`ml-2.5 flex-1`}>
                     <Text
-                        style={tw`text-black font-semibold text-sm mb-1 mt-2 dark:text-white`}
+                        style={tw`text-black font-semibold text-sm dark:text-white`}
                         numberOfLines={1}>
-                        {item.name || item.username}
+                        {item.account.name || item.account.username}
                     </Text>
-                </Pressable>
-
-                {item.bio ? (
-                    <Text
-                        style={tw`text-gray-800 text-xs text-center mb-1 dark:text-gray-300`}
-                        numberOfLines={1}>
-                        {item.bio}
+                    <Text style={tw`text-gray-500 text-xs dark:text-gray-400`} numberOfLines={1}>
+                        @{item.account.username} · {timeAgo(item.created_at)}
                     </Text>
-                ) : null}
+                </View>
+            </Pressable>
 
-                <XStack justifyContent="space-between" gap="$3" style={tw`w-full mb-3`}>
-                    {typeof item.post_count === 'number' ? (
-                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                            {item.post_count.toLocaleString()} videos
-                        </Text>
-                    ) : null}
-                    {typeof item.follower_count === 'number' ? (
-                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
-                            {item.follower_count.toLocaleString()} followers
-                        </Text>
-                    ) : null}
-                </XStack>
+            <LinkifiedCaption
+                caption={item.text}
+                tags={item.tags}
+                mentions={item.mentions}
+                style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
+                numberOfLines={5}
+                onHashtagPress={onHashtagPress}
+                onMentionPress={onMentionPress}
+            />
 
-                <PressableHaptics onPress={onFollow} disabled={isFollowing}>
-                    <View style={[tw`rounded-full px-4 py-1.5`, { backgroundColor: '#22D3EE' }]}>
-                        <Text style={tw`text-white font-semibold text-xs`}>
-                            {isFollowing ? 'Following...' : 'Follow'}
-                        </Text>
-                    </View>
-                </PressableHaptics>
+            <View style={tw`flex-row items-center gap-4 mt-3`}>
+                <View style={tw`flex-row items-center gap-1`}>
+                    <Feather name="heart" size={13} color="#9CA3AF" />
+                    <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
+                        {item.likes.toLocaleString()}
+                    </Text>
+                </View>
+                <View style={tw`flex-row items-center gap-1`}>
+                    <Feather name="message-circle" size={13} color="#9CA3AF" />
+                    <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
+                        {item.comments.toLocaleString()}
+                    </Text>
+                </View>
             </View>
-        </View>
+        </PressableHaptics>
     );
 });
 
@@ -291,41 +269,37 @@ const ExploreVideoThumbnail = memo(function ExploreVideoThumbnail({
 
 type ExploreListHeaderProps = {
     isDark: boolean;
-    showAccountsSkeleton: boolean;
+    showTextPostsSkeleton: boolean;
     showTagsSkeleton: boolean;
     showVideosSkeleton: boolean;
-    validAccounts: Account[];
+    textPosts: FlipTextPost[];
     validTags: Tag[];
     feedTag: string;
-    accountsError: boolean;
+    textPostsError: boolean;
     tagsError: boolean;
-    followingAccountId: string | null;
-    hidingAccountId: string | null;
-    onFollow: (id: string) => void;
-    onHide: (id: string) => void;
     onSelectTag: (name: string) => void;
     onOpenSearch: () => void;
     onOpenProfile: (id: string) => void;
+    onHashtagPress: (tag: string) => void;
+    onMentionPress: (username: string, profileId?: string | number) => void;
     renderEmptyState: (message: string) => React.ReactElement;
 };
 
 const ExploreListHeader = memo(function ExploreListHeader({
     isDark,
-    showAccountsSkeleton,
+    showTextPostsSkeleton,
     showTagsSkeleton,
     showVideosSkeleton,
-    validAccounts,
+    textPosts,
     validTags,
     feedTag,
-    accountsError,
+    textPostsError,
     tagsError,
-    followingAccountId,
-    hidingAccountId,
-    onFollow,
-    onHide,
     onSelectTag,
     onOpenSearch,
     onOpenProfile,
+    onHashtagPress,
+    onMentionPress,
     renderEmptyState,
 }: ExploreListHeaderProps) {
     return (
@@ -339,36 +313,34 @@ const ExploreListHeader = memo(function ExploreListHeader({
 
             <View style={tw`my-5`}>
                 <Text style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
-                    Suggested for you
+                    From the network
                 </Text>
-                {showAccountsSkeleton ? (
+                {showTextPostsSkeleton ? (
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={tw`px-4`}>
                         {[1, 2, 3].map((item) => (
-                            <AccountCardSkeleton key={`account-skel-${item}`} />
+                            <TextPostCardSkeleton key={`text-skel-${item}`} />
                         ))}
                     </ScrollView>
-                ) : validAccounts.length > 0 ? (
+                ) : textPosts.length > 0 ? (
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={tw`px-4`}>
-                        {validAccounts.map((item) => (
-                            <ExploreAccountCard
+                        {textPosts.map((item) => (
+                            <ExploreTextPostCard
                                 key={item.id}
                                 item={item}
-                                isFollowing={followingAccountId === item.id}
-                                isHiding={hidingAccountId === item.id}
-                                onFollow={() => onFollow(item.id)}
-                                onHide={() => onHide(item.id)}
-                                onOpenProfile={() => onOpenProfile(item.id)}
+                                onOpenProfile={() => onOpenProfile(item.account.id)}
+                                onHashtagPress={onHashtagPress}
+                                onMentionPress={onMentionPress}
                             />
                         ))}
                     </ScrollView>
-                ) : accountsError ? (
-                    renderEmptyState('Unable to load suggested accounts. Pull down to refresh.')
+                ) : textPostsError ? (
+                    renderEmptyState('Unable to load text posts. Pull down to refresh.')
                 ) : null}
             </View>
 
@@ -413,9 +385,6 @@ const ExploreListHeader = memo(function ExploreListHeader({
 export default function ExploreScreen() {
     const router = useRouter();
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
-    const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
-    const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
-    const queryClient = useQueryClient();
     const { isDark } = useTheme();
 
     const exploreQueryOptions = {
@@ -443,19 +412,21 @@ export default function ExploreScreen() {
     });
 
     const {
-        data: accountsData,
-        isLoading: accountsLoading,
-        isError: accountsError,
-        refetch: refetchAccounts,
-        isRefetching: accountsRefetching,
-    } = useQuery({
-        queryKey: ['accounts', 'suggested'],
-        queryFn: async () => {
-            const data = await getExploreAccounts();
-            writeExploreAccountsCache(data);
-            return data;
+        data: textPostsData,
+        isLoading: textPostsLoading,
+        isError: textPostsError,
+        refetch: refetchTextPosts,
+        isRefetching: textPostsRefetching,
+    } = useInfiniteQuery({
+        queryKey: ['explore', 'text-posts'],
+        queryFn: getExploreTextPosts,
+        getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
+        initialPageParam: null,
+        placeholderData: () => {
+            const cached = readExploreTextPostsCache();
+            if (!cached) return undefined;
+            return { pages: cached.pages, pageParams: cached.pageParams };
         },
-        placeholderData: readExploreAccountsCache,
         retry: 2,
         ...exploreQueryOptions,
     });
@@ -465,10 +436,12 @@ export default function ExploreScreen() {
         return tagsData.filter(isValidTag);
     }, [tagsData]);
 
-    const validAccounts = useMemo(() => {
-        if (!Array.isArray(accountsData)) return [];
-        return accountsData.filter(isValidAccount);
-    }, [accountsData]);
+    const textPosts = useMemo(() => {
+        if (!textPostsData?.pages) return [];
+        return textPostsData.pages
+            .flatMap((page) => page?.data || [])
+            .filter(isValidTextPost);
+    }, [textPostsData]);
 
     const feedTag = selectedTag ?? EXPLORE_DEFAULT_TAG;
 
@@ -495,46 +468,6 @@ export default function ExploreScreen() {
         ...exploreQueryOptions,
     });
 
-    const followMutation = useMutation({
-        mutationFn: async (profileId: string) => {
-            setFollowingAccountId(profileId);
-            return await followAccount(profileId);
-        },
-        onSuccess: async () => {
-            queryClient.invalidateQueries({ queryKey: ['accounts', 'suggested'] });
-        },
-        onSettled: () => {
-            setFollowingAccountId(null);
-        },
-    });
-
-    const hideSuggestionMutation = useMutation({
-        mutationFn: async (profileId: string) => {
-            setHidingAccountId(profileId);
-            return await postExploreAccountHideSuggestion(profileId);
-        },
-        onMutate: async (profileId) => {
-            await queryClient.cancelQueries({ queryKey: ['accounts', 'suggested'] });
-
-            const previousAccounts = queryClient.getQueryData(['accounts', 'suggested']);
-
-            queryClient.setQueryData(['accounts', 'suggested'], (old: Account[] | undefined) => {
-                return old?.filter((account) => account.id !== profileId) || [];
-            });
-
-            return { previousAccounts };
-        },
-        onError: (err, profileId, context) => {
-            if (context?.previousAccounts) {
-                queryClient.setQueryData(['accounts', 'suggested'], context.previousAccounts);
-            }
-        },
-        onSettled: () => {
-            setHidingAccountId(null);
-            queryClient.invalidateQueries({ queryKey: ['accounts', 'suggested'] });
-        },
-    });
-
     const allVideos = useMemo(() => {
         if (!videosData?.pages) return [];
         return videosData.pages.flatMap((page) => page?.data || []).filter(isValidVideo);
@@ -549,6 +482,13 @@ export default function ExploreScreen() {
     }, [feedTag, videosData]);
 
     React.useEffect(() => {
+        if (!textPostsData?.pages?.length) return;
+        const pages = textPostsData.pages;
+        const pageParams = textPostsData.pageParams;
+        queueMicrotask(() => writeExploreTextPostsCache(pages, pageParams));
+    }, [textPostsData]);
+
+    React.useEffect(() => {
         if (allVideos.length === 0) return;
         prefetchThumbnails(allVideos.map((video) => video.media?.thumbnail));
     }, [allVideos]);
@@ -560,20 +500,6 @@ export default function ExploreScreen() {
             </View>
         ),
         [],
-    );
-
-    const handleFollow = useCallback(
-        (profileId: string) => {
-            followMutation.mutate(profileId);
-        },
-        [followMutation],
-    );
-
-    const handleHide = useCallback(
-        (profileId: string) => {
-            hideSuggestionMutation.mutate(profileId);
-        },
-        [hideSuggestionMutation],
     );
 
     const handleSelectTag = useCallback((name: string) => {
@@ -591,6 +517,21 @@ export default function ExploreScreen() {
         [router],
     );
 
+    const handleHashtagPress = useCallback(
+        (tag: string) => {
+            router.push(`/private/search?query=${encodeURIComponent(tag)}`);
+        },
+        [router],
+    );
+
+    const handleMentionPress = useCallback(
+        (username: string, profileId?: string | number) => {
+            const target = profileId ?? username;
+            if (target) router.push(toProfilePath(String(target)));
+        },
+        [router],
+    );
+
     const renderVideoThumbnail = useCallback(
         ({ item, index }: { item: Video; index: number }) => (
             <ExploreVideoThumbnail
@@ -602,7 +543,7 @@ export default function ExploreScreen() {
         [router],
     );
 
-    const showAccountsSkeleton = accountsLoading && validAccounts.length === 0;
+    const showTextPostsSkeleton = textPostsLoading && textPosts.length === 0;
     const showTagsSkeleton = tagsLoading && validTags.length === 0;
     const showVideosSkeleton = videosLoading && allVideos.length === 0;
 
@@ -610,51 +551,47 @@ export default function ExploreScreen() {
         () => (
             <ExploreListHeader
                 isDark={isDark}
-                showAccountsSkeleton={showAccountsSkeleton}
+                showTextPostsSkeleton={showTextPostsSkeleton}
                 showTagsSkeleton={showTagsSkeleton}
                 showVideosSkeleton={showVideosSkeleton}
-                validAccounts={validAccounts}
+                textPosts={textPosts}
                 validTags={validTags}
                 feedTag={feedTag}
-                accountsError={accountsError}
+                textPostsError={textPostsError}
                 tagsError={tagsError}
-                followingAccountId={followingAccountId}
-                hidingAccountId={hidingAccountId}
-                onFollow={handleFollow}
-                onHide={handleHide}
                 onSelectTag={handleSelectTag}
                 onOpenSearch={handleOpenSearch}
                 onOpenProfile={handleOpenProfile}
+                onHashtagPress={handleHashtagPress}
+                onMentionPress={handleMentionPress}
                 renderEmptyState={renderEmptyState}
             />
         ),
         [
-            accountsError,
             feedTag,
-            followingAccountId,
-            handleFollow,
-            handleHide,
+            handleHashtagPress,
+            handleMentionPress,
             handleOpenProfile,
             handleOpenSearch,
             handleSelectTag,
-            hidingAccountId,
             isDark,
             renderEmptyState,
-            showAccountsSkeleton,
             showTagsSkeleton,
+            showTextPostsSkeleton,
             showVideosSkeleton,
             tagsError,
-            validAccounts,
+            textPosts,
+            textPostsError,
             validTags,
         ],
     );
 
     const showEmptyExplore =
-        !showAccountsSkeleton &&
+        !showTextPostsSkeleton &&
         !showTagsSkeleton &&
         !showVideosSkeleton &&
         validTags.length === 0 &&
-        validAccounts.length === 0 &&
+        textPosts.length === 0 &&
         allVideos.length === 0;
 
     const listFooter = useMemo(() => {
@@ -699,11 +636,11 @@ export default function ExploreScreen() {
 
     const handleRefresh = useCallback(() => {
         void refetchTags();
-        void refetchAccounts();
+        void refetchTextPosts();
         void refetchVideos();
-    }, [refetchAccounts, refetchTags, refetchVideos]);
+    }, [refetchTags, refetchTextPosts, refetchVideos]);
 
-    const isRefreshing = tagsRefetching || accountsRefetching || videosRefetching;
+    const isRefreshing = tagsRefetching || textPostsRefetching || videosRefetching;
 
     return (
         <SafeAreaView edges={['top']} style={tw`flex-1 bg-white dark:bg-black`}>

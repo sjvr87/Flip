@@ -5,13 +5,18 @@ import {
   EXPLORE_DEFAULT_TAG,
   EXPLORE_FEED_PAGE_SIZE,
   EXPLORE_TAGS_LIMIT,
+  EXPLORE_TEXT_CHAIN_FETCHES,
+  EXPLORE_TEXT_POSTS_PAGE_SIZE,
 } from '@/utils/exploreCache'
 
-import { isVideoPost, postToFlipVideo, profileToFlipUser } from './adapters'
+import { isVideoPost, postToFlipTextPost, postToFlipVideo, profileToFlipUser } from './adapters'
 import { getAgent, withAuthenticatedFetch } from './agent'
-import type { FlipFeedPage } from './types'
+import type { FlipFeedPage, FlipTextPost, FlipTextPostsPage } from './types'
 
 const FALLBACK_TAGS = ['flip', 'video', 'music', 'comedy', 'art', 'gaming', 'sports']
+
+const BLUESKY_WHATS_HOT =
+  'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'
 
 export type ExploreTag = {
   id: number
@@ -114,6 +119,47 @@ export async function getExploreAccounts(): Promise<ExploreAccount[]> {
       post_count: profile.post_count,
     }
   })
+}
+
+export async function getExploreTextPosts({
+  pageParam = false,
+}: {
+  pageParam?: string | false
+} = {}): Promise<FlipTextPostsPage> {
+  let cursor = pageParam && pageParam !== false ? String(pageParam) : undefined
+  const posts: FlipTextPost[] = []
+  const seen = new Set<string>()
+  let nextCursor: string | null = null
+
+  for (let attempt = 0; attempt < EXPLORE_TEXT_CHAIN_FETCHES; attempt++) {
+    const res = await withAuthenticatedFetch(() =>
+      getAgent().app.bsky.feed.getFeed({
+        feed: BLUESKY_WHATS_HOT,
+        limit: 30,
+        cursor,
+      }),
+    )
+
+    for (const item of res.data.feed) {
+      const converted = postToFlipTextPost(item)
+      if (!converted || seen.has(converted.id)) continue
+      seen.add(converted.id)
+      posts.push(converted)
+    }
+
+    nextCursor = res.data.cursor && res.data.cursor.length > 0 ? res.data.cursor : null
+    if (posts.length >= EXPLORE_TEXT_POSTS_PAGE_SIZE || !nextCursor) break
+    cursor = nextCursor
+  }
+
+  return {
+    data: posts,
+    meta: {
+      path: 'atproto',
+      per_page: posts.length,
+      next_cursor: nextCursor,
+    },
+  }
 }
 
 export async function getExploreTagsFeed({

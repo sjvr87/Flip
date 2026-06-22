@@ -86,6 +86,28 @@ export type FlipFeedPage = {
   }
 }
 
+export type FlipTextPost = {
+  id: string
+  cid: string
+  account: FlipAccount
+  text: string
+  likes: number
+  comments: number
+  reposts: number
+  created_at: string
+  tags?: string[]
+  mentions?: FlipVideo['mentions']
+}
+
+export type FlipTextPostsPage = {
+  data: FlipTextPost[]
+  meta: {
+    path: string
+    per_page: number
+    next_cursor: string | null
+  }
+}
+
 export type FlipUserProfile = {
   id: string
   username: string

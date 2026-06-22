@@ -26,6 +26,7 @@ export {
 export {
   getExploreTags,
   getExploreAccounts,
+  getExploreTextPosts,
   getExploreTagsFeed,
   postExploreAccountHideSuggestion,
 } from './explore'
@@ -101,4 +102,4 @@ export { fetchReportRules, submitReport } from './moderation'
 export { uploadMediaPost } from './upload'
 export type { AtprotoUploadOptions, AtprotoUploadResult } from './upload'
 
-export type { FlipVideo, FlipFeedPage, FlipUserProfile } from './types'
+export type { FlipVideo, FlipFeedPage, FlipTextPost, FlipTextPostsPage, FlipUserProfile } from './types'

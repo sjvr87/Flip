@@ -1,11 +1,10 @@
-import { getExploreAccounts, getExploreTags, getExploreTagsFeed } from '@/atproto';
+import { getExploreTags, getExploreTagsFeed, getExploreTextPosts } from '@/atproto';
 import type { QueryClient } from '@tanstack/react-query';
 
 import {
     EXPLORE_DEFAULT_TAG,
     EXPLORE_GC_MS,
     EXPLORE_STALE_MS,
-    writeExploreAccountsCache,
     writeExploreTagsCache,
 } from './exploreCache';
 import { prefetchThumbnails } from './thumbnailPrefetch';
@@ -25,21 +24,12 @@ export function prefetchExploreQueries(queryClient: QueryClient): void {
 
     void (async () => {
         try {
-            const [, accounts, feed] = await Promise.all([
+            const [, feed] = await Promise.all([
                 queryClient.fetchQuery({
                     queryKey: ['explore', 'tags'],
                     queryFn: async () => {
                         const data = await getExploreTags();
                         writeExploreTagsCache(data);
-                        return data;
-                    },
-                    ...exploreQueryOptions,
-                }),
-                queryClient.fetchQuery({
-                    queryKey: ['accounts', 'suggested'],
-                    queryFn: async () => {
-                        const data = await getExploreAccounts();
-                        writeExploreAccountsCache(data);
                         return data;
                     },
                     ...exploreQueryOptions,
@@ -54,10 +44,18 @@ export function prefetchExploreQueries(queryClient: QueryClient): void {
                     initialPageParam: null,
                     ...exploreQueryOptions,
                 }),
+                queryClient.fetchInfiniteQuery({
+                    queryKey: ['explore', 'text-posts'],
+                    queryFn: (context) =>
+                        getExploreTextPosts({
+                            pageParam: context.pageParam ?? undefined,
+                        }),
+                    initialPageParam: null,
+                    ...exploreQueryOptions,
+                }),
             ]);
 
             prefetchThumbnails([
-                ...accounts.map((account) => account.avatar),
                 ...feed.pages.flatMap((page) =>
                     (page.data ?? []).map((video) => video.media?.thumbnail),
                 ),
