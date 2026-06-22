@@ -33,7 +33,12 @@ data class ResolvedCaptureProfile(
       "tier" to tier.name.lowercase(),
       "quality" to qualityLabel,
       "badge" to badgeLabel,
-      "resolution" to "${previewWidth}x${previewHeight}",
+      "resolution" to
+        if (tier == CaptureTier.FLAGSHIP) {
+          "${previewWidth}x${previewHeight} preview · UHD capture"
+        } else {
+          "${previewWidth}x${previewHeight}"
+        },
       "targetFps" to targetFps,
       "videoBitrate" to videoBitrate,
       "videoStabilization" to true,
@@ -47,10 +52,11 @@ object FlipCaptureProfile {
   const val TARGET_FPS = 60
   const val FLAGSHIP_BITRATE = 45_000_000
   const val STANDARD_BITRATE = 12_000_000
-  const val FLAGSHIP_PREVIEW_WIDTH = 3840
-  const val FLAGSHIP_PREVIEW_HEIGHT = 2160
   const val STANDARD_PREVIEW_WIDTH = 1920
   const val STANDARD_PREVIEW_HEIGHT = 1080
+  /** Preview stays 1080p — 4K TextureView preview OOMs / fails bind on Samsung stacks. */
+  const val FLAGSHIP_PREVIEW_WIDTH = STANDARD_PREVIEW_WIDTH
+  const val FLAGSHIP_PREVIEW_HEIGHT = STANDARD_PREVIEW_HEIGHT
 
   @Volatile
   var active: ResolvedCaptureProfile = defaultStandardProfile()

@@ -77,7 +77,10 @@ class FlipCameraSession(
           val provider = future.get()
           cameraProvider = provider
           profile = FlipCaptureProfile.resolve(context, provider)
-          rebindCamera()
+          if (!rebindCamera()) {
+            onError("Failed to bind CameraX")
+            return@addListener
+          }
           onReady()
         } catch (e: Exception) {
           onError(e.message ?: "Failed to bind CameraX")
@@ -92,7 +95,9 @@ class FlipCameraSession(
       if (facing == "front") CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
     if (nextFacing == lensFacing && camera != null) return
     lensFacing = nextFacing
-    rebindCamera()
+    if (!rebindCamera()) {
+      Log.w(TAG, "setLensFacing: rebind failed after lens switch to $facing")
+    }
   }
 
   fun setZoom(ratio: Float) {
@@ -212,7 +217,6 @@ class FlipCameraSession(
     val previewUseCase = preview ?: return
     if (previewView.width <= 0 || previewView.height <= 0) return
     previewUseCase.surfaceProvider = previewView.surfaceProvider
-    previewView.invalidate()
     Log.d(
       TAG,
       "refreshPreviewSurface ${profile.badgeLabel} preview=${previewView.width}x${previewView.height}",
@@ -238,103 +242,110 @@ class FlipCameraSession(
     }
   }
 
-  private fun rebindCamera() {
-    val provider = cameraProvider ?: return
+  /** @return true when CameraX bound successfully (possibly after 1080p fallback). */
+  private fun rebindCamera(): Boolean {
+    val provider = cameraProvider ?: return false
     clearRecordingBeforeRebind()
     provider.unbindAll()
 
-    try {
-      val previewResolutionSelector =
-        ResolutionSelector.Builder()
-          .setResolutionStrategy(
-            ResolutionStrategy(
-              Size(profile.previewWidth, profile.previewHeight),
-              ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
-            ),
-          )
-          .build()
+    return try {
+      bindWithCurrentProfile(provider)
+      true
+    } catch (e: Throwable) {
+      Log.e(TAG, "rebindCamera failed tier=${profile.tier} badge=${profile.badgeLabel}", e)
+      if (profile.tier != CaptureTier.FLAGSHIP) return false
 
-      val previewBuilder =
-        Preview.Builder().setResolutionSelector(previewResolutionSelector)
-
-      Camera2Interop.Extender(previewBuilder)
-        .setCaptureRequestOption(
-          CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-          Range(30, profile.targetFps),
-        )
-        .setCaptureRequestOption(
-          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
-          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
-        )
-        .setCaptureRequestOption(
-          CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-          CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON,
-        )
-
-      val previewUseCase =
-        previewBuilder.build().also { it.surfaceProvider = previewView.surfaceProvider }
-      preview = previewUseCase
-
-      val recorder =
-        Recorder.Builder()
-          .setQualitySelector(profile.qualitySelector)
-          .setTargetVideoEncodingBitRate(profile.videoBitrate)
-          .build()
-
-      val videoBuilder = VideoCapture.Builder(recorder).setVideoStabilizationEnabled(true)
-
-      Camera2Interop.Extender(videoBuilder)
-        .setCaptureRequestOption(
-          CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-          Range(30, profile.targetFps),
-        )
-        .setCaptureRequestOption(
-          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
-          CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
-        )
-        .setCaptureRequestOption(
-          CaptureRequest.CONTROL_AE_MODE,
-          CaptureRequest.CONTROL_AE_MODE_ON,
-        )
-
-      val capture = videoBuilder.build()
-      videoCapture = capture
-
-      val photoResolutionSelector =
-        ResolutionSelector.Builder()
-          .setResolutionStrategy(
-            ResolutionStrategy(
-              Size(profile.previewWidth, profile.previewHeight),
-              ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
-            ),
-          )
-          .build()
-
-      val photoCapture =
-        ImageCapture.Builder()
-          .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-          .setResolutionSelector(photoResolutionSelector)
-          .build()
-
-      imageCapture = photoCapture
-
-      val selector =
-        CameraSelector.Builder().requireLensFacing(lensFacing).build()
-
-      camera =
-        provider.bindToLifecycle(lifecycleOwner, selector, previewUseCase, capture, photoCapture)
-
-      camera?.cameraControl?.setZoomRatio(zoomRatio)
-      camera?.cameraControl?.enableTorch(torchEnabled)
-      applyFlagshipExposureProfile()
-      Log.d(
-        TAG,
-        "CameraX bound ${profile.badgeLabel} lensFacing=$lensFacing " +
-          "preview=${previewView.width}x${previewView.height} bitrate=${profile.videoBitrate}",
-      )
-    } catch (e: Exception) {
-      Log.e(TAG, "rebindCamera failed", e)
-      throw e
+      profile = FlipCaptureProfile.defaultStandardProfile()
+      FlipCaptureProfile.active = profile
+      provider.unbindAll()
+      try {
+        bindWithCurrentProfile(provider)
+        Log.w(TAG, "rebindCamera: fell back to ${profile.badgeLabel} after flagship bind failure")
+        true
+      } catch (fallback: Throwable) {
+        Log.e(TAG, "rebindCamera: standard fallback also failed", fallback)
+        false
+      }
     }
+  }
+
+  private fun bindWithCurrentProfile(provider: ProcessCameraProvider) {
+    val previewResolutionSelector =
+      ResolutionSelector.Builder()
+        .setResolutionStrategy(
+          ResolutionStrategy(
+            Size(profile.previewWidth, profile.previewHeight),
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+          ),
+        )
+        .build()
+
+    val previewBuilder =
+      Preview.Builder().setResolutionSelector(previewResolutionSelector)
+
+    Camera2Interop.Extender(previewBuilder)
+      .setCaptureRequestOption(
+        CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+        Range(30, profile.targetFps),
+      )
+      .setCaptureRequestOption(
+        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
+      )
+      .setCaptureRequestOption(
+        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON,
+      )
+
+    val previewUseCase =
+      previewBuilder.build().also { it.surfaceProvider = previewView.surfaceProvider }
+    preview = previewUseCase
+
+    val recorder =
+      Recorder.Builder()
+        .setQualitySelector(profile.qualitySelector)
+        .setTargetVideoEncodingBitRate(profile.videoBitrate)
+        .build()
+
+    val videoBuilder = VideoCapture.Builder(recorder).setVideoStabilizationEnabled(true)
+
+    Camera2Interop.Extender(videoBuilder)
+      .setCaptureRequestOption(
+        CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+        Range(30, profile.targetFps),
+      )
+      .setCaptureRequestOption(
+        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON,
+      )
+      .setCaptureRequestOption(
+        CaptureRequest.CONTROL_AE_MODE,
+        CaptureRequest.CONTROL_AE_MODE_ON,
+      )
+
+    val capture = videoBuilder.build()
+    videoCapture = capture
+
+    val photoCapture =
+      ImageCapture.Builder()
+        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+        .build()
+
+    imageCapture = photoCapture
+
+    val selector =
+      CameraSelector.Builder().requireLensFacing(lensFacing).build()
+
+    camera =
+      provider.bindToLifecycle(lifecycleOwner, selector, previewUseCase, capture, photoCapture)
+
+    camera?.cameraControl?.setZoomRatio(zoomRatio)
+    camera?.cameraControl?.enableTorch(torchEnabled)
+    applyFlagshipExposureProfile()
+    Log.d(
+      TAG,
+      "CameraX bound ${profile.badgeLabel} lensFacing=$lensFacing " +
+        "preview=${previewView.width}x${previewView.height} bitrate=${profile.videoBitrate}",
+    )
   }
 }

@@ -33,6 +33,9 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   private var bindRetryCount = 0
   private var bindGeneration = 0
   private var isBinding = false
+  private var isSyncingLayout = false
+  private var lastSyncedWidth = 0
+  private var lastSyncedHeight = 0
 
   val onCameraReady by EventDispatcher()
   val onRecordingFinished by EventDispatcher()
@@ -124,22 +127,39 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   private fun syncPreviewLayout() {
     if (width <= 0 || height <= 0) return
-    previewView.measure(
-      View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-      View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
-    )
-    previewView.layout(0, 0, width, height)
-    previewView.requestLayout()
+    if (previewView.width == width && previewView.height == height) {
+      lastSyncedWidth = width
+      lastSyncedHeight = height
+      return
+    }
+    if (isSyncingLayout) return
+    isSyncingLayout = true
+    try {
+      previewView.measure(
+        View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+      )
+      previewView.layout(0, 0, width, height)
+      lastSyncedWidth = width
+      lastSyncedHeight = height
+    } finally {
+      isSyncingLayout = false
+    }
   }
 
   private fun maybeBindAfterLayout() {
     if (!isActive) return
+    val rootChanged = width != lastSyncedWidth || height != lastSyncedHeight
+    if (session != null && !rootChanged) return
+
     syncPreviewLayout()
     if (!hasUsableLayout()) return
 
     val activeSession = session
     if (activeSession != null) {
-      previewView.post { activeSession.refreshPreviewSurface() }
+      if (rootChanged) {
+        previewView.post { activeSession.refreshPreviewSurface() }
+      }
       return
     }
 
