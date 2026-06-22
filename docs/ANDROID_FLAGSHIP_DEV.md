@@ -124,6 +124,8 @@ In-app capture is **1080p60 · OIS** — good for social video, but not pixel-ma
 
 Create tab requires the **Flip dev build** — Expo Go shows a placeholder.
 
+When the camera preview is active, Android shows a **green privacy dot** in the status bar (camera in use). No dot usually means the preview did not bind — check Logcat below.
+
 ---
 
 ## Logcat filters

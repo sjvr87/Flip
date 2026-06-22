@@ -1,173 +1,168 @@
-# Verify Flip Android dev environment (Samsung S26 Ultra / flagship).
-# Checks: node, adb, ANDROID_HOME, JDK, device, Metro 8081.
-# Prints pass/fail and suggested next steps.
+# Verify Flip Android dev prerequisites on Windows (Samsung S26 Ultra reference).
+# Checks: Node, adb, ANDROID_HOME, connected device, Metro on 8081.
+# Prints pass/fail and suggested next commands.
 
 $ErrorActionPreference = "Continue"
-
-$PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "R3GL10HN64A" }
 $Root = Split-Path -Parent $PSScriptRoot
-$failures = @()
-$warnings = @()
+$PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "R3GL10HN64A" }
+
+$script:passCount = 0
+$script:failCount = 0
+$nextSteps = [System.Collections.Generic.List[string]]::new()
 
 function Write-Check {
-    param([string]$Label, [bool]$Ok, [string]$Detail)
-    $icon = if ($Ok) { "[OK]" } else { "[FAIL]" }
-    $color = if ($Ok) { "Green" } else { "Red" }
-    Write-Host ("  {0,-6} {1,-22} {2}" -f $icon, $Label, $Detail) -ForegroundColor $color
-    if (-not $Ok) { $script:failures += $Label }
-}
-
-function Write-Warn {
-    param([string]$Label, [string]$Detail)
-    Write-Host ("  [WARN] {0,-22} {1}" -f $Label, $Detail) -ForegroundColor Yellow
-    $script:warnings += $Label
-}
-
-function Find-Adb {
-    if (Get-Command adb -ErrorAction SilentlyContinue) { return "adb" }
-    $sdkAdb = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
-    if (Test-Path $sdkAdb) { return $sdkAdb }
-    if ($env:ANDROID_HOME) {
-        $homeAdb = Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
-        if (Test-Path $homeAdb) { return $homeAdb }
+    param(
+        [string]$Label,
+        [bool]$Ok,
+        [string]$Detail = "",
+        [string]$Fix = ""
+    )
+    if ($Ok) {
+        $script:passCount++
+        $suffix = if ($Detail) { " - $Detail" } else { "" }
+        Write-Host "  PASS  $Label$suffix" -ForegroundColor Green
+    } else {
+        $script:failCount++
+        $suffix = if ($Detail) { " - $Detail" } else { "" }
+        Write-Host "  FAIL  $Label$suffix" -ForegroundColor Red
+        if ($Fix) { $nextSteps.Add($Fix) | Out-Null }
     }
-    return $null
 }
 
-function Get-JavaVersion {
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    $out = & java -version 2>&1 | Out-String
-    $ErrorActionPreference = $prev
-    if ($out -match 'version "(\d+)') {
-        return [int]$Matches[1]
-    }
-    return $null
-}
-
-function Test-MetroHealthy {
+function Test-MetroStatusUrl([string]$BaseUrl) {
     try {
-        $r = Invoke-WebRequest -Uri "http://127.0.0.1:8081/status" -UseBasicParsing -TimeoutSec 3
-        return ($r.Content -match "packager-status:running")
+        $r = Invoke-WebRequest -Uri "${BaseUrl}/status" -UseBasicParsing -TimeoutSec 3
+        $body = if ($r.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+        return ($r.StatusCode -eq 200 -and $body -match "running")
     } catch {
         return $false
     }
 }
 
-Write-Host ""
-Write-Host "Flip Android dev environment check" -ForegroundColor Cyan
-Write-Host "Preferred device: $PreferredDevice (FLIP_ADB_DEVICE to override)"
+Write-Host "== Flip Android dev environment check ==" -ForegroundColor Cyan
+Write-Host "Project: $Root"
+Write-Host "Preferred device: $PreferredDevice (override with FLIP_ADB_DEVICE)"
 Write-Host ""
 
 # Node
 $nodeOk = $false
-$nodeVer = $null
-if (Get-Command node -ErrorAction SilentlyContinue) {
-    $nodeVer = (& node --version 2>$null)
-    $nodeOk = $true
+$nodeDetail = ""
+try {
+    $nodeVer = (& node --version 2>&1 | Out-String).Trim()
+    if ($nodeVer -match "^v\d+") {
+        $nodeOk = $true
+        $nodeDetail = $nodeVer
+    } else {
+        $nodeDetail = "node not on PATH"
+    }
+} catch {
+    $nodeDetail = "node not found"
 }
-Write-Check -Label "Node.js" -Ok $nodeOk -Detail $(if ($nodeVer) { $nodeVer } else { "not found" })
+Write-Check -Label "Node.js" -Ok $nodeOk -Detail $nodeDetail `
+    -Fix "Install Node 20+ and add to PATH: https://nodejs.org/"
 
 # ANDROID_HOME
-$sdkPath = $env:ANDROID_HOME
-if (-not $sdkPath) { $sdkPath = Join-Path $env:LOCALAPPDATA "Android\Sdk" }
-$sdkOk = Test-Path $sdkPath
-Write-Check -Label "ANDROID_HOME" -Ok $sdkOk -Detail $(if ($sdkOk) { $sdkPath } else { "not set / missing" })
+$androidHome = $env:ANDROID_HOME
+if (-not $androidHome) {
+    $defaultSdk = Join-Path $env:LOCALAPPDATA "Android\Sdk"
+    if (Test-Path $defaultSdk) { $androidHome = $defaultSdk }
+}
+$androidHomeOk = $false
+$androidHomeDetail = ""
+if ($androidHome -and (Test-Path $androidHome)) {
+    $androidHomeOk = $true
+    $androidHomeDetail = $androidHome
+} elseif ($androidHome) {
+    $androidHomeDetail = "path missing: $androidHome"
+} else {
+    $androidHomeDetail = "ANDROID_HOME not set"
+}
+Write-Check -Label "ANDROID_HOME" -Ok $androidHomeOk -Detail $androidHomeDetail `
+    -Fix "Set ANDROID_HOME to %LOCALAPPDATA%\Android\Sdk (see docs/DEV_BUILD_ANDROID.md Part 3)"
 
 # adb
-$adb = Find-Adb
-$adbOk = $null -ne $adb
-Write-Check -Label "adb" -Ok $adbOk -Detail $(if ($adbOk) { $adb } else { "not found" })
-
-# JDK
-$javaMajor = Get-JavaVersion
-$jdkOk = $null -ne $javaMajor -and $javaMajor -ge 17
-$jdkDetail = if ($javaMajor) { "Java $javaMajor" } else { "java not on PATH" }
-Write-Check -Label "JDK" -Ok $jdkOk -Detail $jdkDetail
-if ($javaMajor -and $javaMajor -lt 17) {
-    Write-Warn -Label "JDK version" -Detail "Need JDK 17+ for Gradle (see DEV_BUILD_ANDROID.md)"
+$adb = $null
+if ($androidHomeOk) {
+    $adb = Join-Path $androidHome "platform-tools\adb.exe"
 }
+if (-not $adb -or -not (Test-Path $adb)) {
+    $adb = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
+}
+$adbOk = Test-Path $adb
+$adbDetail = if ($adbOk) { (& $adb version 2>&1 | Select-Object -First 1 | Out-String).Trim() } else { "adb.exe not found" }
+Write-Check -Label "adb" -Ok $adbOk -Detail $adbDetail `
+    -Fix "Install Android SDK Platform-Tools via Android Studio SDK Manager"
 
 # Device
 $deviceOk = $false
-$deviceDetail = "not connected"
-$serials = @()
+$deviceDetail = "not checked (adb missing)"
 if ($adbOk) {
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    $lines = & $adb devices 2>&1
-    $ErrorActionPreference = $prev
-    foreach ($line in $lines) {
-        if ($line -match '^(\S+)\s+device\s*$') {
-            $serials += $Matches[1]
-        }
-    }
-    if ($serials.Count -eq 0) {
-        $deviceDetail = "no device (adb devices empty)"
-    } elseif ($serials -contains $PreferredDevice) {
+    $devicesOut = (& $adb devices 2>&1 | Out-String).Trim()
+    $deviceLines = @($devicesOut -split "`n" | Where-Object { $_ -match "^\S+\s+device\s*$" })
+    $connectedSerials = @($deviceLines | ForEach-Object { ($_ -split "\s+")[0] })
+
+    if ($connectedSerials.Count -eq 0) {
+        $deviceDetail = "no device in 'device' state (run: adb devices)"
+    } elseif ($connectedSerials -contains $PreferredDevice) {
         $deviceOk = $true
-        $deviceDetail = "$PreferredDevice connected"
-    } elseif ($serials.Count -eq 1) {
+        $deviceDetail = "$PreferredDevice (device)"
+    } elseif ($connectedSerials.Count -eq 1) {
         $deviceOk = $true
-        $deviceDetail = "$($serials[0]) connected"
-        if ($serials[0] -ne $PreferredDevice) {
-            Write-Warn -Label "Device serial" -Detail "Expected $PreferredDevice, got $($serials[0])"
-        }
+        $deviceDetail = "$($connectedSerials[0]) (device)"
     } else {
-        $deviceDetail = "multiple devices: $($serials -join ', ') - set FLIP_ADB_DEVICE"
+        $deviceDetail = "multiple devices: $($connectedSerials -join ', ') - set FLIP_ADB_DEVICE=$PreferredDevice"
     }
 }
-Write-Check -Label "Device" -Ok $deviceOk -Detail $deviceDetail
+Write-Check -Label "Android device" -Ok $deviceOk -Detail $deviceDetail `
+    -Fix "Plug S26 Ultra via USB, enable USB debugging, accept RSA prompt, USB mode = File transfer"
 
-# Metro
-$metroOk = Test-MetroHealthy
-Write-Check -Label "Metro 8081" -Ok $metroOk -Detail $(if ($metroOk) { "packager-status:running" } else { "not responding" })
+# Metro 8081
+$metroOk = Test-MetroStatusUrl "http://127.0.0.1:8081"
+$metroDetail = if ($metroOk) { "http://127.0.0.1:8081/status = running" } else { "port 8081 not healthy" }
+Write-Check -Label "Metro (8081)" -Ok $metroOk -Detail $metroDetail `
+    -Fix "Run flip-dev.bat or flip-reset-dev.bat to start Metro (one Flip Metro window)"
 
-# android/ folder
-$androidDir = Join-Path $Root "android"
-$hasAndroid = Test-Path $androidDir
-if (-not $hasAndroid) {
-    Write-Warn -Label "android/" -Detail "missing - run npm run android:dev:setup"
+# LAN IP (informational - not a hard fail)
+$lanScript = Join-Path $PSScriptRoot "get-lan-ip.ps1"
+$lanIp = $null
+if (Test-Path $lanScript) {
+    $lanIp = (& $lanScript -Quiet 2>$null | Select-Object -First 1)
+}
+if ($lanIp) {
+    $lanMetroOk = Test-MetroStatusUrl "http://${lanIp}:8081"
+    $lanDetail = "$lanIp" + $(if ($lanMetroOk) { " (Metro LAN OK)" } else { " (Metro not reachable on LAN - check firewall)" })
+    Write-Check -Label "LAN IP" -Ok $true -Detail $lanDetail
+} else {
+    Write-Check -Label "LAN IP" -Ok $false -Detail "no Wi-Fi IPv4 - phone needs same network as PC" `
+        -Fix "Connect PC to the same Wi-Fi as the phone (Flip deep links use LAN IP, not 127.0.0.1)"
 }
 
 Write-Host ""
+Write-Host "Summary: $script:passCount passed, $script:failCount failed" -ForegroundColor $(if ($script:failCount -eq 0) { "Green" } else { "Yellow" })
+Write-Host ""
 
-if ($failures.Count -eq 0) {
-    Write-Host "All checks passed." -ForegroundColor Green
+if ($script:failCount -eq 0) {
+    Write-Host "Ready for Flip dev. Next:" -ForegroundColor Green
     if (-not $metroOk) {
-        Write-Host "Next: .\flip-dev.bat" -ForegroundColor Cyan
+        Write-Host "  .\flip-dev.bat"
+    } elseif (-not $deviceOk) {
+        Write-Host "  Connect phone, then .\flip-connect.bat"
     } else {
-        Write-Host "Next: .\flip-connect.bat (Metro up) or .\flip-reload.bat (JS tweak)" -ForegroundColor Cyan
+        Write-Host "  .\flip-dev.bat          (sync + connect)"
+        Write-Host "  .\flip-reload.bat       (JS-only tweak)"
+        Write-Host "  npm run android:dev     (native / camera rebuild)"
     }
-    exit 0
-}
-
-Write-Host "Some checks failed. Suggested fixes:" -ForegroundColor Yellow
-Write-Host ""
-
-if ($failures -contains "Node.js") {
-    Write-Host "  Node.js  -> install Node 20+ from https://nodejs.org"
-}
-if ($failures -contains "ANDROID_HOME" -or $failures -contains "adb") {
-    Write-Host "  SDK/adb  -> install Android Studio + SDK; see docs/DEV_BUILD_ANDROID.md Part 2-3"
-}
-if ($failures -contains "JDK") {
-    Write-Host "  JDK      -> set JAVA_HOME to Android Studio jbr or Temurin 17"
-}
-if ($failures -contains "Device") {
-    Write-Host "  Device   -> enable USB debugging, data cable, allow RSA prompt"
-    Write-Host "             then: adb devices"
-}
-if ($failures -contains "Metro 8081") {
-    if ($deviceOk) {
-        Write-Host "  Metro    -> .\flip-dev.bat  (or .\flip-reset-dev.bat if stuck)"
-    } else {
-        Write-Host "  Metro    -> fix device first, then .\flip-dev.bat"
+} else {
+    Write-Host "Suggested fixes:" -ForegroundColor Yellow
+    $seen = @{}
+    foreach ($step in $nextSteps) {
+        if (-not $seen.ContainsKey($step)) {
+            $seen[$step] = $true
+            Write-Host "  - $step"
+        }
     }
-}
-if (-not $hasAndroid) {
-    Write-Host "  android/ -> npm run android:dev:setup  (first-time prebuild + build)"
+    Write-Host ""
+    Write-Host "Docs: docs/ANDROID_FLAGSHIP_DEV.md | docs/DEV_BUILD_ANDROID.md"
 }
 
-Write-Host ""
-exit 1
+exit $(if ($script:failCount -gt 0) { 1 } else { 0 })

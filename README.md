@@ -43,7 +43,7 @@ Flip uses a **development build** (`social.flip.app`) — **not Expo Go**. Camer
 2. Daily dev: `npm.cmd start` on PC, `adb reverse tcp:8081 tcp:8081`, open **Flip** on the phone.
 3. Native rebuild only: `npm run android:build` (Gradle + adb — not needed for JS-only edits).
 
-Full guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**. S26 Ultra quick start: **[docs/ANDROID_FLAGSHIP_DEV.md](docs/ANDROID_FLAGSHIP_DEV.md)** (`flip-check-env.bat` to verify setup).
+Full guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**. S26 Ultra quick ref: **[docs/ANDROID_FLAGSHIP_DEV.md](docs/ANDROID_FLAGSHIP_DEV.md)** (`flip-check-env.bat` to verify setup).
 
 Metro should say **"Using development build"** (not Expo Go). Deep links use `flip://expo-development-client/?url=...`.
 
