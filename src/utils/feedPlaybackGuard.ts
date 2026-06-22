@@ -51,7 +51,7 @@ export function pauseAllFeedPlayers(): void {
     }
 }
 
-/** Pause and release every registered player — call on feed index change to free decoders. */
+/** Pause and release every registered player — tab blur / background only. */
 export function releaseAllFeedPlayers(): void {
     for (const { pause, release } of registeredPlayers) {
         try {

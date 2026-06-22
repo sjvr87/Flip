@@ -99,11 +99,11 @@ export function shuffleFeedVideos(videos: FlipVideo[], seed: number): FlipVideo[
 
 /**
  * Flatten infinite-query pages: drop cross-page duplicates (reposts, overlaps).
- * Session seen is tracked for refresh boundaries only — not removed from the
- * visible list while scrolling (removing watched items caused list shrink + refetch storms).
+ * Session-seen keys suppress pagination loops when the API returns the same posts again.
  */
-export function dedupeFeedVideos(videos: FlipVideo[], _tab?: string): FlipVideo[] {
+export function dedupeFeedVideos(videos: FlipVideo[], tab?: string): FlipVideo[] {
     const pageSeen = new Set<string>();
+    const sessionSeen = tab ? getSessionSeen(tab) : null;
     const result: FlipVideo[] = [];
 
     for (const video of videos) {
@@ -115,7 +115,54 @@ export function dedupeFeedVideos(videos: FlipVideo[], _tab?: string): FlipVideo[
         result.push(video);
     }
 
+    if (!sessionSeen || sessionSeen.size === 0 || result.length === 0) {
+        return result;
+    }
+
+    const firstIndexByKey = new Map<string, number>();
+    for (let i = 0; i < result.length; i++) {
+        const key = videoDedupeKey(result[i]!);
+        if (key && !firstIndexByKey.has(key)) {
+            firstIndexByKey.set(key, i);
+        }
+    }
+
+    // Drop watched posts that reappear at the tail from stale cursors / overlapping pages.
+    while (result.length > 0) {
+        const last = result[result.length - 1]!;
+        const key = videoDedupeKey(last);
+        if (!key || !sessionSeen.has(key)) {
+            break;
+        }
+        const firstIdx = firstIndexByKey.get(key) ?? result.length - 1;
+        if (firstIdx >= result.length - 1) {
+            break;
+        }
+        result.pop();
+    }
+
     return result;
+}
+
+/** How many items in `incoming` are not already in `existing` (by dedupe key). */
+export function countNewFeedVideos(existing: FlipVideo[], incoming: FlipVideo[]): number {
+    const seen = new Set<string>();
+    for (const video of existing) {
+        const key = videoDedupeKey(video);
+        if (key) {
+            seen.add(key);
+        }
+    }
+    let added = 0;
+    for (const video of incoming) {
+        const key = videoDedupeKey(video);
+        if (!key || seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        added += 1;
+    }
+    return added;
 }
 
 /** Record a video as seen this session (used on pull-to-refresh / hard refresh boundaries). */

@@ -1,7 +1,7 @@
 import Avatar from '@/components/Avatar';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
-import { getExploreTags, getExploreTagsFeed, getExploreTextPosts } from '@/atproto';
+import { getExploreTags, getExploreTagsFeed, getExploreTextPosts, videoLike, videoUnlike } from '@/atproto';
 import type { FlipTextPost } from '@/atproto';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
@@ -19,7 +19,7 @@ import { toPostViewPath, toProfileFeedPath, toProfilePath } from '@/utils/profil
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { timeAgo } from '@/utils/ui';
 import { Feather } from '@expo/vector-icons';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { memo, useCallback, useMemo, useState } from 'react';
@@ -129,22 +129,33 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
     item,
     onOpenPost,
     onOpenProfile,
+    onLike,
     onHashtagPress,
     onMentionPress,
 }: {
     item: FlipTextPost;
     onOpenPost: (openComments?: boolean) => void;
     onOpenProfile: () => void;
+    onLike: (postId: string, liked: boolean) => void;
     onHashtagPress: (tag: string) => void;
     onMentionPress: (username: string, profileId?: string | number) => void;
 }) {
+    const [isLiked, setIsLiked] = useState(false);
+    const [likeCount, setLikeCount] = useState(item.likes);
     const cardHeight = estimateTextPostCardHeight(item);
+
+    const handleLike = useCallback(() => {
+        const nextLiked = !isLiked;
+        setIsLiked(nextLiked);
+        setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
+        onLike(item.id, nextLiked);
+    }, [isLiked, item.id, onLike]);
 
     return (
         <PressableHaptics
             onPress={() => onOpenPost(false)}
             style={[
-                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4`,
+                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4 overflow-hidden`,
                 { width: TEXT_POST_CARD_WIDTH, height: cardHeight },
             ]}>
             <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-3`}>
@@ -161,24 +172,30 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </View>
             </Pressable>
 
-            <LinkifiedCaption
-                caption={item.text}
-                tags={item.tags}
-                mentions={item.mentions}
-                style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
-                numberOfLines={6}
-                onHashtagPress={onHashtagPress}
-                onMentionPress={onMentionPress}
-            />
+            <View style={tw`flex-1 overflow-hidden`}>
+                <LinkifiedCaption
+                    caption={item.text}
+                    tags={item.tags}
+                    mentions={item.mentions}
+                    style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
+                    numberOfLines={6}
+                    onHashtagPress={onHashtagPress}
+                    onMentionPress={onMentionPress}
+                />
+            </View>
 
             <View style={tw`flex-row items-center gap-4 mt-3`}>
                 <PressableHaptics
-                    onPress={() => onOpenPost(false)}
+                    onPress={handleLike}
                     style={tw`flex-row items-center gap-1`}
                     hitSlop={8}>
-                    <Feather name="heart" size={13} color="#9CA3AF" />
+                    <Feather
+                        name="heart"
+                        size={13}
+                        color={isLiked ? '#EF4444' : '#9CA3AF'}
+                    />
                     <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
-                        {item.likes.toLocaleString()}
+                        {likeCount.toLocaleString()}
                     </Text>
                 </PressableHaptics>
                 <PressableHaptics
@@ -297,6 +314,7 @@ type ExploreListHeaderProps = {
     onOpenSearch: () => void;
     onOpenProfile: (id: string) => void;
     onOpenTextPost: (post: FlipTextPost, openComments?: boolean) => void;
+    onLikeTextPost: (postId: string, liked: boolean) => void;
     onHashtagPress: (tag: string) => void;
     onMentionPress: (username: string, profileId?: string | number) => void;
     renderEmptyState: (message: string) => React.ReactElement;
@@ -316,6 +334,7 @@ const ExploreListHeader = memo(function ExploreListHeader({
     onOpenSearch,
     onOpenProfile,
     onOpenTextPost,
+    onLikeTextPost,
     onHashtagPress,
     onMentionPress,
     renderEmptyState,
@@ -353,6 +372,7 @@ const ExploreListHeader = memo(function ExploreListHeader({
                                 item={item}
                                 onOpenPost={(openComments) => onOpenTextPost(item, openComments)}
                                 onOpenProfile={() => onOpenProfile(item.account.id)}
+                                onLike={onLikeTextPost}
                                 onHashtagPress={onHashtagPress}
                                 onMentionPress={onMentionPress}
                             />
@@ -543,6 +563,19 @@ export default function ExploreScreen() {
         [router],
     );
 
+    const textPostLikeMutation = useMutation({
+        mutationFn: async ({ postId, liked }: { postId: string; liked: boolean }) => {
+            return liked ? videoLike(postId) : videoUnlike(postId);
+        },
+    });
+
+    const handleLikeTextPost = useCallback(
+        (postId: string, liked: boolean) => {
+            textPostLikeMutation.mutate({ postId, liked });
+        },
+        [textPostLikeMutation],
+    );
+
     const handleHashtagPress = useCallback(
         (tag: string) => {
             router.push(`/private/search?query=${encodeURIComponent(tag)}`);
@@ -589,6 +622,7 @@ export default function ExploreScreen() {
                 onOpenSearch={handleOpenSearch}
                 onOpenProfile={handleOpenProfile}
                 onOpenTextPost={handleOpenTextPost}
+                onLikeTextPost={handleLikeTextPost}
                 onHashtagPress={handleHashtagPress}
                 onMentionPress={handleMentionPress}
                 renderEmptyState={renderEmptyState}
@@ -601,6 +635,7 @@ export default function ExploreScreen() {
             handleOpenProfile,
             handleOpenSearch,
             handleOpenTextPost,
+            handleLikeTextPost,
             handleSelectTag,
             isDark,
             renderEmptyState,

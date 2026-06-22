@@ -228,6 +228,7 @@ function VideoPlayerCore({
     const [viewPlayer, setViewPlayer] = useState<ExpoVideoPlayer | null>(null);
     const [viewEpoch, setViewEpoch] = useState(0);
     const [videoReady, setVideoReady] = useState(false);
+    const [firstFrameRendered, setFirstFrameRendered] = useState(false);
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
@@ -298,6 +299,7 @@ function VideoPlayerCore({
             setPlayer(null);
             setPlayerEpoch(0);
             setVideoReady(false);
+            setFirstFrameRendered(false);
             setPlayerStatus('idle');
             if (stale) {
                 queuePlayerRelease(stale);
@@ -315,6 +317,7 @@ function VideoPlayerCore({
         setPlayer(null);
         setPlayerEpoch(0);
         setVideoReady(false);
+        setFirstFrameRendered(false);
         setPlayerStatus('idle');
         if (stale) {
             queuePlayerRelease(stale);
@@ -343,6 +346,7 @@ function VideoPlayerCore({
         setPlayer(nextPlayer);
         setPlayerEpoch(epoch);
         setVideoReady(nextPlayer.status === 'readyToPlay');
+        setFirstFrameRendered(false);
         setPlayerStatus(nextPlayer.status);
 
         return () => {
@@ -383,6 +387,7 @@ function VideoPlayerCore({
             setViewPlayer(null);
             setViewEpoch(0);
             setVideoReady(false);
+            setFirstFrameRendered(false);
             setPlayerStatus('idle');
             setIsPlaying(false);
         }
@@ -494,6 +499,46 @@ function VideoPlayerCore({
             console.log('Mute control error:', error);
         }
     }, [feedMuted, player, playerEpoch]);
+
+    const handleFirstFrameRender = useCallback(() => {
+        if (!isMountedRef.current || playerRef.current !== player) {
+            return;
+        }
+        setFirstFrameRendered(true);
+        setVideoReady(true);
+    }, [player]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player)) return;
+
+        try {
+            const shouldPlay =
+                playbackAllowed &&
+                isActive &&
+                screenFocused &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive);
+
+            if (shouldPlay && playerStatus === 'readyToPlay') {
+                player.play();
+                if (isMountedRef.current) {
+                    setIsPlaying(true);
+                }
+            }
+        } catch (error) {
+            console.log('Play on ready error:', error);
+        }
+    }, [
+        player,
+        playerEpoch,
+        playerStatus,
+        isActive,
+        screenFocused,
+        isManuallyPaused,
+        item.is_sensitive,
+        playSensitive,
+        playbackAllowed,
+    ]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -742,7 +787,7 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface = isActive && videoReady;
+    const showVideoSurface = isActive && firstFrameRendered;
     const hidePoster = !showVideoSurface;
 
     const videoBody = (
@@ -758,6 +803,7 @@ function VideoPlayerCore({
                         nativeControls={false}
                         pointerEvents="none"
                         surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        onFirstFrameRender={handleFirstFrameRender}
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}
                         accessibilityHint="Tap to pause or play"
@@ -931,7 +977,7 @@ const styles = StyleSheet.create({
     posterLayer: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: POSTER_BG,
-        zIndex: 0,
+        zIndex: 2,
     },
     posterImage: {
         width: '100%',

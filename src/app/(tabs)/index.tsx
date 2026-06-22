@@ -9,7 +9,6 @@ import {
     feedMaxToRenderPerBatch,
     feedPlayerPreloadDistance,
     feedPrefetchAhead,
-    ANDROID_VIDEO_SAFE_MODE,
 } from '@/utils/androidVideoSafeMode';
 import { useAuthStore } from '@/utils/authStore';
 import {
@@ -30,7 +29,7 @@ import {
     subscribeFeedNetworkProfile,
     type FeedNetworkProfile,
 } from '@/utils/feedNetworkQuality';
-import { setFeedPlaybackActive, releaseAllFeedPlayers } from '@/utils/feedPlaybackGuard';
+import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -420,12 +419,16 @@ export default function LoopsFeed({ navigation }) {
     fetchNextPageRef.current = fetchNextPage;
     const emptyDedupeFetchCountRef = useRef(0);
     const lastRawCountRef = useRef(0);
+    const lastVideosCountRef = useRef(0);
+    const stagnantPageFetchCountRef = useRef(0);
     const autoFetchInFlightRef = useRef(false);
     const dedupeExhaustedRef = useRef(false);
 
     useEffect(() => {
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
+        lastVideosCountRef.current = 0;
+        stagnantPageFetchCountRef.current = 0;
         autoFetchInFlightRef.current = false;
         dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
@@ -460,8 +463,8 @@ export default function LoopsFeed({ navigation }) {
             }
             const age = Date.now() - (state.dataUpdatedAt ?? 0);
             const softMs = getFeedSoftRefreshMs(tab);
-            // Soft refresh only on focus — never bump feedEpoch here (caused max update depth).
-            if (age >= softMs) {
+            // Soft refresh page 0 only when at the top — avoids resetting mid-scroll feed.
+            if (age >= softMs && currentIndexRef.current === 0) {
                 softRefreshFeed(queryClient, tab);
             }
         },
@@ -474,6 +477,8 @@ export default function LoopsFeed({ navigation }) {
         setCurrentIndex(0);
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
+        lastVideosCountRef.current = 0;
+        stagnantPageFetchCountRef.current = 0;
         autoFetchInFlightRef.current = false;
         dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
@@ -591,6 +596,44 @@ export default function LoopsFeed({ navigation }) {
         feedEpoch,
     ]);
 
+    useEffect(() => {
+        if (isLoading || isFetchingNextPage) {
+            return;
+        }
+
+        const prevVideos = lastVideosCountRef.current;
+        const prevRaw = lastRawCountRef.current;
+
+        if (rawVideos.length > prevRaw && videos.length === prevVideos && videos.length > 0) {
+            stagnantPageFetchCountRef.current += 1;
+            if (
+                stagnantPageFetchCountRef.current <= 6 &&
+                hasNextPage &&
+                !autoFetchInFlightRef.current
+            ) {
+                autoFetchInFlightRef.current = true;
+                void fetchNextPage().finally(() => {
+                    autoFetchInFlightRef.current = false;
+                });
+            } else if (stagnantPageFetchCountRef.current > 6) {
+                dedupeExhaustedRef.current = true;
+                setDedupeExhausted(true);
+            }
+        } else if (videos.length > prevVideos) {
+            stagnantPageFetchCountRef.current = 0;
+        }
+
+        lastVideosCountRef.current = videos.length;
+        lastRawCountRef.current = rawVideos.length;
+    }, [
+        videos.length,
+        rawVideos.length,
+        isLoading,
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+    ]);
+
     const videosWithEnd = React.useMemo(() => {
         if (feedTrulyEmpty) {
             return [{ id: 'feed-empty', isEmptyMarker: true }];
@@ -612,7 +655,6 @@ export default function LoopsFeed({ navigation }) {
             const prevWatchStart = watchStartTimeRef.current;
 
             if (newIndex !== currentIndexRef.current) {
-                releaseAllFeedPlayers();
                 releaseAllVideoPrefetch();
             }
 
@@ -771,7 +813,6 @@ export default function LoopsFeed({ navigation }) {
 
                 const shouldPreloadPlayer =
                     feedPlaybackEnabled &&
-                    !ANDROID_VIDEO_SAFE_MODE &&
                     (index === currentIndex ||
                         Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE);
 
