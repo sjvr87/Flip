@@ -488,7 +488,7 @@ if ($NoLaunch) {
   Write-Host ("Metro /status: {0}" -f $(if ($metroHealthy) { "running" } else { "NOT running" }))
   if ($metroHealthy -and $reverseOk) {
     Write-Host ""
-    Write-Host "Metro ready, reverse OK — open Flip manually when ready" -ForegroundColor Green
+    Write-Host "Metro ready, reverse OK - open Flip manually when ready" -ForegroundColor Green
   }
   Write-Host ""
   Write-Host "Tip: launch app: flip-connect.bat | JS reload: flip-reload.bat | full reset: flip-reset-dev.bat"
