@@ -66,7 +66,6 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    useWindowDimensions,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -200,7 +199,7 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 >;
 
 export default function LoopsFeed({ navigation }) {
-    const { height: feedHeight } = useWindowDimensions();
+    const [feedHeight, setFeedHeight] = useState(0);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const authReady = useAuthStore((state) => state.authReady);
@@ -241,6 +240,11 @@ export default function LoopsFeed({ navigation }) {
     const viewabilityConfig = useRef({
         itemVisiblePercentThreshold: 50,
     });
+
+    const onContainerLayout = useCallback((e) => {
+        const h = e.nativeEvent.layout.height;
+        setFeedHeight((prev) => (h > 0 && Math.abs(h - prev) > 1 ? h : prev));
+    }, []);
 
     const { data: appConfig, isLoading: isConfigLoading } = useQuery({
         queryKey: ['appConfig'],
@@ -832,16 +836,18 @@ export default function LoopsFeed({ navigation }) {
 
     const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
 
-    if (showInitialLoader) {
+    if (showInitialLoader || feedHeight === 0) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#fff" />
+            <View style={styles.container} onLayout={onContainerLayout}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#fff" />
+                </View>
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <View style={styles.container} onLayout={onContainerLayout}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
@@ -926,7 +932,6 @@ export default function LoopsFeed({ navigation }) {
                     snapToInterval={feedHeight}
                     snapToAlignment="start"
                     decelerationRate="fast"
-                    disableIntervalMomentum
                     scrollEventThrottle={16}
                     overScrollMode="never"
                     viewabilityConfig={viewabilityConfig.current}

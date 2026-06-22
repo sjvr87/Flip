@@ -41,7 +41,7 @@ function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-const POSTER_BG = '#1a1a1a';
+const POSTER_BG = '#000';
 
 type ExpoVideoPlayer = ReturnType<typeof createVideoPlayer>;
 
@@ -364,8 +364,8 @@ function VideoPlayerCore({
         };
     }, [player, playerEpoch, isActive, isPlaying]);
 
-    const showVideoFrame =
-        videoReady && playerStatus === 'readyToPlay' && (isActive ? isPlaying || isManuallyPaused : true);
+    // Fade in once decoded — do not gate on isPlaying (Android audio can start before playingChange).
+    const showVideoFrame = videoReady && playerStatus === 'readyToPlay';
 
     useEffect(() => {
         fadeAnimRef.current?.stop();
