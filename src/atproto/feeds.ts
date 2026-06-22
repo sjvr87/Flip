@@ -9,7 +9,14 @@ import {
   shuffleFeedVideos,
   videoDedupeKey,
 } from '@/utils/feedCache'
-import { postsToFeedPage, postsToMediaPage, isMediaPost, postToFlipItem } from './adapters'
+import {
+  postsToFeedPage,
+  postsToMediaPage,
+  isMediaPost,
+  isPhotoPost,
+  postToFlipItem,
+  type MediaPageFilter,
+} from './adapters'
 import {
   ensureFreshSession,
   getAgent,
@@ -517,7 +524,7 @@ async function mergeForYouSuggestions(
       const feedRes = await withAuthenticatedFetch(() =>
         getAgent().app.bsky.feed.getAuthorFeed({
           actor: actor.did,
-          filter: 'posts_with_media',
+          filter: 'posts_with_video',
           limit: 20,
         }),
       )
@@ -1208,6 +1215,40 @@ export async function fetchLocalFeed({
   return page
 }
 
+/** Bluesky indexes video posts under posts_with_video, not posts_with_media. */
+function authorFeedFilterFor(pageFilter: MediaPageFilter): 'posts_with_media' | 'posts_with_video' {
+  return pageFilter === 'video' ? 'posts_with_video' : 'posts_with_media'
+}
+
+function mediaPageFilterForPost(post: AppBskyFeedDefs.PostView | null): MediaPageFilter {
+  if (post && isPhotoPost(post)) {
+    return 'photo'
+  }
+  return 'video'
+}
+
+async function fetchAuthorMediaFeed(
+  actor: string,
+  pageFilter: MediaPageFilter,
+  pageParam?: PageParam,
+): Promise<FlipFeedPage> {
+  const agent = getAgent()
+
+  const res = await agent.app.bsky.feed.getAuthorFeed({
+    actor,
+    filter: authorFeedFilterFor(pageFilter),
+    limit: 30,
+    cursor: normalizeCursor(pageParam),
+  })
+
+  const feed = res.data.feed.map((item) => ({
+    ...item,
+    post: { ...item.post, author: item.post.author },
+  }))
+
+  return postsToMediaPage(feed, res.data.cursor, pageFilter)
+}
+
 export async function fetchSelfAccountVideos({
   queryKey,
   pageParam = false,
@@ -1219,18 +1260,7 @@ export async function fetchSelfAccountVideos({
   const actor = agent.session?.did
   if (!actor) throw new Error('Not authenticated')
 
-  const res = await agent.app.bsky.feed.getAuthorFeed({
-    actor,
-    filter: 'posts_with_media',
-    limit: 30,
-    cursor: normalizeCursor(pageParam),
-  })
-
-  return postsToMediaPage(
-    res.data.feed.map((item) => ({ ...item, post: { ...item.post, author: item.post.author } })),
-    res.data.cursor,
-    'video',
-  )
+  return fetchAuthorMediaFeed(actor, 'video', pageParam)
 }
 
 export async function fetchSelfAccountPhotos({
@@ -1244,18 +1274,7 @@ export async function fetchSelfAccountPhotos({
   const actor = agent.session?.did
   if (!actor) throw new Error('Not authenticated')
 
-  const res = await agent.app.bsky.feed.getAuthorFeed({
-    actor,
-    filter: 'posts_with_media',
-    limit: 30,
-    cursor: normalizeCursor(pageParam),
-  })
-
-  return postsToMediaPage(
-    res.data.feed.map((item) => ({ ...item, post: { ...item.post, author: item.post.author } })),
-    res.data.cursor,
-    'photo',
-  )
+  return fetchAuthorMediaFeed(actor, 'photo', pageParam)
 }
 
 export async function fetchUserVideos({
@@ -1266,16 +1285,7 @@ export async function fetchUserVideos({
   pageParam?: PageParam
 }): Promise<FlipFeedPage> {
   const actor = queryKey[1] as string
-  const agent = getAgent()
-
-  const res = await agent.app.bsky.feed.getAuthorFeed({
-    actor,
-    filter: 'posts_with_media',
-    limit: 30,
-    cursor: normalizeCursor(pageParam),
-  })
-
-  return postsToMediaPage(res.data.feed, res.data.cursor, 'video')
+  return fetchAuthorMediaFeed(actor, 'video', pageParam)
 }
 
 export async function fetchUserPhotos({
@@ -1286,34 +1296,27 @@ export async function fetchUserPhotos({
   pageParam?: PageParam
 }): Promise<FlipFeedPage> {
   const actor = queryKey[1] as string
-  const agent = getAgent()
-
-  const res = await agent.app.bsky.feed.getAuthorFeed({
-    actor,
-    filter: 'posts_with_media',
-    limit: 30,
-    cursor: normalizeCursor(pageParam),
-  })
-
-  return postsToMediaPage(res.data.feed, res.data.cursor, 'photo')
+  return fetchAuthorMediaFeed(actor, 'photo', pageParam)
 }
 
 /** Latest media post thumbnail for a profile (suggested accounts, etc.). */
 export async function fetchAuthorRecentMediaThumbnail(actor: string): Promise<string | null> {
   const agent = getAgent()
 
-  const res = await withAuthenticatedFetch(() =>
-    agent.app.bsky.feed.getAuthorFeed({
-      actor,
-      filter: 'posts_with_media',
-      limit: 5,
-    }),
-  )
+  for (const filter of ['posts_with_video', 'posts_with_media'] as const) {
+    const res = await withAuthenticatedFetch(() =>
+      agent.app.bsky.feed.getAuthorFeed({
+        actor,
+        filter,
+        limit: 5,
+      }),
+    )
 
-  for (const item of res.data.feed) {
-    const flipItem = postToFlipItem(item)
-    const thumbnail = flipItem?.media?.thumbnail
-    if (thumbnail) return thumbnail
+    for (const item of res.data.feed) {
+      const flipItem = postToFlipItem(item)
+      const thumbnail = flipItem?.media?.thumbnail
+      if (thumbnail) return thumbnail
+    }
   }
 
   return null
@@ -1358,6 +1361,7 @@ function mediaPageWithResolvedPost(
   resolvedPost: AppBskyFeedDefs.PostView,
   feedItems: AppBskyFeedDefs.FeedViewPost[],
   feedCursor?: string,
+  pageFilter: MediaPageFilter = 'all',
 ): FlipFeedPage {
   const resolvedUri = resolvedPost.uri
   const hasTarget = feedItems.some((item) => item.post.uri === resolvedUri)
@@ -1366,13 +1370,17 @@ function mediaPageWithResolvedPost(
     ? [{ post: resolvedPost, reply: undefined }, ...feedItems]
     : feedItems
 
-  const page = postsToMediaPage(items, feedCursor)
+  const page = postsToMediaPage(items, feedCursor, pageFilter)
   if (page.data.length > 0) {
     return page
   }
 
   const single = postToFlipItem({ post: resolvedPost, reply: undefined })
   if (!single) {
+    return page
+  }
+
+  if (pageFilter !== 'all' && !matchesResolvedMediaFilter(single, pageFilter)) {
     return page
   }
 
@@ -1384,6 +1392,12 @@ function mediaPageWithResolvedPost(
       next_cursor: feedCursor && feedCursor.length > 0 ? feedCursor : null,
     },
   }
+}
+
+function matchesResolvedMediaFilter(item: FlipVideo, pageFilter: MediaPageFilter): boolean {
+  if (pageFilter === 'all') return true
+  if (pageFilter === 'photo') return item.media_type === 'photo' || item.is_photo === true
+  return item.media_type === 'video' || !item.is_photo
 }
 
 const EMPTY_FEED_PAGE: FlipFeedPage = {
@@ -1400,6 +1414,10 @@ export async function fetchUserVideoCursor({
 }): Promise<FlipFeedPage> {
   const actor = String(queryKey[1] ?? '')
   const videoUri = decodeRouteParam(queryKey[2] as string)
+  const routeMediaFilter =
+    queryKey[3] === 'photo' || queryKey[3] === 'video'
+      ? (queryKey[3] as MediaPageFilter)
+      : undefined
 
   if (!pageParam) {
     if (!videoUri) return EMPTY_FEED_PAGE
@@ -1436,6 +1454,8 @@ export async function fetchUserVideoCursor({
         }
       }
 
+      const pageFilter = routeMediaFilter ?? mediaPageFilterForPost(resolvedPost)
+
       let feedItems: AppBskyFeedDefs.FeedViewPost[] = []
       let feedCursor: string | undefined
 
@@ -1444,7 +1464,7 @@ export async function fetchUserVideoCursor({
         try {
           const feedRes = await agent.app.bsky.feed.getAuthorFeed({
             actor: feedActor,
-            filter: 'posts_with_media',
+            filter: authorFeedFilterFor(pageFilter),
             limit: 30,
           })
           feedItems = feedRes.data.feed
@@ -1463,23 +1483,25 @@ export async function fetchUserVideoCursor({
             actor,
           })
         }
-        return postsToMediaPage(feedItems, feedCursor)
+        return postsToMediaPage(feedItems, feedCursor, pageFilter)
       }
 
-      const page = mediaPageWithResolvedPost(resolvedPost, feedItems, feedCursor)
+      const page = mediaPageWithResolvedPost(resolvedPost, feedItems, feedCursor, pageFilter)
       if (__DEV__ && page.data.length === 0) {
         console.warn('[feed] fetchUserVideoCursor: resolved post not playable', {
           videoUri,
           normalizedUri,
           resolvedUri: resolvedPost.uri,
           actor,
+          pageFilter,
         })
       }
       return page
     })
   }
 
-  return fetchUserVideos({ queryKey: ['userVideos', actor], pageParam })
+  const pageFilter = routeMediaFilter ?? 'video'
+  return fetchAuthorMediaFeed(actor, pageFilter, pageParam)
 }
 
 /** Load a single post for the notification / deep-link viewer — no author-feed pagination. */

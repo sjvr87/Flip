@@ -42,6 +42,10 @@ export default function ProfileFeed({ navigation }) {
     const params = useLocalSearchParams();
     const id = decodeRouteParam(params.id);
     const profileId = decodeRouteParam(params.profileId) || parseRepoDidFromAtUri(id);
+    const mediaKind =
+        params.mediaKind === 'photo' || params.mediaKind === 'video'
+            ? params.mediaKind
+            : undefined;
     const shouldOpenComments =
         params.openComments === '1' || params.openComments === 'true';
     const atproto = usesAtprotoBackend();
@@ -79,10 +83,10 @@ export default function ProfileFeed({ navigation }) {
     }, []);
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
-        queryKey: ['profileVideoFeed', profileId, id],
+        queryKey: ['profileVideoFeed', profileId, id, mediaKind],
         queryFn: ({ pageParam }) =>
             (atproto ? atprotoFetchUserVideoCursor : fetchUserVideoCursor)({
-                queryKey: ['profileVideoFeed', profileId, id],
+                queryKey: ['profileVideoFeed', profileId, id, mediaKind],
                 pageParam,
             }),
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,

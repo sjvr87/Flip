@@ -41,6 +41,7 @@ export function toProfilePath(profileId: string) {
 
 type ProfileFeedNavOptions = {
   openComments?: boolean
+  mediaKind?: 'video' | 'photo'
 }
 
 export function toProfileFeedPath(
@@ -55,6 +56,10 @@ export function toProfileFeedPath(
 
   if (options?.openComments) {
     params.openComments = '1'
+  }
+
+  if (options?.mediaKind) {
+    params.mediaKind = options.mediaKind
   }
 
   return {

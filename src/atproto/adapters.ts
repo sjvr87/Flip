@@ -1,4 +1,10 @@
-import { AppBskyEmbedImages, AppBskyEmbedVideo, RichText, type AppBskyFeedDefs } from '@atproto/api'
+import {
+  AppBskyEmbedGallery,
+  AppBskyEmbedImages,
+  AppBskyEmbedVideo,
+  RichText,
+  type AppBskyFeedDefs,
+} from '@atproto/api'
 import type {
   FlipAccount,
   FlipAudioSource,
@@ -33,6 +39,27 @@ function getVideoEmbed(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View |
   return null
 }
 
+function galleryViewToImages(embed: AppBskyEmbedGallery.View): ImageEmbedView | null {
+  const first = embed.items?.find(
+    (item): item is AppBskyEmbedGallery.ViewImage =>
+      AppBskyEmbedGallery.isViewImage(item) && !!(item.thumbnail || item.fullsize),
+  )
+  if (!first) return null
+
+  return {
+    $type: 'app.bsky.embed.images#view',
+    images: [
+      {
+        $type: 'app.bsky.embed.images#viewImage',
+        thumb: first.thumbnail,
+        fullsize: first.fullsize,
+        alt: first.alt,
+        aspectRatio: first.aspectRatio,
+      },
+    ],
+  }
+}
+
 function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
   const embed = post.embed
   if (!embed) return null
@@ -41,13 +68,21 @@ function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
     return embed
   }
 
+  if (AppBskyEmbedGallery.isView(embed)) {
+    return galleryViewToImages(embed)
+  }
+
   if (
     embed.$type === 'app.bsky.embed.recordWithMedia#view' &&
     'media' in embed &&
-    embed.media &&
-    AppBskyEmbedImages.isView(embed.media)
+    embed.media
   ) {
-    return embed.media
+    if (AppBskyEmbedImages.isView(embed.media)) {
+      return embed.media
+    }
+    if (AppBskyEmbedGallery.isView(embed.media)) {
+      return galleryViewToImages(embed.media)
+    }
   }
 
   return null

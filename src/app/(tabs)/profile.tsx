@@ -224,7 +224,9 @@ export default function ProfileScreen() {
             console.warn('Invalid video data:', video);
             return;
         }
-        router.push(toProfileFeedPath(video.id, video.account.id));
+        const mediaKind =
+            video.is_photo || video.media_type === 'photo' ? 'photo' : 'video';
+        router.push(toProfileFeedPath(video.id, video.account.id, { mediaKind }));
     };
 
     const handleSettingsPress = () => {
