@@ -133,6 +133,19 @@ function Stop-AllMetroOnPort([int]$Port = 8081) {
   return -not (Test-PortListening $Port)
 }
 
+function Write-MetroWindowHint {
+  param([bool]$StartedNew)
+
+  Write-Host ""
+  if ($StartedNew) {
+    Write-Host '  >>> Metro window: a separate Command Prompt titled "Flip Metro" should appear on the taskbar.' -ForegroundColor Cyan
+  } else {
+    Write-Host '  >>> Metro reused: find the existing "Flip Metro" window on the taskbar (no new window opened).' -ForegroundColor Cyan
+  }
+  Write-Host "      Bundler log, QR code, and exp://LAN:8081 live there. This connect window is NOT Metro." -ForegroundColor DarkGray
+  Write-Host ""
+}
+
 function Start-MetroInNewWindow([switch]$ClearCache) {
   if ($ClearCache) {
     Write-Host "  Starting Metro (dev-client, LAN, port 8081, clear cache) in new window..."
@@ -141,7 +154,12 @@ function Start-MetroInNewWindow([switch]$ClearCache) {
     Write-Host "  Starting Metro (dev-client, LAN, port 8081) in new window..."
     $launcher = Join-Path $PSScriptRoot "start-metro-window-fast.cmd"
   }
-  Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "start", "`"Flip Metro`"", "`"$launcher`""
+  # cmd /k keeps a visible console; title matches taskbar search ("Flip Metro").
+  Start-Process -FilePath "cmd.exe" `
+    -ArgumentList "/k", "title Flip Metro & call `"$launcher`"" `
+    -WorkingDirectory $Root `
+    -WindowStyle Normal
+  Write-MetroWindowHint -StartedNew $true
 }
 
 function Wait-MetroHealthy([int]$TimeoutSec = 60) {
@@ -194,6 +212,7 @@ function Ensure-MetroRunning {
 
   if ($healthy -and $lanHealthy) {
     Write-Host "  Metro already running (packager-status:running, LAN OK) - reusing." -ForegroundColor Green
+    Write-MetroWindowHint -StartedNew $false
     return $true
   }
 
@@ -337,6 +356,9 @@ function Write-DevStatus {
   Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
   Write-Host ("adb reverse 8081: {0}" -f $(if ($ReverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
   Write-Host ("Metro /status: {0}" -f $(if ($finalMetroHealthy) { "running" } else { "NOT running" }))
+  if ($finalMetroHealthy) {
+    Write-Host 'Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler / QR / connection URL)'
+  }
   if ($script:LanIp) {
     Write-Host "Launch URL: exp://${script:LanIp}:8081 (deep link bypasses dev launcher picker)"
     Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - run flip-reset-dev.bat" }))

@@ -16,5 +16,6 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Done. Metro runs in its own window - you can close this one.
+echo Done. Metro runs in a separate window titled "Flip Metro" on the taskbar.
+echo       This window is the reset script only - you can close it.
 exit /b 0

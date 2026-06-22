@@ -44,6 +44,7 @@ try {
 }
 
 Write-Host ""
-Write-Host "Done. Metro runs in its own window — you can close this one." -ForegroundColor Green
+Write-Host 'Done. Metro runs in a separate window titled "Flip Metro" on the taskbar.' -ForegroundColor Green
+Write-Host "      This window is the connect script only - you can close it." -ForegroundColor DarkGray
 if ($Pause) { Read-Host "Press Enter to close" }
 exit 0

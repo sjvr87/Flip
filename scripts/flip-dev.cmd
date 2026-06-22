@@ -19,5 +19,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Done. Metro runs in its own window if it was started - you can close this one.
+echo Done. Metro runs in its own window if it was started - look for "Flip Metro" on the taskbar.
 exit /b 0
