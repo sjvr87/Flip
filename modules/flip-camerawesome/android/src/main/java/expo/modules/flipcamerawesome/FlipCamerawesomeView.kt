@@ -29,6 +29,8 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   private var session: FlipCameraSession? = null
   private var pendingStartRecording = false
   private var bindRetryCount = 0
+  private var bindGeneration = 0
+  private var isBinding = false
 
   val onCameraReady by EventDispatcher()
   val onRecordingFinished by EventDispatcher()
@@ -62,6 +64,8 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       if (value) {
         post { bindSession() }
       } else {
+        ++bindGeneration
+        isBinding = false
         session?.unbind()
         session = null
       }
@@ -88,7 +92,9 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   init {
     installHierarchyFitter()
     previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-      if (isActive && session == null && previewView.width > 0 && previewView.height > 0) {
+      if (!isActive) return@addOnLayoutChangeListener
+      if (previewView.width <= 0 || previewView.height <= 0) return@addOnLayoutChangeListener
+      if (session == null && !isBinding) {
         post { bindSession() }
       }
     }
@@ -113,6 +119,11 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   private fun bindSession() {
     if (!isActive) return
 
+    if (previewView.width <= 0 || previewView.height <= 0) {
+      Log.d(TAG, "bindSession: defer until layout (preview=${previewView.width}x${previewView.height})")
+      return
+    }
+
     if (!hasCameraPermission()) {
       Log.w(TAG, "bindSession: CAMERA permission not granted")
       onCameraError(mapOf("message" to "Camera permission not granted"))
@@ -129,35 +140,46 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       return
     }
 
+    if (isBinding) {
+      // A stale bind can block retries if the async callback never fires.
+      if (session == null) isBinding = false else return
+    }
+
     bindRetryCount = 0
-    Log.d(TAG, "bindSession: preview=${previewView.width}x${previewView.height} facing=$facing")
+    val generation = ++bindGeneration
+    isBinding = true
+    Log.d(TAG, "bindSession: preview=${previewView.width}x${previewView.height} facing=$facing gen=$generation")
 
     session?.unbind()
-    session =
+    val newSession =
       FlipCameraSession(
         previewView,
         lifecycleOwner,
         context.mainExecutor,
       )
+    session = newSession
 
-    session?.bind(
+    newSession.bind(
       onReady = {
+        if (!isActive || generation != bindGeneration || session !== newSession) return@bind
+        isBinding = false
         Log.d(TAG, "CameraX bound; preview=${previewView.width}x${previewView.height}")
         onCameraReady(mapOf("ready" to true))
+        if (pendingStartRecording || recording) {
+          pendingStartRecording = false
+          startRecordingInternal()
+        }
       },
       onError = { msg ->
+        if (generation != bindGeneration) return@bind
+        isBinding = false
         Log.e(TAG, "CameraX bind failed: $msg")
         onCameraError(mapOf("message" to msg))
       },
     )
-    session?.setLensFacing(facing)
-    session?.setZoom(zoom)
-    session?.setTorch(torchEnabled)
-
-    if (pendingStartRecording || recording) {
-      pendingStartRecording = false
-      startRecordingInternal()
-    }
+    newSession.setLensFacing(facing)
+    newSession.setZoom(zoom)
+    newSession.setTorch(torchEnabled)
   }
 
   private fun startRecordingInternal() {
@@ -201,6 +223,8 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   }
 
   override fun onDetachedFromWindow() {
+    ++bindGeneration
+    isBinding = false
     session?.unbind()
     session = null
     super.onDetachedFromWindow()
