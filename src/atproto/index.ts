@@ -11,6 +11,7 @@ export {
   fetchUserVideos,
   fetchUserPhotos,
   fetchAuthorRecentMediaThumbnail,
+  fetchAuthorRecentMediaThumbnailList,
   fetchAuthorRecentMediaThumbnails,
   fetchUserVideoCursor,
   fetchPostForViewer,

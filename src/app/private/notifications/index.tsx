@@ -397,9 +397,15 @@ export default function NotificationsHubScreen() {
         </View>
     );
 
-    const listFooter = (
+    const activityListFooter = isFetchingNextActivity ? (
+        <YStack paddingVertical="$6" alignItems="center">
+            <ActivityIndicator color={LOOP_ACCENT} />
+        </YStack>
+    ) : null;
+
+    const followersListFooter = (
         <View>
-            {mainTab === 'followers' && showFollowersExpand ? (
+            {showFollowersExpand ? (
                 <PressableHaptics
                     onPress={() => setFollowersExpanded(true)}
                     style={tw`py-4 items-center`}>
@@ -408,9 +414,7 @@ export default function NotificationsHubScreen() {
                     </StackText>
                 </PressableHaptics>
             ) : null}
-            {mainTab === 'followers' &&
-            followersExpanded &&
-            followerNotifications.length > FOLLOWERS_COLLAPSED_COUNT ? (
+            {followersExpanded && followerNotifications.length > FOLLOWERS_COLLAPSED_COUNT ? (
                 <PressableHaptics
                     onPress={() => setFollowersExpanded(false)}
                     style={tw`py-3 items-center`}>
@@ -419,10 +423,7 @@ export default function NotificationsHubScreen() {
                     </StackText>
                 </PressableHaptics>
             ) : null}
-            {mainTab === 'followers' &&
-            followersExpanded &&
-            hasNextFollowers &&
-            !isFetchingNextFollowers ? (
+            {followersExpanded && hasNextFollowers && !isFetchingNextFollowers ? (
                 <PressableHaptics
                     onPress={() => fetchNextFollowers()}
                     style={tw`py-4 items-center`}>
@@ -431,7 +432,7 @@ export default function NotificationsHubScreen() {
                     </StackText>
                 </PressableHaptics>
             ) : null}
-            {isFetchingNextActivity || isFetchingNextFollowers ? (
+            {isFetchingNextFollowers ? (
                 <YStack paddingVertical="$6" alignItems="center">
                     <ActivityIndicator color={LOOP_ACCENT} />
                 </YStack>
@@ -452,7 +453,7 @@ export default function NotificationsHubScreen() {
                 />
             )}
             ListHeaderComponent={listHeader}
-            ListFooterComponent={listFooter}
+            ListFooterComponent={activityListFooter}
             ListEmptyComponent={renderEmpty(activityLoading)}
             onEndReachedThreshold={0.4}
             onEndReached={() => {
@@ -490,7 +491,7 @@ export default function NotificationsHubScreen() {
                 />
             )}
             ListHeaderComponent={listHeader}
-            ListFooterComponent={listFooter}
+            ListFooterComponent={followersListFooter}
             ListEmptyComponent={renderEmpty(followersLoading)}
             onEndReachedThreshold={0.4}
             onEndReached={() => {

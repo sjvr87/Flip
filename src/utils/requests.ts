@@ -1462,11 +1462,12 @@ export async function getExploreAccounts(): Promise<any> {
 
 export async function fetchAuthorRecentMediaThumbnails(
     actors: string[],
-): Promise<Record<string, string | null>> {
+    limit = 3,
+): Promise<Record<string, string[]>> {
     if (usesAtprotoBackend()) {
-        return atprotoFetchAuthorRecentMediaThumbnails(actors);
+        return atprotoFetchAuthorRecentMediaThumbnails(actors, limit);
     }
-    return Object.fromEntries(actors.map((actor) => [actor, null]));
+    return Object.fromEntries(actors.map((actor) => [actor, [] as string[]]));
 }
 
 export async function getExploreTagsFeed({

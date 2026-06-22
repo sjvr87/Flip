@@ -8,7 +8,6 @@ import {
     getExploreAccounts,
     postExploreAccountHideSuggestion,
 } from '@/utils/requests';
-import { prettyCount } from '@/utils/ui';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +15,8 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, View } from 'react-native';
 import tw from 'twrnc';
+
+const PREVIEW_COUNT = 3;
 
 type ExploreAccount = {
     id: string;
@@ -29,7 +30,7 @@ type ExploreAccount = {
 
 interface AccountRowProps {
     account: ExploreAccount;
-    postThumbnail?: string | null;
+    postThumbnails: string[];
     thumbsLoading: boolean;
     onFollow: (id: string) => void;
     onHide: (id: string) => void;
@@ -41,13 +42,18 @@ interface AccountRowProps {
 function PostPreviewThumb({
     thumbnailUrl,
     loading,
+    isFirst,
 }: {
     thumbnailUrl?: string | null;
     loading: boolean;
+    isFirst?: boolean;
 }) {
     return (
         <View
-            style={tw`w-16 h-16 rounded-lg overflow-hidden ml-2 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800`}>
+            style={[
+                tw`flex-1 aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800`,
+                !isFirst && tw`ml-1.5`,
+            ]}>
             {thumbnailUrl ? (
                 <Image source={{ uri: thumbnailUrl }} style={tw`w-full h-full`} resizeMode="cover" />
             ) : loading ? (
@@ -56,7 +62,7 @@ function PostPreviewThumb({
                 </View>
             ) : (
                 <View style={tw`flex-1 items-center justify-center`}>
-                    <Ionicons name="image-outline" size={20} color="#666" />
+                    <Ionicons name="image-outline" size={18} color="#555" />
                 </View>
             )}
         </View>
@@ -65,7 +71,7 @@ function PostPreviewThumb({
 
 function SuggestedAccountRow({
     account,
-    postThumbnail,
+    postThumbnails,
     thumbsLoading,
     onFollow,
     onHide,
@@ -73,92 +79,94 @@ function SuggestedAccountRow({
     isFollowing,
     isHiding,
 }: AccountRowProps) {
+    const previews = useMemo(() => {
+        const slots: (string | null)[] = [];
+        for (let i = 0; i < PREVIEW_COUNT; i++) {
+            slots.push(postThumbnails[i] ?? null);
+        }
+        return slots;
+    }, [postThumbnails]);
+
     return (
-        <View style={tw`px-4 py-3 border-b border-gray-100 dark:border-gray-900`}>
-            <View style={tw`flex-row items-start`}>
-                <PressableHaptics onPress={() => onView(account.id)}>
-                    {account.avatar ? (
-                        <Image source={{ uri: account.avatar }} style={tw`w-14 h-14 rounded-full mr-3`} />
+        <View
+            style={tw`mx-4 mb-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-900`}>
+            <PressableHaptics onPress={() => onView(account.id)} style={tw`flex-row items-center mb-3`}>
+                {account.avatar ? (
+                    <Image source={{ uri: account.avatar }} style={tw`w-11 h-11 rounded-full mr-3`} />
+                ) : (
+                    <View
+                        style={tw`w-11 h-11 rounded-full mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
+                        <Ionicons name="person" size={20} color="#999" />
+                    </View>
+                )}
+                <View style={tw`flex-1`}>
+                    {account.name && account.name !== account.username ? (
+                        <StackText
+                            fontSize="$4"
+                            fontWeight="semibold"
+                            textColor="text-black dark:text-white"
+                            numberOfLines={1}>
+                            {account.name}
+                        </StackText>
+                    ) : null}
+                    <MentionText
+                        username={account.username}
+                        style={{
+                            fontSize: 14,
+                            fontWeight: account.name && account.name !== account.username ? '400' : '600',
+                            color: account.name && account.name !== account.username ? '#9ca3af' : undefined,
+                        }}
+                        numberOfLines={1}
+                    />
+                </View>
+            </PressableHaptics>
+
+            <View style={tw`flex-row mb-3`}>
+                {previews.map((thumbnail, index) => (
+                    <PostPreviewThumb
+                        key={index}
+                        thumbnailUrl={thumbnail}
+                        loading={thumbsLoading}
+                        isFirst={index === 0}
+                    />
+                ))}
+            </View>
+
+            <View style={tw`flex-row items-center gap-2`}>
+                <PressableHaptics
+                    onPress={() => onFollow(account.id)}
+                    disabled={isFollowing || isHiding}
+                    style={({ pressed }) => [
+                        tw`flex-1 rounded-xl py-2.5 items-center`,
+                        { backgroundColor: LOOP_ACCENT },
+                        (pressed || isFollowing) && tw`opacity-70`,
+                    ]}>
+                    {isFollowing ? (
+                        <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                        <View
-                            style={tw`w-14 h-14 rounded-full mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
-                            <Ionicons name="person" size={24} color="#999" />
-                        </View>
+                        <StackText fontSize="$3" textColor="text-white" fontWeight="semibold">
+                            Follow
+                        </StackText>
                     )}
                 </PressableHaptics>
-
-                <View style={tw`flex-1`}>
-                    <PressableHaptics onPress={() => onView(account.id)}>
-                        <MentionText
-                            username={account.username}
-                            style={{ fontSize: 16, fontWeight: '600' }}
-                            numberOfLines={1}
-                        />
-                        {account.name && account.name !== account.username ? (
-                            <StackText
-                                fontSize="$3"
-                                textColor="text-gray-600 dark:text-gray-400"
-                                numberOfLines={1}>
-                                {account.name}
-                            </StackText>
-                        ) : null}
-                        {account.bio ? (
-                            <StackText
-                                fontSize="$3"
-                                textColor="text-gray-600 dark:text-gray-500"
-                                numberOfLines={2}
-                                style={tw`mt-1`}>
-                                {account.bio}
-                            </StackText>
-                        ) : null}
+                <PressableHaptics
+                    onPress={() => onHide(account.id)}
+                    disabled={isFollowing || isHiding}
+                    style={({ pressed }) => [
+                        tw`flex-1 rounded-xl py-2.5 items-center border border-gray-200 dark:border-gray-700`,
+                        pressed && tw`opacity-50`,
+                    ]}>
+                    {isHiding ? (
+                        <ActivityIndicator size="small" color="#666" />
+                    ) : (
                         <StackText
-                            fontSize="$2"
-                            textColor="text-gray-500 dark:text-gray-500"
-                            style={tw`mt-1`}>
-                            {prettyCount(account.follower_count)} followers
-                            {account.post_count != null ? ` · ${prettyCount(account.post_count)} posts` : ''}
+                            fontSize="$3"
+                            textColor="text-gray-600 dark:text-gray-400"
+                            fontWeight="semibold">
+                            Remove
                         </StackText>
-                    </PressableHaptics>
-
-                    <View style={tw`flex-row items-center gap-2 mt-3`}>
-                        <PressableHaptics
-                            onPress={() => onFollow(account.id)}
-                            disabled={isFollowing || isHiding}
-                            style={({ pressed }) => [
-                                tw`rounded-2xl px-6 py-2`,
-                                { backgroundColor: LOOP_ACCENT },
-                                (pressed || isFollowing) && tw`opacity-70`,
-                            ]}>
-                            {isFollowing ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <StackText fontSize="$3" textColor="text-white" fontWeight="semibold">
-                                    Follow
-                                </StackText>
-                            )}
-                        </PressableHaptics>
-                        <PressableHaptics
-                            onPress={() => onHide(account.id)}
-                            disabled={isFollowing || isHiding}
-                            style={({ pressed }) => [
-                                tw`rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700`,
-                                pressed && tw`opacity-50`,
-                            ]}>
-                            {isHiding ? (
-                                <ActivityIndicator size="small" color="#666" />
-                            ) : (
-                                <StackText
-                                    fontSize="$3"
-                                    textColor="text-gray-600 dark:text-gray-400"
-                                    fontWeight="semibold">
-                                    Remove
-                                </StackText>
-                            )}
-                        </PressableHaptics>
-                    </View>
-                </View>
-
-                <PostPreviewThumb thumbnailUrl={postThumbnail} loading={thumbsLoading} />
+                    )}
+                </PressableHaptics>
             </View>
         </View>
     );
@@ -180,8 +188,8 @@ export function SuggestedAccountsSection() {
     const accountIds = useMemo(() => accounts.map((account: ExploreAccount) => account.id), [accounts]);
 
     const { data: postThumbnails, isLoading: thumbsLoading } = useQuery({
-        queryKey: ['accounts', 'suggested', 'post-thumbs', accountIds],
-        queryFn: () => fetchAuthorRecentMediaThumbnails(accountIds),
+        queryKey: ['accounts', 'suggested', 'post-thumbs', accountIds, PREVIEW_COUNT],
+        queryFn: () => fetchAuthorRecentMediaThumbnails(accountIds, PREVIEW_COUNT),
         enabled: accountIds.length > 0,
         staleTime: 10 * 60_000,
     });
@@ -224,8 +232,8 @@ export function SuggestedAccountsSection() {
     if (accounts.length === 0) return null;
 
     return (
-        <View style={tw`mt-4 border-t border-gray-100 dark:border-gray-900`}>
-            <View style={tw`px-4 py-4`}>
+        <View style={tw`mt-4 pt-4 border-t border-gray-100 dark:border-gray-900`}>
+            <View style={tw`px-4 pb-3`}>
                 <StackText
                     fontSize="$5"
                     fontWeight="semibold"
@@ -240,7 +248,7 @@ export function SuggestedAccountsSection() {
                 <SuggestedAccountRow
                     key={account.id}
                     account={account}
-                    postThumbnail={postThumbnails?.[account.id]}
+                    postThumbnails={postThumbnails?.[account.id] ?? []}
                     thumbsLoading={thumbsLoading}
                     onFollow={(id) => followMutation.mutate(id)}
                     onView={(id) => router.push(toProfilePath(id))}

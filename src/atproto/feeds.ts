@@ -1299,41 +1299,62 @@ export async function fetchUserPhotos({
   return fetchAuthorMediaFeed(actor, 'photo', pageParam)
 }
 
-/** Latest media post thumbnail for a profile (suggested accounts, etc.). */
-export async function fetchAuthorRecentMediaThumbnail(actor: string): Promise<string | null> {
+/** Recent media post thumbnails for a profile (suggested accounts, etc.). */
+export async function fetchAuthorRecentMediaThumbnailList(
+  actor: string,
+  limit = 3,
+): Promise<string[]> {
   const agent = getAgent()
+  const thumbnails: string[] = []
+  const seenUris = new Set<string>()
 
   for (const filter of ['posts_with_video', 'posts_with_media'] as const) {
+    if (thumbnails.length >= limit) break
+
     const res = await withAuthenticatedFetch(() =>
       agent.app.bsky.feed.getAuthorFeed({
         actor,
         filter,
-        limit: 5,
+        limit: Math.max(limit * 3, 10),
       }),
     )
 
     for (const item of res.data.feed) {
+      if (thumbnails.length >= limit) break
+      const uri = item.post?.uri
+      if (uri && seenUris.has(uri)) continue
+
       const flipItem = postToFlipItem(item)
       const thumbnail = flipItem?.media?.thumbnail
-      if (thumbnail) return thumbnail
+      if (thumbnail) {
+        if (uri) seenUris.add(uri)
+        thumbnails.push(thumbnail)
+      }
     }
   }
 
-  return null
+  return thumbnails
+}
+
+/** Latest media post thumbnail for a profile. */
+export async function fetchAuthorRecentMediaThumbnail(actor: string): Promise<string | null> {
+  const thumbnails = await fetchAuthorRecentMediaThumbnailList(actor, 1)
+  return thumbnails[0] ?? null
 }
 
 export async function fetchAuthorRecentMediaThumbnails(
   actors: string[],
-): Promise<Record<string, string | null>> {
+  limit = 3,
+): Promise<Record<string, string[]>> {
   const uniqueActors = [...new Set(actors.filter(Boolean))]
   const entries = await Promise.all(
     uniqueActors.map(async (actor) => {
       try {
-        const thumbnail = await fetchAuthorRecentMediaThumbnail(actor)
-        return [actor, thumbnail] as const
+        const thumbnails = await fetchAuthorRecentMediaThumbnailList(actor, limit)
+        return [actor, thumbnails] as const
       } catch (error) {
-        console.warn('[feed] author recent thumbnail failed:', actor, error)
-        return [actor, null] as const
+        console.warn('[feed] author recent thumbnails failed:', actor, error)
+        return [actor, [] as string[]] as const
       }
     }),
   )
