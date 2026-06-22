@@ -297,6 +297,13 @@ function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
 # client from restoring the last route (e.g. Create/camera) after reconnect scripts.
 $script:DevMetroHomePath = "/--/(tabs)/index"
 
+function Escape-DeepLinkUrlParam {
+  param([string]$Url)
+  # EscapeDataString leaves () unreserved; adb shell treats them as metacharacters.
+  $encoded = [System.Uri]::EscapeDataString($Url)
+  return $encoded.Replace('(', '%28').Replace(')', '%29')
+}
+
 function Start-FlipApp {
   param(
     [string]$Serial,
@@ -309,7 +316,7 @@ function Start-FlipApp {
 
   if ($DevServerHost) {
     $metroUrl = "exp://${DevServerHost}:8081$($script:DevMetroHomePath)"
-    $encodedUrl = [System.Uri]::EscapeDataString($metroUrl)
+    $encodedUrl = Escape-DeepLinkUrlParam $metroUrl
     $deepLink = "flip://expo-development-client/?url=$encodedUrl"
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @(
       "-s", $Serial, "shell", "am", "start",
