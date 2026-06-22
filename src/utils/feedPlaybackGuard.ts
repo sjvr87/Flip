@@ -67,6 +67,12 @@ export function releaseAllFeedPlayers(): void {
     }
 }
 
+/** Home feed segment changed (Following / Local / For You) — stop ghost audio immediately. */
+export function onFeedTabChanged(): void {
+    releaseAllFeedPlayers();
+    registeredPlayers.clear();
+}
+
 export function setFeedPlaybackActive(active: boolean): void {
     if (feedPlaybackActive === active) {
         if (!active) {

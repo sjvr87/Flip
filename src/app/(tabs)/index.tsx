@@ -29,7 +29,7 @@ import {
     subscribeFeedNetworkProfile,
     type FeedNetworkProfile,
 } from '@/utils/feedNetworkQuality';
-import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { onFeedTabChanged, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -252,14 +252,6 @@ export default function LoopsFeed({ navigation }) {
     const forYouEnabled = appConfig?.fyf === true && !hideForYouFeed;
 
     useEffect(() => {
-        if (!isConfigLoading && appConfig) {
-            if (!forYouEnabled && activeTab === 'forYou') {
-                setActiveTab('local');
-            }
-        }
-    }, [isConfigLoading, appConfig, forYouEnabled, activeTab]);
-
-    useEffect(() => {
         if (!feedQueryEnabled) {
             return;
         }
@@ -471,8 +463,38 @@ export default function LoopsFeed({ navigation }) {
         [queryClient, viewerDid],
     );
 
+    const switchFeedTab = useCallback((tab: FeedTab) => {
+        if (tab === activeTabRef.current) {
+            return;
+        }
+
+        onFeedTabChanged();
+        releaseAllVideoPrefetch();
+
+        if (currentVideoRef.current && watchStartTimeRef.current) {
+            const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
+            recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
+        }
+        currentVideoRef.current = null;
+        watchStartTimeRef.current = null;
+
+        setActiveTab(tab);
+        setCurrentIndex(0);
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }, []);
+
+    useEffect(() => {
+        if (!isConfigLoading && appConfig) {
+            if (!forYouEnabled && activeTab === 'forYou') {
+                switchFeedTab('local');
+            }
+        }
+    }, [isConfigLoading, appConfig, forYouEnabled, activeTab, switchFeedTab]);
+
     const onRefresh = useCallback(() => {
         const tab = activeTabRef.current;
+        onFeedTabChanged();
+        releaseAllVideoPrefetch();
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         setCurrentIndex(0);
         emptyDedupeFetchCountRef.current = 0;
@@ -918,11 +940,7 @@ export default function LoopsFeed({ navigation }) {
                             selected: activeTab === 'following',
                         }}
                         style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => {
-                            setActiveTab('following');
-                            setCurrentIndex(0);
-                            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                        }}>
+                        onPress={() => switchFeedTab('following')}>
                         <Text
                             style={[
                                 styles.tabText,
@@ -938,11 +956,7 @@ export default function LoopsFeed({ navigation }) {
                             selected: activeTab === 'local',
                         }}
                         style={[styles.tab, activeTab === 'local' && styles.activeTab]}
-                        onPress={() => {
-                            setActiveTab('local');
-                            setCurrentIndex(0);
-                            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                        }}>
+                        onPress={() => switchFeedTab('local')}>
                         <Text
                             style={[styles.tabText, activeTab === 'local' && styles.activeTabText]}>
                             Local
@@ -956,11 +970,7 @@ export default function LoopsFeed({ navigation }) {
                                 selected: activeTab === 'forYou',
                             }}
                             style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
-                            onPress={() => {
-                                setActiveTab('forYou');
-                                setCurrentIndex(0);
-                                flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                            }}>
+                            onPress={() => switchFeedTab('forYou')}>
                             <Text
                                 style={[
                                     styles.tabText,
