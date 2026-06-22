@@ -59,9 +59,9 @@ const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);
 const TEXT_POST_CARD_HEIGHT = 210;
 const TEXT_POST_CARD_GAP = 12;
 const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
-const EXPLORE_ACTION_ICON_SIZE = 17;
-const EXPLORE_REPOST_ICON_SIZE = 17;
-const EXPLORE_ACTION_RAIL_HEIGHT = 38;
+const EXPLORE_ACTION_ICON_SIZE = 19;
+const EXPLORE_REPOST_ICON_SIZE = 19;
+const EXPLORE_ACTION_RAIL_HEIGHT = 32;
 const EXPLORE_ACTION_MUTED = '#9CA3AF';
 
 interface Tag {
@@ -286,17 +286,14 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </ScrollView>
             </View>
 
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
+            <View
                 style={[
-                    tw`border-t border-gray-200 dark:border-gray-800`,
+                    tw`flex-row items-center`,
                     { height: EXPLORE_ACTION_RAIL_HEIGHT },
-                ]}
-                contentContainerStyle={tw`flex-row items-center gap-4 px-3`}>
+                ]}>
                 <PressableHaptics
                     onPress={handleLike}
-                    style={tw`flex-row items-center gap-1`}
+                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
                     hitSlop={10}>
                     <Feather
                         name="heart"
@@ -309,7 +306,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleComment}
-                    style={tw`flex-row items-center gap-1`}
+                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
                     hitSlop={10}>
                     <Feather
                         name="message-circle"
@@ -322,7 +319,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleBookmark}
-                    style={tw`flex-row items-center gap-1`}
+                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
                     hitSlop={10}>
                     <Ionicons
                         name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
@@ -337,7 +334,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleRepost}
-                    style={tw`flex-row items-center gap-1`}
+                    style={tw`flex-1 flex-row items-center justify-center gap-1`}
                     hitSlop={10}>
                     <RepostArrowIcon
                         size={EXPLORE_REPOST_ICON_SIZE}
@@ -351,14 +348,17 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                         </Text>
                     ) : null}
                 </PressableHaptics>
-                <PressableHaptics onPress={handleShare} style={tw`items-center`} hitSlop={10}>
+                <PressableHaptics
+                    onPress={handleShare}
+                    style={tw`flex-1 items-center justify-center`}
+                    hitSlop={10}>
                     <Ionicons
                         name="arrow-redo-outline"
                         size={EXPLORE_ACTION_ICON_SIZE}
                         color={EXPLORE_ACTION_MUTED}
                     />
                 </PressableHaptics>
-            </ScrollView>
+            </View>
         </View>
     );
 });
