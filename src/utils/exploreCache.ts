@@ -177,3 +177,51 @@ export function patchExploreTextPostLike(
     };
   });
 }
+
+/** Optimistically sync bookmark state for Explore "From the network" carousel cards. */
+export function patchExploreTextPostBookmark(
+  queryClient: QueryClient,
+  postId: string,
+  bookmarked: boolean,
+  bookmarks?: number,
+): void {
+  patchExploreTextPost(queryClient, postId, (post) => {
+    if (typeof bookmarks === 'number' && Number.isFinite(bookmarks)) {
+      if (post.has_bookmarked === bookmarked && post.bookmarks === bookmarks) return post;
+      return { ...post, has_bookmarked: bookmarked, bookmarks };
+    }
+
+    const wasBookmarked = !!post.has_bookmarked;
+    if (wasBookmarked === bookmarked) return post;
+
+    return {
+      ...post,
+      has_bookmarked: bookmarked,
+      bookmarks: Math.max(0, safeCount(post.bookmarks) + (bookmarked ? 1 : -1)),
+    };
+  });
+}
+
+/** Optimistically sync repost state for Explore "From the network" carousel cards. */
+export function patchExploreTextPostRepost(
+  queryClient: QueryClient,
+  postId: string,
+  reposted: boolean,
+  reposts?: number,
+): void {
+  patchExploreTextPost(queryClient, postId, (post) => {
+    if (typeof reposts === 'number' && Number.isFinite(reposts)) {
+      if (post.has_reposted === reposted && post.reposts === reposts) return post;
+      return { ...post, has_reposted: reposted, reposts };
+    }
+
+    const wasReposted = !!post.has_reposted;
+    if (wasReposted === reposted) return post;
+
+    return {
+      ...post,
+      has_reposted: reposted,
+      reposts: Math.max(0, safeCount(post.reposts) + (reposted ? 1 : -1)),
+    };
+  });
+}

@@ -1,14 +1,29 @@
 import Avatar from '@/components/Avatar';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
+import ShareModal from '@/components/feed/ShareModal';
+import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
-import { getExploreTags, getExploreTagsFeed, getExploreTextPosts, videoLike, videoUnlike } from '@/atproto';
+import {
+    getExploreTags,
+    getExploreTagsFeed,
+    getExploreTextPosts,
+    videoBookmark,
+    videoLike,
+    videoRepost,
+    videoUnbookmark,
+    videoUnlike,
+    videoUnrepost,
+} from '@/atproto';
 import type { FlipTextPost } from '@/atproto';
+import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
     EXPLORE_DEFAULT_TAG,
     EXPLORE_GC_MS,
     EXPLORE_STALE_MS,
+    patchExploreTextPostBookmark,
     patchExploreTextPostLike,
+    patchExploreTextPostRepost,
     readExploreFeedCache,
     readExploreTagsCache,
     readExploreTextPostsCache,
@@ -16,10 +31,10 @@ import {
     writeExploreTagsCache,
     writeExploreTextPostsCache,
 } from '@/utils/exploreCache';
-import { toPostViewPath, toProfilePath } from '@/utils/profileNavigation';
+import { postAtUriToBskyUrl, toPostViewPath, toProfilePath } from '@/utils/profileNavigation';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { timeAgo } from '@/utils/ui';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -44,6 +59,9 @@ const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);
 const TEXT_POST_CARD_HEIGHT = 210;
 const TEXT_POST_CARD_GAP = 12;
 const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
+const EXPLORE_ACTION_ICON_SIZE = 12;
+const EXPLORE_REPOST_ICON_SIZE = 12;
+const EXPLORE_ACTION_MUTED = '#9CA3AF';
 
 interface Tag {
     id: number;
@@ -144,6 +162,9 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
     onOpenPost,
     onOpenProfile,
     onLike,
+    onBookmark,
+    onRepost,
+    onShare,
     onHashtagPress,
     onMentionPress,
 }: {
@@ -151,11 +172,18 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
     onOpenPost: (openComments?: boolean) => void;
     onOpenProfile: () => void;
     onLike: (postId: string, liked: boolean) => void;
+    onBookmark: (postId: string, bookmarked: boolean) => void;
+    onRepost: (postId: string, reposted: boolean) => void;
+    onShare: () => void;
     onHashtagPress: (tag: string) => void;
     onMentionPress: (username: string, profileId?: string | number) => void;
 }) {
     const isLiked = !!item.has_liked;
+    const isBookmarked = !!item.has_bookmarked;
+    const isReposted = !!item.has_reposted;
     const likeCount = item.likes ?? 0;
+    const bookmarkCount = item.bookmarks ?? 0;
+    const repostCount = item.reposts ?? 0;
     const scrollingRef = useRef(false);
 
     const handleLike = useCallback(
@@ -171,7 +199,31 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
             event?.stopPropagation?.();
             onOpenPost(true);
         },
-        [item.id, onOpenPost],
+        [onOpenPost],
+    );
+
+    const handleBookmark = useCallback(
+        (event?: { stopPropagation?: () => void }) => {
+            event?.stopPropagation?.();
+            onBookmark(item.id, !isBookmarked);
+        },
+        [isBookmarked, item.id, onBookmark],
+    );
+
+    const handleRepost = useCallback(
+        (event?: { stopPropagation?: () => void }) => {
+            event?.stopPropagation?.();
+            onRepost(item.id, !isReposted);
+        },
+        [isReposted, item.id, onRepost],
+    );
+
+    const handleShare = useCallback(
+        (event?: { stopPropagation?: () => void }) => {
+            event?.stopPropagation?.();
+            onShare();
+        },
+        [onShare],
     );
 
     const handleTextPress = useCallback(() => {
@@ -233,27 +285,76 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </ScrollView>
             </View>
 
-            <View
-                style={tw`flex-row items-center gap-4 px-4 py-2.5 border-t border-gray-200 dark:border-gray-800`}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={tw`border-t border-gray-200 dark:border-gray-800`}
+                contentContainerStyle={tw`flex-row items-center gap-2.5 px-4 py-2.5`}>
                 <PressableHaptics
                     onPress={handleLike}
-                    style={tw`flex-row items-center gap-1`}
+                    style={tw`flex-row items-center gap-0.5`}
                     hitSlop={8}>
-                    <Feather name="heart" size={13} color={isLiked ? '#EF4444' : '#9CA3AF'} />
-                    <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
+                    <Feather
+                        name="heart"
+                        size={EXPLORE_ACTION_ICON_SIZE}
+                        color={isLiked ? '#EF4444' : EXPLORE_ACTION_MUTED}
+                    />
+                    <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
                         {likeCount.toLocaleString()}
                     </Text>
                 </PressableHaptics>
                 <PressableHaptics
                     onPress={handleComment}
-                    style={tw`flex-row items-center gap-1`}
+                    style={tw`flex-row items-center gap-0.5`}
                     hitSlop={8}>
-                    <Feather name="message-circle" size={13} color="#9CA3AF" />
-                    <Text style={tw`text-gray-500 text-xs dark:text-gray-400`}>
+                    <Feather
+                        name="message-circle"
+                        size={EXPLORE_ACTION_ICON_SIZE}
+                        color={EXPLORE_ACTION_MUTED}
+                    />
+                    <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
                         {item.comments.toLocaleString()}
                     </Text>
                 </PressableHaptics>
-            </View>
+                <PressableHaptics
+                    onPress={handleBookmark}
+                    style={tw`flex-row items-center gap-0.5`}
+                    hitSlop={8}>
+                    <Ionicons
+                        name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                        size={EXPLORE_ACTION_ICON_SIZE}
+                        color={isBookmarked ? LOOP_ACCENT : EXPLORE_ACTION_MUTED}
+                    />
+                    {bookmarkCount > 0 ? (
+                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
+                            {bookmarkCount.toLocaleString()}
+                        </Text>
+                    ) : null}
+                </PressableHaptics>
+                <PressableHaptics
+                    onPress={handleRepost}
+                    style={tw`flex-row items-center gap-0.5`}
+                    hitSlop={8}>
+                    <RepostArrowIcon
+                        size={EXPLORE_REPOST_ICON_SIZE}
+                        color={EXPLORE_ACTION_MUTED}
+                        active={isReposted}
+                        activeColor={LOOP_ACCENT}
+                    />
+                    {repostCount > 0 ? (
+                        <Text style={tw`text-gray-500 text-[11px] dark:text-gray-400`}>
+                            {repostCount.toLocaleString()}
+                        </Text>
+                    ) : null}
+                </PressableHaptics>
+                <PressableHaptics onPress={handleShare} style={tw`items-center`} hitSlop={8}>
+                    <Ionicons
+                        name="arrow-redo-outline"
+                        size={EXPLORE_ACTION_ICON_SIZE}
+                        color={EXPLORE_ACTION_MUTED}
+                    />
+                </PressableHaptics>
+            </ScrollView>
         </View>
     );
 });
@@ -361,6 +462,9 @@ type ExploreListHeaderProps = {
     onOpenProfile: (id: string) => void;
     onOpenTextPost: (post: FlipTextPost, openComments?: boolean) => void;
     onLikeTextPost: (postId: string, liked: boolean) => void;
+    onBookmarkTextPost: (postId: string, bookmarked: boolean) => void;
+    onRepostTextPost: (postId: string, reposted: boolean) => void;
+    onShareTextPost: (post: FlipTextPost) => void;
     onHashtagPress: (tag: string) => void;
     onMentionPress: (username: string, profileId?: string | number) => void;
     renderEmptyState: (message: string) => React.ReactElement;
@@ -381,6 +485,9 @@ const ExploreListHeader = memo(function ExploreListHeader({
     onOpenProfile,
     onOpenTextPost,
     onLikeTextPost,
+    onBookmarkTextPost,
+    onRepostTextPost,
+    onShareTextPost,
     onHashtagPress,
     onMentionPress,
     renderEmptyState,
@@ -414,6 +521,9 @@ const ExploreListHeader = memo(function ExploreListHeader({
                                     }
                                     onOpenProfile={() => onOpenProfile(item.account.id)}
                                     onLike={onLikeTextPost}
+                                    onBookmark={onBookmarkTextPost}
+                                    onRepost={onRepostTextPost}
+                                    onShare={() => onShareTextPost(item)}
                                     onHashtagPress={onHashtagPress}
                                     onMentionPress={onMentionPress}
                                 />
@@ -467,6 +577,8 @@ export default function ExploreScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
+    const [sharePost, setSharePost] = useState<FlipTextPost | null>(null);
+    const [showShare, setShowShare] = useState(false);
     const { isDark } = useTheme();
 
     const exploreQueryOptions = {
@@ -623,12 +735,65 @@ export default function ExploreScreen() {
         },
     });
 
+    const textPostBookmarkMutation = useMutation({
+        mutationFn: async ({ postId, bookmarked }: { postId: string; bookmarked: boolean }) => {
+            return bookmarked ? videoBookmark(postId) : videoUnbookmark(postId);
+        },
+        onMutate: ({ postId, bookmarked }) => {
+            patchExploreTextPostBookmark(queryClient, postId, bookmarked);
+        },
+        onError: (_error, { postId, bookmarked }) => {
+            patchExploreTextPostBookmark(queryClient, postId, !bookmarked);
+        },
+        onSuccess: (result, { postId }) => {
+            if (result) {
+                patchExploreTextPostBookmark(queryClient, postId, result.has_bookmarked);
+            }
+        },
+    });
+
+    const textPostRepostMutation = useMutation({
+        mutationFn: async ({ postId, reposted }: { postId: string; reposted: boolean }) => {
+            return reposted ? videoRepost(postId) : videoUnrepost(postId);
+        },
+        onMutate: ({ postId, reposted }) => {
+            patchExploreTextPostRepost(queryClient, postId, reposted);
+        },
+        onError: (_error, { postId, reposted }) => {
+            patchExploreTextPostRepost(queryClient, postId, !reposted);
+        },
+        onSuccess: (result, { postId }) => {
+            if (result) {
+                patchExploreTextPostRepost(queryClient, postId, result.has_reposted, result.shares);
+            }
+        },
+    });
+
     const handleLikeTextPost = useCallback(
         (postId: string, liked: boolean) => {
             textPostLikeMutation.mutate({ postId, liked });
         },
         [textPostLikeMutation],
     );
+
+    const handleBookmarkTextPost = useCallback(
+        (postId: string, bookmarked: boolean) => {
+            textPostBookmarkMutation.mutate({ postId, bookmarked });
+        },
+        [textPostBookmarkMutation],
+    );
+
+    const handleRepostTextPost = useCallback(
+        (postId: string, reposted: boolean) => {
+            textPostRepostMutation.mutate({ postId, reposted });
+        },
+        [textPostRepostMutation],
+    );
+
+    const handleShareTextPost = useCallback((post: FlipTextPost) => {
+        setSharePost(post);
+        setShowShare(true);
+    }, []);
 
     const handleHashtagPress = useCallback(
         (tag: string) => {
@@ -677,6 +842,9 @@ export default function ExploreScreen() {
                 onOpenProfile={handleOpenProfile}
                 onOpenTextPost={handleOpenTextPost}
                 onLikeTextPost={handleLikeTextPost}
+                onBookmarkTextPost={handleBookmarkTextPost}
+                onRepostTextPost={handleRepostTextPost}
+                onShareTextPost={handleShareTextPost}
                 onHashtagPress={handleHashtagPress}
                 onMentionPress={handleMentionPress}
                 renderEmptyState={renderEmptyState}
@@ -690,6 +858,9 @@ export default function ExploreScreen() {
             handleOpenSearch,
             handleOpenTextPost,
             handleLikeTextPost,
+            handleBookmarkTextPost,
+            handleRepostTextPost,
+            handleShareTextPost,
             handleSelectTag,
             isDark,
             renderEmptyState,
@@ -785,6 +956,16 @@ export default function ExploreScreen() {
                         tintColor={isDark ? '#fff' : '#000'}
                     />
                 }
+            />
+
+            <ShareModal
+                visible={showShare}
+                item={
+                    sharePost
+                        ? { ...sharePost, url: postAtUriToBskyUrl(sharePost.id) }
+                        : null
+                }
+                onClose={() => setShowShare(false)}
             />
         </SafeAreaView>
     );
