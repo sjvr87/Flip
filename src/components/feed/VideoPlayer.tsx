@@ -64,8 +64,15 @@ function VideoPoster({ thumbnail }: { thumbnail?: string }) {
     );
 }
 
-function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string; src_url?: string } } }) {
+function VideoSlidePlaceholder({
+    item,
+    feedHeight,
+}: {
+    item: { media?: { thumbnail?: string; src_url?: string } };
+    feedHeight?: number;
+}) {
     const thumbnail = item.media?.thumbnail;
+    const slideHeight = feedHeight ?? SCREEN_HEIGHT;
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
@@ -76,7 +83,7 @@ function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string;
     }, [item.media?.src_url, thumbnail]);
 
     return (
-        <View style={styles.videoContainer}>
+        <View style={[styles.videoContainer, { height: slideHeight }]}>
             <View style={styles.videoWrapper}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
@@ -88,6 +95,7 @@ function VideoPlayer({
     item,
     isActive,
     shouldPreload = true,
+    feedHeight,
     onLike,
     onComment,
     onShare,
@@ -107,13 +115,14 @@ function VideoPlayer({
     actionRailBottom,
 }) {
     if (!isActive && !shouldPreload) {
-        return <VideoSlidePlaceholder item={item} />;
+        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
     return (
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
             onShare={onShare}
@@ -140,6 +149,7 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    feedHeight,
     onLike,
     onComment,
     onShare,
@@ -175,6 +185,7 @@ function VideoPlayerCore({
     const setManuallyPaused = useFeedPlaybackStore((s) => s.setManuallyPaused);
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
+    const slideHeight = feedHeight ?? SCREEN_HEIGHT;
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
@@ -480,12 +491,12 @@ function VideoPlayerCore({
         (!isReposted && item.has_reposted ? 1 : 0);
 
     if (!player) {
-        return <VideoSlidePlaceholder item={item} />;
+        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
     if (item.is_sensitive && !playSensitive) {
         return (
-            <View style={styles.videoContainer}>
+            <View style={[styles.videoContainer, { height: slideHeight }]}>
                 <View
                     style={styles.sensitiveOverlay}
                     accessible={true}
@@ -520,7 +531,7 @@ function VideoPlayerCore({
     const hidePoster = videoReady && isActive;
 
     const videoBody = (
-            <View style={styles.videoContainer}>
+            <View style={[styles.videoContainer, { height: slideHeight }]}>
                 <View style={styles.videoWrapper}>
                     {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                     <VideoView
@@ -693,13 +704,12 @@ function VideoPlayerCore({
 const styles = StyleSheet.create({
     videoContainer: {
         width: SCREEN_WIDTH,
-        height: SCREEN_HEIGHT,
         position: 'relative',
+        overflow: 'hidden',
     },
     videoWrapper: {
-        flex: 1,
+        ...StyleSheet.absoluteFillObject,
         backgroundColor: POSTER_BG,
-        overflow: 'hidden',
     },
     posterLayer: {
         ...StyleSheet.absoluteFillObject,

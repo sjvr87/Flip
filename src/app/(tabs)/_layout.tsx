@@ -100,6 +100,7 @@ export default function TabsLayout() {
                     headerShown: false,
                     tabBarStyle: homeTabBarStyle,
                     tabBarBackground: () => <HomeTabBarBackground />,
+                    safeAreaInsets: { bottom: 0 },
                     sceneStyle: { backgroundColor: 'transparent' },
                     tabBarIcon: ({ color, focused }) => (
                         <TabIconSlot>

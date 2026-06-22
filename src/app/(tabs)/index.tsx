@@ -48,7 +48,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     AppState,
-    Dimensions,
     FlatList,
     InteractionManager,
     Platform,
@@ -56,11 +55,10 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 /** Start loading next page when this many videos from the end (TikTok-style). */
 const LOAD_MORE_THRESHOLD = 4;
 /** Preload HLS for the next N videos beyond the FlatList render window. */
@@ -74,6 +72,7 @@ type FeedVideoCellProps = {
     item: FlipVideo;
     index: number;
     activeIndex: number;
+    feedHeight: number;
     bottomInset: number;
     tabBarHeight: number;
     feedOverlayBottom: number;
@@ -97,6 +96,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     item,
     index,
     activeIndex,
+    feedHeight,
     bottomInset,
     tabBarHeight,
     feedOverlayBottom,
@@ -124,6 +124,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
             item={item}
             isActive={isActive}
             shouldPreload={shouldPreload}
+            feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
             onShare={onShare}
@@ -185,6 +186,7 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 >;
 
 export default function LoopsFeed({ navigation }) {
+    const { height: feedHeight } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const authReady = useAuthStore((state) => state.authReady);
@@ -667,6 +669,7 @@ export default function LoopsFeed({ navigation }) {
                         tab={activeTab}
                         onRefresh={onRefresh}
                         error={feedError}
+                        itemHeight={feedHeight}
                     />
                 );
             }
@@ -682,6 +685,7 @@ export default function LoopsFeed({ navigation }) {
                     <FeedEmptyState
                         tab={endTab}
                         onRefresh={onRefresh}
+                        itemHeight={feedHeight}
                     />
                 );
             }
@@ -691,6 +695,7 @@ export default function LoopsFeed({ navigation }) {
                     item={item}
                     index={index}
                     activeIndex={currentIndex}
+                    feedHeight={feedHeight}
                     onLike={handleLike}
                     onComment={handleComment}
                     onShare={handleShare}
@@ -715,6 +720,7 @@ export default function LoopsFeed({ navigation }) {
             activeTab,
             currentIndex,
             feedError,
+            feedHeight,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -746,11 +752,11 @@ export default function LoopsFeed({ navigation }) {
 
     const getItemLayout = useCallback(
         (data, index) => ({
-            length: SCREEN_HEIGHT,
-            offset: SCREEN_HEIGHT * index,
+            length: feedHeight,
+            offset: feedHeight * index,
             index,
         }),
-        [],
+        [feedHeight],
     );
 
     const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
@@ -839,13 +845,14 @@ export default function LoopsFeed({ navigation }) {
             <FlatList
                     key={activeTab}
                     ref={flatListRef}
+                    style={styles.feedList}
                     data={videosWithEnd}
                     extraData={currentIndex}
                     renderItem={renderItem}
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                     pagingEnabled
                     showsVerticalScrollIndicator={false}
-                    snapToInterval={SCREEN_HEIGHT}
+                    snapToInterval={feedHeight}
                     snapToAlignment="start"
                     decelerationRate="fast"
                     viewabilityConfig={viewabilityConfig.current}
@@ -867,7 +874,7 @@ export default function LoopsFeed({ navigation }) {
                     }
                     ListFooterComponent={
                         isFetchingNextPage ? (
-                            <View style={styles.footer}>
+                            <View style={[styles.footer, { height: feedHeight }]}>
                                 <ActivityIndicator size="large" color="#fff" />
                             </View>
                         ) : null
@@ -903,8 +910,11 @@ export default function LoopsFeed({ navigation }) {
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        ...StyleSheet.absoluteFillObject,
         backgroundColor: '#000',
+    },
+    feedList: {
+        flex: 1,
     },
     loadingContainer: {
         flex: 1,
@@ -947,12 +957,10 @@ const styles = StyleSheet.create({
         right: 16,
     },
     footer: {
-        height: SCREEN_HEIGHT,
         justifyContent: 'center',
         alignItems: 'center',
     },
     endOfFeedContainer: {
-        height: SCREEN_HEIGHT,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 40,

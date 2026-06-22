@@ -6,8 +6,9 @@ import tw from 'twrnc';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export default function FeedEmptyState({ tab, onRefresh, error }) {
+export default function FeedEmptyState({ tab, onRefresh, error, itemHeight }) {
     const router = useRouter();
+    const slideHeight = itemHeight ?? SCREEN_HEIGHT;
 
     const content = useMemo(() => {
         const sessionExpired =
@@ -99,7 +100,7 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
     }, [tab, onRefresh, router, error]);
 
     return (
-        <View style={[tw`items-center justify-center px-10 bg-black`, { height: SCREEN_HEIGHT }]}>
+        <View style={[tw`items-center justify-center px-10 bg-black`, { height: slideHeight }]}>
             <View style={tw`w-20 h-20 rounded-full items-center justify-center mb-5 bg-gray-900`}>
                 <Ionicons name={content.icon} size={36} style={tw`text-gray-200`} />
             </View>
