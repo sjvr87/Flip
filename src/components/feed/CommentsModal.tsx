@@ -64,8 +64,14 @@ function SafeKeyboardAvoidingView(
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_HEIGHT = 60;
-/** Dimmed scrim so feed video peeks through above the sheet; sheet stays opaque for text contrast. */
-const COMMENTS_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.6)';
+/** Dimmed scrim above the sheet only — feed video peeks through; sheet stays opaque for legibility. */
+const COMMENTS_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.48)';
+
+const commentsModalProps = {
+    animationType: 'slide' as const,
+    transparent: true,
+    statusBarTranslucent: Platform.OS === 'android',
+};
 
 type ReportPayload = {
     id: string;
@@ -840,18 +846,14 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
 
     if (!canComment) {
         return (
-            <Modal
-                visible={visible}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={onClose}>
+            <Modal visible={visible} {...commentsModalProps} onRequestClose={onClose}>
                 <View style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}>
                     <Pressable
-                        style={[tw`absolute inset-0`, { backgroundColor: COMMENTS_BACKDROP_COLOR }]}
+                        style={[tw`flex-1`, { backgroundColor: COMMENTS_BACKDROP_COLOR }]}
                         onPress={onClose}
                     />
                     <View
-                        style={tw.style(`bg-white dark:bg-black rounded-t-2xl pt-3`, {
+                        style={tw.style(`bg-white dark:bg-black rounded-t-2xl pt-3 overflow-hidden`, {
                             minHeight: 400,
                             paddingBottom: insets.bottom + 20,
                         })}>
@@ -880,16 +882,17 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     }
 
     return (
-        <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+        <Modal visible={visible} {...commentsModalProps} onRequestClose={onClose}>
             <SafeKeyboardAvoidingView
                 behavior={'padding'}
                 style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}
                 keyboardVerticalOffset={Platform.OS === 'android' ? -20 : 0}>
                 <Pressable
-                    style={[tw`absolute inset-0`, { backgroundColor: COMMENTS_BACKDROP_COLOR }]}
+                    style={[tw`flex-1`, { backgroundColor: COMMENTS_BACKDROP_COLOR }]}
                     onPress={onClose}
                 />
-                <View style={tw`bg-white dark:bg-black rounded-t-2xl min-h-[50%] max-h-[85%]`}>
+                <View
+                    style={tw`bg-white dark:bg-black rounded-t-2xl min-h-[50%] max-h-[85%] overflow-hidden`}>
                     <View
                         style={tw`flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -909,6 +912,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <ListHeader />
                             <FlatList
                                 ref={flatListRef}
+                                style={tw`flex-1 bg-white dark:bg-black`}
                                 data={allComments}
                                 renderItem={renderComment}
                                 keyExtractor={(comment) => comment.id}
