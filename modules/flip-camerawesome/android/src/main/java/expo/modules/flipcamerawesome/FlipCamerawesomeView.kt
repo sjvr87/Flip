@@ -157,7 +157,7 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
     val activeSession = session
     if (activeSession != null) {
-      if (rootChanged) {
+      if (rootChanged && !recording) {
         previewView.post { activeSession.refreshPreviewSurface() }
       }
       return
@@ -236,10 +236,13 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         isBinding = false
         Log.d(TAG, "CameraX bound; preview=${previewView.width}x${previewView.height}")
         previewView.post {
-          newSession.refreshPreviewSurface()
+          val willRecord = pendingStartRecording || recording
+          if (!willRecord) {
+            newSession.refreshPreviewSurface()
+          }
           val profileMap = newSession.currentProfile().toMap()
           onCameraReady(mapOf("ready" to true, "profile" to profileMap))
-          if (pendingStartRecording || recording) {
+          if (willRecord) {
             pendingStartRecording = false
             startRecordingInternal()
           }
