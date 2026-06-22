@@ -11,7 +11,7 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:restart
+call npm.cmd run dev:connect
 if errorlevel 1 (
   echo.
   echo Dev connect failed. See errors above.
@@ -19,5 +19,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Done. Metro runs in its own window — you can close this one.
+echo Done. Metro runs in its own window if it was started - you can close this one.
 exit /b 0

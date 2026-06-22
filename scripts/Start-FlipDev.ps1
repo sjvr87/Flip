@@ -32,7 +32,7 @@ Write-Host "In PowerShell use npm.cmd (not bare npm)." -ForegroundColor DarkGray
 Write-Host ""
 
 try {
-  & $devConnect -RestartMetro
+  & $devConnect
   if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     throw "dev-connect exited with code $LASTEXITCODE"
   }

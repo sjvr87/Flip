@@ -1,6 +1,7 @@
 @echo off
-REM Metro-only reload (flip-dev.bat). After native deps change (e.g. expo-audio for remix
-REM reference audio), rebuild the dev client once: npm run android:dev
+REM Full dev connect: pull, adb reverse, reuse Metro if healthy (one window max).
+REM After native deps change, rebuild once: npm run android:dev
+REM Force Metro recycle: flip-dev-restart.bat
 cd /d "%~dp0"
 if not exist "package.json" (
   echo.
@@ -12,7 +13,7 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:restart
+call npm.cmd run dev:connect
 if errorlevel 1 (
   echo.
   echo Dev connect failed. See errors above.
@@ -20,5 +21,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Done. Metro runs in its own window — you can close this one.
+echo Done. Metro runs in its own window if it was started - you can close this one.
 exit /b 0

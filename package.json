@@ -19,6 +19,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "dev:connect": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1",
+    "dev:connect:only": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -ConnectOnly",
+    "dev:connect:reload": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -ConnectOnly -Reload",
     "android:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-reinstall.ps1",
     "dev:connect:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -RestartMetro",
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
