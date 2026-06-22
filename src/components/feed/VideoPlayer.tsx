@@ -27,13 +27,12 @@ import {
     Alert,
     Dimensions,
     Platform,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -106,6 +105,7 @@ function VideoPlayer({
     item,
     isActive,
     shouldPreload = true,
+    standalonePlayback = false,
     feedHeight,
     onLike,
     onComment,
@@ -145,6 +145,7 @@ function VideoPlayer({
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
@@ -172,6 +173,7 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    standalonePlayback = false,
     feedHeight,
     onLike,
     onComment,
@@ -234,9 +236,16 @@ function VideoPlayerCore({
         getFeedNetworkProfile(),
     );
     const stallTimestampsRef = useRef<number[]>([]);
-    const [playbackAllowed, setPlaybackAllowed] = useState(() => isFeedPlaybackActive());
+    const [playbackAllowed, setPlaybackAllowed] = useState(
+        () => standalonePlayback || isFeedPlaybackActive(),
+    );
 
-    useEffect(() => subscribeFeedPlaybackActive(setPlaybackAllowed), []);
+    useEffect(() => {
+        if (standalonePlayback) {
+            return;
+        }
+        return subscribeFeedPlaybackActive(setPlaybackAllowed);
+    }, [standalonePlayback]);
 
     useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
 
@@ -408,10 +417,12 @@ function VideoPlayerCore({
         }
     }, []);
 
-    useEffect(() => registerFeedPlayer(pauseThisPlayer, releaseThisPlayer), [
-        pauseThisPlayer,
-        releaseThisPlayer,
-    ]);
+    useEffect(() => {
+        if (standalonePlayback) {
+            return;
+        }
+        return registerFeedPlayer(pauseThisPlayer, releaseThisPlayer);
+    }, [standalonePlayback, pauseThisPlayer, releaseThisPlayer]);
 
     useEffect(() => {
         if (!player) {
@@ -507,6 +518,22 @@ function VideoPlayerCore({
         setFirstFrameRendered(true);
         setVideoReady(true);
     }, [player]);
+
+    // Android textureView may not fire onFirstFrameRender while the view is opacity:0.
+    useEffect(() => {
+        if (!isActive || firstFrameRendered || !isPlayerUsable(player)) {
+            return;
+        }
+        if (!isPlaying && playerStatus !== 'readyToPlay') {
+            return;
+        }
+        const timer = setTimeout(() => {
+            if (isMountedRef.current && playerRef.current === player && !firstFrameRendered) {
+                setFirstFrameRendered(true);
+            }
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -655,16 +682,6 @@ function VideoPlayerCore({
         togglePlayPause();
     }, [togglePlayPause]);
 
-    const tapGesture = React.useMemo(
-        () =>
-            Gesture.Tap()
-                .maxDuration(250)
-                .onEnd(() => {
-                    runOnJS(handleTapOverlay)();
-                }),
-        [handleTapOverlay],
-    );
-
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
             Alert.alert('Not available', 'The creator has not allowed reuse of this audio.');
@@ -787,8 +804,11 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface = isActive && firstFrameRendered;
-    const hidePoster = !showVideoSurface;
+    const showVideoSurface =
+        isActive &&
+        (firstFrameRendered ||
+            (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
+    const hidePoster = showVideoSurface;
 
     const videoBody = (
             <View style={[styles.videoContainer, { height: slideHeight }]}>
@@ -797,7 +817,7 @@ function VideoPlayerCore({
                     {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={[styles.video, !showVideoSurface && styles.videoHiddenUntilReady]}
+                        style={styles.video}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -812,16 +832,15 @@ function VideoPlayerCore({
                     ) : null}
                 </View>
 
-                <GestureDetector gesture={tapGesture}>
-                    <View
-                        style={styles.tapOverlay}
-                        collapsable={false}
-                        accessible={true}
-                        accessibilityLabel="Video"
-                        accessibilityHint="Tap to pause or play"
-                        accessibilityRole="button"
-                    />
-                </GestureDetector>
+                <Pressable
+                    style={styles.tapOverlay}
+                    onPress={handleTapOverlay}
+                    collapsable={false}
+                    accessible={true}
+                    accessibilityLabel="Video"
+                    accessibilityHint="Tap to pause or play"
+                    accessibilityRole="button"
+                />
 
                 {showPauseHint && (
                     <View style={styles.controlsOverlay} pointerEvents="none">
@@ -989,14 +1008,12 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
         zIndex: 1,
     },
-    videoHiddenUntilReady: {
-        opacity: 0,
-    },
     tapOverlay: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 4,
         elevation: 4,
-        backgroundColor: 'transparent',
+        // Near-transparent fill so Android delivers taps inside FlatList cells.
+        backgroundColor: 'rgba(0,0,0,0.001)',
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,

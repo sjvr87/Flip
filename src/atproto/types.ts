@@ -94,6 +94,10 @@ export type FlipTextPost = {
   likes: number
   comments: number
   reposts: number
+  bookmarks?: number
+  has_liked?: boolean
+  has_bookmarked?: boolean
+  has_reposted?: boolean
   created_at: string
   tags?: string[]
   mentions?: FlipVideo['mentions']

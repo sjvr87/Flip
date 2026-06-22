@@ -16,8 +16,10 @@ import {
     fetchVideoReplies,
     videoBookmark as atprotoVideoBookmark,
     videoLike as atprotoVideoLike,
+    videoRepost as atprotoVideoRepost,
     videoUnbookmark as atprotoVideoUnbookmark,
     videoUnlike as atprotoVideoUnlike,
+    videoUnrepost as atprotoVideoUnrepost,
 } from '@/atproto';
 import {
     fetchUserVideoCursor,
@@ -125,6 +127,21 @@ export default function ProfileFeed({ navigation }) {
         onError: (error) => {},
     });
 
+    const videoRepostMutation = useMutation({
+        mutationFn: async (data) => {
+            if (!atproto) return;
+            if (data.type === 'repost') {
+                return await atprotoVideoRepost(data.id);
+            }
+            if (data.type === 'unrepost') {
+                return await atprotoVideoUnrepost(data.id);
+            }
+        },
+        onError: (error) => {
+            console.warn('[profileFeed] repost failed:', error);
+        },
+    });
+
     const videos = useMemo(
         () => data?.pages?.flatMap((page) => page.data) ?? [],
         [data?.pages],
@@ -188,6 +205,11 @@ export default function ProfileFeed({ navigation }) {
         videoBookmarkMutation.mutate({ type: dir, id: videoId });
     };
 
+    const handleRepost = (videoId, reposted) => {
+        const dir = reposted ? 'repost' : 'unrepost';
+        videoRepostMutation.mutate({ type: dir, id: videoId });
+    };
+
     const handleComment = (video) => {
         setSelectedVideo(video);
         setShowComments(true);
@@ -229,6 +251,7 @@ export default function ProfileFeed({ navigation }) {
                 onShare: handleShare,
                 onOther: handleOther,
                 onBookmark: handleBookmark,
+                onRepost: handleRepost,
                 tabBarHeight: 20,
                 onNavigate: handleNavigate,
             };
@@ -246,7 +269,8 @@ export default function ProfileFeed({ navigation }) {
                     {...sharedProps}
                     isActive={index === currentIndex}
                     shouldPreload={index === currentIndex}
-                    itemHeight={feedHeight}
+                    standalonePlayback
+                    feedHeight={feedHeight}
                     commentsOpen={showComments && selectedVideo?.id === item.id}
                     shareOpen={showShare && selectedVideo?.id === item.id}
                     otherOpen={showOther && selectedVideo?.id === item.id}

@@ -5,7 +5,12 @@ import type { FlipTextPost } from '@/atproto/types';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+
+function safeCount(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
 
 type TextPostSlideProps = {
     item: FlipTextPost;
@@ -15,6 +20,8 @@ type TextPostSlideProps = {
     onComment: (item: FlipTextPost) => void;
     onShare: (item: FlipTextPost) => void;
     onBookmark?: (postId: string, bookmarked: boolean) => void;
+    onRepost?: (postId: string, reposted: boolean) => void;
+    onOther?: (item: FlipTextPost) => void;
     onNavigate?: () => void;
 };
 
@@ -26,9 +33,40 @@ export default function TextPostSlide({
     onComment,
     onShare,
     onBookmark,
+    onRepost,
+    onOther,
     onNavigate,
 }: TextPostSlideProps) {
     const router = useRouter();
+    const [isLiked, setIsLiked] = useState(!!item.has_liked);
+    const [isBookmarked, setIsBookmarked] = useState(!!item.has_bookmarked);
+    const [isReposted, setIsReposted] = useState(!!item.has_reposted);
+
+    const likeCount =
+        safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0) - (!isLiked && item.has_liked ? 1 : 0);
+    const bookmarkCount =
+        safeCount(item.bookmarks) +
+        (isBookmarked && !item.has_bookmarked ? 1 : 0) -
+        (!isBookmarked && item.has_bookmarked ? 1 : 0);
+    const repostCount =
+        safeCount(item.reposts) +
+        (isReposted && !item.has_reposted ? 1 : 0) -
+        (!isReposted && item.has_reposted ? 1 : 0);
+
+    const handleLike = () => {
+        setIsLiked(!isLiked);
+        onLike(item.id, !isLiked);
+    };
+
+    const handleBookmark = () => {
+        setIsBookmarked(!isBookmarked);
+        onBookmark?.(item.id, !isBookmarked);
+    };
+
+    const handleRepost = () => {
+        setIsReposted(!isReposted);
+        onRepost?.(item.id, !isReposted);
+    };
 
     return (
         <View style={styles.container}>
@@ -74,14 +112,14 @@ export default function TextPostSlide({
             <FeedActionRail
                 avatarUrl={item.account.avatar}
                 profileLabel={`View ${item.account.username}'s profile`}
-                isLiked={false}
-                isBookmarked={false}
-                isReposted={false}
+                isLiked={isLiked}
+                isBookmarked={isBookmarked}
+                isReposted={isReposted}
                 isMuted={false}
-                likeCount={item.likes}
+                likeCount={likeCount}
                 commentCount={item.comments}
-                bookmarkCount={0}
-                repostCount={item.reposts}
+                bookmarkCount={bookmarkCount}
+                repostCount={repostCount}
                 canComment
                 canUseAudio={false}
                 bottomInset={bottomInset}
@@ -90,13 +128,13 @@ export default function TextPostSlide({
                     onNavigate?.();
                     router.push(toProfilePath(item.account.id));
                 }}
-                onLike={() => onLike(item.id, true)}
+                onLike={handleLike}
                 onComment={() => onComment(item)}
-                onBookmark={() => onBookmark?.(item.id, true)}
-                onRepost={() => {}}
+                onBookmark={handleBookmark}
+                onRepost={handleRepost}
                 onShare={() => onShare(item)}
                 onMuteToggle={() => {}}
-                onOther={() => onComment(item)}
+                onOther={() => (onOther ? onOther(item) : onComment(item))}
             />
         </View>
     );

@@ -15,7 +15,7 @@ import {
     writeExploreTagsCache,
     writeExploreTextPostsCache,
 } from '@/utils/exploreCache';
-import { toPostViewPath, toProfileFeedPath, toProfilePath } from '@/utils/profileNavigation';
+import { toPostViewPath, toProfilePath } from '@/utils/profileNavigation';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { timeAgo } from '@/utils/ui';
 import { Feather } from '@expo/vector-icons';
@@ -596,7 +596,7 @@ export default function ExploreScreen() {
             <ExploreVideoThumbnail
                 item={item}
                 index={index}
-                onPress={() => router.push(toProfileFeedPath(item.id, item.account!.id))}
+                onPress={() => router.push(toPostViewPath(item.id))}
             />
         ),
         [router],

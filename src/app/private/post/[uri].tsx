@@ -9,8 +9,10 @@ import {
     fetchPostForViewer,
     videoBookmark as atprotoVideoBookmark,
     videoLike as atprotoVideoLike,
+    videoRepost as atprotoVideoRepost,
     videoUnbookmark as atprotoVideoUnbookmark,
     videoUnlike as atprotoVideoUnlike,
+    videoUnrepost as atprotoVideoUnrepost,
 } from '@/atproto';
 import {
     decodeRouteParam,
@@ -107,6 +109,17 @@ export default function PostViewScreen({ navigation }) {
         },
     });
 
+    const videoRepostMutation = useMutation({
+        mutationFn: async (data) => {
+            if (!atproto) return;
+            if (data.type === 'repost') return await atprotoVideoRepost(data.id);
+            if (data.type === 'unrepost') return await atprotoVideoUnrepost(data.id);
+        },
+        onError: (error) => {
+            console.warn('[postViewer] repost failed:', error);
+        },
+    });
+
     useEffect(() => {
         openedComments.current = false;
     }, [uri]);
@@ -128,6 +141,13 @@ export default function PostViewScreen({ navigation }) {
         videoBookmarkMutation.mutate({
             type: bookmarked ? 'bookmark' : 'unbookmark',
             id: videoId,
+        });
+    };
+
+    const handleRepost = (postId, reposted) => {
+        videoRepostMutation.mutate({
+            type: reposted ? 'repost' : 'unrepost',
+            id: postId,
         });
     };
 
@@ -184,6 +204,7 @@ export default function PostViewScreen({ navigation }) {
               onShare: handleShare,
               onOther: handleOther,
               onBookmark: handleBookmark,
+              onRepost: handleRepost,
               tabBarHeight: 20,
               onNavigate: handleNavigate,
           }
@@ -197,6 +218,8 @@ export default function PostViewScreen({ navigation }) {
               onComment: handleComment,
               onShare: handleShare,
               onBookmark: handleBookmark,
+              onRepost: handleRepost,
+              onOther: handleOther,
               tabBarHeight: 20,
               onNavigate: handleNavigate,
           }
@@ -256,6 +279,7 @@ export default function PostViewScreen({ navigation }) {
                             <VideoPlayer
                                 {...sharedVideoProps}
                                 isActive
+                                standalonePlayback
                                 feedHeight={feedHeight}
                                 commentsOpen={showComments}
                                 shareOpen={showShare}

@@ -177,7 +177,8 @@ export default function PlaylistFeed({ navigation }) {
                 key={item.id}
                 item={item}
                 isActive={index === currentIndex}
-                itemHeight={feedHeight}
+                standalonePlayback
+                feedHeight={feedHeight}
                 onLike={handleLike}
                 onComment={handleComment}
                 onShare={handleShare}
