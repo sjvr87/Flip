@@ -43,7 +43,7 @@ Flip uses a **development build** (`social.flip.app`) — **not Expo Go**. Camer
 2. Daily dev: `npm.cmd start` on PC, `adb reverse tcp:8081 tcp:8081`, open **Flip** on the phone.
 3. Native rebuild only: `npm run android:build` (Gradle + adb — not needed for JS-only edits).
 
-Full guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**.
+Full guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**. S26 Ultra quick start: **[docs/ANDROID_FLAGSHIP_DEV.md](docs/ANDROID_FLAGSHIP_DEV.md)** (`flip-check-env.bat` to verify setup).
 
 Metro should say **"Using development build"** (not Expo Go). Deep links use `flip://expo-development-client/?url=...`.
 
@@ -75,7 +75,7 @@ The Create tab on **Android** uses **`flip-camerawesome`**, a local Expo module 
 
 Full quality audit, S26 Ultra gaps, and future targets: **[docs/CAMERA.md](docs/CAMERA.md)**.
 
-**Requires a dev build** — the Flip app (`social.flip.app`), not Expo Go. Full Windows + Samsung guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**.
+**Requires a dev build** — the Flip app (`social.flip.app`), not Expo Go. Full Windows + Samsung guide: **[docs/DEV_BUILD_ANDROID.md](docs/DEV_BUILD_ANDROID.md)**. Flagship device notes: **[docs/ANDROID_FLAGSHIP_DEV.md](docs/ANDROID_FLAGSHIP_DEV.md)**.
 
 ```bash
 cd flip-app

@@ -2,6 +2,8 @@
 
 What Flip needs in Android Studio for Expo RN + Kotlin native (`flip-camerawesome`). Heavy or unrelated marketplace plugins are intentionally omitted.
 
+S26 Ultra daily workflow and `flip-*.bat` scripts: **[ANDROID_FLAGSHIP_DEV.md](./ANDROID_FLAGSHIP_DEV.md)**.
+
 ## Daily dev vs Android Studio
 
 | Task | Tool |

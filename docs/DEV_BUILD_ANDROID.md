@@ -40,6 +40,7 @@ Metro always uses `--dev-client` (`expo-dev-client` package). You never need Exp
 Before you start, you need:
 
 - [ ] **Node.js 20+** (you have v26 — good). Check: `node --version`
+- [ ] **Samsung Galaxy S26 Ultra** (or Android flagship) — daily workflow: [ANDROID_FLAGSHIP_DEV.md](./ANDROID_FLAGSHIP_DEV.md)
 - [ ] **Android Studio** (Ladybug or newer) with Android SDK — optional plugins: [ANDROID_STUDIO_PLUGINS.md](./ANDROID_STUDIO_PLUGINS.md)
 - [ ] **JDK 17 or 21** (Android Studio bundles JDK 21 — use that)
 - [ ] **USB cable** (data-capable, not charge-only)
@@ -476,6 +477,8 @@ eas build --profile development --platform android
 
 ## Related docs
 
+- [ANDROID_FLAGSHIP_DEV.md](./ANDROID_FLAGSHIP_DEV.md) — S26 Ultra quick start, logcat, camera vs native, `flip-*.bat`
+- [ANDROID_STUDIO_PLUGINS.md](./ANDROID_STUDIO_PLUGINS.md) — optional IDE plugins
 - [DEV_ANDROID.md](./DEV_ANDROID.md) — Expo Go networking fixes (tunnel, firewall)
 - [CAMERA.md](./CAMERA.md) — CameraX quality settings and S26 Ultra notes
 - [README.md](../README.md) — project overview
