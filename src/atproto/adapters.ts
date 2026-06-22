@@ -1,5 +1,4 @@
 import {
-  AppBskyEmbedGallery,
   AppBskyEmbedImages,
   AppBskyEmbedVideo,
   RichText,
@@ -18,6 +17,38 @@ import { hasAdultLabels, isSensitivePost, shouldHideAdultContent } from './conte
 import { extractMentionsFromRecord, extractTagsFromRecord } from './mentions'
 
 type ImageEmbedView = AppBskyEmbedImages.View
+
+/** Gallery embed is not yet in @atproto/api — parse view payloads by $type. */
+type GalleryViewImage = {
+  $type?: string
+  thumbnail?: string
+  fullsize?: string
+  alt?: string
+  aspectRatio?: { width: number; height: number }
+}
+
+type GalleryView = {
+  $type?: string
+  items?: GalleryViewImage[]
+}
+
+function isGalleryView(embed: unknown): embed is GalleryView {
+  return (
+    typeof embed === 'object' &&
+    embed !== null &&
+    (embed as GalleryView).$type === 'app.bsky.embed.gallery#view'
+  )
+}
+
+function isGalleryViewImage(item: unknown): item is GalleryViewImage {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    ((item as GalleryViewImage).$type === 'app.bsky.embed.gallery#viewImage' ||
+      !!(item as GalleryViewImage).thumbnail ||
+      !!(item as GalleryViewImage).fullsize)
+  )
+}
 
 function getVideoEmbed(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View | null {
   const embed = post.embed
@@ -39,10 +70,10 @@ function getVideoEmbed(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View |
   return null
 }
 
-function galleryViewToImages(embed: AppBskyEmbedGallery.View): ImageEmbedView | null {
+function galleryViewToImages(embed: GalleryView): ImageEmbedView | null {
   const first = embed.items?.find(
-    (item): item is AppBskyEmbedGallery.ViewImage =>
-      AppBskyEmbedGallery.isViewImage(item) && !!(item.thumbnail || item.fullsize),
+    (item): item is GalleryViewImage =>
+      isGalleryViewImage(item) && !!(item.thumbnail || item.fullsize),
   )
   if (!first) return null
 
@@ -68,7 +99,7 @@ function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
     return embed
   }
 
-  if (AppBskyEmbedGallery.isView(embed)) {
+  if (isGalleryView(embed)) {
     return galleryViewToImages(embed)
   }
 
@@ -80,7 +111,7 @@ function getImageEmbed(post: AppBskyFeedDefs.PostView): ImageEmbedView | null {
     if (AppBskyEmbedImages.isView(embed.media)) {
       return embed.media
     }
-    if (AppBskyEmbedGallery.isView(embed.media)) {
+    if (isGalleryView(embed.media)) {
       return galleryViewToImages(embed.media)
     }
   }
