@@ -9,12 +9,14 @@
 #   -Reset           flip-reset-dev.bat     - kill Metro, clear cache, fresh start, adb reverse, launch
 #   -ConnectOnly     flip-connect.bat       - adb + launch only (Metro must already be healthy)
 #   -ConnectOnly -Reload  flip-reload.bat   - adb + POST /reload (JS tweak, app already running)
+#   -NoLaunch        flip-sync.bat          - adb reverse + wait for Metro; no force-stop or launch
 param(
   [switch]$RestartMetro,
   [switch]$ConnectOnly,
   [switch]$Reload,
   [switch]$Reconnect,
-  [switch]$Reset
+  [switch]$Reset,
+  [switch]$NoLaunch
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +53,8 @@ $modeLabel = if ($Reset) {
   "reset (kill Metro, fresh start)"
 } elseif ($Reconnect) {
   "reconnect (post-crash)"
+} elseif ($NoLaunch) {
+  "sync (adb reverse + Metro, no launch)"
 } elseif ($ConnectOnly) {
   if ($Reload) { "connect-only (reload)" } else { "connect-only" }
 } elseif ($RestartMetro) {
@@ -60,7 +64,7 @@ $modeLabel = if ($Reset) {
 }
 Write-Host "== Flip dev-connect ($modeLabel) ==" -ForegroundColor Cyan
 
-$skipPull = $ConnectOnly -or $Reconnect -or $Reset
+$skipPull = $ConnectOnly -or $Reconnect -or $Reset -or $NoLaunch
 if (-not $skipPull) {
   $branch = (git branch --show-current).Trim()
   Write-Host "[1/6] git pull origin $branch..."
@@ -465,6 +469,32 @@ if ($Reset) {
   exit $(if ($ok) { 0 } else { 1 })
 }
 
+if ($NoLaunch) {
+  Write-Host "[4/6] Metro (sync - wait for /status, no launch)"
+  $metroHealthy = Wait-MetroHealthy -TimeoutSec 120
+  if (-not $metroHealthy) {
+    Write-Host "  Metro /status not ready after 120s. Run flip-dev.bat or flip-reset-dev.bat." -ForegroundColor Red
+    Write-MetroNotRunningBanner
+  } else {
+    Write-Host "  Metro /status: running (localhost + LAN)" -ForegroundColor Green
+  }
+
+  Write-Host "[5/6] Launch - skipped (NoLaunch; open Flip manually when ready)" -ForegroundColor DarkGray
+
+  Write-Host ""
+  Write-Host "=== Status (sync) ===" -ForegroundColor Cyan
+  Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
+  Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
+  Write-Host ("Metro /status: {0}" -f $(if ($metroHealthy) { "running" } else { "NOT running" }))
+  if ($metroHealthy -and $reverseOk) {
+    Write-Host ""
+    Write-Host "Metro ready, reverse OK — open Flip manually when ready" -ForegroundColor Green
+  }
+  Write-Host ""
+  Write-Host "Tip: launch app: flip-connect.bat | JS reload: flip-reload.bat | full reset: flip-reset-dev.bat"
+  exit $(if ($metroHealthy -or $serials.Count -eq 0) { 0 } else { 1 })
+}
+
 if ($ConnectOnly -and -not $Reconnect) {
   Write-Host "[4/6] Metro (connect-only - wait for /status before launch)"
   $metroHealthy = Wait-MetroHealthy -TimeoutSec 120
@@ -567,6 +597,7 @@ Write-Host "- flip-dev.bat: first connect / sync branch - pull + adb + reuse Met
 Write-Host "- flip-reconnect.bat: after crash - adb + fix Metro + launch (fast, no pull)"
 Write-Host "- flip-connect.bat: adb + launch only (Metro already healthy)"
 Write-Host "- flip-reload.bat: adb + POST /reload (JS tweak, app already running)"
+Write-Host "- flip-sync.bat: adb reverse + wait for Metro (no launch; phone stays on current app)"
 Write-Host "- flip-dev-restart.bat: pull + force Metro recycle if unhealthy (clear cache)"
 Write-Host ""
 Write-Host "=== Troubleshooting ===" -ForegroundColor Cyan
