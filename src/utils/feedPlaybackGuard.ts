@@ -16,9 +16,22 @@ type FeedPlayerRegistration = {
 
 const registeredPlayers = new Set<FeedPlayerRegistration>();
 const playbackActiveListeners = new Set<(active: boolean) => void>();
+const playbackGenerationListeners = new Set<(generation: number) => void>();
 
 export function getFeedPlaybackGeneration(): number {
     return playbackGeneration;
+}
+
+export function getActiveFeedPlayerId(): string | null {
+    return activeFeedPlayerId;
+}
+
+export function subscribePlaybackGeneration(
+    listener: (generation: number) => void,
+): () => void {
+    playbackGenerationListeners.add(listener);
+    listener(playbackGeneration);
+    return () => playbackGenerationListeners.delete(listener);
 }
 
 function notifyPlaybackActive(): void {
@@ -28,9 +41,16 @@ function notifyPlaybackActive(): void {
     }
 }
 
+function notifyPlaybackGeneration(): void {
+    for (const listener of playbackGenerationListeners) {
+        listener(playbackGeneration);
+    }
+}
+
 function bumpPlaybackGeneration(): void {
     playbackGeneration += 1;
     activeFeedPlayerId = null;
+    notifyPlaybackGeneration();
 }
 
 export function isFeedPlaybackActive(): boolean {
@@ -66,7 +86,7 @@ export function registerFeedPlayer(
     };
 }
 
-/** Only one feed slide may decode audio at a time. Pauses all other registered players first. */
+/** Only one feed slide may output audio. Pauses + mutes all other registered players first. */
 export function claimFeedAudio(playerId: string): boolean {
     if (!isFeedPlaybackActive()) {
         return false;
@@ -93,8 +113,9 @@ export function releaseFeedAudio(playerId: string): void {
     }
 }
 
-/** Immediately pause every registered expo-video player. */
+/** Immediately pause + mute every registered expo-video player. */
 export function pauseAllFeedPlayers(): void {
+    activeFeedPlayerId = null;
     for (const { pause } of registeredPlayers) {
         try {
             pause();

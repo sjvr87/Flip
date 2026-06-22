@@ -11,6 +11,7 @@ import {
     registerFeedPlayer,
     releaseFeedAudio,
     subscribeFeedPlaybackActive,
+    subscribePlaybackGeneration,
 } from '@/utils/feedPlaybackGuard';
 import {
     getFeedNetworkProfile,
@@ -261,6 +262,12 @@ function VideoPlayerCore({
     useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
 
     const queuePlayerRelease = useCallback((released: ExpoVideoPlayer) => {
+        try {
+            released.pause?.();
+            released.muted = true;
+        } catch {
+            // player may already be released
+        }
         pendingReleaseRef.current.push(released);
     }, []);
 
@@ -270,6 +277,7 @@ function VideoPlayerCore({
         }
         try {
             released.pause?.();
+            released.muted = true;
         } catch {
             // already released
         }
@@ -309,6 +317,12 @@ function VideoPlayerCore({
                     return;
                 }
                 for (const released of pending) {
+                    try {
+                        released.pause?.();
+                        released.muted = true;
+                    } catch {
+                        // already released
+                    }
                     try {
                         released.release?.();
                     } catch {
@@ -435,6 +449,7 @@ function VideoPlayerCore({
         }
         try {
             activePlayer.pause();
+            activePlayer.muted = true;
             if (isMountedRef.current) {
                 setIsPlaying(false);
             }
@@ -459,6 +474,12 @@ function VideoPlayerCore({
         }
         if (activePlayer) {
             try {
+                activePlayer.pause?.();
+                activePlayer.muted = true;
+            } catch {
+                // already released
+            }
+            try {
                 activePlayer.release?.();
             } catch {
                 // already released
@@ -466,6 +487,12 @@ function VideoPlayerCore({
         }
         const pending = pendingReleaseRef.current.splice(0);
         for (const released of pending) {
+            try {
+                released.pause?.();
+                released.muted = true;
+            } catch {
+                // already released
+            }
             try {
                 released.release?.();
             } catch {
@@ -480,6 +507,16 @@ function VideoPlayerCore({
         }
         return registerFeedPlayer(item.id, pauseThisPlayer, releaseThisPlayer);
     }, [standalonePlayback, item.id, pauseThisPlayer, releaseThisPlayer]);
+
+    useEffect(() => {
+        if (standalonePlayback) {
+            return;
+        }
+        return subscribePlaybackGeneration(() => {
+            pauseThisPlayer();
+            releaseFeedAudio(item.id);
+        });
+    }, [standalonePlayback, item.id, pauseThisPlayer]);
 
     useEffect(() => {
         return () => {
@@ -572,11 +609,35 @@ function VideoPlayerCore({
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
         try {
-            player.muted = feedMuted;
+            if (standalonePlayback) {
+                player.muted = feedMuted;
+                return;
+            }
+            const mayOutputAudio =
+                isActive &&
+                isPlaying &&
+                playbackAllowed &&
+                screenFocused &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive) &&
+                !feedMuted;
+            player.muted = !mayOutputAudio;
         } catch (error) {
             console.log('Mute control error:', error);
         }
-    }, [feedMuted, player, playerEpoch]);
+    }, [
+        feedMuted,
+        isActive,
+        isPlaying,
+        playbackAllowed,
+        screenFocused,
+        isManuallyPaused,
+        item.is_sensitive,
+        playSensitive,
+        player,
+        playerEpoch,
+        standalonePlayback,
+    ]);
 
     const handleFirstFrameRender = useCallback(() => {
         if (!isMountedRef.current || playerRef.current !== player) {

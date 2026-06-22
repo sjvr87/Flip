@@ -30,7 +30,7 @@ import {
     subscribeFeedNetworkProfile,
     type FeedNetworkProfile,
 } from '@/utils/feedNetworkQuality';
-import { onFeedTabChanged, releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { onFeedTabChanged, pauseAllFeedPlayers, releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -683,6 +683,7 @@ export default function LoopsFeed({ navigation }) {
             const prevWatchStart = watchStartTimeRef.current;
 
             if (newIndex !== currentIndexRef.current) {
+                pauseAllFeedPlayers();
                 releaseAllVideoPrefetch();
             }
 
