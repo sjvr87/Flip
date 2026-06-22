@@ -419,13 +419,13 @@ export async function notificationMarkAsRead(id: string): Promise<{ data: Record
   const target = res.data.notifications.find((n) => n.uri === id)
   const seenAt = target?.indexedAt ?? new Date().toISOString()
 
-  await withAuthenticatedFetch(() => getAgent().updateSeenNotifications({ seenAt }))
+  await withAuthenticatedFetch(() => getAgent().updateSeenNotifications(seenAt))
   return { data: {} }
 }
 
 export async function notificationTypeMarkAllAsRead(_type: string): Promise<{ data: Record<string, never> }> {
   await withAuthenticatedFetch(() =>
-    getAgent().updateSeenNotifications({ seenAt: new Date().toISOString() }),
+    getAgent().updateSeenNotifications(new Date().toISOString()),
   )
   return { data: {} }
 }
