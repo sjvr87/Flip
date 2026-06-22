@@ -2,16 +2,11 @@ import { memo } from 'react';
 import Svg, { Circle, Defs, Ellipse, Path, Rect, Text, TextPath } from 'react-native-svg';
 
 const CX = 13;
-const CY = 13;
-const TEXT_R = 10.55;
-const TEXT_LEFT = CX - TEXT_R;
-const TEXT_RIGHT = CX + TEXT_R;
-
-const TOP_ARC_ID = 'createCamTopArc';
-const BOTTOM_ARC_ID = 'createCamBottomArc';
+const TOP_ARC_ID = 'createCamFlipArc';
+const BOTTOM_ARC_ID = 'createCamItArc';
 
 /**
- * Camera with FLIP / IT curved text — Create tab icon.
+ * FLIP (curved above) + camera (center) + IT (curved below) — Create tab icon.
  * Stroke-only line art; tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  */
 const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
@@ -23,22 +18,23 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
     const innerStroke = 0.88;
     const strokeOpacity = focused ? 1 : 0.72;
 
-    const topArcD = `M ${TEXT_LEFT.toFixed(2)} ${CY} A ${TEXT_R} ${TEXT_R} 0 0 1 ${TEXT_RIGHT.toFixed(2)} ${CY}`;
-    const bottomArcD = `M ${TEXT_LEFT.toFixed(2)} ${CY} A ${TEXT_R} ${TEXT_R} 0 0 0 ${TEXT_RIGHT.toFixed(2)} ${CY}`;
+    // Gentle arcs tucked above / below the camera — not overlapping the body.
+    const flipArcD = 'M 5.4 6.7 A 7.6 2.1 0 0 1 20.6 6.7';
+    const itArcD = 'M 8.4 20.4 A 4.6 1.55 0 0 0 17.6 20.4';
 
     return (
         <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
             <Defs>
-                <Path id={TOP_ARC_ID} d={topArcD} />
-                <Path id={BOTTOM_ARC_ID} d={bottomArcD} />
+                <Path id={TOP_ARC_ID} d={flipArcD} />
+                <Path id={BOTTOM_ARC_ID} d={itArcD} />
             </Defs>
 
             <Text
                 fill={color}
                 opacity={strokeOpacity}
-                fontSize={3.55}
+                fontSize={3.1}
                 fontWeight="700"
-                letterSpacing={0.38}
+                letterSpacing={0.32}
             >
                 <TextPath href={`#${TOP_ARC_ID}`} startOffset="50%" textAnchor="middle">
                     FLIP
@@ -47,9 +43,9 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             <Text
                 fill={color}
                 opacity={strokeOpacity}
-                fontSize={3.85}
+                fontSize={3.35}
                 fontWeight="700"
-                letterSpacing={0.45}
+                letterSpacing={0.38}
             >
                 <TextPath href={`#${BOTTOM_ARC_ID}`} startOffset="50%" textAnchor="middle">
                     IT
@@ -58,11 +54,11 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Camera body */}
             <Rect
-                x={5.5}
-                y={11.1}
-                width={15}
-                height={7.8}
-                rx={0.9}
+                x={4.1}
+                y={10.4}
+                width={17.8}
+                height={9.1}
+                rx={1}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
@@ -70,11 +66,11 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Viewfinder / hot shoe */}
             <Rect
-                x={9.2}
-                y={9.25}
-                width={6.6}
-                height={1.7}
-                rx={0.3}
+                x={7.9}
+                y={8.1}
+                width={7.9}
+                height={2.05}
+                rx={0.35}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -82,11 +78,11 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Shutter / mode button */}
             <Rect
-                x={17.55}
-                y={9.95}
-                width={1.65}
-                height={1.65}
-                rx={0.22}
+                x={18.35}
+                y={8.85}
+                width={1.95}
+                height={1.95}
+                rx={0.25}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -94,10 +90,10 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             {/* Front sensor / flash pill */}
             <Ellipse
-                cx={6.75}
-                cy={14.9}
-                rx={0.78}
-                ry={0.45}
+                cx={5.45}
+                cy={14.55}
+                rx={0.85}
+                ry={0.5}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity}
@@ -106,29 +102,29 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
             {/* Lens — concentric rings */}
             <Circle
                 cx={CX}
-                cy={15}
-                r={3.75}
+                cy={14.85}
+                r={4.2}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeOpacity={strokeOpacity}
             />
             <Circle
                 cx={CX}
-                cy={15}
-                r={2.7}
+                cy={14.85}
+                r={3.05}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity * 0.92}
             />
             <Circle
                 cx={CX}
-                cy={15}
-                r={1.62}
+                cy={14.85}
+                r={1.82}
                 stroke={color}
                 strokeWidth={innerStroke}
                 strokeOpacity={strokeOpacity * 0.88}
             />
-            <Circle cx={CX} cy={15} r={0.42} fill={color} opacity={strokeOpacity} />
+            <Circle cx={CX} cy={14.85} r={0.45} fill={color} opacity={strokeOpacity} />
         </Svg>
     );
 });
