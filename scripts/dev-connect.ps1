@@ -293,6 +293,10 @@ function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
   return $anyOk
 }
 
+# Expo Router home tab (src/app/(tabs)/index.tsx). Explicit /--/ path prevents the dev
+# client from restoring the last route (e.g. Create/camera) after reconnect scripts.
+$script:DevMetroHomePath = "/--/(tabs)/index"
+
 function Start-FlipApp {
   param(
     [string]$Serial,
@@ -304,7 +308,8 @@ function Start-FlipApp {
   Start-Sleep -Milliseconds 400
 
   if ($DevServerHost) {
-    $encodedUrl = [System.Uri]::EscapeDataString("exp://${DevServerHost}:8081")
+    $metroUrl = "exp://${DevServerHost}:8081$($script:DevMetroHomePath)"
+    $encodedUrl = [System.Uri]::EscapeDataString($metroUrl)
     $deepLink = "flip://expo-development-client/?url=$encodedUrl"
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @(
       "-s", $Serial, "shell", "am", "start",
@@ -312,7 +317,7 @@ function Start-FlipApp {
       "-d", $deepLink
     )
     Write-Host "  $Serial : $start"
-    Write-Host "  $Serial : deep link exp://${DevServerHost}:8081 (bypasses dev launcher picker)" -ForegroundColor DarkGray
+    Write-Host "  $Serial : deep link $metroUrl (Home tab; bypasses dev launcher picker)" -ForegroundColor DarkGray
   } else {
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "start", "-n", "social.flip.app/.MainActivity")
     Write-Host "  $Serial : $start"
@@ -360,7 +365,7 @@ function Write-DevStatus {
     Write-Host 'Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler / QR / connection URL)'
   }
   if ($script:LanIp) {
-    Write-Host "Launch URL: exp://${script:LanIp}:8081 (deep link bypasses dev launcher picker)"
+    Write-Host "Launch URL: exp://${script:LanIp}:8081$($script:DevMetroHomePath) (Home tab; bypasses dev launcher picker)"
     Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - run flip-reset-dev.bat" }))
   } else {
     Write-Host "Launch URL: (no LAN IP - connect PC and phone to same Wi-Fi)" -ForegroundColor Yellow
