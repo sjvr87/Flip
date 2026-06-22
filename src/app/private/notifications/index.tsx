@@ -437,12 +437,13 @@ export default function NotificationsHubScreen() {
                     <ActivityIndicator color={LOOP_ACCENT} />
                 </YStack>
             ) : null}
-            <SuggestedAccountsSection />
+            {mainTab === 'followers' ? <SuggestedAccountsSection /> : null}
         </View>
     );
 
     const activityList = (
         <FlatList
+            key="activity"
             data={activityNotifications}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
@@ -470,6 +471,7 @@ export default function NotificationsHubScreen() {
 
     const followersList = (
         <FlatList
+            key="followers"
             data={visibleFollowers}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
