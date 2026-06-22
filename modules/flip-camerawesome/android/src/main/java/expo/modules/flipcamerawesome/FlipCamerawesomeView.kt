@@ -55,10 +55,16 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       session?.setTorch(value)
     }
 
-  var isActive: Boolean = true
+  var isActive: Boolean = false
     set(value) {
+      if (field == value) return
       field = value
-      if (value) bindSession() else session?.unbind()
+      if (value) {
+        post { bindSession() }
+      } else {
+        session?.unbind()
+        session = null
+      }
     }
 
   var recording: Boolean = false
@@ -81,7 +87,18 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   init {
     installHierarchyFitter()
-    post { bindSession() }
+    previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+      if (isActive && session == null && previewView.width > 0 && previewView.height > 0) {
+        post { bindSession() }
+      }
+    }
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    if (isActive) {
+      post { bindSession() }
+    }
   }
 
   private fun resolveLifecycleOwner(): LifecycleOwner? {

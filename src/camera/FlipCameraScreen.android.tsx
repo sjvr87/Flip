@@ -39,7 +39,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [hasPermissions, setHasPermissions] = useState<boolean | null>(null)
   const [isCameraReady, setIsCameraReady] = useState(false)
-  const [isCameraActive, setIsCameraActive] = useState(true)
   const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video')
   const [photoRequestId, setPhotoRequestId] = useState(0)
 
@@ -82,8 +81,8 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   useFocusEffect(
     useCallback(() => {
+      // Release feed decoders before CameraX binds — same tick as focus so MediaCodec is free.
       prepareForCameraCapture()
-      setIsCameraActive(true)
       setIsCameraReady(false)
       requestAndroidPermissions().then(setHasPermissions)
       ensureAndroidMediaReadPermissions()
@@ -94,7 +93,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
           setIsRecording(false)
           recordingRef.current = false
         }
-        setIsCameraActive(false)
         setIsCameraReady(false)
       }
     }, [requestAndroidPermissions, reloadGalleryThumb]),
@@ -289,47 +287,45 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
       {isCameraReady && remixReferenceUrl ? (
         <ReferenceAudioPlayer
           url={remixReferenceUrl}
-          active={isFocused && isCameraActive}
+          active={isFocused}
         />
       ) : null}
       <GestureDetector gesture={cameraGestures}>
         <View style={StyleSheet.absoluteFill}>
-          {isFocused && (
-            <FlipCamerawesomeView
-              style={StyleSheet.absoluteFill}
-              facing={cameraPosition}
-              zoom={zoomLevel}
-              torchEnabled={flash && cameraPosition === 'back'}
-              isActive={isFocused && isCameraActive}
-              recording={isRecording}
-              photoRequestId={photoRequestId}
-              onCameraReady={() => {
-                setIsCameraReady(true)
-                if (__DEV__ && remixReferenceUrl) {
-                  console.log('[FlipCamera] ready; remix url:', remixReferenceUrl.slice(0, 80))
-                }
-              }}
-              onRecordingFinished={(e) => {
-                const path = e.nativeEvent.uri || e.nativeEvent.path
-                navigateToPreview(path, recordingDuration, 'video')
-              }}
-              onPhotoCaptured={(e) => {
-                const path = e.nativeEvent.uri || e.nativeEvent.path
-                navigateToPreview(path, 0, 'photo')
-              }}
-              onPhotoCaptureError={(e) => {
-                Alert.alert('Photo error', e.nativeEvent.message)
-              }}
-              onRecordingError={(e) => {
-                Alert.alert('Recording error', e.nativeEvent.message)
-                setIsRecording(false)
-                recordingRef.current = false
-              }}
-              onCameraError={(e) => {
-                Alert.alert('Camera error', e.nativeEvent.message)
-              }}
-            />
-          )}
+          <FlipCamerawesomeView
+            style={StyleSheet.absoluteFill}
+            facing={cameraPosition}
+            zoom={zoomLevel}
+            torchEnabled={flash && cameraPosition === 'back'}
+            isActive={isFocused}
+            recording={isRecording}
+            photoRequestId={photoRequestId}
+            onCameraReady={() => {
+              setIsCameraReady(true)
+              if (__DEV__ && remixReferenceUrl) {
+                console.log('[FlipCamera] ready; remix url:', remixReferenceUrl.slice(0, 80))
+              }
+            }}
+            onRecordingFinished={(e) => {
+              const path = e.nativeEvent.uri || e.nativeEvent.path
+              navigateToPreview(path, recordingDuration, 'video')
+            }}
+            onPhotoCaptured={(e) => {
+              const path = e.nativeEvent.uri || e.nativeEvent.path
+              navigateToPreview(path, 0, 'photo')
+            }}
+            onPhotoCaptureError={(e) => {
+              Alert.alert('Photo error', e.nativeEvent.message)
+            }}
+            onRecordingError={(e) => {
+              Alert.alert('Recording error', e.nativeEvent.message)
+              setIsRecording(false)
+              recordingRef.current = false
+            }}
+            onCameraError={(e) => {
+              Alert.alert('Camera error', e.nativeEvent.message)
+            }}
+          />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
             style={styles.gradientOverlay}

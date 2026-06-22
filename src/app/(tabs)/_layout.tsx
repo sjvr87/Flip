@@ -6,6 +6,7 @@ import ProfileTabIcon from '@/components/icons/ProfileTabIcon';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
@@ -64,6 +65,13 @@ export default function TabsLayout() {
             pathname === '/(tabs)' ||
             pathname === '/(tabs)/index' ||
             pathname.endsWith('/index');
+        const onCreateTab =
+            pathname === '/create' ||
+            pathname === '/(tabs)/create' ||
+            pathname.endsWith('/create');
+        if (onCreateTab) {
+            prepareForCameraCapture();
+        }
         setFeedPlaybackActive(onHomeTab);
     }, [pathname]);
 
