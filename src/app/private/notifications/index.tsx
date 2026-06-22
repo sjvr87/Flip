@@ -22,7 +22,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -380,140 +380,6 @@ export default function NotificationsHubScreen() {
             </YStack>
         );
 
-    const listHeader = (
-        <View>
-            {renderMainTabs()}
-            {mainTab === 'activity' ? (
-                <ActivityFilterChips selected={activityFilter} onSelect={setActivityFilter} />
-            ) : null}
-            {mainTab === 'followers' && followerNotifications.length > 0 ? (
-                <View style={tw`px-4 pb-2`}>
-                    <StackText fontSize="$3" textColor="text-gray-500 dark:text-gray-500">
-                        {followerNotifications.length} new follower
-                        {followerNotifications.length === 1 ? '' : 's'}
-                    </StackText>
-                </View>
-            ) : null}
-        </View>
-    );
-
-    const activityListFooter = isFetchingNextActivity ? (
-        <YStack paddingVertical="$6" alignItems="center">
-            <ActivityIndicator color={LOOP_ACCENT} />
-        </YStack>
-    ) : null;
-
-    const followersListFooter = (
-        <View>
-            {showFollowersExpand ? (
-                <PressableHaptics
-                    onPress={() => setFollowersExpanded(true)}
-                    style={tw`py-4 items-center`}>
-                    <StackText fontSize="$4" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
-                        View all {followerNotifications.length} followers
-                    </StackText>
-                </PressableHaptics>
-            ) : null}
-            {followersExpanded && followerNotifications.length > FOLLOWERS_COLLAPSED_COUNT ? (
-                <PressableHaptics
-                    onPress={() => setFollowersExpanded(false)}
-                    style={tw`py-3 items-center`}>
-                    <StackText fontSize="$3" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
-                        Show less
-                    </StackText>
-                </PressableHaptics>
-            ) : null}
-            {followersExpanded && hasNextFollowers && !isFetchingNextFollowers ? (
-                <PressableHaptics
-                    onPress={() => fetchNextFollowers()}
-                    style={tw`py-4 items-center`}>
-                    <StackText fontSize="$4" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
-                        View more
-                    </StackText>
-                </PressableHaptics>
-            ) : null}
-            {isFetchingNextFollowers ? (
-                <YStack paddingVertical="$6" alignItems="center">
-                    <ActivityIndicator color={LOOP_ACCENT} />
-                </YStack>
-            ) : null}
-            {mainTab === 'followers' ? <SuggestedAccountsSection /> : null}
-        </View>
-    );
-
-    const activityList = (
-        <FlatList
-            key="activity"
-            data={activityNotifications}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-                <NotificationItem
-                    item={item}
-                    onPress={handleActivityPress}
-                    onProfilePress={handleActivityProfilePress}
-                />
-            )}
-            ListHeaderComponent={listHeader}
-            ListFooterComponent={activityListFooter}
-            ListEmptyComponent={renderEmpty(activityLoading)}
-            onEndReachedThreshold={0.4}
-            onEndReached={() => {
-                if (hasNextActivity && !isFetchingNextActivity && !activityRefetching) {
-                    fetchNextActivity();
-                }
-            }}
-            refreshing={activityRefetching && !isFetchingNextActivity}
-            onRefresh={() => refetchActivity()}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1 }}
-        />
-    );
-
-    const followersList = (
-        <FlatList
-            key="followers"
-            data={visibleFollowers}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-                <FollowerNotificationRow
-                    item={item}
-                    onPress={() => handleFollowerPress(item)}
-                    onProfilePress={() => {
-                        if (!item.read_at) followerReadMutation.mutate(item.id);
-                        router.push(toProfilePath(item.actor.id));
-                    }}
-                    onAccept={() =>
-                        acceptMutation.mutate({
-                            actorId: item.actor.id,
-                            notificationId: item.id,
-                        })
-                    }
-                    isAccepting={acceptingId === item.actor.id}
-                    isAccepted={acceptedIds.has(item.actor.id)}
-                />
-            )}
-            ListHeaderComponent={listHeader}
-            ListFooterComponent={followersListFooter}
-            ListEmptyComponent={renderEmpty(followersLoading)}
-            onEndReachedThreshold={0.4}
-            onEndReached={() => {
-                if (
-                    followersExpanded &&
-                    hasNextFollowers &&
-                    !isFetchingNextFollowers &&
-                    !followersRefetching
-                ) {
-                    fetchNextFollowers();
-                }
-            }}
-            refreshing={followersRefetching && !isFetchingNextFollowers}
-            onRefresh={() => refetchFollowers()}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1 }}
-        />
-    );
-
-    const currentList = mainTab === 'activity' ? activityList : followersList;
     const showMarkAllRead =
         mainTab === 'activity' && activityNotifications.length > 0 && !markAllActivityReadMutation.isPending;
 
@@ -552,7 +418,235 @@ export default function NotificationsHubScreen() {
                         ) : null,
                 }}
             />
-            {currentList}
+            {renderMainTabs()}
+            {mainTab === 'activity' ? (
+                <ActivityNotificationsPanel
+                    notifications={activityNotifications}
+                    activityFilter={activityFilter}
+                    onFilterChange={setActivityFilter}
+                    isLoading={activityLoading}
+                    isRefetching={activityRefetching}
+                    isFetchingNextPage={isFetchingNextActivity}
+                    hasNextPage={hasNextActivity}
+                    onRefresh={refetchActivity}
+                    onFetchNextPage={fetchNextActivity}
+                    onPress={handleActivityPress}
+                    onProfilePress={handleActivityProfilePress}
+                    renderEmpty={renderEmpty(activityLoading)}
+                />
+            ) : (
+                <FollowersNotificationsPanel
+                    notifications={visibleFollowers}
+                    totalFollowerCount={followerNotifications.length}
+                    isLoading={followersLoading}
+                    isRefetching={followersRefetching}
+                    isFetchingNextPage={isFetchingNextFollowers}
+                    hasNextPage={hasNextFollowers}
+                    followersExpanded={followersExpanded}
+                    showExpand={showFollowersExpand}
+                    onExpand={() => setFollowersExpanded(true)}
+                    onCollapse={() => setFollowersExpanded(false)}
+                    onFetchNextPage={fetchNextFollowers}
+                    onRefresh={refetchFollowers}
+                    onPress={handleFollowerPress}
+                    onProfilePress={(item) => {
+                        if (!item.read_at) followerReadMutation.mutate(item.id);
+                        router.push(toProfilePath(item.actor.id));
+                    }}
+                    onAccept={(item) =>
+                        acceptMutation.mutate({
+                            actorId: item.actor.id,
+                            notificationId: item.id,
+                        })
+                    }
+                    acceptingId={acceptingId}
+                    acceptedIds={acceptedIds}
+                    renderEmpty={renderEmpty(followersLoading)}
+                />
+            )}
         </View>
+    );
+}
+
+type ActivityNotificationsPanelProps = {
+    notifications: any[];
+    activityFilter: ActivityHubFilter;
+    onFilterChange: (filter: ActivityHubFilter) => void;
+    isLoading: boolean;
+    isRefetching: boolean;
+    isFetchingNextPage: boolean;
+    hasNextPage: boolean | undefined;
+    onRefresh: () => void;
+    onFetchNextPage: () => void;
+    onPress: (item: any) => void;
+    onProfilePress: (account: any, item: any) => void;
+    renderEmpty: ReactElement;
+};
+
+function ActivityNotificationsPanel({
+    notifications,
+    activityFilter,
+    onFilterChange,
+    isLoading,
+    isRefetching,
+    isFetchingNextPage,
+    hasNextPage,
+    onRefresh,
+    onFetchNextPage,
+    onPress,
+    onProfilePress,
+    renderEmpty,
+}: ActivityNotificationsPanelProps) {
+    const listHeader = (
+        <ActivityFilterChips selected={activityFilter} onSelect={onFilterChange} />
+    );
+
+    const listFooter = isFetchingNextPage ? (
+        <YStack paddingVertical="$6" alignItems="center">
+            <ActivityIndicator color={LOOP_ACCENT} />
+        </YStack>
+    ) : null;
+
+    return (
+        <FlatList
+            style={tw`flex-1`}
+            data={notifications}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+                <NotificationItem
+                    item={item}
+                    onPress={onPress}
+                    onProfilePress={onProfilePress}
+                />
+            )}
+            ListHeaderComponent={listHeader}
+            ListFooterComponent={listFooter}
+            ListEmptyComponent={renderEmpty}
+            onEndReachedThreshold={0.4}
+            onEndReached={() => {
+                if (hasNextPage && !isFetchingNextPage && !isRefetching) {
+                    onFetchNextPage();
+                }
+            }}
+            refreshing={isRefetching && !isFetchingNextPage}
+            onRefresh={onRefresh}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+        />
+    );
+}
+
+type FollowersNotificationsPanelProps = {
+    notifications: any[];
+    totalFollowerCount: number;
+    isLoading: boolean;
+    isRefetching: boolean;
+    isFetchingNextPage: boolean;
+    hasNextPage: boolean | undefined;
+    followersExpanded: boolean;
+    showExpand: boolean;
+    onExpand: () => void;
+    onCollapse: () => void;
+    onFetchNextPage: () => void;
+    onRefresh: () => void;
+    onPress: (item: any) => void;
+    onProfilePress: (item: any) => void;
+    onAccept: (item: any) => void;
+    acceptingId: string | null;
+    acceptedIds: Set<string>;
+    renderEmpty: ReactElement;
+};
+
+function FollowersNotificationsPanel({
+    notifications,
+    totalFollowerCount,
+    isLoading,
+    isRefetching,
+    isFetchingNextPage,
+    hasNextPage,
+    followersExpanded,
+    showExpand,
+    onExpand,
+    onCollapse,
+    onFetchNextPage,
+    onRefresh,
+    onPress,
+    onProfilePress,
+    onAccept,
+    acceptingId,
+    acceptedIds,
+    renderEmpty,
+}: FollowersNotificationsPanelProps) {
+    const listHeader =
+        totalFollowerCount > 0 ? (
+            <View style={tw`px-4 pb-2`}>
+                <StackText fontSize="$3" textColor="text-gray-500 dark:text-gray-500">
+                    {totalFollowerCount} new follower
+                    {totalFollowerCount === 1 ? '' : 's'}
+                </StackText>
+            </View>
+        ) : null;
+
+    const listFooter = (
+        <View>
+            {showExpand ? (
+                <PressableHaptics onPress={onExpand} style={tw`py-4 items-center`}>
+                    <StackText fontSize="$4" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
+                        View all {totalFollowerCount} followers
+                    </StackText>
+                </PressableHaptics>
+            ) : null}
+            {followersExpanded && totalFollowerCount > FOLLOWERS_COLLAPSED_COUNT ? (
+                <PressableHaptics onPress={onCollapse} style={tw`py-3 items-center`}>
+                    <StackText fontSize="$3" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
+                        Show less
+                    </StackText>
+                </PressableHaptics>
+            ) : null}
+            {followersExpanded && hasNextPage && !isFetchingNextPage ? (
+                <PressableHaptics onPress={onFetchNextPage} style={tw`py-4 items-center`}>
+                    <StackText fontSize="$4" fontWeight="semibold" style={{ color: LOOP_ACCENT }}>
+                        View more
+                    </StackText>
+                </PressableHaptics>
+            ) : null}
+            {isFetchingNextPage ? (
+                <YStack paddingVertical="$6" alignItems="center">
+                    <ActivityIndicator color={LOOP_ACCENT} />
+                </YStack>
+            ) : null}
+            <SuggestedAccountsSection />
+        </View>
+    );
+
+    return (
+        <FlatList
+            style={tw`flex-1`}
+            data={notifications}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+                <FollowerNotificationRow
+                    item={item}
+                    onPress={() => onPress(item)}
+                    onProfilePress={() => onProfilePress(item)}
+                    onAccept={() => onAccept(item)}
+                    isAccepting={acceptingId === item.actor.id}
+                    isAccepted={acceptedIds.has(item.actor.id)}
+                />
+            )}
+            ListHeaderComponent={listHeader}
+            ListFooterComponent={listFooter}
+            ListEmptyComponent={renderEmpty}
+            onEndReachedThreshold={0.4}
+            onEndReached={() => {
+                if (followersExpanded && hasNextPage && !isFetchingNextPage && !isRefetching) {
+                    onFetchNextPage();
+                }
+            }}
+            refreshing={isRefetching && !isFetchingNextPage}
+            onRefresh={onRefresh}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+        />
     );
 }
