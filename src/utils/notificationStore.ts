@@ -11,7 +11,7 @@ import { create } from 'zustand';
 const LIKE_NOTIFICATION_TYPES = new Set(['video.like', 'comment.like', 'commentReply.like']);
 
 /** Bluesky listNotifications can lag after updateSeen — keep zeros briefly. */
-const ACTIVITY_MARK_GRACE_MS = 10_000;
+const ACTIVITY_MARK_GRACE_MS = 60_000;
 
 interface NotificationState {
     badgeCount: number;
@@ -56,6 +56,19 @@ function shouldPreserveActivityZeros(activityMarkedReadAt: number | null): boole
         activityMarkedReadAt !== null &&
         Date.now() - activityMarkedReadAt < ACTIVITY_MARK_GRACE_MS
     );
+}
+
+function optimisticClearActivityUnread(
+    set: (partial: Partial<NotificationState> | ((s: NotificationState) => Partial<NotificationState>)) => void,
+): number {
+    const markedAt = Date.now();
+    set((s) => ({
+        activityMarkedReadAt: markedAt,
+        unreadLikes: 0,
+        unreadActivity: 0,
+        mailboxIconState: computeMailboxState(s.unreadMessages, 0, s.unreadFollows),
+    }));
+    return markedAt;
 }
 
 function applyBreakdown(
@@ -167,19 +180,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     },
 
     clearActivityUnread: () => {
-        const markedAt = Date.now();
-        set((s) => ({
-            activityMarkedReadAt: markedAt,
-            unreadLikes: 0,
-            unreadActivity: 0,
-            mailboxIconState: computeMailboxState(s.unreadMessages, 0, s.unreadFollows),
-        }));
+        optimisticClearActivityUnread(set);
     },
 
     markActivityViewed: async () => {
         if (!isLoggedIn()) return;
 
-        const markedAt = Date.now();
+        const markedAt = optimisticClearActivityUnread(set);
         try {
             await notificationTypeMarkAllAsRead('activity');
             const [unreadMessages, unreadFollows] = await Promise.all([
@@ -206,7 +213,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     markInboxViewed: async () => {
         if (!isLoggedIn()) return;
 
-        const markedAt = Date.now();
+        const markedAt = optimisticClearActivityUnread(set);
         try {
             await notificationTypeMarkAllAsRead('activity');
             const [unreadMessages, unreadFollows] = await Promise.all([

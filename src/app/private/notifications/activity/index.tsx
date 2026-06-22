@@ -81,6 +81,10 @@ export default function ActivityNotificationsScreen() {
                 };
             });
 
+            if (notificationType) {
+                markActivityNotificationRead(notificationType);
+            }
+
             return { previousData, queryKey, notificationType };
         },
         onError: (err, notificationId, context) => {
@@ -90,9 +94,6 @@ export default function ActivityNotificationsScreen() {
             console.error('Failed to mark notification as read:', err);
         },
         onSuccess: (_data, _notificationId, context) => {
-            if (context?.notificationType) {
-                markActivityNotificationRead(context.notificationType);
-            }
             queryClient.setQueryData(['main-notifications'], (old: any) => {
                 if (!old?.meta?.unread_counts) return old;
                 const activity = Math.max(0, (old.meta.unread_counts.activity ?? 0) - 1);
@@ -188,6 +189,7 @@ export default function ActivityNotificationsScreen() {
 
     useFocusEffect(
         useCallback(() => {
+            clearActivityUnread();
             void markActivityViewed().then(() => {
                 queryClient.setQueryData(['main-notifications'], (old: any) => {
                     if (!old?.meta?.unread_counts) return old;
@@ -204,7 +206,7 @@ export default function ActivityNotificationsScreen() {
                 });
                 void refetch();
             });
-        }, [markActivityViewed, queryClient, refetch]),
+        }, [clearActivityUnread, markActivityViewed, queryClient, refetch]),
     );
 
     const activeFilterLabel = useMemo(

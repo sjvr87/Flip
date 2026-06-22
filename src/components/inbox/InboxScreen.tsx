@@ -255,7 +255,8 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
     const router = useRouter();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
-    const { markInboxViewed, markActivityViewed, refetchBadgeCount } = useNotificationStore();
+    const { markInboxViewed, markActivityViewed, clearActivityUnread, refetchBadgeCount } =
+        useNotificationStore();
     const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
     const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
     const { isDark } = useTheme();
@@ -309,8 +310,8 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                         },
                     };
                 });
+                void refetchBadgeCount();
             });
-            void refetchBadgeCount();
         }, [markInboxViewed, refetchBadgeCount, queryClient]),
     );
 
@@ -539,6 +540,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                             count={category.count}
                             onPress={() => {
                                 if (category.id === 'activity') {
+                                    clearActivityUnread();
                                     void markActivityViewed();
                                 }
                                 router.push(category.route as any);
