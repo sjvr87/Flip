@@ -4,6 +4,7 @@ export type FlipCamerawesomeViewProps = {
   torchEnabled?: boolean
   isActive?: boolean
   recording?: boolean
+  captureMode?: 'video' | 'photo'
   photoRequestId?: number
   style?: object
   onCameraReady?: (event: { nativeEvent: { ready: boolean; profile?: CaptureProfile } }) => void

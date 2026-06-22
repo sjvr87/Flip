@@ -92,6 +92,24 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       }
     }
 
+  /** JS capture mode — stops any in-flight recording when leaving video. */
+  var captureMode: String = "video"
+    set(value) {
+      if (field == value) return
+      field = value
+      if (value != "video") {
+        pendingStartRecording = false
+        if (recording) {
+          recording = false
+        } else {
+          session?.stopRecording()
+        }
+        session?.let { active ->
+          previewView.post { active.refreshPreviewSurface() }
+        }
+      }
+    }
+
   var photoRequestId: Int = 0
     set(value) {
       if (value <= 0 || value == field) return
@@ -157,7 +175,7 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
     val activeSession = session
     if (activeSession != null) {
-      if (rootChanged && !recording) {
+      if (rootChanged && !activeSession.isRecording() && !recording) {
         previewView.post { activeSession.refreshPreviewSurface() }
       }
       return

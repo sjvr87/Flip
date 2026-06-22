@@ -38,6 +38,10 @@ class FlipCamerawesomeModule : Module() {
         view.recording = recording
       }
 
+      Prop("captureMode") { view: FlipCamerawesomeView, mode: String ->
+        view.captureMode = mode
+      }
+
       Prop("photoRequestId") { view: FlipCamerawesomeView, id: Int ->
         view.photoRequestId = id
       }

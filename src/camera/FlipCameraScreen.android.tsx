@@ -309,6 +309,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             torchEnabled={flash && cameraPosition === 'back'}
             isActive={isFocused}
             recording={isRecording}
+            captureMode={captureMode}
             photoRequestId={photoRequestId}
             onCameraReady={(e) => {
               setIsCameraReady(true)
@@ -408,7 +409,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
       <View style={styles.modeBar}>
         <TouchableOpacity
-          onPress={() => setCaptureMode('video')}
+          onPress={() => {
+            if (isRecording) stopRecording()
+            setCaptureMode('video')
+          }}
           style={[styles.modeChip, captureMode === 'video' && styles.modeChipActive]}
         >
           <Text style={[styles.modeChipText, captureMode === 'video' && styles.modeChipTextActive]}>
@@ -416,7 +420,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setCaptureMode('photo')}
+          onPress={() => {
+            if (isRecording) stopRecording()
+            setCaptureMode('photo')
+          }}
           style={[styles.modeChip, captureMode === 'photo' && styles.modeChipActive]}
         >
           <Text style={[styles.modeChipText, captureMode === 'photo' && styles.modeChipTextActive]}>

@@ -43,6 +43,7 @@ class FlipCameraSession(
 ) {
   companion object {
     private const val TAG = "FlipCameraSession"
+    private const val RECORDING_START_TIMEOUT_MS = 8_000L
     private val recordingExecutor = Executors.newSingleThreadExecutor()
   }
 
@@ -53,6 +54,9 @@ class FlipCameraSession(
   private var imageCapture: ImageCapture? = null
   private var activeRecording: Recording? = null
   @Volatile private var recordingStarting = false
+  /** Set only while start() runs — blocks preview surface rebind during the race window. */
+  @Volatile private var pausePreviewRefresh = false
+  private var recordingGeneration = 0
   private var profile: ResolvedCaptureProfile = FlipCaptureProfile.defaultStandardProfile()
   private var lensFacing: Int =
     if (initialFacing == "front") CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
@@ -139,7 +143,7 @@ class FlipCameraSession(
       return
     }
 
-    if (activeRecording != null) {
+    if (isRecording()) {
       onFailed("Cannot take photo while recording")
       return
     }
@@ -178,11 +182,12 @@ class FlipCameraSession(
       return
     }
 
-    if (activeRecording != null || recordingStarting) {
+    if (isRecording()) {
       onFailed("Already recording")
       return
     }
 
+    val generation = ++recordingGeneration
     recordingStarting = true
 
     val context = previewView.context
@@ -190,26 +195,52 @@ class FlipCameraSession(
       ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
         PackageManager.PERMISSION_GRANTED
 
-    val outputOptions = FileOutputOptions.Builder(outputFile).build()
-    var pending = capture.output.prepareRecording(context, outputOptions)
-    if (enableAudio && hasMic) {
-      pending = pending.withAudioEnabled()
-    }
-
-    val pendingRecording = pending
-    // UHD encoder setup can block; never run start() on the main thread.
+    // Encoder setup (prepareRecording + start) must stay off the main thread.
     recordingExecutor.execute {
+      if (generation != recordingGeneration) {
+        recordingStarting = false
+        return@execute
+      }
+
       try {
-        val recording =
-          pendingRecording.start(mainExecutor) { event ->
+        val outputOptions = FileOutputOptions.Builder(outputFile).build()
+        var pending = capture.output.prepareRecording(context, outputOptions)
+        if (enableAudio && hasMic) {
+          pending = pending.withAudioEnabled()
+        }
+
+        if (generation != recordingGeneration) {
+          recordingStarting = false
+          return@execute
+        }
+
+        pausePreviewRefresh = true
+        lateinit var recording: Recording
+        recording =
+          pending.start(mainExecutor) { event ->
             when (event) {
               is VideoRecordEvent.Start -> {
+                pausePreviewRefresh = false
+                if (generation != recordingGeneration) {
+                  recording.stop()
+                  recordingStarting = false
+                  return@start
+                }
                 recordingStarting = false
+                activeRecording = recording
                 Log.d(TAG, "Recording started ${profile.badgeLabel}")
               }
               is VideoRecordEvent.Finalize -> {
+                pausePreviewRefresh = false
                 recordingStarting = false
-                activeRecording = null
+                if (activeRecording === recording) {
+                  activeRecording = null
+                }
+                if (generation != recordingGeneration) {
+                  schedulePreviewRefresh()
+                  return@start
+                }
+                schedulePreviewRefresh()
                 if (event.hasError()) {
                   mainExecutor.execute {
                     onFailed("Recording error: ${event.error}")
@@ -223,26 +254,72 @@ class FlipCameraSession(
               else -> Unit
             }
           }
-        activeRecording = recording
+
+        mainExecutor.execute {
+          previewView.postDelayed(
+            {
+              if (generation != recordingGeneration) return@postDelayed
+              if (activeRecording == null && recordingStarting) {
+                Log.e(TAG, "Recording start timed out after ${RECORDING_START_TIMEOUT_MS}ms")
+                ++recordingGeneration
+                recordingStarting = false
+                pausePreviewRefresh = false
+                try {
+                  recording.stop()
+                } catch (e: Exception) {
+                  Log.w(TAG, "Recording timeout: stop failed", e)
+                }
+                schedulePreviewRefresh()
+                onFailed("Recording failed to start (timeout)")
+              }
+            },
+            RECORDING_START_TIMEOUT_MS,
+          )
+        }
+
+        if (generation != recordingGeneration) {
+          pausePreviewRefresh = false
+          recordingStarting = false
+          try {
+            recording.stop()
+          } catch (e: Exception) {
+            Log.w(TAG, "startRecording: cancelled in-flight recording", e)
+          }
+          schedulePreviewRefresh()
+        }
       } catch (e: Exception) {
+        pausePreviewRefresh = false
         recordingStarting = false
         Log.e(TAG, "startRecording failed", e)
-        mainExecutor.execute {
-          onFailed(e.message ?: "Recording failed to start")
+        if (generation == recordingGeneration) {
+          mainExecutor.execute {
+            schedulePreviewRefresh()
+            onFailed(e.message ?: "Recording failed to start")
+          }
         }
       }
     }
   }
 
   fun stopRecording() {
+    ++recordingGeneration
     recordingStarting = false
-    val recording = activeRecording ?: return
+    pausePreviewRefresh = false
+    val recording = activeRecording
     activeRecording = null
-    recording.stop()
+    recording?.stop()
+    schedulePreviewRefresh()
+  }
+
+  /** Re-attach preview surface after recording ends or is cancelled (unfreezes TextureView). */
+  private fun schedulePreviewRefresh() {
+    mainExecutor.execute {
+      previewView.post { refreshPreviewSurface() }
+    }
   }
 
   fun refreshPreviewSurface() {
-    if (activeRecording != null || recordingStarting) {
+    if (activeRecording != null || pausePreviewRefresh) {
       Log.d(TAG, "refreshPreviewSurface skipped — recording active")
       return
     }
@@ -265,7 +342,9 @@ class FlipCameraSession(
   }
 
   private fun clearRecordingBeforeRebind() {
+    ++recordingGeneration
     recordingStarting = false
+    pausePreviewRefresh = false
     val recording = activeRecording ?: return
     activeRecording = null
     try {
