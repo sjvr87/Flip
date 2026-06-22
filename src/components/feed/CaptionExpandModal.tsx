@@ -22,8 +22,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+/** Dimmed scrim above the sheet only — feed video peeks through; sheet stays opaque for legibility. */
 const CAPTION_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.48)';
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.42;
+const CLOSE_BAR_HEIGHT = 32;
 
 const captionModalProps = {
     animationType: 'slide' as const,
@@ -60,7 +62,7 @@ export default function CaptionExpandModal({
         <Modal visible={visible} {...captionModalProps} onRequestClose={onClose}>
             <View style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}>
                 <Pressable
-                    style={[tw`flex-1`, { backgroundColor: CAPTION_BACKDROP_COLOR }]}
+                    style={{ flex: 1, backgroundColor: CAPTION_BACKDROP_COLOR }}
                     onPress={onClose}
                 />
                 <View
@@ -69,16 +71,22 @@ export default function CaptionExpandModal({
                         { height: SHEET_HEIGHT, paddingBottom: insets.bottom + 12 },
                     ]}>
                     <View
-                        style={tw`flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
-                        <Text style={tw`text-lg font-bold text-black dark:text-white`}>Caption</Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
+                        style={[
+                            tw`flex-row justify-end items-center`,
+                            { height: CLOSE_BAR_HEIGHT, paddingHorizontal: 12 },
+                        ]}>
+                        <TouchableOpacity
+                            onPress={onClose}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close">
+                            <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                     </View>
 
                     <ScrollView
-                        style={tw`flex-1`}
-                        contentContainerStyle={tw`p-4`}
+                        style={tw`flex-1 bg-white dark:bg-black`}
+                        contentContainerStyle={tw`px-4 pb-4`}
                         showsVerticalScrollIndicator>
                         <TouchableOpacity
                             style={tw`flex-row items-center mb-3`}
