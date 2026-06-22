@@ -32,7 +32,7 @@ const RING = {
     smallArcEnd: 35,
     midGapEnd: 47,
     tinyArcEnd: 54,
-    rightGapEnd: 70,
+    rightGapEnd: 66, // gap after dot matches 12° gap before (47−35)
     mainArcEnd: 352,
 };
 
@@ -45,10 +45,10 @@ const HomeTabIcon = memo(function HomeTabIcon({
     color = '#000000',
     focused = false,
 }) {
-    const strokeWidth = focused ? 1.75 : 1.3;
+    const strokeWidth = 1.3;
     const strokeOpacity = focused ? 1 : 0.72;
-    const chimneyRadius = focused ? 0.68 : 0.58;
-    const knobRadius = focused ? 0.4 : 0.34;
+    const chimneyRadius = 0.58;
+    const knobRadius = 0.34;
 
     const ringStroke = {
         stroke: color,
