@@ -6,6 +6,7 @@ import ProfileTabIcon from '@/components/icons/ProfileTabIcon';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
+import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -14,7 +15,7 @@ import {
     useFlipTabBarMetrics,
 } from '@/utils/tabBarLayout';
 import { useQueryClient } from '@tanstack/react-query';
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
@@ -52,8 +53,19 @@ export default function TabsLayout() {
         [tabBarMetrics, isDark, solidTabBarBorder],
     );
     const queryClient = useQueryClient();
+    const pathname = usePathname();
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+
+    useEffect(() => {
+        const onHomeTab =
+            pathname === '/' ||
+            pathname === '/index' ||
+            pathname === '/(tabs)' ||
+            pathname === '/(tabs)/index' ||
+            pathname.endsWith('/index');
+        setFeedPlaybackActive(onHomeTab);
+    }, [pathname]);
 
     useEffect(() => {
         if (!authReady || !isLoggedIn) return;

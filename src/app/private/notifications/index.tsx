@@ -425,21 +425,24 @@ export default function NotificationsHubScreen() {
             />
             {renderMainTabs()}
             {mainTab === 'activity' ? (
-                <ActivityNotificationsPanel
-                    key="activity-panel"
-                    notifications={activityNotifications}
-                    activityFilter={activityFilter}
-                    onFilterChange={setActivityFilter}
-                    isLoading={activityLoading}
-                    isRefetching={activityRefetching}
-                    isFetchingNextPage={isFetchingNextActivity}
-                    hasNextPage={hasNextActivity}
-                    onRefresh={refetchActivity}
-                    onFetchNextPage={fetchNextActivity}
-                    onPress={handleActivityPress}
-                    onProfilePress={handleActivityProfilePress}
-                    renderEmpty={renderEmpty(activityLoading)}
-                />
+                <>
+                    <ActivityFilterChips selected={activityFilter} onSelect={setActivityFilter} />
+                    <ActivityNotificationsPanel
+                        key="activity-panel"
+                        notifications={activityNotifications}
+                        activityFilter={activityFilter}
+                        onFilterChange={setActivityFilter}
+                        isLoading={activityLoading}
+                        isRefetching={activityRefetching}
+                        isFetchingNextPage={isFetchingNextActivity}
+                        hasNextPage={hasNextActivity}
+                        onRefresh={refetchActivity}
+                        onFetchNextPage={fetchNextActivity}
+                        onPress={handleActivityPress}
+                        onProfilePress={handleActivityProfilePress}
+                        renderEmpty={renderEmpty(activityLoading)}
+                    />
+                </>
             ) : (
                 <FollowersNotificationsPanel
                     key="followers-panel"
@@ -504,10 +507,6 @@ function ActivityNotificationsPanel({
     onProfilePress,
     renderEmpty,
 }: ActivityNotificationsPanelProps) {
-    const listHeader = (
-        <ActivityFilterChips selected={activityFilter} onSelect={onFilterChange} />
-    );
-
     const listFooter = isFetchingNextPage ? (
         <YStack paddingVertical="$6" alignItems="center">
             <ActivityIndicator color={LOOP_ACCENT} />
@@ -527,7 +526,6 @@ function ActivityNotificationsPanel({
                     onProfilePress={onProfilePress}
                 />
             )}
-            ListHeaderComponent={listHeader}
             ListFooterComponent={listFooter}
             ListEmptyComponent={renderEmpty}
             onEndReachedThreshold={0.4}

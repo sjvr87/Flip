@@ -162,6 +162,43 @@ type InfiniteProfileCache = {
     pageParams?: unknown[];
 };
 
+const pendingProfilePosts = new Map<string, { item: FlipVideo; isPhoto: boolean }>();
+
+/** Optimistic grid entries survive server refetch until the post appears in author feed. */
+export function registerPendingProfilePost(item: FlipVideo, isPhoto: boolean) {
+    pendingProfilePosts.set(item.id, { item, isPhoto });
+}
+
+export function reconcilePendingProfilePosts(
+    serverItems: FlipVideo[],
+    isPhoto: boolean,
+): FlipVideo[] {
+    const serverIds = new Set(serverItems.map((entry) => entry.id));
+    for (const id of serverIds) {
+        const pending = pendingProfilePosts.get(id);
+        if (pending?.isPhoto === isPhoto) {
+            pendingProfilePosts.delete(id);
+        }
+    }
+
+    const optimistic = [...pendingProfilePosts.values()]
+        .filter((entry) => entry.isPhoto === isPhoto)
+        .map((entry) => entry.item)
+        .filter((entry) => !serverIds.has(entry.id));
+
+    if (optimistic.length === 0) {
+        return serverItems;
+    }
+
+    const merged = [...optimistic];
+    for (const entry of serverItems) {
+        if (!merged.some((item) => item.id === entry.id)) {
+            merged.push(entry);
+        }
+    }
+    return merged;
+}
+
 function prependToProfileMediaCache(
     queryClient: QueryClient,
     queryKeyRoot: 'userSelfPhotos' | 'userSelfVideos',
@@ -297,11 +334,34 @@ export async function prependPostedMediaToProfile(
             caption: options.caption ?? '',
         });
 
-    if (!hydrated) return;
+    const localFallback = buildLocalPostedMediaItem({
+        uri: options.uri,
+        cid: options.cid,
+        isPhoto: options.isPhoto,
+        localMediaUri: options.localMediaUri,
+        caption: options.caption ?? '',
+    });
+
+    let item = hydrated ?? localFallback;
+    if (options.isPhoto && localFallback) {
+        item = {
+            ...(item ?? localFallback),
+            is_photo: true,
+            media_type: 'photo',
+            media: {
+                ...(item?.media ?? localFallback.media),
+                thumbnail: localFallback.media.thumbnail,
+                src_url: localFallback.media.src_url,
+            },
+        };
+    }
+
+    if (!item) return;
+
+    registerPendingProfilePost(item, options.isPhoto);
 
     const queryKeyRoot = options.isPhoto ? 'userSelfPhotos' : 'userSelfVideos';
-    prependToProfileMediaCache(queryClient, queryKeyRoot, hydrated);
-    await queryClient.cancelQueries({ queryKey: [queryKeyRoot] });
+    prependToProfileMediaCache(queryClient, queryKeyRoot, item);
 }
 
 /** After a new post: trim pagination, invalidate feeds, keep profile grid prepend intact. */
@@ -314,6 +374,7 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
         queryClient.invalidateQueries({ queryKey: ['videos'] }),
         queryClient.invalidateQueries({ queryKey: ['userVideos'] }),
         queryClient.invalidateQueries({ queryKey: ['fetchSelfAccount', 'self'] }),
+        // Do not invalidate userSelfPhotos / userSelfVideos — optimistic prepend must survive.
     ]);
 
     await Promise.all([

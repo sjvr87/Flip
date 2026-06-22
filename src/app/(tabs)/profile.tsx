@@ -11,6 +11,7 @@ import {
     fetchAccountLikes,
     fetchAccountPlaylists,
 } from '@/utils/requests';
+import { reconcilePendingProfilePosts } from '@/utils/feedCache';
 import { toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -81,7 +82,7 @@ export default function ProfileScreen() {
         refetchOnWindowFocus: true,
         staleTime: 30_000,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: activeTab === 'photos',
+        enabled: activeTab === 'photos' || tabParam === 'photos',
     });
 
     const { data: playlists, isLoading: playlistsLoading } = useQuery({
@@ -129,13 +130,19 @@ export default function ProfileScreen() {
     });
 
     const videos = useMemo(() => {
-        if (!videosData?.pages?.length) return [];
-        return videosData.pages.flatMap((p: any) => p?.data ?? []);
+        if (!videosData?.pages?.length) {
+            return reconcilePendingProfilePosts([], false);
+        }
+        const fromServer = videosData.pages.flatMap((p: any) => p?.data ?? []);
+        return reconcilePendingProfilePosts(fromServer, false);
     }, [videosData]);
 
     const photos = useMemo(() => {
-        if (!photosData?.pages?.length) return [];
-        return photosData.pages.flatMap((p: any) => p?.data ?? []);
+        if (!photosData?.pages?.length) {
+            return reconcilePendingProfilePosts([], true);
+        }
+        const fromServer = photosData.pages.flatMap((p: any) => p?.data ?? []);
+        return reconcilePendingProfilePosts(fromServer, true);
     }, [photosData]);
 
     const favorites = useMemo(() => {

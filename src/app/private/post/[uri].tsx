@@ -2,7 +2,9 @@ import CommentsModal from '@/components/feed/CommentsModal';
 import OtherModal from '@/components/feed/OtherModal';
 import PhotoFeedSlide from '@/components/feed/PhotoFeedSlide';
 import ShareModal from '@/components/feed/ShareModal';
+import TextPostSlide from '@/components/feed/TextPostSlide';
 import VideoPlayer from '@/components/feed/VideoPlayer';
+import type { FlipTextPost, FlipVideo } from '@/atproto/types';
 import {
     fetchPostForViewer,
     videoBookmark as atprotoVideoBookmark,
@@ -71,12 +73,15 @@ export default function PostViewScreen({ navigation }) {
         setFeedHeight((prev) => (h > 0 && Math.abs(h - prev) > 1 ? h : prev));
     }, []);
 
-    const { data: video, isLoading, isError, refetch } = useQuery({
+    const { data: postContent, isLoading, isError, refetch } = useQuery({
         queryKey: ['postViewer', uri],
         queryFn: () => fetchPostForViewer(uri),
         enabled: !!uri && atproto,
         staleTime: 0,
     });
+
+    const video = postContent && 'media' in postContent ? (postContent as FlipVideo) : null;
+    const textPost = postContent && 'text' in postContent ? (postContent as FlipTextPost) : null;
 
     const videoLikeMutation = useMutation({
         mutationFn: async (data) => {
@@ -101,13 +106,13 @@ export default function PostViewScreen({ navigation }) {
     }, [uri]);
 
     useEffect(() => {
-        if (!shouldOpenComments || !video || openedComments.current) {
+        if (!shouldOpenComments || !postContent || openedComments.current) {
             return;
         }
         openedComments.current = true;
-        setSelectedVideo(video);
+        setSelectedVideo(postContent as FlipVideo);
         setShowComments(true);
-    }, [shouldOpenComments, video]);
+    }, [shouldOpenComments, postContent]);
 
     const handleLike = (videoId, liked) => {
         videoLikeMutation.mutate({ type: liked ? 'like' : 'unlike', id: videoId });
@@ -150,9 +155,9 @@ export default function PostViewScreen({ navigation }) {
         setShowOther(false);
     };
 
-    const profileId = video?.account?.id || parseRepoDidFromAtUri(uri);
+    const profileId = postContent?.account?.id || parseRepoDidFromAtUri(uri);
     const bskyPostUrl = postAtUriToBskyUrl(uri);
-    const showEmpty = !isLoading && feedHeight > 0 && !video;
+    const showEmpty = !isLoading && feedHeight > 0 && !postContent;
 
     const handleOpenOnBsky = () => {
         if (bskyPostUrl) {
@@ -164,7 +169,7 @@ export default function PostViewScreen({ navigation }) {
         }
     };
 
-    const sharedProps = video
+    const sharedVideoProps = video
         ? {
               item: video,
               bottomInset: insets.bottom,
@@ -172,6 +177,19 @@ export default function PostViewScreen({ navigation }) {
               onComment: handleComment,
               onShare: handleShare,
               onOther: handleOther,
+              onBookmark: handleBookmark,
+              tabBarHeight: 20,
+              onNavigate: handleNavigate,
+          }
+        : null;
+
+    const sharedTextProps = textPost
+        ? {
+              item: textPost,
+              bottomInset: insets.bottom,
+              onLike: handleLike,
+              onComment: handleComment,
+              onShare: handleShare,
               onBookmark: handleBookmark,
               tabBarHeight: 20,
               onNavigate: handleNavigate,
@@ -223,16 +241,16 @@ export default function PostViewScreen({ navigation }) {
                         <Text style={styles.emptyButtonText}>Go back</Text>
                     </TouchableOpacity>
                 </View>
-            ) : sharedProps ? (
+            ) : sharedVideoProps ? (
                 <FeedScrollGestureRoot>
                     <View style={{ height: feedHeight }}>
                         {video.is_photo || video.media_type === 'photo' ? (
-                            <PhotoFeedSlide {...sharedProps} />
+                            <PhotoFeedSlide {...sharedVideoProps} />
                         ) : (
                             <VideoPlayer
-                                {...sharedProps}
+                                {...sharedVideoProps}
                                 isActive
-                                itemHeight={feedHeight}
+                                feedHeight={feedHeight}
                                 commentsOpen={showComments}
                                 shareOpen={showShare}
                                 otherOpen={showOther}
@@ -243,6 +261,10 @@ export default function PostViewScreen({ navigation }) {
                         )}
                     </View>
                 </FeedScrollGestureRoot>
+            ) : sharedTextProps ? (
+                <View style={{ height: feedHeight }}>
+                    <TextPostSlide {...sharedTextProps} />
+                </View>
             ) : null}
 
             <CommentsModal

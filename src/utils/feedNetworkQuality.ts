@@ -37,9 +37,9 @@ const WIFI_PROFILE: FeedNetworkProfile = {
     playerPreloadDistance: 1,
     prefetchAhead: 1,
     bufferOptions: {
-        preferredForwardBufferDuration: 8,
+        preferredForwardBufferDuration: 12,
         waitsToMinimizeStalling: true,
-        minBufferForPlayback: 2,
+        minBufferForPlayback: 2.5,
         maxBufferBytes: null,
     },
 };
@@ -49,10 +49,10 @@ const CELLULAR_PROFILE: FeedNetworkProfile = {
     playerPreloadDistance: 1,
     prefetchAhead: 1,
     bufferOptions: {
-        preferredForwardBufferDuration: 4,
+        preferredForwardBufferDuration: 6,
         waitsToMinimizeStalling: true,
-        minBufferForPlayback: 1,
-        maxBufferBytes: 12 * 1024 * 1024,
+        minBufferForPlayback: 1.5,
+        maxBufferBytes: 16 * 1024 * 1024,
     },
 };
 

@@ -15,6 +15,7 @@ import {
   isMediaPost,
   isPhotoPost,
   postToFlipItem,
+  postToFlipTextPost,
   type MediaPageFilter,
 } from './adapters'
 import {
@@ -25,7 +26,7 @@ import {
   withAuthenticatedFetch,
 } from './agent'
 import { normalizeToPostUri, resolveMediaPostView } from './postResolve'
-import type { FlipFeedPage, FlipVideo } from './types'
+import type { FlipFeedPage, FlipTextPost, FlipVideo } from './types'
 
 type PageParam = string | false | null | undefined
 
@@ -1526,7 +1527,9 @@ export async function fetchUserVideoCursor({
 }
 
 /** Load a single post for the notification / deep-link viewer — no author-feed pagination. */
-export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | null> {
+export async function fetchPostForViewer(
+  rawUri: string,
+): Promise<FlipVideo | FlipTextPost | null> {
   const videoUri = decodeRouteParam(rawUri)
   if (!videoUri) return null
 
@@ -1571,20 +1574,37 @@ export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | nu
       }
     }
 
-    const item = resolvedPost
+    const mediaItem = resolvedPost
       ? postToFlipItem({ post: resolvedPost, reply: undefined })
+      : null
+
+    if (mediaItem) {
+      if (__DEV__) {
+        console.log('[postViewer] result media', {
+          videoUri,
+          normalizedUri,
+          resolvedUri: resolvedPost?.uri,
+        })
+      }
+      return mediaItem
+    }
+
+    const textSource = resolvedPost ?? targetPost
+    const textItem = textSource
+      ? postToFlipTextPost({ post: textSource, reply: undefined })
       : null
 
     if (__DEV__) {
       console.log('[postViewer] result', {
         videoUri,
         normalizedUri,
-        resolvedUri: resolvedPost?.uri,
-        playable: !!item,
+        resolvedUri: resolvedPost?.uri ?? targetPost?.uri,
+        playable: !!textItem,
+        kind: textItem ? 'text' : 'none',
       })
     }
 
-    return item
+    return textItem
   })
 }
 

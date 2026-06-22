@@ -763,7 +763,6 @@ export default function LoopsFeed({ navigation }) {
 
                 return (
                     <FeedVideoCell
-                        key={`${item.id}-${shouldPreloadPlayer ? 'player' : 'poster'}`}
                         item={item}
                         index={index}
                         activeIndex={currentIndex}

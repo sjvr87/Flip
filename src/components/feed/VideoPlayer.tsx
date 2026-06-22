@@ -4,7 +4,7 @@ import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
-import { isFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { isFeedPlaybackActive, registerFeedPlayer, subscribeFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import {
     getFeedNetworkProfile,
     reportFeedPlaybackStall,
@@ -27,12 +27,13 @@ import {
     Alert,
     Dimensions,
     Platform,
-    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -124,7 +125,19 @@ function VideoPlayer({
     overlayBottom,
     actionRailBottom,
 }) {
-    if (!isActive && !shouldPreload) {
+    const wantsPlayer = isActive || shouldPreload;
+    const [holdPlayer, setHoldPlayer] = useState(wantsPlayer);
+
+    useEffect(() => {
+        if (wantsPlayer) {
+            setHoldPlayer(true);
+            return;
+        }
+        const timer = setTimeout(() => setHoldPlayer(false), 400);
+        return () => clearTimeout(timer);
+    }, [wantsPlayer]);
+
+    if (!holdPlayer) {
         return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
@@ -220,6 +233,9 @@ function VideoPlayerCore({
         getFeedNetworkProfile(),
     );
     const stallTimestampsRef = useRef<number[]>([]);
+    const [playbackAllowed, setPlaybackAllowed] = useState(() => isFeedPlaybackActive());
+
+    useEffect(() => subscribeFeedPlaybackActive(setPlaybackAllowed), []);
 
     useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
 
@@ -335,10 +351,29 @@ function VideoPlayerCore({
                 boundSrcRef.current = undefined;
             }
             queuePlayerRelease(nextPlayer);
-            setPlayer(null);
-            setPlayerEpoch(0);
+            if (isMountedRef.current) {
+                setPlayer(null);
+                setPlayerEpoch(0);
+            }
         };
     }, [srcUrl, queuePlayerRelease]);
+
+    const pauseThisPlayer = useCallback(() => {
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer)) {
+            return;
+        }
+        try {
+            activePlayer.pause();
+            if (isMountedRef.current) {
+                setIsPlaying(false);
+            }
+        } catch {
+            // player may already be released
+        }
+    }, []);
+
+    useEffect(() => registerFeedPlayer(pauseThisPlayer), [pauseThisPlayer]);
 
     useEffect(() => {
         if (!player) {
@@ -432,6 +467,7 @@ function VideoPlayerCore({
 
         try {
             const shouldPlay =
+                playbackAllowed &&
                 isActive &&
                 screenFocused &&
                 !isManuallyPaused &&
@@ -467,6 +503,7 @@ function VideoPlayerCore({
         playSensitive,
         isManuallyPaused,
         playerEpoch,
+        playbackAllowed,
     ]);
 
     useEffect(() => {
@@ -537,11 +574,18 @@ function VideoPlayerCore({
     }, [flashPauseHint, isActive, isPlaying, item.id, player, setManuallyPaused]);
 
     const handleTapOverlay = useCallback(() => {
-        if (__DEV__) {
-            console.log('[VideoPlayer] tap overlay', { id: item.id, isActive });
-        }
         togglePlayPause();
-    }, [isActive, item.id, togglePlayPause]);
+    }, [togglePlayPause]);
+
+    const tapGesture = React.useMemo(
+        () =>
+            Gesture.Tap()
+                .maxDuration(250)
+                .onEnd(() => {
+                    runOnJS(handleTapOverlay)();
+                }),
+        [handleTapOverlay],
+    );
 
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
@@ -689,17 +733,16 @@ function VideoPlayerCore({
                     ) : null}
                 </View>
 
-                <Pressable
-                    style={styles.tapOverlay}
-                    onPress={handleTapOverlay}
-                    delayLongPress={400}
-                    android_disableSound
-                    collapsable={false}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play"
-                    accessibilityRole="button"
-                />
+                <GestureDetector gesture={tapGesture}>
+                    <View
+                        style={styles.tapOverlay}
+                        collapsable={false}
+                        accessible={true}
+                        accessibilityLabel="Video"
+                        accessibilityHint="Tap to pause or play"
+                        accessibilityRole="button"
+                    />
+                </GestureDetector>
 
                 {showPauseHint && (
                     <View style={styles.controlsOverlay} pointerEvents="none">
