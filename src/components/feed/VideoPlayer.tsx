@@ -25,7 +25,6 @@ import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
-    Animated,
     Dimensions,
     Platform,
     Pressable,
@@ -226,9 +225,7 @@ function VideoPlayerCore({
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
-    const videoOpacity = useRef(new Animated.Value(0)).current;
     const stallTimestampsRef = useRef<number[]>([]);
-    const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
     useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
 
@@ -242,7 +239,6 @@ function VideoPlayerCore({
             setPlayer(null);
             setVideoReady(false);
             setPlayerStatus('idle');
-            videoOpacity.setValue(0);
             return;
         }
 
@@ -253,7 +249,6 @@ function VideoPlayerCore({
         setPlayer(null);
         setVideoReady(false);
         setPlayerStatus('idle');
-        videoOpacity.setValue(0);
 
         if (playerRef.current) {
             releasePlayerDeferred(playerRef.current);
@@ -300,7 +295,7 @@ function VideoPlayerCore({
             setPlayerEpoch(0);
             releasePlayerDeferred(nextPlayer);
         };
-    }, [srcUrl, videoOpacity]);
+    }, [srcUrl]);
 
     useEffect(() => {
         if (!player) {
@@ -363,28 +358,6 @@ function VideoPlayerCore({
             playingSub?.remove();
         };
     }, [player, playerEpoch, isActive, isPlaying]);
-
-    // Fade in once decoded — do not gate on isPlaying (Android audio can start before playingChange).
-    const showVideoFrame = videoReady && playerStatus === 'readyToPlay';
-
-    useEffect(() => {
-        fadeAnimRef.current?.stop();
-        if (showVideoFrame) {
-            fadeAnimRef.current = Animated.timing(videoOpacity, {
-                toValue: 1,
-                duration: 220,
-                useNativeDriver: true,
-            });
-            fadeAnimRef.current.start();
-        } else {
-            fadeAnimRef.current = Animated.timing(videoOpacity, {
-                toValue: 0,
-                duration: 120,
-                useNativeDriver: true,
-            });
-            fadeAnimRef.current.start();
-        }
-    }, [showVideoFrame, videoOpacity]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -644,25 +617,25 @@ function VideoPlayerCore({
         );
     }
 
+    const hidePoster = videoReady && isActive;
+
     const videoBody = (
             <View style={[styles.videoContainer, { height: slideHeight }]}>
                 <View style={styles.videoWrapper}>
-                    <VideoPoster thumbnail={thumbnail} />
-                    <Animated.View style={[styles.videoLayer, { opacity: videoOpacity }]}>
-                        <VideoView
-                            key={`${srcUrl}-${playerEpoch}`}
-                            style={styles.video}
-                            player={player}
-                            allowsPictureInPicture={false}
-                            nativeControls={false}
-                            pointerEvents="none"
-                            surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
-                            accessible={true}
-                            accessibilityLabel={item.media.alt_text || 'Video content'}
-                            accessibilityHint="Tap to pause or play"
-                            contentFit="contain"
-                        />
-                    </Animated.View>
+                    {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
+                    <VideoView
+                        key={`${srcUrl}-${playerEpoch}`}
+                        style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
+                        player={player}
+                        allowsPictureInPicture={false}
+                        nativeControls={false}
+                        pointerEvents="none"
+                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        accessible={true}
+                        accessibilityLabel={item.media.alt_text || 'Video content'}
+                        accessibilityHint="Tap to pause or play"
+                        contentFit="contain"
+                    />
                 </View>
 
                 <Pressable
@@ -824,8 +797,9 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     videoWrapper: {
-        ...StyleSheet.absoluteFillObject,
+        flex: 1,
         backgroundColor: POSTER_BG,
+        overflow: 'hidden',
     },
     posterLayer: {
         ...StyleSheet.absoluteFillObject,
@@ -836,14 +810,14 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    videoLayer: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 1,
-    },
     video: {
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',
+        zIndex: 1,
+    },
+    videoHiddenUntilReady: {
+        opacity: 0,
     },
     tapOverlay: {
         ...StyleSheet.absoluteFillObject,

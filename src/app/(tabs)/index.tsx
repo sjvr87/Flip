@@ -241,9 +241,9 @@ export default function LoopsFeed({ navigation }) {
         itemVisiblePercentThreshold: 50,
     });
 
-    const onContainerLayout = useCallback((e) => {
-        const h = e.nativeEvent.layout.height;
-        setFeedHeight((prev) => (h > 0 && Math.abs(h - prev) > 1 ? h : prev));
+    const onFeedListLayout = useCallback((e) => {
+        const h = Math.round(e.nativeEvent.layout.height);
+        setFeedHeight((prev) => (h > 0 && h !== prev ? h : prev));
     }, []);
 
     const { data: appConfig, isLoading: isConfigLoading } = useQuery({
@@ -732,59 +732,63 @@ export default function LoopsFeed({ navigation }) {
 
     const renderItem = useCallback(
         ({ item, index }) => {
-            if (item.isEmptyMarker) {
+            const cell = (() => {
+                if (item.isEmptyMarker) {
+                    return (
+                        <FeedEmptyState
+                            tab={activeTab}
+                            onRefresh={onRefresh}
+                            error={feedError}
+                            itemHeight={feedHeight}
+                        />
+                    );
+                }
+
+                if (item.isEndMarker) {
+                    const endTab =
+                        activeTab === 'forYou'
+                            ? 'forYou-end'
+                            : activeTab === 'local'
+                              ? 'local-end'
+                              : 'following-end';
+                    return (
+                        <FeedEmptyState
+                            tab={endTab}
+                            onRefresh={onRefresh}
+                            itemHeight={feedHeight}
+                        />
+                    );
+                }
+
                 return (
-                    <FeedEmptyState
-                        tab={activeTab}
-                        onRefresh={onRefresh}
-                        error={feedError}
-                        itemHeight={feedHeight}
+                    <FeedVideoCell
+                        item={item}
+                        index={index}
+                        activeIndex={currentIndex}
+                        feedHeight={feedHeight}
+                        onLike={handleLike}
+                        onComment={handleComment}
+                        onShare={handleShare}
+                        onBookmark={handleBookmark}
+                        onRepost={handleRepost}
+                        onOther={handleOther}
+                        bottomInset={tabBarMetrics.bottomInset}
+                        commentsOpen={showComments && selectedVideo?.id === item.id}
+                        shareOpen={showShare && selectedVideo?.id === item.id}
+                        otherOpen={showOther && selectedVideo?.id === item.id}
+                        screenFocused={screenFocused}
+                        feedPlaybackEnabled={feedPlaybackEnabled}
+                        videoPlaybackRates={videoPlaybackRates}
+                        navigation={navigation}
+                        onNavigate={handleNavigate}
+                        tabBarHeight={tabBarMetrics.contentHeight}
+                        feedOverlayBottom={tabBarMetrics.feedOverlayBottom}
+                        actionRailBottom={tabBarMetrics.actionRailBottom}
                     />
                 );
-            }
+            })();
 
-            if (item.isEndMarker) {
-                const endTab =
-                    activeTab === 'forYou'
-                        ? 'forYou-end'
-                        : activeTab === 'local'
-                          ? 'local-end'
-                          : 'following-end';
-                return (
-                    <FeedEmptyState
-                        tab={endTab}
-                        onRefresh={onRefresh}
-                        itemHeight={feedHeight}
-                    />
-                );
-            }
-
-            return (
-                <FeedVideoCell
-                    item={item}
-                    index={index}
-                    activeIndex={currentIndex}
-                    feedHeight={feedHeight}
-                    onLike={handleLike}
-                    onComment={handleComment}
-                    onShare={handleShare}
-                    onBookmark={handleBookmark}
-                    onRepost={handleRepost}
-                    onOther={handleOther}
-                    bottomInset={tabBarMetrics.bottomInset}
-                    commentsOpen={showComments && selectedVideo?.id === item.id}
-                    shareOpen={showShare && selectedVideo?.id === item.id}
-                    otherOpen={showOther && selectedVideo?.id === item.id}
-                    screenFocused={screenFocused}
-                    feedPlaybackEnabled={feedPlaybackEnabled}
-                    videoPlaybackRates={videoPlaybackRates}
-                    navigation={navigation}
-                    onNavigate={handleNavigate}
-                    tabBarHeight={tabBarMetrics.contentHeight}
-                    feedOverlayBottom={tabBarMetrics.feedOverlayBottom}
-                    actionRailBottom={tabBarMetrics.actionRailBottom}
-                />
-            );
+            return <View style={{ height: feedHeight, overflow: 'hidden' }}>{cell}</View>;
         },
         [
             activeTab,
@@ -838,8 +842,8 @@ export default function LoopsFeed({ navigation }) {
 
     if (showInitialLoader || feedHeight === 0) {
         return (
-            <View style={styles.container} onLayout={onContainerLayout}>
-                <View style={styles.loadingContainer}>
+            <View style={styles.container}>
+                <View style={styles.loadingContainer} onLayout={onFeedListLayout}>
                     <ActivityIndicator size="large" color="#fff" />
                 </View>
             </View>
@@ -847,7 +851,7 @@ export default function LoopsFeed({ navigation }) {
     }
 
     return (
-        <View style={styles.container} onLayout={onContainerLayout}>
+        <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
@@ -923,8 +927,9 @@ export default function LoopsFeed({ navigation }) {
                     key={activeTab}
                     ref={flatListRef}
                     style={styles.feedList}
+                    onLayout={onFeedListLayout}
                     data={videosWithEnd}
-                    extraData={`${currentIndex}-${feedPlaybackEnabled}`}
+                    extraData={currentIndex}
                     renderItem={renderItem}
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                     pagingEnabled
