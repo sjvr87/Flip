@@ -48,6 +48,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import KlipyMedia from './KlipyMedia';
+import { FEED_OVERLAY_SCRIM } from '@/components/feed/feedOverlayScrim';
 
 function SafeKeyboardAvoidingView(
     props: React.ComponentProps<typeof RNKeyboardAvoidingView>,
@@ -68,8 +69,6 @@ function SafeKeyboardAvoidingView(
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const COMMENTS_SHEET_HEIGHT = SCREEN_HEIGHT * 0.62;
 const COMMENTS_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
-/** Dimmed scrim above the sheet only — feed video peeks through; sheet stays opaque for legibility. */
-const COMMENTS_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.38)';
 
 const commentsModalProps = {
     animationType: 'slide' as const,
@@ -1019,7 +1018,7 @@ export default function CommentsModal({
             <Modal visible={visible} {...commentsModalProps} onRequestClose={onClose}>
                 <View style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}>
                     <Pressable
-                        style={[tw`flex-1`, { backgroundColor: COMMENTS_BACKDROP_COLOR }]}
+                        style={[tw`flex-1`, { backgroundColor: FEED_OVERLAY_SCRIM }]}
                         onPress={onClose}
                     />
                     <View
@@ -1058,7 +1057,7 @@ export default function CommentsModal({
                 style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}
                 keyboardVerticalOffset={Platform.OS === 'android' ? -20 : 0}>
                 <Pressable
-                    style={[tw`flex-1`, { backgroundColor: COMMENTS_BACKDROP_COLOR }]}
+                    style={[tw`flex-1`, { backgroundColor: FEED_OVERLAY_SCRIM }]}
                     onPress={onClose}
                 />
                 <View

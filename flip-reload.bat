@@ -1,5 +1,5 @@
 @echo off
-REM JS-only reload: adb reverse + Metro POST /reload. App stays open, no git pull, no Metro recycle.
+REM JS-only reload: adb prep + Metro POST /reload. App stays open, no git pull, no Metro recycle.
 REM After crash or dev-server disconnect: flip-reconnect.bat
 cd /d "%~dp0"
 if not exist "package.json" (

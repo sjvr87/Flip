@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "postinstall": "node ./scripts/patch-foojay-gradle.js && node ./scripts/patch-android-node.js",
-    "start": "expo start --dev-client --lan",
-    "start:clear": "expo start --dev-client --lan --clear",
-    "start:lan": "expo start --dev-client --lan",
+    "start": "expo start --dev-client --lan --port 8081",
+    "start:clear": "expo start --dev-client --lan --port 8081 --clear",
+    "start:lan": "expo start --dev-client --lan --port 8081",
     "start:tunnel": "expo start --dev-client --tunnel",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "node ./scripts/android-build.js",
@@ -24,6 +24,7 @@
     "dev:connect:reconnect": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -Reconnect",
     "android:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-reinstall.ps1",
     "dev:connect:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -RestartMetro",
+    "dev:connect:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -Reset",
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
     "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1"

@@ -20,10 +20,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { FEED_OVERLAY_SCRIM } from '@/components/feed/feedOverlayScrim';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-/** Dimmed scrim above the sheet only — feed video peeks through; sheet stays opaque for legibility. */
-const CAPTION_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.48)';
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.42;
 const CLOSE_BAR_HEIGHT = 32;
 
@@ -62,7 +61,7 @@ export default function CaptionExpandModal({
         <Modal visible={visible} {...captionModalProps} onRequestClose={onClose}>
             <View style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}>
                 <Pressable
-                    style={{ flex: 1, backgroundColor: CAPTION_BACKDROP_COLOR }}
+                    style={{ flex: 1, backgroundColor: FEED_OVERLAY_SCRIM }}
                     onPress={onClose}
                 />
                 <View

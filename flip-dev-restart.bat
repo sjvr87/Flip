@@ -1,5 +1,6 @@
 @echo off
-REM Stuck Metro / native dep changes: git pull + adb + recycle Metro (clear cache) if unhealthy.
+REM Stuck Metro / native dep changes: git pull + adb reverse + recycle Metro if unhealthy.
+REM When nothing works: flip-reset-dev.bat
 REM Skips Metro recycle when /status is already healthy. After crash use flip-reconnect.bat instead.
 cd /d "%~dp0"
 if not exist "package.json" (

@@ -1,5 +1,6 @@
 @echo off
 REM First connect / sync branch: git pull + adb reverse + reuse Metro (one window max).
+REM When nothing works: flip-reset-dev.bat
 REM After crash (fast): flip-reconnect.bat
 REM JS tweak while app runs: flip-reload.bat
 REM Stuck Metro / native deps: flip-dev-restart.bat (rebuild native: npm run android:dev)
