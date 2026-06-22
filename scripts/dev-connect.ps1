@@ -171,6 +171,20 @@ if ($unauthorized.Count -gt 0) {
   if ($reverseList) { Write-Host "  reverse --list: $reverseList" }
 }
 
+# Stop Flip before killing Metro so RN dev WebSockets close cleanly (avoids OkHttp
+# TaskRunner NPE in MessageDeflater when Metro is recycled under a live connection).
+$willRecycleMetro = $RestartMetro.IsPresent -or ((-not (Test-MetroHealthy)) -and (Test-PortListening 8081))
+if ($willRecycleMetro -and $serials.Count -gt 0) {
+  Write-Host "[3b/6] Stop Flip before Metro recycle"
+  foreach ($serial in $serials) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
+    $ErrorActionPreference = $prevEap
+    Write-Host "  $serial : force-stop OK" -ForegroundColor Green
+  }
+}
+
 Write-Host "[4/6] Metro on port 8081"
 if ($env:CI -eq "true" -or $env:CI -eq "1") {
   Write-Host "  WARN: CI=$env:CI disables Metro watch/reload. Unset CI for local dev." -ForegroundColor Yellow
@@ -223,6 +237,7 @@ Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run npm run start:c
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
 Write-Host "- LAN: npm run start:lan, phone on same Wi-Fi as PC ($lanIp), allow Node through Windows Firewall on 8081"
 Write-Host "- Dev client only (not Expo Go); package social.flip.app"
+Write-Host "- Crash 'OkHttp TaskRunner' / MessageDeflater: dev-only Metro WebSocket race — re-run flip-dev.bat"
 
 if (-not $finalMetroHealthy) {
   Write-MetroNotRunningBanner
