@@ -5,7 +5,13 @@ import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
-import { isFeedPlaybackActive, registerFeedPlayer, subscribeFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import {
+    claimFeedAudio,
+    isFeedPlaybackActive,
+    registerFeedPlayer,
+    releaseFeedAudio,
+    subscribeFeedPlaybackActive,
+} from '@/utils/feedPlaybackGuard';
 import {
     getFeedNetworkProfile,
     reportFeedPlaybackStall,
@@ -255,6 +261,22 @@ function VideoPlayerCore({
         pendingReleaseRef.current.push(released);
     }, []);
 
+    const releasePlayerNow = useCallback((released: ExpoVideoPlayer | null | undefined) => {
+        if (!released) {
+            return;
+        }
+        try {
+            released.pause?.();
+        } catch {
+            // already released
+        }
+        try {
+            released.release?.();
+        } catch {
+            // already released
+        }
+    }, []);
+
     useEffect(() => {
         if (!isPlayerUsable(player) || playerEpoch === 0 || playerRef.current !== player) {
             setViewPlayer(null);
@@ -333,7 +355,7 @@ function VideoPlayerCore({
             setFirstFrameRendered(false);
             setPlayerStatus('idle');
             setIsPlaying(false);
-            queuePlayerRelease(stale);
+            releasePlayerNow(stale);
             return;
         }
 
@@ -384,13 +406,24 @@ function VideoPlayerCore({
                 playerRef.current = null;
                 boundSrcRef.current = undefined;
             }
-            queuePlayerRelease(nextPlayer);
+            if (!standalonePlayback && !isFeedPlaybackActive()) {
+                releasePlayerNow(nextPlayer);
+            } else {
+                queuePlayerRelease(nextPlayer);
+            }
             if (isMountedRef.current) {
                 setPlayer(null);
                 setPlayerEpoch(0);
             }
         };
-    }, [srcUrl, playbackAllowed, standalonePlayback, queuePlayerRelease, networkProfile.bufferOptions]);
+    }, [
+        srcUrl,
+        playbackAllowed,
+        standalonePlayback,
+        queuePlayerRelease,
+        releasePlayerNow,
+        networkProfile.bufferOptions,
+    ]);
 
     const pauseThisPlayer = useCallback(() => {
         const activePlayer = playerRef.current;
@@ -442,8 +475,18 @@ function VideoPlayerCore({
         if (standalonePlayback) {
             return;
         }
-        return registerFeedPlayer(pauseThisPlayer, releaseThisPlayer);
-    }, [standalonePlayback, pauseThisPlayer, releaseThisPlayer]);
+        return registerFeedPlayer(item.id, pauseThisPlayer, releaseThisPlayer);
+    }, [standalonePlayback, item.id, pauseThisPlayer, releaseThisPlayer]);
+
+    useEffect(() => {
+        return () => {
+            if (standalonePlayback) {
+                return;
+            }
+            releaseFeedAudio(item.id);
+            releaseThisPlayer();
+        };
+    }, [standalonePlayback, item.id, releaseThisPlayer]);
 
     useEffect(() => {
         if (!player) {
@@ -568,6 +611,9 @@ function VideoPlayerCore({
                 !(item.is_sensitive && !playSensitive);
 
             if (shouldPlay && playerStatus === 'readyToPlay') {
+                if (!standalonePlayback && !claimFeedAudio(item.id)) {
+                    return;
+                }
                 player.play();
                 if (isMountedRef.current) {
                     setIsPlaying(true);
@@ -586,6 +632,8 @@ function VideoPlayerCore({
         item.is_sensitive,
         playSensitive,
         playbackAllowed,
+        item.id,
+        standalonePlayback,
     ]);
 
     useEffect(() => {
@@ -607,10 +655,16 @@ function VideoPlayerCore({
             }
 
             if (shouldPlay && isMountedRef.current) {
+                if (!standalonePlayback && !claimFeedAudio(item.id)) {
+                    return;
+                }
                 player.play();
                 setIsPlaying(true);
             } else if (isMountedRef.current) {
                 player.pause();
+                if (!standalonePlayback) {
+                    releaseFeedAudio(item.id);
+                }
                 setIsPlaying(false);
             }
 
@@ -630,6 +684,8 @@ function VideoPlayerCore({
         isManuallyPaused,
         playerEpoch,
         playbackAllowed,
+        item.id,
+        standalonePlayback,
     ]);
 
     useEffect(() => {
@@ -685,11 +741,17 @@ function VideoPlayerCore({
             const currentlyPlaying = player.playing ?? isPlaying;
             if (currentlyPlaying) {
                 player.pause();
+                if (!standalonePlayback) {
+                    releaseFeedAudio(item.id);
+                }
                 setIsPlaying(false);
                 setManuallyPaused(item.id, true);
                 flashPauseHint('play');
             } else {
                 player.play();
+                if (!standalonePlayback) {
+                    claimFeedAudio(item.id);
+                }
                 setIsPlaying(true);
                 setManuallyPaused(item.id, false);
                 flashPauseHint('pause');

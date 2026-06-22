@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
-import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -71,6 +71,9 @@ export default function TabsLayout() {
             pathname.endsWith('/create');
         if (onCreateTab) {
             prepareForCameraCapture();
+        }
+        if (!onHomeTab) {
+            releaseAllFeedPlayers();
         }
         setFeedPlaybackActive(onHomeTab);
     }, [pathname]);
