@@ -947,6 +947,7 @@ export default function LoopsFeed({ navigation }) {
     return (
         <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
+                <View style={styles.headerSide} />
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
                         accessibilityRole="tab"
@@ -980,7 +981,7 @@ export default function LoopsFeed({ navigation }) {
                     {forYouEnabled && (
                         <TouchableOpacity
                             accessibilityRole="tab"
-                            accessibilityLabel="For You"
+                            accessibilityLabel="FYP"
                             accessibilityState={{
                                 selected: activeTab === 'forYou',
                             }}
@@ -991,18 +992,20 @@ export default function LoopsFeed({ navigation }) {
                                     styles.tabText,
                                     activeTab === 'forYou' && styles.activeTabText,
                                 ]}>
-                                For You
+                                FYP
                             </Text>
                         </TouchableOpacity>
                     )}
                 </View>
-                <TouchableOpacity
-                    accessibilityLabel="Search"
-                    accessibilityRole="button"
-                    style={styles.searchButton}
-                    onPress={() => router.push('/private/search')}>
-                    <Ionicons name="search" size={28} color="white" />
-                </TouchableOpacity>
+                <View style={styles.headerSide}>
+                    <TouchableOpacity
+                        accessibilityLabel="Search"
+                        accessibilityRole="button"
+                        style={styles.searchButton}
+                        onPress={() => router.push('/private/search')}>
+                        <Ionicons name="search" size={24} color="white" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <FlatList
@@ -1111,14 +1114,19 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
-        paddingHorizontal: 16,
+        paddingHorizontal: 12,
+    },
+    headerSide: {
+        flex: 1,
+        alignItems: 'flex-end',
+        justifyContent: 'center',
     },
     tabContainer: {
         flexDirection: 'row',
-        gap: 24,
+        alignItems: 'center',
+        gap: 20,
     },
     tab: {
         paddingVertical: 8,
@@ -1137,8 +1145,10 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     searchButton: {
-        position: 'absolute',
-        right: 16,
+        padding: 4,
+        minWidth: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     footer: {
         justifyContent: 'center',
