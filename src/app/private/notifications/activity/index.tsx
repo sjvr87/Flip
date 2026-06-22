@@ -27,7 +27,8 @@ export default function ActivityNotificationsScreen() {
     const router = useRouter();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
-    const { refetchBadgeCount } = useNotificationStore();
+    const { markActivityViewed, markActivityNotificationRead, clearActivityUnread } =
+        useNotificationStore();
     const { isDark } = useTheme();
 
     const [filter, setFilter] = useState<NotificationFilter>('activity');
@@ -58,6 +59,7 @@ export default function ActivityNotificationsScreen() {
             await queryClient.cancelQueries({ queryKey });
 
             const previousData = queryClient.getQueryData(queryKey);
+            let notificationType: string | undefined;
 
             queryClient.setQueryData(queryKey, (old: any) => {
                 if (!old?.pages) return old;
@@ -65,16 +67,21 @@ export default function ActivityNotificationsScreen() {
                     ...old,
                     pages: old.pages.map((page: any) => ({
                         ...page,
-                        data: page.data?.map((notification: any) =>
-                            notification.id === notificationId
-                                ? { ...notification, read_at: new Date().toISOString() }
-                                : notification,
-                        ),
+                        data: page.data?.map((notification: any) => {
+                            if (notification.id === notificationId) {
+                                notificationType = notification.type;
+                                return {
+                                    ...notification,
+                                    read_at: new Date().toISOString(),
+                                };
+                            }
+                            return notification;
+                        }),
                     })),
                 };
             });
 
-            return { previousData, queryKey };
+            return { previousData, queryKey, notificationType };
         },
         onError: (err, notificationId, context) => {
             if (context?.previousData) {
@@ -82,10 +89,24 @@ export default function ActivityNotificationsScreen() {
             }
             console.error('Failed to mark notification as read:', err);
         },
-        onSettled: async () => {
-            await queryClient.invalidateQueries({ queryKey: ['activity-notifications'] });
-            refetchBadgeCount();
-            await queryClient.invalidateQueries({ queryKey: ['main-notifications'] });
+        onSuccess: (_data, _notificationId, context) => {
+            if (context?.notificationType) {
+                markActivityNotificationRead(context.notificationType);
+            }
+            queryClient.setQueryData(['main-notifications'], (old: any) => {
+                if (!old?.meta?.unread_counts) return old;
+                const activity = Math.max(0, (old.meta.unread_counts.activity ?? 0) - 1);
+                return {
+                    ...old,
+                    meta: {
+                        ...old.meta,
+                        unread_counts: {
+                            ...old.meta.unread_counts,
+                            activity,
+                        },
+                    },
+                };
+            });
         },
     });
 
@@ -127,6 +148,8 @@ export default function ActivityNotificationsScreen() {
                 };
             });
 
+            clearActivityUnread();
+
             return { previousMainData, previousActivityData, queryKey };
         },
         onError: (err, variables, context) => {
@@ -138,10 +161,22 @@ export default function ActivityNotificationsScreen() {
             }
             console.error('Failed to mark all as read:', err);
         },
-        onSettled: async () => {
-            await queryClient.invalidateQueries({ queryKey: ['activity-notifications'] });
-            refetchBadgeCount();
-            await queryClient.invalidateQueries({ queryKey: ['main-notifications'] });
+        onSuccess: () => {
+            queryClient.setQueryData(['main-notifications'], (old: any) => {
+                if (!old?.meta?.unread_counts) return old;
+                return {
+                    ...old,
+                    meta: {
+                        ...old.meta,
+                        unread_counts: {
+                            ...old.meta.unread_counts,
+                            activity: 0,
+                        },
+                    },
+                };
+            });
+        },
+        onSettled: () => {
             setFilterModalVisible(false);
         },
     });
@@ -153,8 +188,23 @@ export default function ActivityNotificationsScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            refetch();
-        }, [refetch]),
+            void markActivityViewed().then(() => {
+                queryClient.setQueryData(['main-notifications'], (old: any) => {
+                    if (!old?.meta?.unread_counts) return old;
+                    return {
+                        ...old,
+                        meta: {
+                            ...old.meta,
+                            unread_counts: {
+                                ...old.meta.unread_counts,
+                                activity: 0,
+                            },
+                        },
+                    };
+                });
+                void refetch();
+            });
+        }, [markActivityViewed, queryClient, refetch]),
     );
 
     const activeFilterLabel = useMemo(

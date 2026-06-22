@@ -255,7 +255,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
     const router = useRouter();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
-    const { markInboxViewed, refetchBadgeCount } = useNotificationStore();
+    const { markInboxViewed, markActivityViewed, refetchBadgeCount } = useNotificationStore();
     const [followingAccountId, setFollowingAccountId] = useState<string | null>(null);
     const [hidingAccountId, setHidingAccountId] = useState<string | null>(null);
     const { isDark } = useTheme();
@@ -295,9 +295,23 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
 
     useFocusEffect(
         useCallback(() => {
-            void markInboxViewed();
+            void markInboxViewed().then(() => {
+                queryClient.setQueryData(['main-notifications'], (old: any) => {
+                    if (!old?.meta?.unread_counts) return old;
+                    return {
+                        ...old,
+                        meta: {
+                            ...old.meta,
+                            unread_counts: {
+                                ...old.meta.unread_counts,
+                                activity: 0,
+                            },
+                        },
+                    };
+                });
+            });
             void refetchBadgeCount();
-        }, [markInboxViewed, refetchBadgeCount]),
+        }, [markInboxViewed, refetchBadgeCount, queryClient]),
     );
 
     const handleRefresh = useCallback(() => {
@@ -523,7 +537,12 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                             title={category.title}
                             subtitle={category.subtitle}
                             count={category.count}
-                            onPress={() => router.push(category.route as any)}
+                            onPress={() => {
+                                if (category.id === 'activity') {
+                                    void markActivityViewed();
+                                }
+                                router.push(category.route as any);
+                            }}
                         />
                     ))}
 
