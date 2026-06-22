@@ -82,6 +82,7 @@ type FeedVideoCellProps = {
     item: FlipVideo;
     index: number;
     activeIndex: number;
+    shouldPreload: boolean;
     feedHeight: number;
     bottomInset: number;
     tabBarHeight: number;
@@ -107,6 +108,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     item,
     index,
     activeIndex,
+    shouldPreload,
     feedHeight,
     bottomInset,
     tabBarHeight,
@@ -128,9 +130,6 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     onNavigate,
 }: FeedVideoCellProps) {
     const isActive = index === activeIndex;
-    const shouldPreload =
-        feedPlaybackEnabled &&
-        (isActive || Math.abs(index - activeIndex) <= PLAYER_PRELOAD_DISTANCE);
 
     return (
         <VideoPlayer
@@ -760,11 +759,18 @@ export default function LoopsFeed({ navigation }) {
                     );
                 }
 
+                const shouldPreloadPlayer =
+                    feedPlaybackEnabled &&
+                    (index === currentIndex ||
+                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE);
+
                 return (
                     <FeedVideoCell
+                        key={`${item.id}-${shouldPreloadPlayer ? 'player' : 'poster'}`}
                         item={item}
                         index={index}
                         activeIndex={currentIndex}
+                        shouldPreload={shouldPreloadPlayer}
                         feedHeight={feedHeight}
                         onLike={handleLike}
                         onComment={handleComment}

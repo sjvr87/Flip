@@ -49,21 +49,12 @@ function isPlayerUsable(player: ExpoVideoPlayer | null | undefined): player is E
         return false;
     }
     try {
+        // Touch native shared object — throws after release.
+        void player.status;
         return typeof player.addListener === 'function';
     } catch {
         return false;
     }
-}
-
-/** Release after VideoView unmounts so native prop updates don't race teardown. */
-function releasePlayerDeferred(player: ExpoVideoPlayer) {
-    queueMicrotask(() => {
-        try {
-            player.release?.();
-        } catch {
-            // already released
-        }
-    });
 }
 
 function VideoPoster({ thumbnail }: { thumbnail?: string }) {
@@ -217,9 +208,12 @@ function VideoPlayerCore({
     const thumbnail = item.media?.thumbnail;
     const playerRef = useRef<ExpoVideoPlayer | null>(null);
     const boundSrcRef = useRef<string | undefined>(undefined);
+    const pendingReleaseRef = useRef<ExpoVideoPlayer[]>([]);
     const playerEpochRef = useRef(0);
     const [player, setPlayer] = useState<ExpoVideoPlayer | null>(null);
     const [playerEpoch, setPlayerEpoch] = useState(0);
+    const [viewPlayer, setViewPlayer] = useState<ExpoVideoPlayer | null>(null);
+    const [viewEpoch, setViewEpoch] = useState(0);
     const [videoReady, setVideoReady] = useState(false);
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
@@ -229,16 +223,69 @@ function VideoPlayerCore({
 
     useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
 
+    const queuePlayerRelease = useCallback((released: ExpoVideoPlayer) => {
+        pendingReleaseRef.current.push(released);
+    }, []);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player) || playerEpoch === 0 || playerRef.current !== player) {
+            setViewPlayer(null);
+            setViewEpoch(0);
+            return;
+        }
+        setViewPlayer(player);
+        setViewEpoch(playerEpoch);
+        return () => {
+            setViewPlayer(null);
+            setViewEpoch(0);
+        };
+    }, [player, playerEpoch]);
+
+    useEffect(() => {
+        if (viewPlayer) {
+            return;
+        }
+        const pending = pendingReleaseRef.current.splice(0);
+        if (pending.length === 0) {
+            return;
+        }
+        let cancelled = false;
+        const outer = requestAnimationFrame(() => {
+            const inner = requestAnimationFrame(() => {
+                if (cancelled) {
+                    return;
+                }
+                for (const released of pending) {
+                    try {
+                        released.release?.();
+                    } catch {
+                        // already released
+                    }
+                }
+            });
+            if (cancelled) {
+                cancelAnimationFrame(inner);
+            }
+        });
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(outer);
+            pendingReleaseRef.current.push(...pending);
+        };
+    }, [viewPlayer]);
+
     useEffect(() => {
         if (!srcUrl) {
-            if (playerRef.current) {
-                releasePlayerDeferred(playerRef.current);
-                playerRef.current = null;
-            }
+            const stale = playerRef.current;
+            playerRef.current = null;
             boundSrcRef.current = undefined;
             setPlayer(null);
+            setPlayerEpoch(0);
             setVideoReady(false);
             setPlayerStatus('idle');
+            if (stale) {
+                queuePlayerRelease(stale);
+            }
             return;
         }
 
@@ -246,28 +293,24 @@ function VideoPlayerCore({
             return;
         }
 
+        const stale = playerRef.current;
+        playerRef.current = null;
+        boundSrcRef.current = undefined;
         setPlayer(null);
+        setPlayerEpoch(0);
         setVideoReady(false);
         setPlayerStatus('idle');
-
-        if (playerRef.current) {
-            releasePlayerDeferred(playerRef.current);
-            playerRef.current = null;
+        if (stale) {
+            queuePlayerRelease(stale);
         }
 
         const source = buildFeedVideoSource(srcUrl);
         if (!source) {
-            boundSrcRef.current = undefined;
-            setPlayer(null);
-            setPlayerEpoch(0);
             return;
         }
 
         const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(source);
         if (!isPlayerUsable(nextPlayer)) {
-            boundSrcRef.current = undefined;
-            setPlayer(null);
-            setPlayerEpoch(0);
             return;
         }
 
@@ -291,11 +334,11 @@ function VideoPlayerCore({
                 playerRef.current = null;
                 boundSrcRef.current = undefined;
             }
+            queuePlayerRelease(nextPlayer);
             setPlayer(null);
             setPlayerEpoch(0);
-            releasePlayerDeferred(nextPlayer);
         };
-    }, [srcUrl]);
+    }, [srcUrl, queuePlayerRelease]);
 
     useEffect(() => {
         if (!player) {
@@ -579,6 +622,11 @@ function VideoPlayerCore({
         (isReposted && !item.has_reposted ? 1 : 0) -
         (!isReposted && item.has_reposted ? 1 : 0);
 
+    const videoViewPlayer =
+        viewPlayer && isPlayerUsable(viewPlayer) && playerRef.current === viewPlayer
+            ? viewPlayer
+            : null;
+
     if (!isPlayerUsable(player)) {
         return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
@@ -623,10 +671,11 @@ function VideoPlayerCore({
             <View style={[styles.videoContainer, { height: slideHeight }]}>
                 <View style={styles.videoWrapper}>
                     {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
+                    {videoViewPlayer ? (
                     <VideoView
-                        key={`${srcUrl}-${playerEpoch}`}
+                        key={`${srcUrl}-${viewEpoch}`}
                         style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
-                        player={player}
+                        player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
                         pointerEvents="none"
@@ -636,6 +685,7 @@ function VideoPlayerCore({
                         accessibilityHint="Tap to pause or play"
                         contentFit="contain"
                     />
+                    ) : null}
                 </View>
 
                 <Pressable
