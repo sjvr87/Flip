@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import android.view.View
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -62,7 +63,7 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       if (field == value) return
       field = value
       if (value) {
-        post { bindSession() }
+        post { maybeBindAfterLayout() }
       } else {
         ++bindGeneration
         isBinding = false
@@ -92,17 +93,44 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   init {
     installHierarchyFitter()
     previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-      if (!isActive) return@addOnLayoutChangeListener
-      if (previewView.width <= 0 || previewView.height <= 0) return@addOnLayoutChangeListener
-      if (session == null && !isBinding) {
-        post { bindSession() }
-      }
+      maybeBindAfterLayout()
     }
   }
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     if (isActive) {
+      post { maybeBindAfterLayout() }
+    }
+  }
+
+  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+    super.onSizeChanged(w, h, oldw, oldh)
+    // RN lays out the ExpoView root; PreviewView often stays 0x0 until we sync it.
+    if (w > 0 && h > 0) {
+      maybeBindAfterLayout()
+    }
+  }
+
+  /** RN sizes the root view; child PreviewView may not receive a layout pass on its own. */
+  private fun hasUsableLayout(): Boolean =
+    (width > 0 && height > 0) || (previewView.width > 0 && previewView.height > 0)
+
+  private fun syncPreviewLayout() {
+    if (width <= 0 || height <= 0) return
+    if (previewView.width == width && previewView.height == height) return
+    previewView.measure(
+      View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+    )
+    previewView.layout(0, 0, width, height)
+  }
+
+  private fun maybeBindAfterLayout() {
+    if (!isActive) return
+    syncPreviewLayout()
+    if (!hasUsableLayout()) return
+    if (session == null && !isBinding) {
       post { bindSession() }
     }
   }
@@ -119,8 +147,12 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   private fun bindSession() {
     if (!isActive) return
 
-    if (previewView.width <= 0 || previewView.height <= 0) {
-      Log.d(TAG, "bindSession: defer until layout (preview=${previewView.width}x${previewView.height})")
+    syncPreviewLayout()
+    if (!hasUsableLayout()) {
+      Log.d(
+        TAG,
+        "bindSession: defer until layout (root=${width}x${height} preview=${previewView.width}x${previewView.height})",
+      )
       return
     }
 
@@ -148,7 +180,10 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
     bindRetryCount = 0
     val generation = ++bindGeneration
     isBinding = true
-    Log.d(TAG, "bindSession: preview=${previewView.width}x${previewView.height} facing=$facing gen=$generation")
+    Log.d(
+      TAG,
+      "bindSession: root=${width}x${height} preview=${previewView.width}x${previewView.height} facing=$facing gen=$generation",
+    )
 
     session?.unbind()
     val newSession =
