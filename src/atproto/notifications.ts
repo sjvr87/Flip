@@ -414,19 +414,33 @@ export async function fetchFollowerNotifications({
   }
 }
 
+function resolveSeenAtIso(value: unknown): string {
+  if (typeof value === 'string' && value.length > 0) return value
+  if (value && typeof value === 'object' && 'seenAt' in value) {
+    const nested = (value as { seenAt?: unknown }).seenAt
+    if (typeof nested === 'string' && nested.length > 0) return nested
+  }
+  return new Date().toISOString()
+}
+
+async function markNotificationsSeen(seenAtInput: unknown): Promise<void> {
+  const seenAt = resolveSeenAtIso(seenAtInput)
+  await withAuthenticatedFetch(() =>
+    getAgent().app.bsky.notification.updateSeen({ seenAt }),
+  )
+}
+
 export async function notificationMarkAsRead(id: string): Promise<{ data: Record<string, never> }> {
   const res = await withAuthenticatedFetch(() => getAgent().listNotifications({ limit: 50 }))
   const target = res.data.notifications.find((n) => n.uri === id)
   const seenAt = target?.indexedAt ?? new Date().toISOString()
 
-  await withAuthenticatedFetch(() => getAgent().updateSeenNotifications(seenAt))
+  await markNotificationsSeen(seenAt)
   return { data: {} }
 }
 
 export async function notificationTypeMarkAllAsRead(_type: string): Promise<{ data: Record<string, never> }> {
-  await withAuthenticatedFetch(() =>
-    getAgent().updateSeenNotifications(new Date().toISOString()),
-  )
+  await markNotificationsSeen(new Date().toISOString())
   return { data: {} }
 }
 
