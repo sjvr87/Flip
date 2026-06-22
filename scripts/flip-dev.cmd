@@ -11,13 +11,11 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-connect.ps1"
 if errorlevel 1 (
   echo.
   echo Dev connect failed. See errors above.
   pause
   exit /b 1
 )
-echo.
-echo Done. Metro runs in its own window if it was started - look for "Flip Metro" on the taskbar.
-exit /b 0
+exit 0

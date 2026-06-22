@@ -12,14 +12,11 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:reconnect
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\dev-connect.ps1" -Reconnect
 if errorlevel 1 (
   echo.
   echo Reconnect failed. See errors above.
   pause
   exit /b 1
 )
-echo.
-echo Done. Metro runs in a separate window titled "Flip Metro" on the taskbar.
-echo       This window is the reconnect script only - you can close it.
-exit /b 0
+exit 0

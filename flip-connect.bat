@@ -7,5 +7,11 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:only
-exit /b %errorlevel%
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\dev-connect.ps1" -ConnectOnly
+if errorlevel 1 (
+  echo.
+  echo Connect failed. See errors above.
+  pause
+  exit /b 1
+)
+exit 0

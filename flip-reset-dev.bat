@@ -8,14 +8,11 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:reset
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\dev-connect.ps1" -Reset
 if errorlevel 1 (
   echo.
   echo Reset failed. See errors above.
   pause
   exit /b 1
 )
-echo.
-echo Done. Metro runs in a separate window titled "Flip Metro" on the taskbar.
-echo       This window is the reset script only - you can close it.
-exit /b 0
+exit 0

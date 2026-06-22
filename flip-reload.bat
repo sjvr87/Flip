@@ -7,5 +7,11 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:reload
-exit /b %errorlevel%
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\dev-connect.ps1" -ConnectOnly -Reload
+if errorlevel 1 (
+  echo.
+  echo Reload failed. See errors above.
+  pause
+  exit /b 1
+)
+exit 0
