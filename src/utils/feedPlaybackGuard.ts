@@ -32,7 +32,6 @@ export function registerFeedPlayer(
     if (!feedPlaybackActive) {
         try {
             pause();
-            release();
         } catch {
             // player may already be released
         }

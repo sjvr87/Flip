@@ -1,4 +1,5 @@
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
@@ -57,6 +58,10 @@ export default function DuetCameraScreen() {
     const device = useCameraDevice(cameraPosition);
     const { hasPermission, requestPermission } = useCameraPermission();
     const isFocused = useIsFocused();
+
+    useEffect(() => {
+        prepareForCameraCapture();
+    }, []);
 
     const recordingProgress = useRef(new Animated.Value(0)).current;
     const recordingTimer = useRef<NodeJS.Timeout | null>(null);

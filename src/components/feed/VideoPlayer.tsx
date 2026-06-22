@@ -4,6 +4,7 @@ import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { isFeedPlaybackActive, registerFeedPlayer, subscribeFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import {
     getFeedNetworkProfile,
@@ -26,6 +27,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
+    InteractionManager,
     Platform,
     Pressable,
     StyleSheet,
@@ -316,7 +318,26 @@ function VideoPlayerCore({
             return;
         }
 
-        if (boundSrcRef.current === srcUrl && playerRef.current) {
+        if (!standalonePlayback && !playbackAllowed) {
+            const stale = playerRef.current;
+            if (!stale) {
+                return;
+            }
+            playerRef.current = null;
+            boundSrcRef.current = undefined;
+            setPlayer(null);
+            setPlayerEpoch(0);
+            setViewPlayer(null);
+            setViewEpoch(0);
+            setVideoReady(false);
+            setFirstFrameRendered(false);
+            setPlayerStatus('idle');
+            setIsPlaying(false);
+            queuePlayerRelease(stale);
+            return;
+        }
+
+        if (boundSrcRef.current === srcUrl && isPlayerUsable(playerRef.current)) {
             return;
         }
 
@@ -369,7 +390,7 @@ function VideoPlayerCore({
                 setPlayerEpoch(0);
             }
         };
-    }, [srcUrl, queuePlayerRelease]);
+    }, [srcUrl, playbackAllowed, standalonePlayback, queuePlayerRelease, networkProfile.bufferOptions]);
 
     const pauseThisPlayer = useCallback(() => {
         const activePlayer = playerRef.current;
@@ -731,7 +752,8 @@ function VideoPlayerCore({
                 {
                     text: 'Record remix',
                     onPress: () => {
-                        requestAnimationFrame(() => {
+                        prepareForCameraCapture();
+                        InteractionManager.runAfterInteractions(() => {
                             router.push('/create');
                         });
                     },
@@ -766,7 +788,7 @@ function VideoPlayerCore({
             ? viewPlayer
             : null;
 
-    if (!isPlayerUsable(player)) {
+    if (!srcUrl) {
         return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 

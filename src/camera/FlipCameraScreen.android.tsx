@@ -5,6 +5,7 @@ import { useRecentGalleryThumb } from '@/camera/useRecentGalleryThumb'
 import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer'
 import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability'
 import { PressableHaptics } from '@/components/ui/PressableHaptics'
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare'
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore'
 import { FlipCamerawesomeView } from 'flip-camerawesome'
 import { Ionicons } from '@expo/vector-icons'
@@ -81,6 +82,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   useFocusEffect(
     useCallback(() => {
+      prepareForCameraCapture()
       setIsCameraActive(true)
       setIsCameraReady(false)
       requestAndroidPermissions().then(setHasPermissions)

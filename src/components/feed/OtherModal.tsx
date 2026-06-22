@@ -1,5 +1,6 @@
 import { ReportModal } from '@/components/ReportModal';
 import { useTheme } from '@/contexts/ThemeContext';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { videoDelete } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -103,6 +104,7 @@ export default function OtherModal({
 
     const handleDuet = () => {
         onClose();
+        prepareForCameraCapture();
         router.push(`/private/video/duet/${item.id}?duetVideoUri=${item.media.src_url}`);
     };
 
