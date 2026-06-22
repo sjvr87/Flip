@@ -237,7 +237,7 @@ Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run npm run start:c
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
 Write-Host "- LAN: npm run start:lan, phone on same Wi-Fi as PC ($lanIp), allow Node through Windows Firewall on 8081"
 Write-Host "- Dev client only (not Expo Go); package social.flip.app"
-Write-Host "- Crash 'OkHttp TaskRunner' / MessageDeflater: dev-only Metro WebSocket race — re-run flip-dev.bat"
+Write-Host "- Crash 'OkHttp TaskRunner' / MessageDeflater: dev-only Metro WebSocket race - re-run flip-dev.bat"
 
 if (-not $finalMetroHealthy) {
   Write-MetroNotRunningBanner
