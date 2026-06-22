@@ -162,16 +162,25 @@ function Start-MetroInNewWindow([switch]$ClearCache) {
   Write-MetroWindowHint -StartedNew $true
 }
 
-function Wait-MetroHealthy([int]$TimeoutSec = 60) {
+function Wait-MetroHealthy([int]$TimeoutSec = 120) {
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   $pollMs = 500
+  $lastLog = [DateTime]::MinValue
   while ((Get-Date) -lt $deadline) {
-    if ((Test-MetroHealthy) -and (Test-MetroLanHealthy)) { return $true }
-    if ((Test-MetroHealthy) -and -not $script:LanIp) { return $true }
+    $localhostOk = Test-MetroHealthy
+    $lanOk = Test-MetroLanHealthy
+    if ($localhostOk -and ($lanOk -or -not $script:LanIp)) { return $true }
+    if (((Get-Date) - $lastLog).TotalSeconds -ge 5) {
+      $remaining = [Math]::Max(0, [int]($deadline - (Get-Date)).TotalSeconds)
+      $status = "localhost=$localhostOk"
+      if ($script:LanIp) { $status += ", LAN $($script:LanIp)=$lanOk" }
+      Write-Host "  Waiting for Metro /status ($status, ${remaining}s left)..." -ForegroundColor DarkGray
+      $lastLog = Get-Date
+    }
     Start-Sleep -Milliseconds $pollMs
     if ($pollMs -lt 2000) { $pollMs = [Math]::Min($pollMs * 2, 2000) }
   }
-  return (Test-MetroHealthy)
+  return ((Test-MetroHealthy) -and ((Test-MetroLanHealthy) -or -not $script:LanIp))
 }
 
 function Ensure-MetroRunning {
@@ -184,7 +193,7 @@ function Ensure-MetroRunning {
     Write-Host "  Force-recycling Metro on 8081..." -ForegroundColor Yellow
     Stop-AllMetroOnPort 8081 | Out-Null
     Start-MetroInNewWindow -ClearCache:$ClearCacheOnStart
-    $timeout = if ($ClearCacheOnStart) { 90 } else { 60 }
+    $timeout = if ($ClearCacheOnStart) { 120 } else { 90 }
     if (Wait-MetroHealthy -TimeoutSec $timeout) {
       Write-Host "  Metro started OK (localhost + LAN)." -ForegroundColor Green
       return $true
@@ -202,7 +211,7 @@ function Ensure-MetroRunning {
     Write-Host "  Metro OK on localhost but not LAN ($($script:LanIp)) - recycling..." -ForegroundColor Yellow
     Stop-AllMetroOnPort 8081 | Out-Null
     Start-MetroInNewWindow -ClearCache:$false
-    if (Wait-MetroHealthy -TimeoutSec 60) {
+    if (Wait-MetroHealthy -TimeoutSec 90) {
       Write-Host "  Metro restarted with LAN hostname." -ForegroundColor Green
       return $true
     }
@@ -228,7 +237,7 @@ function Ensure-MetroRunning {
 
   $useClear = $ClearCacheOnStart.IsPresent
   Start-MetroInNewWindow -ClearCache:$useClear
-  $timeout = if ($useClear) { 90 } else { 60 }
+  $timeout = if ($useClear) { 120 } else { 90 }
   if (Wait-MetroHealthy -TimeoutSec $timeout) {
     Write-Host "  Metro started OK." -ForegroundColor Green
     return $true
@@ -293,15 +302,9 @@ function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
   return $anyOk
 }
 
-# Expo Router home tab (src/app/(tabs)/index.tsx). Explicit /--/ path prevents the dev
-# client from restoring the last route (e.g. Create/camera) after reconnect scripts.
-$script:DevMetroHomePath = "/--/(tabs)/index"
-
 function Escape-DeepLinkUrlParam {
   param([string]$Url)
-  # EscapeDataString leaves () unreserved; adb shell treats them as metacharacters.
-  $encoded = [System.Uri]::EscapeDataString($Url)
-  return $encoded.Replace('(', '%28').Replace(')', '%29')
+  return [System.Uri]::EscapeDataString($Url)
 }
 
 function Start-FlipApp {
@@ -311,11 +314,18 @@ function Start-FlipApp {
     [string]$DevServerHost
   )
 
+  if (-not (Wait-MetroHealthy -TimeoutSec 120)) {
+    Write-Host "  $Serial : Metro not healthy - refusing to launch (avoids DevLauncher manifest loop)" -ForegroundColor Red
+    return $false
+  }
+
   $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "force-stop", "social.flip.app")
   Start-Sleep -Milliseconds 400
 
   if ($DevServerHost) {
-    $metroUrl = "exp://${DevServerHost}:8081$($script:DevMetroHomePath)"
+    # Base exp:// URL only — route paths break DevLauncherManifestParser.downloadManifest.
+    # Home tab is set via Tabs initialRouteName="index" in src/app/(tabs)/_layout.tsx.
+    $metroUrl = "exp://${DevServerHost}:8081"
     $encodedUrl = Escape-DeepLinkUrlParam $metroUrl
     $deepLink = "flip://expo-development-client/?url=$encodedUrl"
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @(
@@ -324,11 +334,12 @@ function Start-FlipApp {
       "-d", $deepLink
     )
     Write-Host "  $Serial : $start"
-    Write-Host "  $Serial : deep link $metroUrl (Home tab; bypasses dev launcher picker)" -ForegroundColor DarkGray
+    Write-Host "  $Serial : deep link $metroUrl (bypasses dev launcher picker)" -ForegroundColor DarkGray
   } else {
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "start", "-n", "social.flip.app/.MainActivity")
     Write-Host "  $Serial : $start"
   }
+  return $true
 }
 
 function Write-NoLanIpHelp {
@@ -372,7 +383,7 @@ function Write-DevStatus {
     Write-Host 'Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler / QR / connection URL)'
   }
   if ($script:LanIp) {
-    Write-Host "Launch URL: exp://${script:LanIp}:8081$($script:DevMetroHomePath) (Home tab; bypasses dev launcher picker)"
+    Write-Host "Launch URL: exp://${script:LanIp}:8081 (bypasses dev launcher picker; Home via initialRouteName)"
     Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - run flip-reset-dev.bat" }))
   } else {
     Write-Host "Launch URL: (no LAN IP - connect PC and phone to same Wi-Fi)" -ForegroundColor Yellow
@@ -455,13 +466,13 @@ if ($Reset) {
 }
 
 if ($ConnectOnly -and -not $Reconnect) {
-  $metroHealthy = Test-MetroHealthy
-  Write-Host "[4/6] Metro - skipped (connect-only)" -ForegroundColor DarkGray
+  Write-Host "[4/6] Metro (connect-only - wait for /status before launch)"
+  $metroHealthy = Wait-MetroHealthy -TimeoutSec 120
   if (-not $metroHealthy) {
-    Write-Host "  WARN: Metro /status is NOT running. Run flip-reset-dev.bat." -ForegroundColor Yellow
+    Write-Host "  Metro /status not ready after 120s. Run flip-reset-dev.bat." -ForegroundColor Red
     Write-MetroNotRunningBanner
   } else {
-    Write-Host "  Metro /status: running (reused)" -ForegroundColor Green
+    Write-Host "  Metro /status: running (localhost + LAN)" -ForegroundColor Green
   }
 
   if ($Reload -and $metroHealthy -and $serials.Count -gt 0) {
