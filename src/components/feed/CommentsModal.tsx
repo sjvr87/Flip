@@ -18,16 +18,19 @@ import {
     fetchVideoComments,
     fetchVideoReplies,
 } from '@/atproto';
+import type { FlipComment } from '@/atproto/comments';
+import type { FlipUserProfile } from '@/atproto/types';
+import { patchFeedVideoComments } from '@/utils/feedCache';
 import { commentPostMedia, type KlipyItem, type KlipyMediaType } from '@/utils/requests';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { shareContent } from '@/utils/sharer';
 import { timeAgo } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useSafeNativeShims } from '@/utils/runtime';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -66,7 +69,7 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const COMMENTS_SHEET_HEIGHT = SCREEN_HEIGHT * 0.62;
 const COMMENTS_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
 /** Dimmed scrim above the sheet only — feed video peeks through; sheet stays opaque for legibility. */
-const COMMENTS_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.48)';
+const COMMENTS_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.38)';
 
 const commentsModalProps = {
     animationType: 'slide' as const,
@@ -111,10 +114,145 @@ type CommentReplyLikePayload = {
     parentId: string;
 };
 
-export default function CommentsModal({ visible, item, onClose, navigation, onNavigate }) {
+type CommentPage = {
+    data: FlipComment[];
+    meta: { next_cursor: string | null; path: string; per_page: number };
+};
+
+type CommentsInfiniteData = InfiniteData<CommentPage>;
+
+function buildOptimisticComment(
+    text: string,
+    author: FlipUserProfile | null | undefined,
+    parentId?: string,
+): FlipComment | null {
+    if (!author) return null;
+
+    return {
+        id: `optimistic-${Date.now()}`,
+        account: {
+            id: author.id,
+            name: author.name,
+            avatar: author.avatar,
+            username: author.username,
+            url: author.url,
+        },
+        caption: text,
+        tags: [],
+        mentions: [],
+        created_at: new Date().toISOString(),
+        likes: 0,
+        liked: false,
+        replies: 0,
+        is_owner: true,
+        ...(parentId ? { p_id: parentId } : {}),
+    };
+}
+
+function prependToCommentsPage(
+    old: CommentsInfiniteData | undefined,
+    comment: FlipComment,
+): CommentsInfiniteData {
+    const emptyPage: CommentPage = {
+        data: [comment],
+        meta: { path: 'atproto', per_page: 1, next_cursor: null },
+    };
+
+    if (!old?.pages?.length) {
+        return { pages: [emptyPage], pageParams: [null] };
+    }
+
+    return {
+        ...old,
+        pages: old.pages.map((page, index) =>
+            index === 0 ? { ...page, data: [comment, ...page.data] } : page,
+        ),
+    };
+}
+
+function appendReplyToPage(
+    old: CommentsInfiniteData | undefined,
+    reply: FlipComment,
+): CommentsInfiniteData {
+    const emptyPage: CommentPage = {
+        data: [reply],
+        meta: { path: 'atproto', per_page: 1, next_cursor: null },
+    };
+
+    if (!old?.pages?.length) {
+        return { pages: [emptyPage], pageParams: [null] };
+    }
+
+    return {
+        ...old,
+        pages: old.pages.map((page, index) =>
+            index === 0 ? { ...page, data: [...page.data, reply] } : page,
+        ),
+    };
+}
+
+function replaceCommentInPages(
+    old: CommentsInfiniteData | undefined,
+    optimisticId: string | undefined,
+    real: FlipComment,
+): CommentsInfiniteData {
+    if (!old?.pages?.length) {
+        return prependToCommentsPage(old, real);
+    }
+
+    let replaced = false;
+    const pages = old.pages.map((page, index) => {
+        let data = page.data.map((entry) => {
+            if (optimisticId && entry.id === optimisticId) {
+                replaced = true;
+                return real;
+            }
+            return entry;
+        });
+
+        if (index === 0 && !replaced && !data.some((entry) => entry.id === real.id)) {
+            data = [real, ...data];
+            replaced = true;
+        }
+
+        return { ...page, data };
+    });
+
+    return { ...old, pages };
+}
+
+function bumpParentReplyCount(
+    old: CommentsInfiniteData | undefined,
+    parentId: string,
+    delta: number,
+): CommentsInfiniteData | undefined {
+    if (!old?.pages) return old;
+
+    return {
+        ...old,
+        pages: old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((entry) =>
+                entry.id === parentId
+                    ? { ...entry, replies: Math.max(0, entry.replies + delta) }
+                    : entry,
+            ),
+        })),
+    };
+}
+
+export default function CommentsModal({
+    visible,
+    item,
+    onClose,
+    navigation,
+    onNavigate,
+    onCommentCountChange,
+}) {
     const [comment, setComment] = useState('');
     const [replyingTo, setReplyingTo] = useState(null);
     const [expandedComments, setExpandedComments] = useState(new Set());
+    const [headerCommentCount, setHeaderCommentCount] = useState(item?.comments ?? 0);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const sheetBottomPad =
@@ -131,29 +269,106 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     const [showKlipy, setShowKlipy] = useState(false);
     const hasKlipy = useFeatureFlag('hasKlipy');
 
+    useEffect(() => {
+        setHeaderCommentCount(item?.comments ?? 0);
+    }, [item?.id, item?.comments]);
+
+    const bumpVideoCommentCount = (delta: number) => {
+        if (!item?.id || delta === 0) return;
+        setHeaderCommentCount((count) => Math.max(0, count + delta));
+        patchFeedVideoComments(queryClient, item.id, delta);
+        onCommentCountChange?.(delta);
+    };
+
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
         queryKey: ['videoComments', item?.id],
         queryFn: ({ pageParam }) => fetchVideoComments(item.id, pageParam),
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
         initialPageParam: null,
         enabled: visible && !!item?.id,
+        staleTime: 60_000,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
     });
 
     const commentMutation = useMutation({
         mutationFn: async (data: CommentPayload) => {
             return await commentPost(data);
         },
-        onSuccess: async (res) => {
-            queryClient.setQueryData(['videoComments', item?.id], (old) => {
-                if (!old) return old;
+        onMutate: async (variables) => {
+            await queryClient.cancelQueries({ queryKey: ['videoComments', item?.id] });
 
-                return {
-                    ...old,
-                    pages: old.pages.map((page, index) =>
-                        index === 0 ? { ...page, data: [res.data[0], ...page.data] } : page,
-                    ),
-                };
-            });
+            const optimistic = buildOptimisticComment(variables.commentText, user, variables.parentId);
+            if (!optimistic) return {};
+
+            const previousComments = queryClient.getQueryData<CommentsInfiniteData>([
+                'videoComments',
+                item?.id,
+            ]);
+            let previousReplies: CommentsInfiniteData | undefined;
+
+            if (variables.parentId) {
+                await queryClient.cancelQueries({
+                    queryKey: ['videoReplies', item.id, variables.parentId],
+                });
+                previousReplies = queryClient.getQueryData<CommentsInfiniteData>([
+                    'videoReplies',
+                    item.id,
+                    variables.parentId,
+                ]);
+
+                setExpandedComments((prev) => new Set(prev).add(variables.parentId!));
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoReplies', item.id, variables.parentId],
+                    (old) => appendReplyToPage(old, optimistic),
+                );
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoComments', item?.id],
+                    (old) => bumpParentReplyCount(old, variables.parentId!, 1),
+                );
+            } else {
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoComments', item?.id],
+                    (old) => prependToCommentsPage(old, optimistic),
+                );
+            }
+
+            bumpVideoCommentCount(1);
+
+            return {
+                previousComments,
+                previousReplies,
+                optimisticId: optimistic.id,
+                parentId: variables.parentId,
+            };
+        },
+        onSuccess: (res, variables, context) => {
+            const real = res.data[0];
+            if (!real) return;
+
+            if (variables.parentId) {
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoReplies', item.id, variables.parentId],
+                    (old) => replaceCommentInPages(old, context?.optimisticId, real),
+                );
+            } else {
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoComments', item?.id],
+                    (old) => replaceCommentInPages(old, context?.optimisticId, real),
+                );
+            }
+        },
+        onError: (_err, variables, context) => {
+            if (context?.previousComments) {
+                queryClient.setQueryData(['videoComments', item?.id], context.previousComments);
+            }
+            if (variables.parentId && context?.previousReplies) {
+                queryClient.setQueryData(
+                    ['videoReplies', item.id, variables.parentId],
+                    context.previousReplies,
+                );
+            }
+            bumpVideoCommentCount(-1);
         },
     });
 
@@ -162,15 +377,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             return await commentPostMedia(payload);
         },
         onSuccess: (res) => {
-            queryClient.setQueryData(['videoComments', item?.id], (old: any) => {
-                if (!old) return old;
-                return {
-                    ...old,
-                    pages: old.pages.map((page: any, index: number) =>
-                        index === 0 ? { ...page, data: [res.data[0], ...page.data] } : page,
-                    ),
-                };
-            });
+            queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                prependToCommentsPage(old, res.data[0]),
+            );
+            bumpVideoCommentCount(1);
         },
     });
 
@@ -433,7 +643,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     if (!item) return null;
 
     const allComments = data?.pages?.flatMap((page) => page.data) || [];
-    const totalComments = item.comments;
+    const totalComments = headerCommentCount;
 
     const handleLikeComment = async (commentId, likeState) => {
         commentLikeMutation.mutate({
@@ -633,6 +843,9 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
             initialPageParam: null,
             enabled: expandedComments.has(parentComment.id),
+            staleTime: 60_000,
+            refetchOnMount: false,
+            refetchOnWindowFocus: false,
         });
 
         const replies = repliesData?.pages?.flatMap((page) => page.data) || [];
@@ -854,12 +1067,12 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                         { height: COMMENTS_SHEET_HEIGHT, maxHeight: COMMENTS_SHEET_MAX_HEIGHT },
                     ]}>
                     <View
-                        style={tw`flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
-                        <Text style={tw`text-lg font-bold text-black dark:text-white`}>
+                        style={tw`flex-row justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700`}>
+                        <Text style={tw`text-base font-bold text-black dark:text-white`}>
                             {totalComments} {totalComments === 1 ? 'comment' : 'comments'}
                         </Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
+                        <TouchableOpacity onPress={onClose} hitSlop={8}>
+                            <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                     </View>
 

@@ -327,6 +327,13 @@ export default function PostViewScreen({ navigation }) {
                 onClose={() => setShowComments(false)}
                 navigation={navigation}
                 onNavigate={handleNavigate}
+                onCommentCountChange={(delta) => {
+                    setSelectedVideo((prev) =>
+                        prev
+                            ? { ...prev, comments: Math.max(0, (prev.comments ?? 0) + delta) }
+                            : prev,
+                    );
+                }}
             />
 
             <CaptionExpandModal

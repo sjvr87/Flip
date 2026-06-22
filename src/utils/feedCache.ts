@@ -79,6 +79,43 @@ export function videoDedupeKey(video: FlipVideo): string | null {
     return null;
 }
 
+type FeedInfiniteData = {
+    pages: FlipFeedPage[];
+    pageParams: unknown[];
+};
+
+/** Optimistically sync comment count on main-feed and profile-reel cards. */
+export function patchFeedVideoComments(
+    queryClient: QueryClient,
+    videoId: string,
+    delta: number,
+): void {
+    const patch = (old: FeedInfiniteData | undefined) => {
+        if (!old?.pages?.length) return old;
+
+        let changed = false;
+        const pages = old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((video) => {
+                if (video.id !== videoId) return video;
+                changed = true;
+                return {
+                    ...video,
+                    comments: Math.max(0, (video.comments ?? 0) + delta),
+                };
+            }),
+        }));
+
+        return changed ? { ...old, pages } : old;
+    };
+
+    queryClient.setQueriesData<FeedInfiniteData>({ queryKey: ['videos'], exact: false }, patch);
+    queryClient.setQueriesData<FeedInfiniteData>(
+        { queryKey: ['profileVideoFeed'], exact: false },
+        patch,
+    );
+}
+
 /** Deterministic shuffle — same seed yields same order within a session page. */
 export function shuffleFeedVideos(videos: FlipVideo[], seed: number): FlipVideo[] {
     if (videos.length <= 1 || seed === 0) {
