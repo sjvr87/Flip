@@ -28,6 +28,8 @@ type FeedActionRailProps = {
     repostCount: number;
     canComment?: boolean;
     canUseAudio?: boolean;
+    /** When false, hides feed mute/unmute (e.g. text-only posts with no audio). */
+    showMuteControl?: boolean;
     bottomInset: number;
     tabBarHeight?: number;
     /** When set, overrides bottomInset + tabBarHeight (Good Lock–aware total). */
@@ -103,6 +105,7 @@ function FeedActionRail({
     repostCount,
     canComment = true,
     canUseAudio = false,
+    showMuteControl = true,
     bottomInset,
     tabBarHeight = 20,
     overlayBottom,
@@ -224,18 +227,20 @@ function FeedActionRail({
                 <FeedActionIcon name="arrow-redo-outline" />
             </TouchableOpacity>
 
-            <TouchableOpacity
-                style={styles.actionButton}
-                onPress={onMuteToggle}
-                accessible
-                accessibilityLabel={isMuted ? 'Unmute feed videos' : 'Mute feed videos'}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isMuted }}>
-                <FeedActionIcon
-                    name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
-                    active={isMuted}
-                />
-            </TouchableOpacity>
+            {showMuteControl ? (
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={onMuteToggle}
+                    accessible
+                    accessibilityLabel={isMuted ? 'Unmute feed videos' : 'Mute feed videos'}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isMuted }}>
+                    <FeedActionIcon
+                        name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
+                        active={isMuted}
+                    />
+                </TouchableOpacity>
+            ) : null}
 
             {canUseAudio && onUseAudio ? (
                 <TouchableOpacity

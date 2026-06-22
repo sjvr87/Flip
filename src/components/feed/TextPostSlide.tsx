@@ -115,13 +115,13 @@ export default function TextPostSlide({
                 isLiked={isLiked}
                 isBookmarked={isBookmarked}
                 isReposted={isReposted}
-                isMuted={false}
                 likeCount={likeCount}
                 commentCount={item.comments}
                 bookmarkCount={bookmarkCount}
                 repostCount={repostCount}
                 canComment
                 canUseAudio={false}
+                showMuteControl={false}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
                 onProfilePress={() => {
@@ -133,6 +133,7 @@ export default function TextPostSlide({
                 onBookmark={handleBookmark}
                 onRepost={handleRepost}
                 onShare={() => onShare(item)}
+                isMuted={false}
                 onMuteToggle={() => {}}
                 onOther={() => (onOther ? onOther(item) : onComment(item))}
             />

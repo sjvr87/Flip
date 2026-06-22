@@ -48,6 +48,8 @@ export default function OtherModal({
         return null;
     }
 
+    const hasPlayableMedia = 'media' in item && !!item.media;
+
     const handleReport = () => {
         setShowReport(true);
     };
@@ -182,7 +184,7 @@ export default function OtherModal({
             icon: 'film-outline',
             label: 'Playback speed',
             onPress: () => setShowPlaybackSpeed(true),
-            show: true,
+            show: hasPlayableMedia,
         },
         {
             icon: 'flag-outline',
