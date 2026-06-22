@@ -7,6 +7,7 @@ import {
 import { fetchUnreadDmCount } from '@/atproto/chat';
 import type { MailboxIconState } from '@/components/icons/MailboxTabIcon';
 import { create } from 'zustand';
+import { AppState } from 'react-native';
 
 const LIKE_NOTIFICATION_TYPES = new Set(['video.like', 'comment.like', 'commentReply.like']);
 
@@ -119,6 +120,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     fetchBadgeCount: async () => {
         if (!isLoggedIn()) return;
+        if (AppState.currentState !== 'active') return;
 
         const now = Date.now();
         const { lastFetched } = get();
@@ -143,6 +145,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     refetchBadgeCount: async () => {
         if (!isLoggedIn()) return;
+        if (AppState.currentState !== 'active') return;
 
         const now = Date.now();
         set({ isLoading: true });

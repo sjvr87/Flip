@@ -4,9 +4,17 @@ import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
+import { isFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import {
+    getFeedNetworkProfile,
+    reportFeedPlaybackStall,
+    subscribeFeedNetworkProfile,
+    type FeedNetworkProfile,
+} from '@/utils/feedNetworkQuality';
 import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { canUseFlipCamera } from '@/utils/runtime';
+import { buildFeedVideoSource } from '@/utils/feedVideoSource';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +25,7 @@ import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
+    Animated,
     Dimensions,
     Platform,
     Pressable,
@@ -76,7 +85,7 @@ function VideoSlidePlaceholder({
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
-        if (ANDROID_VIDEO_SAFE_MODE) {
+        if (ANDROID_VIDEO_SAFE_MODE || !isFeedPlaybackActive()) {
             return;
         }
         void prefetchVideoUrl(item.media?.src_url);
@@ -200,6 +209,15 @@ function VideoPlayerCore({
     const boundSrcRef = useRef<string | undefined>(undefined);
     const [player, setPlayer] = useState<ExpoVideoPlayer | null>(null);
     const [videoReady, setVideoReady] = useState(false);
+    const [playerStatus, setPlayerStatus] = useState<string>('idle');
+    const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
+        getFeedNetworkProfile(),
+    );
+    const videoOpacity = useRef(new Animated.Value(0)).current;
+    const stallTimestampsRef = useRef<number[]>([]);
+    const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+    useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
 
     useEffect(() => {
         if (!srcUrl) {
@@ -210,6 +228,8 @@ function VideoPlayerCore({
             boundSrcRef.current = undefined;
             setPlayer(null);
             setVideoReady(false);
+            setPlayerStatus('idle');
+            videoOpacity.setValue(0);
             return;
         }
 
@@ -219,18 +239,27 @@ function VideoPlayerCore({
 
         setPlayer(null);
         setVideoReady(false);
+        setPlayerStatus('idle');
+        videoOpacity.setValue(0);
 
         if (playerRef.current) {
             releasePlayerDeferred(playerRef.current);
             playerRef.current = null;
         }
 
-        const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
+        const source = buildFeedVideoSource(srcUrl);
+        const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(source);
         nextPlayer.loop = true;
+        try {
+            nextPlayer.bufferOptions = networkProfile.bufferOptions;
+        } catch {
+            // non-fatal
+        }
         playerRef.current = nextPlayer;
         boundSrcRef.current = srcUrl;
         setPlayer(nextPlayer);
         setVideoReady(nextPlayer.status === 'readyToPlay');
+        setPlayerStatus(nextPlayer.status);
 
         return () => {
             if (playerRef.current === nextPlayer) {
@@ -239,7 +268,18 @@ function VideoPlayerCore({
             }
             releasePlayerDeferred(nextPlayer);
         };
-    }, [srcUrl]);
+    }, [srcUrl, videoOpacity]);
+
+    useEffect(() => {
+        if (!player) {
+            return;
+        }
+        try {
+            player.bufferOptions = networkProfile.bufferOptions;
+        } catch {
+            // non-fatal
+        }
+    }, [player, networkProfile.bufferOptions]);
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
@@ -251,8 +291,22 @@ function VideoPlayerCore({
         }
 
         const onStatus = ({ status }: { status: string }) => {
-            if (status === 'readyToPlay' && isMountedRef.current) {
+            if (!isMountedRef.current) {
+                return;
+            }
+            setPlayerStatus(status);
+            if (status === 'readyToPlay') {
                 setVideoReady(true);
+            }
+            if (status === 'loading' && isActive && isPlaying) {
+                const now = Date.now();
+                const recent = stallTimestampsRef.current.filter((t) => now - t < 20_000);
+                recent.push(now);
+                stallTimestampsRef.current = recent;
+                if (recent.length >= 3) {
+                    stallTimestampsRef.current = [];
+                    reportFeedPlaybackStall();
+                }
             }
         };
         const onPlaying = ({ isPlaying: playing }: { isPlaying: boolean }) => {
@@ -269,7 +323,29 @@ function VideoPlayerCore({
             statusSub.remove();
             playingSub.remove();
         };
-    }, [player]);
+    }, [player, isActive, isPlaying]);
+
+    const showVideoFrame =
+        videoReady && playerStatus === 'readyToPlay' && (isActive ? isPlaying || isManuallyPaused : true);
+
+    useEffect(() => {
+        fadeAnimRef.current?.stop();
+        if (showVideoFrame) {
+            fadeAnimRef.current = Animated.timing(videoOpacity, {
+                toValue: 1,
+                duration: 220,
+                useNativeDriver: true,
+            });
+            fadeAnimRef.current.start();
+        } else {
+            fadeAnimRef.current = Animated.timing(videoOpacity, {
+                toValue: 0,
+                duration: 120,
+                useNativeDriver: true,
+            });
+            fadeAnimRef.current.start();
+        }
+    }, [showVideoFrame, videoOpacity]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -338,7 +414,7 @@ function VideoPlayerCore({
     ]);
 
     useEffect(() => {
-        if (ANDROID_VIDEO_SAFE_MODE) {
+        if (ANDROID_VIDEO_SAFE_MODE || !isFeedPlaybackActive()) {
             return;
         }
         const url = item.media?.src_url;
@@ -528,33 +604,32 @@ function VideoPlayerCore({
         );
     }
 
-    const hidePoster = videoReady && isActive;
-
     const videoBody = (
             <View style={[styles.videoContainer, { height: slideHeight }]}>
                 <View style={styles.videoWrapper}>
-                    {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
-                    <VideoView
-                        style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
-                        player={player}
-                        allowsPictureInPicture={false}
-                        nativeControls={false}
-                        pointerEvents="none"
-                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
-                        accessible={true}
-                        accessibilityLabel={item.media.alt_text || 'Video content'}
-                        accessibilityHint="Tap to pause or play"
-                        contentFit="contain"
-                    />
+                    <VideoPoster thumbnail={thumbnail} />
+                    <Animated.View style={[styles.videoLayer, { opacity: videoOpacity }]}>
+                        <VideoView
+                            style={styles.video}
+                            player={player}
+                            allowsPictureInPicture={false}
+                            nativeControls={false}
+                            pointerEvents="none"
+                            surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                            accessible={true}
+                            accessibilityLabel={item.media.alt_text || 'Video content'}
+                            accessibilityHint="Tap to pause or play"
+                            contentFit="contain"
+                        />
+                    </Animated.View>
                 </View>
 
-                {/* DO NOT wrap tap Pressable in pinch GestureDetector — Android steals single-finger touches. */}
-                {/* Pinch zoom disabled on feed until tap pause is reliable on all Android devices. */}
                 <Pressable
                     style={styles.tapOverlay}
                     onPress={handleTapOverlay}
+                    delayLongPress={400}
+                    android_disableSound
                     collapsable={false}
-                    android_ripple={{ color: 'transparent' }}
                     accessible={true}
                     accessibilityLabel="Video"
                     accessibilityHint="Tap to pause or play"
@@ -720,14 +795,14 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    videoLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 1,
+    },
     video: {
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',
-        zIndex: 1,
-    },
-    videoHiddenUntilReady: {
-        opacity: 0,
     },
     tapOverlay: {
         ...StyleSheet.absoluteFillObject,

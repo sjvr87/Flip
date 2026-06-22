@@ -22,9 +22,20 @@ import {
     resetSessionSeen,
     softRefreshFeed,
 } from '@/utils/feedCache';
+import {
+    getFeedNetworkProfile,
+    startFeedNetworkMonitoring,
+    subscribeFeedNetworkProfile,
+    type FeedNetworkProfile,
+} from '@/utils/feedNetworkQuality';
+import { setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
-import { prefetchVideoUrls } from '@/utils/videoPrefetch';
+import {
+    cancelOffscreenPrefetch,
+    prefetchVideoUrls,
+    releaseAllVideoPrefetch,
+} from '@/utils/videoPrefetch';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -61,7 +72,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 /** Start loading next page when this many videos from the end (TikTok-style). */
 const LOAD_MORE_THRESHOLD = 4;
-/** Preload HLS for the next N videos beyond the FlatList render window. */
+/** Preload HLS for the next video only (network tier may disable entirely). */
 const PREFETCH_AHEAD = feedPrefetchAhead;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
 const MAX_EMPTY_DEDUPE_FETCHES = 2;
@@ -78,6 +89,7 @@ type FeedVideoCellProps = {
     feedOverlayBottom: number;
     actionRailBottom: number;
     screenFocused: boolean;
+    feedPlaybackEnabled: boolean;
     commentsOpen: boolean;
     shareOpen: boolean;
     otherOpen: boolean;
@@ -102,6 +114,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     feedOverlayBottom,
     actionRailBottom,
     screenFocused,
+    feedPlaybackEnabled,
     commentsOpen,
     shareOpen,
     otherOpen,
@@ -117,7 +130,8 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
 }: FeedVideoCellProps) {
     const isActive = index === activeIndex;
     const shouldPreload =
-        isActive || Math.abs(index - activeIndex) <= PLAYER_PRELOAD_DISTANCE;
+        feedPlaybackEnabled &&
+        (isActive || Math.abs(index - activeIndex) <= PLAYER_PRELOAD_DISTANCE);
 
     return (
         <VideoPlayer
@@ -135,7 +149,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
             commentsOpen={commentsOpen}
             shareOpen={shareOpen}
             otherOpen={otherOpen}
-            screenFocused={screenFocused}
+            screenFocused={screenFocused && feedPlaybackEnabled}
             videoPlaybackRates={videoPlaybackRates}
             navigation={navigation}
             onNavigate={onNavigate}
@@ -213,6 +227,11 @@ export default function LoopsFeed({ navigation }) {
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
     const [screenFocused, setScreenFocused] = useState(true);
+    const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+    const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
+        getFeedNetworkProfile(),
+    );
+    const feedPlaybackEnabled = screenFocused && appActive;
     const flatListRef = useRef(null);
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -459,13 +478,32 @@ export default function LoopsFeed({ navigation }) {
         hardRefreshFeed(queryClient, tab);
     }, [bumpFeedEpoch, queryClient]);
 
+    useEffect(() => {
+        const stopNetwork = startFeedNetworkMonitoring();
+        const unsubNetwork = subscribeFeedNetworkProfile(setNetworkProfile);
+        return () => {
+            stopNetwork();
+            unsubNetwork();
+        };
+    }, []);
+
+    useEffect(() => {
+        setFeedPlaybackActive(feedPlaybackEnabled);
+        if (!feedPlaybackEnabled) {
+            releaseAllVideoPrefetch();
+        }
+    }, [feedPlaybackEnabled]);
+
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
+            setFeedPlaybackActive(true);
             refreshFeedIfStale(activeTabRef.current, feedEpochRef.current);
 
             return () => {
                 setScreenFocused(false);
+                setFeedPlaybackActive(false);
+                releaseAllVideoPrefetch();
                 if (currentVideoRef.current && watchStartTimeRef.current) {
                     const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
                     recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
@@ -476,16 +514,23 @@ export default function LoopsFeed({ navigation }) {
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
-            if (nextState !== 'active') {
-                return;
+            const active = nextState === 'active';
+            setAppActive(active);
+            if (!active) {
+                setFeedPlaybackActive(false);
+                releaseAllVideoPrefetch();
+            } else {
+                setFeedPlaybackActive(screenFocused);
             }
-            for (const tab of FEED_TABS) {
-                const epoch = feedEpochsRef.current[tab] ?? 0;
-                refreshFeedIfStale(tab, epoch);
+            if (active) {
+                for (const tab of FEED_TABS) {
+                    const epoch = feedEpochsRef.current[tab] ?? 0;
+                    refreshFeedIfStale(tab, epoch);
+                }
             }
         });
         return () => subscription.remove();
-    }, [refreshFeedIfStale]);
+    }, [refreshFeedIfStale, screenFocused]);
 
     useEffect(() => {
         if (videos.length > 0) {
@@ -587,33 +632,54 @@ export default function LoopsFeed({ navigation }) {
     }, [activeTab]);
 
     useEffect(() => {
-        if (videos.length === 0) {
+        if (!feedPlaybackEnabled || videos.length === 0) {
             return;
         }
-        const ahead = [];
-        for (let i = 0; i <= PREFETCH_AHEAD; i++) {
-            ahead.push(videos[currentIndex + i]?.media?.src_url);
-        }
-        prefetchVideoUrls(ahead);
 
-        const urls: string[] = [];
-        for (let i = -1; i <= 3; i++) {
+        const preloadDistance = Math.min(
+            PLAYER_PRELOAD_DISTANCE,
+            networkProfile.playerPreloadDistance,
+        );
+        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
+
+        const keepUrls = new Set<string>();
+        for (let offset = -preloadDistance; offset <= prefetchAhead; offset += 1) {
+            const url = videos[currentIndex + offset]?.media?.src_url;
+            if (url) {
+                keepUrls.add(url);
+            }
+        }
+        cancelOffscreenPrefetch(keepUrls);
+
+        if (prefetchAhead > 0) {
+            const nextUrl = videos[currentIndex + 1]?.media?.src_url;
+            prefetchVideoUrls(nextUrl ? [nextUrl] : []);
+        }
+
+        const thumbUrls: string[] = [];
+        for (let i = -1; i <= 2; i += 1) {
             const video = videos[currentIndex + i];
             if (video?.media?.thumbnail) {
-                urls.push(video.media.thumbnail);
+                thumbUrls.push(video.media.thumbnail);
             }
             if (video?.account?.avatar) {
-                urls.push(video.account.avatar);
+                thumbUrls.push(video.account.avatar);
             }
         }
-        prefetchThumbnails(urls);
-    }, [currentIndex, videos]);
+        prefetchThumbnails(thumbUrls);
+    }, [currentIndex, videos, feedPlaybackEnabled, networkProfile]);
 
     useEffect(() => {
-        if (videos.length > 0 && currentIndex === 0) {
-            prefetchVideoUrls(videos.slice(1, PREFETCH_AHEAD + 2).map((v) => v.media?.src_url));
+        if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
+            return;
         }
-    }, [activeTab, videos.length]);
+        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
+        if (prefetchAhead <= 0) {
+            return;
+        }
+        const nextUrl = videos[1]?.media?.src_url;
+        prefetchVideoUrls(nextUrl ? [nextUrl] : []);
+    }, [activeTab, videos.length, feedPlaybackEnabled, networkProfile, currentIndex]);
 
     const handleLike = useCallback((videoId: string, liked: boolean) => {
         const dir = liked ? 'like' : 'unlike';
@@ -706,6 +772,7 @@ export default function LoopsFeed({ navigation }) {
                     shareOpen={showShare && selectedVideo?.id === item.id}
                     otherOpen={showOther && selectedVideo?.id === item.id}
                     screenFocused={screenFocused}
+                    feedPlaybackEnabled={feedPlaybackEnabled}
                     videoPlaybackRates={videoPlaybackRates}
                     navigation={navigation}
                     onNavigate={handleNavigate}
@@ -737,6 +804,7 @@ export default function LoopsFeed({ navigation }) {
             showOther,
             selectedVideo,
             screenFocused,
+            feedPlaybackEnabled,
             videoPlaybackRates,
             navigation,
         ],
@@ -850,7 +918,7 @@ export default function LoopsFeed({ navigation }) {
                     ref={flatListRef}
                     style={styles.feedList}
                     data={videosWithEnd}
-                    extraData={currentIndex}
+                    extraData={`${currentIndex}-${feedPlaybackEnabled}`}
                     renderItem={renderItem}
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                     pagingEnabled
@@ -858,6 +926,9 @@ export default function LoopsFeed({ navigation }) {
                     snapToInterval={feedHeight}
                     snapToAlignment="start"
                     decelerationRate="fast"
+                    disableIntervalMomentum
+                    scrollEventThrottle={16}
+                    overScrollMode="never"
                     viewabilityConfig={viewabilityConfig.current}
                     onViewableItemsChanged={onViewableItemsChanged}
                     onEndReached={handleEndReached}
