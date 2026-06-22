@@ -40,7 +40,7 @@ Metro always uses `--dev-client` (`expo-dev-client` package). You never need Exp
 Before you start, you need:
 
 - [ ] **Node.js 20+** (you have v26 — good). Check: `node --version`
-- [ ] **Android Studio** (Ladybug or newer) with Android SDK
+- [ ] **Android Studio** (Ladybug or newer) with Android SDK — optional plugins: [ANDROID_STUDIO_PLUGINS.md](./ANDROID_STUDIO_PLUGINS.md)
 - [ ] **JDK 17 or 21** (Android Studio bundles JDK 21 — use that)
 - [ ] **USB cable** (data-capable, not charge-only)
 - [ ] Samsung **Developer options** + **USB debugging** enabled
