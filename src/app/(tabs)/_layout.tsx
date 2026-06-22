@@ -8,8 +8,13 @@ import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
-import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarLayout';
+import {
+    TAB_BAR_HOME_OVERLAY_BG,
+    getFlipTabBarStyle,
+    useFlipTabBarMetrics,
+} from '@/utils/tabBarLayout';
 import { useQueryClient } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -24,11 +29,32 @@ function TabIconSlot({ children }: { children: ReactNode }) {
     return <View style={styles.tabIconSlot}>{children}</View>;
 }
 
+/** Dark semi-transparent bar behind Home tab icons; video shows through. */
+function HomeTabBarBackground() {
+    return (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]} />
+            <LinearGradient
+                colors={['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0)']}
+                style={styles.homeTabBarTopGradient}
+            />
+        </View>
+    );
+}
+
 export default function TabsLayout() {
     const { badgeCount, mailboxIconState } = useNotificationStore();
     const { colors, isDark } = useTheme();
     const tabBarMetrics = useFlipTabBarMetrics();
-    const tabBarLayout = getTabBarStyleFromMetrics(tabBarMetrics);
+    const solidTabBarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder;
+    const solidTabBarStyle = useMemo(
+        () => getFlipTabBarStyle(tabBarMetrics, 'solid', isDark, solidTabBarBorder),
+        [tabBarMetrics, isDark, solidTabBarBorder],
+    );
+    const homeTabBarStyle = useMemo(
+        () => getFlipTabBarStyle(tabBarMetrics, 'home', isDark, solidTabBarBorder),
+        [tabBarMetrics, isDark, solidTabBarBorder],
+    );
     const queryClient = useQueryClient();
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
@@ -53,18 +79,7 @@ export default function TabsLayout() {
                 backBehavior: 'order',
                 tabBarActiveTintColor: colors.accent,
                 tabBarInactiveTintColor: colors.tabIconInactive,
-                tabBarStyle: {
-                    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.96)' : 'rgba(255, 255, 255, 0.98)',
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder,
-                    paddingTop: tabBarLayout.paddingTop,
-                    paddingBottom: tabBarLayout.paddingBottom,
-                    ...(Platform.OS === 'android'
-                        ? { minHeight: tabBarLayout.height }
-                        : { height: tabBarLayout.height }),
-                    elevation: 0,
-                    shadowOpacity: 0,
-                },
+                tabBarStyle: solidTabBarStyle,
                 tabBarItemStyle: {
                     flex: 1,
                     alignItems: 'center',
@@ -87,6 +102,9 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Home',
                     tabBarShowLabel: false,
                     headerShown: false,
+                    tabBarStyle: homeTabBarStyle,
+                    tabBarBackground: () => <HomeTabBarBackground />,
+                    sceneStyle: { backgroundColor: 'transparent' },
                     tabBarIcon: ({ color, focused }) => (
                         <TabIconSlot>
                             <HomeTabIcon color={color} focused={focused} size={ICON_SIZE} />
@@ -174,5 +192,15 @@ const styles = StyleSheet.create({
         height: TAB_ICON_SLOT_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    homeTabBarOverlay: {
+        backgroundColor: TAB_BAR_HOME_OVERLAY_BG,
+    },
+    homeTabBarTopGradient: {
+        position: 'absolute',
+        top: -14,
+        left: 0,
+        right: 0,
+        height: 14,
     },
 });
