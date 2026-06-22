@@ -117,6 +117,7 @@ function VideoPlayer({
     feedHeight,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -157,6 +158,7 @@ function VideoPlayer({
             feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
+            onCaptionExpand={onCaptionExpand}
             onShare={onShare}
             onBookmark={onBookmark}
             onRepost={onRepost}
@@ -185,6 +187,7 @@ function VideoPlayerCore({
     feedHeight,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -994,6 +997,7 @@ function VideoPlayerCore({
                         mentions={item.mentions || []}
                         style={styles.caption}
                         numberOfLines={1}
+                        onCaptionPress={() => onCaptionExpand?.(item)}
                         onHashtagPress={(tag) => {
                             onNavigate?.();
                             router.push(`/private/search?query=${tag}`);
@@ -1004,7 +1008,7 @@ function VideoPlayerCore({
                             if (!target) return;
                             router.push(toProfilePath(target));
                         }}
-                        onMorePress={() => onComment(item)}
+                        onMorePress={() => onCaptionExpand?.(item)}
                     />
                 )}
 

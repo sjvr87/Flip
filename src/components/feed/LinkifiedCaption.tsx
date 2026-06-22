@@ -48,6 +48,7 @@ type LinkifiedCaptionProps = {
     onHashtagPress?: (tag: string) => void;
     onMentionPress?: (username: string, profileId?: string | number) => void;
     onMorePress?: () => void;
+    onCaptionPress?: () => void;
 };
 
 const escapeRegExp = (value: string) => {
@@ -63,6 +64,7 @@ export default function LinkifiedCaption({
     onHashtagPress,
     onMentionPress,
     onMorePress,
+    onCaptionPress,
 }: LinkifiedCaptionProps) {
     const [containerWidth, setContainerWidth] = useState(0);
     const [naturalLineCount, setNaturalLineCount] = useState(0);
@@ -282,21 +284,22 @@ export default function LinkifiedCaption({
                 </View>
 
                 <View style={styles.inlineRow}>
-                    <Text
+                    <Pressable
+                        onPress={onCaptionPress}
+                        disabled={!onCaptionPress}
                         style={[
-                            style,
-                            styles.captionInlineText,
+                            styles.captionPressable,
                             shouldShowMore && {
-                                maxWidth: Math.max(
-                                    0,
-                                    containerWidth - (moreWidth || 0),
-                                ),
+                                maxWidth: Math.max(0, containerWidth - (moreWidth || 0)),
                             },
-                        ]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail">
-                        {renderCaptionForText()}
-                    </Text>
+                        ]}>
+                        <Text
+                            style={[style, styles.captionInlineText]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail">
+                            {renderCaptionForText()}
+                        </Text>
+                    </Pressable>
 
                     {shouldShowMore && (
                         <Pressable onPress={onMorePress} style={styles.moreInline}>
@@ -314,18 +317,22 @@ export default function LinkifiedCaption({
     }
 
     if (useSafeNativeShims) {
-        return (
+        const content = (
             <Text style={style} selectable>
                 {renderCaptionForText()}
             </Text>
         );
+        if (!onCaptionPress) return content;
+        return <Pressable onPress={onCaptionPress}>{content}</Pressable>;
     }
 
-    return (
+    const content = (
         <UITextView style={style} selectable uiTextView>
             {renderCaptionForUITextView()}
         </UITextView>
     );
+    if (!onCaptionPress) return content;
+    return <Pressable onPress={onCaptionPress}>{content}</Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -360,6 +367,11 @@ const styles = StyleSheet.create({
     },
 
     captionInlineText: {
+        flexShrink: 1,
+        minWidth: 0,
+    },
+
+    captionPressable: {
         flexShrink: 1,
         minWidth: 0,
     },

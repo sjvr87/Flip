@@ -1,4 +1,5 @@
 import CommentsModal from '@/components/feed/CommentsModal';
+import CaptionExpandModal from '@/components/feed/CaptionExpandModal';
 import FeedEmptyState from '@/components/feed/FeedEmptyState';
 import OtherModal from '@/components/feed/OtherModal';
 import ShareModal from '@/components/feed/ShareModal';
@@ -99,6 +100,7 @@ type FeedVideoCellProps = {
     navigation: unknown;
     onLike: (videoId: string, liked: boolean) => void;
     onComment: (video: FlipVideo) => void;
+    onCaptionExpand: (video: FlipVideo) => void;
     onShare: (video: FlipVideo) => void;
     onBookmark: (videoId: string, bookmarked: boolean) => void;
     onRepost: (videoId: string, reposted: boolean) => void;
@@ -125,6 +127,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     navigation,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -141,6 +144,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
             feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
+            onCaptionExpand={onCaptionExpand}
             onShare={onShare}
             onBookmark={onBookmark}
             onRepost={onRepost}
@@ -224,6 +228,7 @@ export default function LoopsFeed({ navigation }) {
     const [dedupeExhausted, setDedupeExhausted] = useState(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
+    const [showCaptionExpand, setShowCaptionExpand] = useState(false);
     const [showShare, setShowShare] = useState(false);
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
@@ -779,6 +784,11 @@ export default function LoopsFeed({ navigation }) {
         setShowComments(true);
     }, []);
 
+    const handleCaptionExpand = useCallback((video: FlipVideo) => {
+        setSelectedVideo(video);
+        setShowCaptionExpand(true);
+    }, []);
+
     const handleShare = useCallback((video: FlipVideo) => {
         setSelectedVideo(video);
         setShowShare(true);
@@ -800,6 +810,7 @@ export default function LoopsFeed({ navigation }) {
 
     const handleNavigate = useCallback(() => {
         setShowComments(false);
+        setShowCaptionExpand(false);
         setShowShare(false);
         setShowOther(false);
     }, []);
@@ -848,6 +859,7 @@ export default function LoopsFeed({ navigation }) {
                         feedHeight={feedHeight}
                         onLike={handleLike}
                         onComment={handleComment}
+                        onCaptionExpand={handleCaptionExpand}
                         onShare={handleShare}
                         onBookmark={handleBookmark}
                         onRepost={handleRepost}
@@ -882,6 +894,7 @@ export default function LoopsFeed({ navigation }) {
             tabBarMetrics.feedOverlayBottom,
             handleLike,
             handleComment,
+            handleCaptionExpand,
             handleShare,
             handleBookmark,
             handleRepost,
@@ -1041,6 +1054,13 @@ export default function LoopsFeed({ navigation }) {
                 item={selectedVideo}
                 onClose={() => setShowComments(false)}
                 navigation={navigation}
+                onNavigate={handleNavigate}
+            />
+
+            <CaptionExpandModal
+                visible={showCaptionExpand}
+                item={selectedVideo}
+                onClose={() => setShowCaptionExpand(false)}
                 onNavigate={handleNavigate}
             />
 

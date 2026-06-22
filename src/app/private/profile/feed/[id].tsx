@@ -1,4 +1,5 @@
 import CommentsModal from '@/components/feed/CommentsModal';
+import CaptionExpandModal from '@/components/feed/CaptionExpandModal';
 import OtherModal from '@/components/feed/OtherModal';
 import PhotoFeedSlide from '@/components/feed/PhotoFeedSlide';
 import ShareModal from '@/components/feed/ShareModal';
@@ -59,6 +60,7 @@ export default function ProfileFeed({ navigation }) {
     const hasScrolledToTarget = useRef(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
+    const [showCaptionExpand, setShowCaptionExpand] = useState(false);
     const [showShare, setShowShare] = useState(false);
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
@@ -215,6 +217,11 @@ export default function ProfileFeed({ navigation }) {
         setShowComments(true);
     };
 
+    const handleCaptionExpand = (video) => {
+        setSelectedVideo(video);
+        setShowCaptionExpand(true);
+    };
+
     const handleShare = (video) => {
         setSelectedVideo(video);
         setShowShare(true);
@@ -236,6 +243,7 @@ export default function ProfileFeed({ navigation }) {
 
     const handleNavigate = () => {
         setShowComments(false);
+        setShowCaptionExpand(false);
         setShowShare(false);
         setShowOther(false);
     };
@@ -248,6 +256,7 @@ export default function ProfileFeed({ navigation }) {
                 bottomInset: insets.bottom,
                 onLike: handleLike,
                 onComment: handleComment,
+                onCaptionExpand: handleCaptionExpand,
                 onShare: handleShare,
                 onOther: handleOther,
                 onBookmark: handleBookmark,
@@ -407,6 +416,13 @@ export default function ProfileFeed({ navigation }) {
                 item={selectedVideo}
                 onClose={() => setShowComments(false)}
                 navigation={navigation}
+                onNavigate={handleNavigate}
+            />
+
+            <CaptionExpandModal
+                visible={showCaptionExpand}
+                item={selectedVideo}
+                onClose={() => setShowCaptionExpand(false)}
                 onNavigate={handleNavigate}
             />
 

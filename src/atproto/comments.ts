@@ -94,7 +94,7 @@ export async function fetchVideoComments(
   pageParam: string | null | false = null,
 ): Promise<CommentPage> {
   const agent = getAgent()
-  const res = await agent.getPostThread({ uri: videoUri, depth: 1, parentHeight: 0 })
+  const res = await agent.getPostThread({ uri: videoUri, depth: 6, parentHeight: 0 })
 
   if (!isThreadViewPost(res.data.thread)) {
     return { data: [], meta: { path: 'atproto', per_page: 0, next_cursor: null } }
@@ -115,7 +115,7 @@ export async function fetchVideoReplies(
   pageParam: string | null | false = null,
 ): Promise<CommentPage> {
   const agent = getAgent()
-  const res = await agent.getPostThread({ uri: parentCommentUri, depth: 1, parentHeight: 0 })
+  const res = await agent.getPostThread({ uri: parentCommentUri, depth: 6, parentHeight: 0 })
 
   if (!isThreadViewPost(res.data.thread)) {
     return { data: [], meta: { path: 'atproto', per_page: 0, next_cursor: null } }

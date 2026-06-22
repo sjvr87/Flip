@@ -1,4 +1,5 @@
 import CommentsModal from '@/components/feed/CommentsModal';
+import CaptionExpandModal from '@/components/feed/CaptionExpandModal';
 import OtherModal from '@/components/feed/OtherModal';
 import PhotoFeedSlide from '@/components/feed/PhotoFeedSlide';
 import ShareModal from '@/components/feed/ShareModal';
@@ -57,6 +58,7 @@ export default function PostViewScreen({ navigation }) {
     const queryClient = useQueryClient();
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
+    const [showCaptionExpand, setShowCaptionExpand] = useState(false);
     const [showShare, setShowShare] = useState(false);
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
@@ -170,6 +172,11 @@ export default function PostViewScreen({ navigation }) {
         setShowComments(true);
     };
 
+    const handleCaptionExpand = (item) => {
+        setSelectedVideo(item);
+        setShowCaptionExpand(true);
+    };
+
     const handleShare = (item) => {
         setSelectedVideo(item);
         setShowShare(true);
@@ -191,6 +198,7 @@ export default function PostViewScreen({ navigation }) {
 
     const handleNavigate = () => {
         setShowComments(false);
+        setShowCaptionExpand(false);
         setShowShare(false);
         setShowOther(false);
     };
@@ -215,6 +223,7 @@ export default function PostViewScreen({ navigation }) {
               bottomInset: insets.bottom,
               onLike: handleLike,
               onComment: handleComment,
+              onCaptionExpand: handleCaptionExpand,
               onShare: handleShare,
               onOther: handleOther,
               onBookmark: handleBookmark,
@@ -230,6 +239,7 @@ export default function PostViewScreen({ navigation }) {
               bottomInset: insets.bottom,
               onLike: handleLike,
               onComment: handleComment,
+              onCaptionExpand: handleCaptionExpand,
               onShare: handleShare,
               onBookmark: handleBookmark,
               onRepost: handleRepost,
@@ -316,6 +326,13 @@ export default function PostViewScreen({ navigation }) {
                 item={selectedVideo}
                 onClose={() => setShowComments(false)}
                 navigation={navigation}
+                onNavigate={handleNavigate}
+            />
+
+            <CaptionExpandModal
+                visible={showCaptionExpand}
+                item={selectedVideo}
+                onClose={() => setShowCaptionExpand(false)}
                 onNavigate={handleNavigate}
             />
 

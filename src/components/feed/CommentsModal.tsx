@@ -27,7 +27,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { useRouter } from 'expo-router';
 import { useSafeNativeShims } from '@/utils/runtime';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -63,7 +63,8 @@ function SafeKeyboardAvoidingView(
 }
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = 60;
+const COMMENTS_SHEET_HEIGHT = SCREEN_HEIGHT * 0.62;
+const COMMENTS_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
 /** Dimmed scrim above the sheet only — feed video peeks through; sheet stays opaque for legibility. */
 const COMMENTS_BACKDROP_COLOR = 'rgba(0, 0, 0, 0.48)';
 
@@ -135,52 +136,8 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
         queryFn: ({ pageParam }) => fetchVideoComments(item.id, pageParam),
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
         initialPageParam: null,
-        enabled: visible && !!item,
+        enabled: visible && !!item?.id,
     });
-
-    const ListHeader = useCallback(() => {
-        return (
-            <View style={tw`p-4 border-b border-gray-200 dark:border-gray-700`}>
-                <TouchableOpacity
-                    style={tw`flex-row items-center mb-3`}
-                    onPress={() => {
-                        onNavigate?.();
-                        onClose();
-                        navigation?.navigate('Profile', {
-                            username: item?.account?.username,
-                            profileId: item?.account?.id,
-                        });
-                    }}>
-                    <Avatar url={item?.account.avatar} size={36} />
-                    <View style={tw`ml-3 flex-1`}>
-                        <MentionText
-                            username={item?.account?.username}
-                            style={tw`text-[15px] font-bold`}
-                        />
-                        <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
-                            {timeAgo(item?.created_at)}
-                        </Text>
-                    </View>
-                </TouchableOpacity>
-                <LinkifiedCaption
-                    caption={item?.caption}
-                    tags={item?.tags || []}
-                    mentions={item?.mentions || []}
-                    style={tw`text-[15px] text-black dark:text-white leading-5`}
-                    onHashtagPress={(tag) => {
-                        onNavigate?.();
-                        onClose();
-                        router.push(`/private/search?query=${tag}`);
-                    }}
-                    onMentionPress={(username, profileId) => {
-                        onNavigate?.();
-                        onClose();
-                        router.push(toProfilePath(profileId ?? username));
-                    }}
-                />
-            </View>
-        );
-    }, [item, isDark, colors.accent, router, onNavigate, onClose, navigation]);
 
     const commentMutation = useMutation({
         mutationFn: async (data: CommentPayload) => {
@@ -854,10 +811,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     />
                     <View
                         style={tw.style(`bg-white dark:bg-black rounded-t-2xl pt-3 overflow-hidden`, {
-                            minHeight: 400,
+                            height: COMMENTS_SHEET_HEIGHT,
+                            maxHeight: COMMENTS_SHEET_MAX_HEIGHT,
                             paddingBottom: insets.bottom + 20,
                         })}>
-                        <ListHeader />
                         <View
                             style={tw.style(`flex-1 items-center justify-center px-5`, {
                                 paddingBottom: sheetBottomPad,
@@ -892,7 +849,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     onPress={onClose}
                 />
                 <View
-                    style={tw`bg-white dark:bg-black rounded-t-2xl min-h-[50%] max-h-[85%] overflow-hidden`}>
+                    style={[
+                        tw`bg-white dark:bg-black rounded-t-2xl overflow-hidden`,
+                        { height: COMMENTS_SHEET_HEIGHT, maxHeight: COMMENTS_SHEET_MAX_HEIGHT },
+                    ]}>
                     <View
                         style={tw`flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
@@ -908,32 +868,29 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <ActivityIndicator size="large" color={isDark ? '#666' : '#999'} />
                         </View>
                     ) : (
-                        <>
-                            <ListHeader />
-                            <FlatList
-                                ref={flatListRef}
-                                style={tw`flex-1 bg-white dark:bg-black`}
-                                data={allComments}
-                                renderItem={renderComment}
-                                keyExtractor={(comment) => comment.id}
-                                onEndReached={() => {
-                                    if (hasNextPage && !isFetchingNextPage) {
-                                        fetchNextPage();
-                                    }
-                                }}
-                                onEndReachedThreshold={0.5}
-                                ListEmptyComponent={EmptyList}
-                                ListFooterComponent={
-                                    isFetchingNextPage ? (
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={isDark ? '#666' : '#999'}
-                                            style={tw`my-5`}
-                                        />
-                                    ) : null
+                        <FlatList
+                            ref={flatListRef}
+                            style={tw`flex-1 bg-white dark:bg-black`}
+                            data={allComments}
+                            renderItem={renderComment}
+                            keyExtractor={(comment) => comment.id}
+                            onEndReached={() => {
+                                if (hasNextPage && !isFetchingNextPage) {
+                                    fetchNextPage();
                                 }
-                            />
-                        </>
+                            }}
+                            onEndReachedThreshold={0.5}
+                            ListEmptyComponent={EmptyList}
+                            ListFooterComponent={
+                                isFetchingNextPage ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={isDark ? '#666' : '#999'}
+                                        style={tw`my-5`}
+                                    />
+                                ) : null
+                            }
+                        />
                     )}
 
                     {replyingTo && (
