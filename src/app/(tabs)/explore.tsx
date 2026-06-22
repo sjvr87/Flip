@@ -41,12 +41,57 @@ import tw from 'twrnc';
 const { width } = Dimensions.get('window');
 const TAG_CARD_WIDTH = 120;
 const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);
+const TEXT_POST_CARD_GAP = 12;
+const NETWORK_POSTS_MAX_HEIGHT = 228;
 const VIDEO_THUMBNAIL_WIDTH = (width - 24) / 3;
 
-function estimateTextPostCardHeight(post: FlipTextPost): number {
-    const charsPerLine = Math.max(18, Math.floor(TEXT_POST_CARD_WIDTH / 7));
-    const lineCount = Math.min(8, Math.max(2, Math.ceil(post.text.length / charsPerLine)));
-    return 108 + lineCount * 21;
+function estimateTextPostCardHeight(post: FlipTextPost, cardWidth = TEXT_POST_CARD_WIDTH): number {
+    const charsPerLine = Math.max(18, Math.floor(cardWidth / 7));
+    const lineCount = Math.min(6, Math.max(1, Math.ceil(post.text.length / charsPerLine)));
+    return 112 + lineCount * 20;
+}
+
+type NetworkPostColumn = {
+    posts: FlipTextPost[];
+    height: number;
+};
+
+/** Pack text posts into vertical columns (shortest-column-first) within max height. */
+function packNetworkPostsIntoColumns(
+    posts: FlipTextPost[],
+    maxHeight: number,
+    cardWidth = TEXT_POST_CARD_WIDTH,
+): NetworkPostColumn[] {
+    if (posts.length === 0) return [];
+
+    const columns: NetworkPostColumn[] = [{ posts: [], height: 0 }];
+
+    for (const post of posts) {
+        const cardHeight = estimateTextPostCardHeight(post, cardWidth);
+        let bestIdx = -1;
+        let bestHeight = Number.POSITIVE_INFINITY;
+
+        for (let i = 0; i < columns.length; i++) {
+            const column = columns[i];
+            const gap = column.posts.length > 0 ? TEXT_POST_CARD_GAP : 0;
+            const nextHeight = column.height + gap + cardHeight;
+            if (nextHeight <= maxHeight && column.height < bestHeight) {
+                bestIdx = i;
+                bestHeight = column.height;
+            }
+        }
+
+        if (bestIdx >= 0) {
+            const column = columns[bestIdx];
+            const gap = column.posts.length > 0 ? TEXT_POST_CARD_GAP : 0;
+            column.posts.push(post);
+            column.height += gap + cardHeight;
+        } else {
+            columns.push({ posts: [post], height: cardHeight });
+        }
+    }
+
+    return columns.filter((column) => column.posts.length > 0);
 }
 
 interface Tag {
@@ -101,14 +146,34 @@ function SectionSkeleton({ height = 120 }: { height?: number }) {
     );
 }
 
-function TextPostCardSkeleton() {
+function TextPostCardSkeleton({ height = 148 }: { height?: number }) {
     return (
         <View
             style={[
-                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e]`,
-                { width: TEXT_POST_CARD_WIDTH, height: 148 },
+                tw`rounded-xl bg-gray-100 dark:bg-[#1c1c1e]`,
+                { width: TEXT_POST_CARD_WIDTH, height },
             ]}
         />
+    );
+}
+
+function NetworkPostsSkeleton() {
+    return (
+        <View style={{ maxHeight: NETWORK_POSTS_MAX_HEIGHT, overflow: 'hidden' }}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={tw`px-4`}>
+                <View style={{ width: TEXT_POST_CARD_WIDTH, marginRight: TEXT_POST_CARD_GAP }}>
+                    <TextPostCardSkeleton height={168} />
+                    <View style={{ height: TEXT_POST_CARD_GAP }} />
+                    <TextPostCardSkeleton height={132} />
+                </View>
+                <View style={{ width: TEXT_POST_CARD_WIDTH, marginRight: TEXT_POST_CARD_GAP }}>
+                    <TextPostCardSkeleton height={196} />
+                </View>
+            </ScrollView>
+        </View>
     );
 }
 
@@ -143,7 +208,6 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
 }) {
     const isLiked = !!item.has_liked;
     const likeCount = item.likes ?? 0;
-    const cardHeight = estimateTextPostCardHeight(item);
 
     const handleLike = useCallback(() => {
         onLike(item.id, !isLiked);
@@ -153,8 +217,8 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
         <PressableHaptics
             onPress={() => onOpenPost(false)}
             style={[
-                tw`mr-3 rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4 overflow-hidden`,
-                { width: TEXT_POST_CARD_WIDTH, height: cardHeight },
+                tw`rounded-xl bg-gray-100 dark:bg-[#1c1c1e] p-4 overflow-hidden`,
+                { width: TEXT_POST_CARD_WIDTH },
             ]}>
             <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-3`}>
                 <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
@@ -170,17 +234,15 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
                 </View>
             </Pressable>
 
-            <View style={tw`flex-1 overflow-hidden`}>
-                <LinkifiedCaption
-                    caption={item.text}
-                    tags={item.tags}
-                    mentions={item.mentions}
-                    style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
-                    numberOfLines={6}
-                    onHashtagPress={onHashtagPress}
-                    onMentionPress={onMentionPress}
-                />
-            </View>
+            <LinkifiedCaption
+                caption={item.text}
+                tags={item.tags}
+                mentions={item.mentions}
+                style={tw`text-gray-900 text-sm leading-5 dark:text-gray-100`}
+                numberOfLines={6}
+                onHashtagPress={onHashtagPress}
+                onMentionPress={onMentionPress}
+            />
 
             <View style={tw`flex-row items-center gap-4 mt-3`}>
                 <PressableHaptics
@@ -337,6 +399,11 @@ const ExploreListHeader = memo(function ExploreListHeader({
     onMentionPress,
     renderEmptyState,
 }: ExploreListHeaderProps) {
+    const networkPostColumns = useMemo(
+        () => packNetworkPostsIntoColumns(textPosts, NETWORK_POSTS_MAX_HEIGHT),
+        [textPosts],
+    );
+
     return (
         <>
             <View style={tw`px-4 pt-4 pb-3 flex justify-between items-center flex-row`}>
@@ -346,36 +413,51 @@ const ExploreListHeader = memo(function ExploreListHeader({
                 </Pressable>
             </View>
 
-            <View style={tw`my-5`}>
+            <View style={tw`mt-5 mb-4`}>
                 <Text style={tw`text-black text-lg font-bold px-4 mb-3 dark:text-gray-500`}>
                     From the network
                 </Text>
                 {showTextPostsSkeleton ? (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={tw`px-4`}>
-                        {Array.from({ length: 4 }, (_, item) => (
-                            <TextPostCardSkeleton key={`text-skel-${item}`} />
-                        ))}
-                    </ScrollView>
+                    <NetworkPostsSkeleton />
                 ) : textPosts.length > 0 ? (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={tw`px-4`}>
-                        {textPosts.map((item) => (
-                            <ExploreTextPostCard
-                                key={item.id}
-                                item={item}
-                                onOpenPost={(openComments) => onOpenTextPost(item, openComments)}
-                                onOpenProfile={() => onOpenProfile(item.account.id)}
-                                onLike={onLikeTextPost}
-                                onHashtagPress={onHashtagPress}
-                                onMentionPress={onMentionPress}
-                            />
-                        ))}
-                    </ScrollView>
+                    <View style={{ maxHeight: NETWORK_POSTS_MAX_HEIGHT, overflow: 'hidden' }}>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={tw`px-4`}>
+                            {networkPostColumns.map((column, columnIndex) => (
+                                <View
+                                    key={`network-col-${columnIndex}`}
+                                    style={{
+                                        width: TEXT_POST_CARD_WIDTH,
+                                        marginRight: TEXT_POST_CARD_GAP,
+                                    }}>
+                                    {column.posts.map((item, itemIndex) => (
+                                        <View
+                                            key={item.id}
+                                            style={
+                                                itemIndex > 0
+                                                    ? { marginTop: TEXT_POST_CARD_GAP }
+                                                    : undefined
+                                            }>
+                                            <ExploreTextPostCard
+                                                item={item}
+                                                onOpenPost={(openComments) =>
+                                                    onOpenTextPost(item, openComments)
+                                                }
+                                                onOpenProfile={() =>
+                                                    onOpenProfile(item.account.id)
+                                                }
+                                                onLike={onLikeTextPost}
+                                                onHashtagPress={onHashtagPress}
+                                                onMentionPress={onMentionPress}
+                                            />
+                                        </View>
+                                    ))}
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
                 ) : textPostsError ? (
                     renderEmptyState('Unable to load text posts. Pull down to refresh.')
                 ) : null}
