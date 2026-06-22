@@ -1,7 +1,8 @@
 @echo off
-REM Full dev connect: pull, adb reverse, reuse Metro if healthy (one window max).
-REM After native deps change, rebuild once: npm run android:dev
-REM Force Metro recycle: flip-dev-restart.bat
+REM First connect / sync branch: git pull + adb reverse + reuse Metro (one window max).
+REM After crash (fast): flip-reconnect.bat
+REM JS tweak while app runs: flip-reload.bat
+REM Stuck Metro / native deps: flip-dev-restart.bat (rebuild native: npm run android:dev)
 cd /d "%~dp0"
 if not exist "package.json" (
   echo.

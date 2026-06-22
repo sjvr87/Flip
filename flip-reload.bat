@@ -1,6 +1,6 @@
 @echo off
-REM Lightweight: adb reverse + Metro POST /reload. No git pull, no Metro recycle, no app relaunch.
-REM Use for JS-only changes when Metro and the app are already running.
+REM JS-only reload: adb reverse + Metro POST /reload. App stays open, no git pull, no Metro recycle.
+REM After crash or dev-server disconnect: flip-reconnect.bat
 cd /d "%~dp0"
 if not exist "package.json" (
   echo ERROR: package.json not found. Run from Flip repo root.

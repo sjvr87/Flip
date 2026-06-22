@@ -1,26 +1,38 @@
 # Flip dev connect: pull, adb reverse, Metro (reuse or start one window), launch app.
-# Use -ConnectOnly for adb + launch/reload only (no pull, no Metro recycle).
+#
+# Modes:
+#   (default)        flip-dev.bat          - pull + adb + reuse Metro (or start one window)
+#   -RestartMetro    flip-dev-restart.bat  - pull + adb; recycle Metro only if unhealthy (clear cache)
+#   -Reconnect       flip-reconnect.bat    - post-crash: adb + fix stale Metro + launch (no pull, no cache clear)
+#   -ConnectOnly     flip-connect.bat      - adb + launch only (Metro must already be healthy)
+#   -ConnectOnly -Reload  flip-reload.bat  - adb + POST /reload (JS tweak, app already running)
 param(
   [switch]$RestartMetro,
   [switch]$Lan,
   [switch]$ConnectOnly,
-  [switch]$Reload
+  [switch]$Reload,
+  [switch]$Reconnect
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$modeLabel = if ($ConnectOnly) {
+$PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "R3GL10HN64A" }
+
+$modeLabel = if ($Reconnect) {
+  "reconnect (post-crash)"
+} elseif ($ConnectOnly) {
   if ($Reload) { "connect-only (reload)" } else { "connect-only" }
 } elseif ($RestartMetro) {
-  "full (restart Metro)"
+  "full (restart Metro if needed)"
 } else {
   "full (reuse Metro)"
 }
 Write-Host "== Flip dev-connect ($modeLabel) ==" -ForegroundColor Cyan
 
-if (-not $ConnectOnly) {
+$skipPull = $ConnectOnly -or $Reconnect
+if (-not $skipPull) {
   $branch = (git branch --show-current).Trim()
   Write-Host "[1/6] git pull origin $branch..."
   $ErrorActionPreference = 'Continue'
@@ -28,7 +40,7 @@ if (-not $ConnectOnly) {
   $ErrorActionPreference = 'Stop'
   Write-Host $pull
 } else {
-  Write-Host "[1/6] git pull - skipped (connect-only)" -ForegroundColor DarkGray
+  Write-Host "[1/6] git pull - skipped ($modeLabel)" -ForegroundColor DarkGray
 }
 
 $adb = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
@@ -50,7 +62,7 @@ function Get-MetroListenPids([int]$Port = 8081) {
 
 function Test-MetroHealthy {
   try {
-    $r = Invoke-WebRequest -Uri "http://127.0.0.1:8081/status" -UseBasicParsing -TimeoutSec 3
+    $r = Invoke-WebRequest -Uri "http://127.0.0.1:8081/status" -UseBasicParsing -TimeoutSec 2
     $body = if ($r.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
     return ($r.StatusCode -eq 200 -and $body -match "running")
   } catch {
@@ -73,16 +85,22 @@ function Stop-MetroOnPort([int]$Port = 8081) {
     Write-Host "  Stopping process on port ${Port} (PID $metroPid)..." -ForegroundColor Yellow
     Stop-Process -Id $metroPid -Force -ErrorAction SilentlyContinue
   }
-  Start-Sleep -Seconds 2
+  Start-Sleep -Seconds 1
   return -not (Test-PortListening $Port)
 }
 
-function Start-MetroInNewWindow {
-  Write-Host "  Starting Metro (dev-client, clear cache) in new window..."
-  $launcher = Join-Path $PSScriptRoot "start-metro-window.cmd"
+function Start-MetroInNewWindow([switch]$ClearCache) {
+  if ($ClearCache) {
+    Write-Host "  Starting Metro (dev-client, clear cache) in new window..."
+    $launcher = Join-Path $PSScriptRoot "start-metro-window.cmd"
+  } else {
+    Write-Host "  Starting Metro (dev-client, no cache clear) in new window..."
+    $launcher = Join-Path $PSScriptRoot "start-metro-window-fast.cmd"
+  }
   if ($Lan) {
     $npm = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
-    $inner = "cd /d $Root && set CI= && set EXPO_NO_INTERACTIVE= && $npm run start:lan"
+    $startScript = if ($ClearCache) { "start:lan" } else { "start:lan" }
+    $inner = "cd /d $Root && set CI= && set EXPO_NO_INTERACTIVE= && $npm run $startScript"
     $argument = "/c start `"Flip Metro`" cmd /k $inner"
     Start-Process -FilePath "cmd.exe" -ArgumentList $argument -WorkingDirectory $Root
   } else {
@@ -92,23 +110,35 @@ function Start-MetroInNewWindow {
 
 function Wait-MetroHealthy([int]$TimeoutSec = 45) {
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  $pollMs = 500
   while ((Get-Date) -lt $deadline) {
-    Start-Sleep -Seconds 2
     if (Test-MetroHealthy) { return $true }
+    Start-Sleep -Milliseconds $pollMs
+    if ($pollMs -lt 2000) { $pollMs = [Math]::Min($pollMs * 2, 2000) }
   }
   return $false
 }
 
-function Ensure-MetroRunning([switch]$ForceRecycle) {
+function Ensure-MetroRunning {
+  param(
+    [switch]$ForceRecycle,
+    [switch]$ClearCacheOnStart
+  )
+
   $healthy = Test-MetroHealthy
   $portInUse = Test-PortListening 8081
+
+  if ($ForceRecycle -and $healthy) {
+    Write-Host "  Metro already healthy - skipping recycle." -ForegroundColor Green
+    return $true
+  }
 
   if ($ForceRecycle -or (-not $healthy -and $portInUse)) {
     if ($portInUse) {
       if ($ForceRecycle) {
-        Write-Host "  -RestartMetro: recycling Metro on 8081..." -ForegroundColor Yellow
+        Write-Host "  Recycling unhealthy Metro on 8081..." -ForegroundColor Yellow
       } else {
-        Write-Host "  Metro unhealthy but port 8081 in use - auto-recycling..." -ForegroundColor Yellow
+        Write-Host "  Metro unhealthy but port 8081 in use - stopping stale listener..." -ForegroundColor Yellow
       }
       Stop-MetroOnPort 8081 | Out-Null
     }
@@ -125,8 +155,10 @@ function Ensure-MetroRunning([switch]$ForceRecycle) {
     Stop-MetroOnPort 8081 | Out-Null
   }
 
-  Start-MetroInNewWindow
-  if (Wait-MetroHealthy) {
+  $useClear = $ClearCacheOnStart.IsPresent -or ($ForceRecycle -and -not $healthy)
+  Start-MetroInNewWindow -ClearCache:$useClear
+  $timeout = if ($useClear) { 60 } else { 35 }
+  if (Wait-MetroHealthy -TimeoutSec $timeout) {
     Write-Host "  Metro started OK." -ForegroundColor Green
     return $true
   }
@@ -147,6 +179,78 @@ function Invoke-MetroReload {
   }
 }
 
+function Select-TargetSerials([string[]]$AllSerials) {
+  if ($AllSerials.Count -eq 0) { return @() }
+  if ($PreferredDevice -and ($AllSerials -contains $PreferredDevice)) {
+    if ($AllSerials.Count -gt 1) {
+      Write-Host "  Using preferred device $PreferredDevice (set FLIP_ADB_DEVICE to override)" -ForegroundColor DarkGray
+    }
+    return @($PreferredDevice)
+  }
+  if ($AllSerials.Count -gt 1 -and $PreferredDevice) {
+    Write-Host "  Preferred device $PreferredDevice not found; using $($AllSerials -join ', ')" -ForegroundColor Yellow
+  }
+  return $AllSerials
+}
+
+function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
+  $anyOk = $false
+  foreach ($serial in $TargetSerials) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+
+    & $AdbPath -s $serial wait-for-device 2>&1 | Out-Null
+    & $AdbPath -s $serial shell input keyevent KEYCODE_WAKEUP 2>&1 | Out-Null
+    & $AdbPath -s $serial reverse --remove tcp:8081 2>&1 | Out-Null
+
+    $rev = (& $AdbPath -s $serial reverse tcp:8081 tcp:8081 2>&1 | Out-String).Trim()
+    $list = (& $AdbPath -s $serial reverse --list 2>&1 | Out-String).Trim()
+
+    if ($list -notmatch "tcp:8081") {
+      Write-Host "  $serial : reverse missing after first try - reconnecting adb..." -ForegroundColor Yellow
+      & $AdbPath -s $serial reconnect 2>&1 | Out-Null
+      Start-Sleep -Milliseconds 800
+      & $AdbPath -s $serial reverse --remove tcp:8081 2>&1 | Out-Null
+      $rev = (& $AdbPath -s $serial reverse tcp:8081 tcp:8081 2>&1 | Out-String).Trim()
+      $list = (& $AdbPath -s $serial reverse --list 2>&1 | Out-String).Trim()
+    }
+
+    $ErrorActionPreference = $prevEap
+
+    if ($list -match "tcp:8081") {
+      Write-Host "  $serial : reverse OK ($rev)" -ForegroundColor Green
+      if ($list) { Write-Host "  reverse --list: $list" -ForegroundColor DarkGray }
+      $anyOk = $true
+    } else {
+      Write-Host "  $serial : reverse FAILED - $rev" -ForegroundColor Red
+    }
+  }
+  return $anyOk
+}
+
+function Start-FlipApp {
+  param(
+    [string]$Serial,
+    [string]$AdbPath,
+    [switch]$UseDevServerUrl
+  )
+
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  & $AdbPath -s $Serial shell am force-stop social.flip.app 2>&1 | Out-Null
+
+  if ($UseDevServerUrl) {
+    $encodedUrl = [System.Uri]::EscapeDataString("exp://127.0.0.1:8081")
+    $deepLink = "flip://expo-development-client/?url=$encodedUrl"
+    $start = (& $AdbPath -s $Serial shell am start -a android.intent.action.VIEW -d "$deepLink" 2>&1 | Out-String).Trim()
+  } else {
+    $start = (& $AdbPath -s $Serial shell am start -n social.flip.app/.MainActivity 2>&1 | Out-String).Trim()
+  }
+
+  $ErrorActionPreference = $prevEap
+  Write-Host "  $Serial : $start"
+}
+
 function Write-UsbDeviceHelp {
   param([string]$Reason)
   Write-Host ""
@@ -160,7 +264,7 @@ function Write-UsbDeviceHelp {
   Write-Host "  3. When plugged in, tap Allow on the USB debugging prompt"
   Write-Host "  4. USB mode: File transfer / MTP (not Charging only)"
   Write-Host ""
-  Write-Host "Then unplug, replug, and run flip-dev.bat again." -ForegroundColor Yellow
+  Write-Host "Then unplug, replug, and run flip-reconnect.bat or flip-dev.bat." -ForegroundColor Yellow
   Write-Host ""
 }
 
@@ -181,6 +285,8 @@ foreach ($line in ($devicesOut -split "`n")) {
   }
 }
 
+$serials = Select-TargetSerials $serials
+
 $reverseOk = $false
 if ($unauthorized.Count -gt 0) {
   Write-UsbDeviceHelp "adb shows unauthorized ($($unauthorized -join ', '))"
@@ -190,24 +296,14 @@ if ($unauthorized.Count -gt 0) {
   Write-UsbDeviceHelp "no device listed"
 } else {
   Write-Host "[3/6] adb reverse tcp:8081 tcp:8081"
-  foreach ($serial in $serials) {
-    $rev = & $adb -s $serial reverse tcp:8081 tcp:8081 2>&1
-    if ($LASTEXITCODE -eq 0) {
-      Write-Host "  $serial : reverse OK ($rev)" -ForegroundColor Green
-      $reverseOk = $true
-    } else {
-      Write-Host "  $serial : reverse FAILED - $rev" -ForegroundColor Red
-    }
-  }
-  $reverseList = (& $adb -s $serials[0] reverse --list 2>&1 | Out-String).Trim()
-  if ($reverseList) { Write-Host "  reverse --list: $reverseList" }
+  $reverseOk = Ensure-AdbReverse -TargetSerials $serials -AdbPath $adb
 }
 
-if ($ConnectOnly) {
+if ($ConnectOnly -and -not $Reconnect) {
   $metroHealthy = Test-MetroHealthy
   Write-Host "[4/6] Metro - skipped (connect-only)" -ForegroundColor DarkGray
   if (-not $metroHealthy) {
-    Write-Host "  WARN: Metro /status is NOT running. Run flip-dev.bat to start Metro." -ForegroundColor Yellow
+    Write-Host "  WARN: Metro /status is NOT running. Run flip-dev.bat or flip-reconnect.bat." -ForegroundColor Yellow
     Write-MetroNotRunningBanner
   } else {
     Write-Host "  Metro /status: running (reused)" -ForegroundColor Green
@@ -219,12 +315,7 @@ if ($ConnectOnly) {
   } elseif ($serials.Count -gt 0) {
     Write-Host "[5/6] Launch Flip on device"
     foreach ($serial in $serials) {
-      $prevEap = $ErrorActionPreference
-      $ErrorActionPreference = 'Continue'
-      & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
-      $start = (& $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1 | Out-String).Trim()
-      $ErrorActionPreference = $prevEap
-      Write-Host "  $serial : $start"
+      Start-FlipApp -Serial $serial -AdbPath $adb
     }
   } else {
     Write-Host "[5/6] Launch/reload - skipped (no device)" -ForegroundColor Yellow
@@ -236,13 +327,45 @@ if ($ConnectOnly) {
   Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
   Write-Host ("Metro /status: {0}" -f $(if ($metroHealthy) { "running" } else { "NOT running" }))
   Write-Host ""
-  Write-Host "Tip: JS-only edits hot-reload in Metro, or run flip-reload.bat. Full Metro recycle: flip-dev-restart.bat"
+  Write-Host "Tip: after crash use flip-reconnect.bat. JS-only: flip-reload.bat. Stale Metro: flip-dev-restart.bat"
   exit $(if ($metroHealthy -or $serials.Count -eq 0) { 0 } else { 1 })
+}
+
+if ($Reconnect) {
+  Write-Host "[4/6] Metro (reconnect - fix stale listener if needed, no cache clear)"
+  if ($env:CI -eq "true" -or $env:CI -eq "1") {
+    Write-Host "  WARN: CI=$env:CI disables Metro watch/reload. Unset CI for local dev." -ForegroundColor Yellow
+  }
+
+  $metroHealthy = Ensure-MetroRunning -ClearCacheOnStart:$false
+  if (-not $metroHealthy) {
+    Write-Host "ERROR: Metro must be running before launching the app." -ForegroundColor Red
+    exit 1
+  }
+
+  Write-Host "[5/6] Launch Flip with dev-server URL"
+  if ($serials.Count -gt 0) {
+    foreach ($serial in $serials) {
+      Start-FlipApp -Serial $serial -AdbPath $adb -UseDevServerUrl
+    }
+  } else {
+    Write-Host "  Skipped (no device)." -ForegroundColor Yellow
+  }
+
+  $finalMetroHealthy = Test-MetroHealthy
+  Write-Host ""
+  Write-Host "=== Status (reconnect) ===" -ForegroundColor Cyan
+  Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
+  Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
+  Write-Host ("Metro /status: {0}" -f $(if ($finalMetroHealthy) { "running" } else { "NOT running" }))
+  Write-Host ""
+  Write-Host "Scripts: flip-reload.bat (JS tweak) | flip-dev-restart.bat (force Metro clear cache)"
+  exit $(if ($finalMetroHealthy) { 0 } else { 1 })
 }
 
 # --- Full dev-connect (pull + Metro + launch) ---
 
-$willRecycleMetro = $RestartMetro.IsPresent -or ((-not (Test-MetroHealthy)) -and (Test-PortListening 8081))
+$willRecycleMetro = $RestartMetro.IsPresent -and (-not (Test-MetroHealthy))
 if ($willRecycleMetro -and $serials.Count -gt 0) {
   Write-Host "[3b/6] Stop Flip before Metro recycle"
   foreach ($serial in $serials) {
@@ -259,7 +382,7 @@ if ($env:CI -eq "true" -or $env:CI -eq "1") {
   Write-Host "  WARN: CI=$env:CI disables Metro watch/reload. Unset CI for local dev." -ForegroundColor Yellow
 }
 
-$metroHealthy = Ensure-MetroRunning -ForceRecycle:$RestartMetro.IsPresent
+$metroHealthy = Ensure-MetroRunning -ForceRecycle:$RestartMetro.IsPresent -ClearCacheOnStart:$RestartMetro.IsPresent
 if (-not $metroHealthy) {
   Write-Host "ERROR: Metro must be running before launching the app. Not starting Flip on device." -ForegroundColor Red
   exit 1
@@ -267,13 +390,9 @@ if (-not $metroHealthy) {
 
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
+  $useDeepLink = $RestartMetro.IsPresent
   foreach ($serial in $serials) {
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    & $adb -s $serial shell am force-stop social.flip.app 2>&1 | Out-Null
-    $start = (& $adb -s $serial shell am start -n social.flip.app/.MainActivity 2>&1 | Out-String).Trim()
-    $ErrorActionPreference = $prevEap
-    Write-Host "  $serial : $start"
+    Start-FlipApp -Serial $serial -AdbPath $adb -UseDevServerUrl:$useDeepLink
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -299,19 +418,21 @@ Write-Host "USB URL: exp://127.0.0.1:8081 (requires adb reverse)"
 if ($lanIp) { Write-Host "LAN URL: exp://${lanIp}:8081 (npm run start:lan + same Wi-Fi)" }
 Write-Host ""
 Write-Host "=== Scripts ===" -ForegroundColor Cyan
-Write-Host "- flip-dev.bat: pull + adb + reuse Metro (or start one window if down)"
-Write-Host "- flip-dev-restart.bat: same but force Metro recycle (clear cache)"
-Write-Host "- flip-connect.bat: adb reverse + launch only (Metro must already run)"
-Write-Host "- flip-reload.bat: adb reverse + POST /reload (JS tweaks, Metro already up)"
+Write-Host "- flip-dev.bat: first connect / sync branch - pull + adb + reuse Metro"
+Write-Host "- flip-reconnect.bat: after crash - adb + fix Metro + launch (fast, no pull)"
+Write-Host "- flip-connect.bat: adb + launch only (Metro already healthy)"
+Write-Host "- flip-reload.bat: adb + POST /reload (JS tweak, app already running)"
+Write-Host "- flip-dev-restart.bat: pull + force Metro recycle if unhealthy (clear cache)"
 Write-Host ""
 Write-Host "=== Troubleshooting ===" -ForegroundColor Cyan
 Write-Host "- Beta/preview app [flip-beta.bat] is standalone - it cannot load live JS from your PC"
+Write-Host "- After crash: flip-reconnect.bat (not flip-dev.bat - avoids git pull wait)"
 Write-Host "- Stale Metro: flip-dev-restart.bat or npm run dev:connect:restart"
 Write-Host "- Metro stuck in CI mode: close Metro, unset CI, run flip-dev-restart.bat"
 Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
 Write-Host "- LAN: npm run start:lan, phone on same Wi-Fi as PC ($lanIp), allow Node through Windows Firewall on 8081"
 Write-Host "- Dev client only (not Expo Go); package social.flip.app"
-Write-Host "- Crash 'OkHttp TaskRunner' / MessageDeflater: dev-only Metro WebSocket race - re-run flip-dev-restart.bat"
+Write-Host "- Crash 'OkHttp TaskRunner' / MessageDeflater: dev-only Metro WebSocket race - flip-reconnect.bat or flip-dev-restart.bat"
 
 if (-not $finalMetroHealthy) {
   Write-MetroNotRunningBanner

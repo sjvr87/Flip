@@ -1,6 +1,6 @@
 @echo off
-REM Lightweight: adb reverse + launch Flip. No git pull, no Metro recycle.
-REM Use when Metro is already running and you only need USB + app relaunch.
+REM adb reverse + launch Flip. Metro must already be healthy. No git pull, no Metro recycle.
+REM After crash (also fixes stale Metro): flip-reconnect.bat
 cd /d "%~dp0"
 if not exist "package.json" (
   echo ERROR: package.json not found. Run from Flip repo root.

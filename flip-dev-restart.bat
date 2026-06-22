@@ -1,5 +1,6 @@
 @echo off
-REM Full dev connect WITH Metro recycle (clear cache). Use when Metro is stuck or after native dep changes.
+REM Stuck Metro / native dep changes: git pull + adb + recycle Metro (clear cache) if unhealthy.
+REM Skips Metro recycle when /status is already healthy. After crash use flip-reconnect.bat instead.
 cd /d "%~dp0"
 if not exist "package.json" (
   echo ERROR: package.json not found. Run from Flip repo root.
