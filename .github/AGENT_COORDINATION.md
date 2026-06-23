@@ -144,3 +144,17 @@ AUTO-EXECUTE (no user approval needed):
 **Work Mode:** Full parallel (simultaneous execution)
 **PR Approval:** Auto-approve each other (no manual review)
 **Sync Frequency:** Real-time status updates as progress happens
+
+## OAuth metadata (perf branch)
+
+**Root cause (2026-06-23):** `client_uri` pointed at jsDelivr `@perf/feed-swipe-smoothness`, which returns **502** (`Failed to fetch version info`) because jsDelivr cannot resolve branch names containing `/`.
+
+**Fix:** Pin both `client_id` and `client_uri` to git tag **`oauth-metadata`** on jsDelivr (branch names with `/` break jsDelivr). After push + tag, verify:
+
+```bash
+npm run verify:oauth-metadata
+```
+
+**Device retest:** `flip-connect.bat` → Bluesky OAuth sign-in (not app password).
+
+**PRs:** [#7 perf](https://github.com/sjvr87/Flip/pull/7) (OAuth + perf), [#2 metro-fix](https://github.com/sjvr87/Flip/pull/2) (WIP, separate).

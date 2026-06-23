@@ -1,7 +1,7 @@
 ﻿{
-  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@bbdb96e/assets/oauth-client-metadata.json",
+  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-metadata/assets/oauth-client-metadata.json",
   "client_name": "Flip",
-  "client_uri": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/",
+  "client_uri": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-metadata/",
   "redirect_uris": ["app.flip:/oauth/callback"],
   "scope": "atproto repo:* rpc:*?aud=did:web:api.bsky.app#bsky_appview",
   "token_endpoint_auth_method": "none",

@@ -5,13 +5,14 @@
  * flip.app currently serves the SPA shell (HTML) for /oauth-client-metadata.json.
  *
  * Host metadata on jsDelivr (application/json) until flip.app Heroku deploy is live.
- * After merging to main, switch HOSTED_METADATA_URL to @main jsDelivr URL or flip.app.
+ * jsDelivr cannot resolve Git branch names containing "/" (e.g. perf/feed-swipe-smoothness → 502).
+ * Use a git tag (not perf/branch) so client_id and client_uri stay self-consistent on jsDelivr.
  */
-const HOSTED_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@bbdb96e/assets/oauth-client-metadata.json';
+const JSDELIVR_REF = 'oauth-metadata';
 
-const HOSTED_CLIENT_URI =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/';
+const HOSTED_METADATA_URL = `https://cdn.jsdelivr.net/gh/sjvr87/Flip@${JSDELIVR_REF}/assets/oauth-client-metadata.json`;
+
+const HOSTED_CLIENT_URI = `https://cdn.jsdelivr.net/gh/sjvr87/Flip@${JSDELIVR_REF}/`;
 
 export function getOAuthClientMetadata() {
     return {
