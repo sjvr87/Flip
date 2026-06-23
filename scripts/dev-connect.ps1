@@ -116,12 +116,10 @@ function Test-MetroStatusUrl([string]$BaseUrl) {
 }
 
 function Test-MetroHealthy {
-  if (Test-MetroStatusUrl "http://127.0.0.1:8081") {
-    return $true
-  }
-  if (Test-MetroStatusUrl "http://localhost:8081") {
-    Write-Host "  Metro on localhost (IPv6) but not 127.0.0.1 (IPv4) - USB adb reverse cannot reach the bundler." -ForegroundColor Red
-    Write-Host "  Recycle Metro (flip-reset-dev.bat). metro.config.js should set server.host to 0.0.0.0." -ForegroundColor Yellow
+  foreach ($base in @("http://127.0.0.1:8081", "http://localhost:8081", "http://[::1]:8081")) {
+    if (Test-MetroStatusUrl $base) {
+      return $true
+    }
   }
   return $false
 }
