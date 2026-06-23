@@ -51,6 +51,13 @@ jobs:
           if [ "${{ steps.export.outcome }}" != "success" ]; then
             echo "::warning::expo export failed; deployed OAuth metadata + SPA shell snapshot only"
           fi
+          test -f dist/oauth-client-metadata.json || (echo "Missing dist/oauth-client-metadata.json" && exit 1)
+          test -f dist/static.json || (echo "Missing dist/static.json" && exit 1)
+          echo "dist deploy payload:"
+          ls -la dist/oauth-client-metadata.json dist/static.json dist/index.html 2>/dev/null || true
+
+      - name: Install Heroku CLI
+        run: curl -fsSL https://cli-assets.heroku.com/install.sh | sh
 
       - name: Deploy to Heroku
         uses: akhileshns/heroku-deploy@v3.13.15
@@ -59,3 +66,15 @@ jobs:
           heroku_app_name: flip-app
           heroku_email: ${{ secrets.HEROKU_EMAIL }}
           appdir: dist
+          dontautocreate: true
+
+      - name: Verify OAuth metadata on flip.app
+        run: |
+          sleep 10
+          code=$(curl -fsS -o /tmp/oauth-meta.json -w "%{http_code}" https://flip.app/oauth-client-metadata.json)
+          type=$(curl -fsSI https://flip.app/oauth-client-metadata.json | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2; exit}')
+          echo "HTTP $code Content-Type: $type"
+          head -c 120 /tmp/oauth-meta.json; echo
+          test "$code" = "200" || exit 1
+          echo "$type" | grep -qi 'application/json' || exit 1
+          grep -q '"client_id"' /tmp/oauth-meta.json || exit 1
