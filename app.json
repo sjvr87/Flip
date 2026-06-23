@@ -10,6 +10,7 @@
         "ios": {
             "usesAppleSignIn": true,
             "supportsTablet": false,
+            "requireFullScreen": true,
             "bundleIdentifier": "social.flip.app",
             "infoPlist": {
                 "NSCameraUsageDescription": "Flip needs camera access to record short videos with CameraX (1080p60) on Android and the native camera on iOS.",
@@ -90,7 +91,13 @@
             "expo-apple-authentication",
             "expo-font",
             "expo-image",
-            "expo-status-bar"
+            "expo-status-bar",
+            [
+                "expo-screen-orientation",
+                {
+                    "initialOrientation": "PORTRAIT_UP"
+                }
+            ]
         ],
         "experiments": {
             "typedRoutes": true,
