@@ -1,6 +1,6 @@
 {
   "name": "flip",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "scripts": {
     "postinstall": "node ./scripts/patch-foojay-gradle.js && node ./scripts/patch-android-node.js",
