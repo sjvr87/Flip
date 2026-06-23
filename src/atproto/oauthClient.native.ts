@@ -4,6 +4,7 @@ import { OAuthClient, type OAuthSession } from '@atproto/oauth-client';
 const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
 const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
+import { nativeFetch } from '@/bootstrap/nativeFetch';
 import { getOAuthClientMetadata } from './oauthClientMetadata';
 
 import {
@@ -33,7 +34,7 @@ function readDpopNonceHeader(headers: Headers): string | null {
 }
 
 async function probeAuthorizationServerDpopNonce(parEndpoint: string): Promise<string | null> {
-    const response = await fetch(parEndpoint, {
+    const response = await nativeFetch(parEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ client_id: 'dpop-nonce-probe' }).toString(),
@@ -67,6 +68,7 @@ class FlipExpoOAuthClient extends OAuthClient {
         const stateStore = stack.use(new StateStore());
         super({
             ...options,
+            fetch: nativeFetch,
             responseMode: 'query',
             keyset: undefined,
             runtimeImplementation,
