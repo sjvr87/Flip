@@ -6,6 +6,7 @@ import { Storage } from '@/utils/cache'
 import { isWeb } from '@/utils/runtime'
 
 import * as SecureStore from 'expo-secure-store'
+import { AppState, type AppStateStatus } from 'react-native'
 
 
 
@@ -28,7 +29,7 @@ let lastRefreshRejected = false
 
 /** Buffer before JWT expiry to refresh proactively (seconds). */
 const TOKEN_EXPIRY_BUFFER_SEC = 60
-const RESUME_REFRESH_TIMEOUT_MS = 5_000
+const RESUME_REFRESH_TIMEOUT_MS = 10_000
 
 /** Skip redundant MMKV + SecureStore writes during restore loops. */
 let lastPersistedSessionJson: string | null = null
@@ -470,5 +471,41 @@ export function isAuthenticated(): boolean {
 
   return !!getAgent().session
 
+}
+
+type SessionResumeHandler = () => void
+
+let sessionResumeHandler: SessionResumeHandler | null = null
+let sessionResumeListenerInstalled = false
+
+/** authStore registers syncAuthState so resume refresh updates UI. */
+export function setSessionResumeHandler(handler: SessionResumeHandler | null): void {
+  sessionResumeHandler = handler
+}
+
+/** Proactively refresh JWTs when the app returns to foreground. */
+export function installSessionResumeRefresh(): void {
+  if (sessionResumeListenerInstalled || isWeb) return
+  sessionResumeListenerInstalled = true
+
+  let lastState: AppStateStatus = AppState.currentState
+
+  AppState.addEventListener('change', (nextState) => {
+    const wasBackground = lastState.match(/inactive|background/)
+    lastState = nextState
+
+    if (nextState !== 'active' || !wasBackground) return
+
+    void (async () => {
+      await awaitSessionRestore()
+      const hasSession = await hasStoredSession()
+      if (!hasSession && !getAgent().session) return
+
+      const refreshed = await tryRefreshSession()
+      if (refreshed) {
+        sessionResumeHandler?.()
+      }
+    })()
+  })
 }
 

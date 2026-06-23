@@ -214,7 +214,7 @@ export default function SecurityScreen() {
                 <SettingsToggleItemDescription
                     icon="save-outline"
                     label="Remember login"
-                    description="Stay signed in on this device. Your app password is stored securely."
+                    description="Stay signed in on this device. Session tokens are stored securely."
                     value={rememberLogin}
                     onValueChange={(value) => void handleRememberLoginChange(value)}
                 />

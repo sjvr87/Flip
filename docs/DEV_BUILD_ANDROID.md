@@ -510,3 +510,15 @@ npm start
 ```
 
 Open **Flip** on the S26 Ultra → test **Create** tab camera.
+
+### Sign-in session (dev reload vs reinstall)
+
+Flip keeps your Bluesky **session tokens** (access + refresh JWT) in **MMKV** and **SecureStore** after a successful sign-in. You should stay signed in across:
+
+- Metro **JS reload** (`flip-reload.bat`, shake → Reload)
+- `adb shell am force-stop social.flip.app` and reopening Flip
+- Phone reboot (until the refresh token expires or you tap **Log out**)
+
+**`adb uninstall`** (or clearing app data in Android settings) wipes all local storage — you must sign in again with an app password. That is expected on Android; only a new device or explicit uninstall should require re-entering credentials.
+
+**Remember login** (Settings → Security) controls whether Flip keeps your session on this device. Biometric unlock only gates access to the existing session — Flip does not store your app password.

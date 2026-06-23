@@ -7,7 +7,6 @@ import {
   loginWithPassword,
   logout as atprotoLogout,
   refreshSession,
-  trySilentRelogin,
   updatePreferences,
   type FlipSessionUser,
 } from '@/atproto/auth'
@@ -15,11 +14,14 @@ import {
   clearSession,
   ensureFreshSession,
   hasStoredSession,
+  installSessionResumeRefresh,
+  resumeSession,
+  setSessionResumeHandler,
   trackSessionRestore,
   tryRefreshSession,
   wasRefreshTokenRejected,
 } from '@/atproto/agent'
-import { clearCredentials, getSavedCredentials, saveCredentials } from '@/atproto/credentialVault'
+import { clearCredentials } from '@/atproto/credentialVault'
 import { canUseBiometrics } from '@/utils/biometricAuth'
 import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode'
 import { setAuthFailureHandler } from '@/utils/authEvents'
@@ -128,16 +130,16 @@ export const useAuthStore = create(
           const user = await loginWithPassword(identifier, password, service)
           const { rememberLogin } = get()
 
-          if (rememberLogin) {
-            await saveCredentials(identifier, password, service || 'bsky.social')
-            if (!ANDROID_VIDEO_SAFE_MODE) {
-              const biometricsAvailable = await canUseBiometrics()
-              if (biometricsAvailable && !get().requireBiometric) {
-                set({ requireBiometric: true })
-              }
+          // Session JWTs are persisted in SecureStore — never keep the app password.
+          await clearCredentials()
+
+          if (rememberLogin && !ANDROID_VIDEO_SAFE_MODE) {
+            const biometricsAvailable = await canUseBiometrics()
+            if (biometricsAvailable && !get().requireBiometric) {
+              set({ requireBiometric: true })
             }
-          } else {
-            await clearCredentials()
+          } else if (!rememberLogin) {
+            set({ requireBiometric: false })
           }
 
           set((state) => ({
@@ -248,29 +250,36 @@ export const useAuthStore = create(
       },
 
       unlockWithSavedCredentials: async () => {
-        const ok = await trySilentRelogin()
-        if (ok) {
-          const sessionOk = await ensureFreshSession()
-          if (!sessionOk) {
-            console.warn('[auth] silent re-login succeeded but session not fresh')
-            return false
-          }
-          get().syncAuthState()
-          resetAuthFailureFlag()
-          set({ authReady: true })
+        const resumed = await resumeSession()
+        if (!resumed && !(await hasStoredSession())) {
+          return false
         }
-        return ok
+
+        const sessionOk = await ensureFreshSession()
+        if (!sessionOk && !isAuthenticated()) {
+          console.warn('[auth] session unlock failed — tokens missing or refresh rejected')
+          return false
+        }
+
+        get().syncAuthState()
+        resetAuthFailureFlag()
+        set({ authReady: true })
+        return isAuthenticated()
       },
 
       clearSavedLogin: async () => {
         await clearCredentials()
+        clearSession()
         set({ requireBiometric: false })
+        get().clearUser()
       },
 
       setRememberLogin: async (value) => {
         set({ rememberLogin: value })
         if (!value) {
           await clearCredentials()
+          clearSession()
+          get().clearUser()
           set({ requireBiometric: false })
         }
       },
@@ -347,44 +356,36 @@ export const useAuthStore = create(
             if (ok || isAuthenticated()) {
               get().syncAuthState()
               void get().syncPreferencesFromServer().catch(() => {})
+              // Drop legacy app-password vault entries — session tokens are the source of truth.
+              void clearCredentials()
               console.log(
                 `[auth] session restore complete (restored=${ok || isAuthenticated()})`,
               )
               return ok || isAuthenticated()
             }
 
-            const savedCreds = await getSavedCredentials()
-            const { rememberLogin, requireBiometric } = get()
-            const needsBiometric =
-              rememberLogin && requireBiometric && (await canUseBiometrics())
-
-            if (savedCreds && rememberLogin && !needsBiometric) {
-              console.log('[auth] attempting silent re-login with saved credentials')
-              const reloginOk = await withTimeout(
-                trySilentRelogin(),
-                SESSION_RESTORE_TIMEOUT_MS,
-                'trySilentRelogin',
-              ).catch(() => false)
-
-              if (reloginOk) {
-                get().syncAuthState()
-                void get().syncPreferencesFromServer().catch(() => {})
-                console.log('[auth] session restore complete (silent re-login=true)')
-                return true
-              }
+            const stored = await hasStoredSession()
+            if (stored && isAuthenticated()) {
+              get().syncAuthState()
+              void clearCredentials()
+              console.log('[auth] session restore complete (stored tokens, refresh pending)')
+              return true
             }
 
-            const stored = await hasStoredSession()
-            if (stored && !isAuthenticated() && !loginInFlight) {
-              if (wasRefreshTokenRejected()) {
-                clearSession()
-              }
+            if (stored && !wasRefreshTokenRejected()) {
+              console.warn(
+                '[auth] session restore incomplete — keeping stored tokens for retry',
+              )
+              get().syncAuthState()
+              return isAuthenticated()
+            }
+
+            if (stored && wasRefreshTokenRejected()) {
+              clearSession()
               get().clearUser()
             }
 
-            console.warn(
-              `[auth] session restore complete (restored=false, savedCreds=${!!savedCreds})`,
-            )
+            console.warn('[auth] session restore complete (restored=false)')
             return false
           } catch (error) {
             console.warn('[auth] session restore failed:', error)
@@ -393,35 +394,32 @@ export const useAuthStore = create(
             if (isAuthenticated()) {
               get().syncAuthState()
               void get().syncPreferencesFromServer().catch(() => {})
+              void clearCredentials()
               console.log('[auth] session restore complete (timeout, session still valid)')
               return true
             }
 
-            const savedCreds = await getSavedCredentials()
-            const { rememberLogin, requireBiometric } = get()
-            const needsBiometric =
-              rememberLogin && requireBiometric && (await canUseBiometrics())
-
-            if (savedCreds && rememberLogin && !needsBiometric) {
-              const reloginOk = await trySilentRelogin().catch(() => false)
-              if (reloginOk) {
+            const stored = await hasStoredSession()
+            if (stored && !wasRefreshTokenRejected()) {
+              const resumed = await resumeSession().catch(() => false)
+              if (resumed || isAuthenticated()) {
                 get().syncAuthState()
                 return true
               }
             }
 
-            const stored = await hasStoredSession()
-            if (stored && !isAuthenticated() && !loginInFlight) {
-              if (wasRefreshTokenRejected()) {
-                clearSession()
-              }
+            if (stored && wasRefreshTokenRejected()) {
+              clearSession()
               get().clearUser()
             }
             return false
           } finally {
             get().syncAuthState()
             if (get().isLoggedIn && !isAuthenticated() && !loginInFlight) {
-              get().clearUser()
+              const stored = await hasStoredSession()
+              if (!stored || wasRefreshTokenRejected()) {
+                get().clearUser()
+              }
             }
             set({ authReady: true })
             sessionRestorePromise = null
@@ -473,14 +471,10 @@ setAuthFailureHandler(async (reason) => {
     return
   }
 
-  const { rememberLogin, requireBiometric } = useAuthStore.getState()
-  const savedCreds = await getSavedCredentials()
-  const needsBiometric =
-    rememberLogin && requireBiometric && (await canUseBiometrics())
-
-  if (savedCreds && rememberLogin && !needsBiometric) {
-    const reloginOk = await trySilentRelogin()
-    if (reloginOk) {
+  const resumed = await resumeSession().catch(() => false)
+  if (resumed || isAuthenticated()) {
+    const fresh = await ensureFreshSession()
+    if (fresh) {
       useAuthStore.getState().syncAuthState()
       resetAuthFailureFlag()
       return
@@ -503,4 +497,10 @@ setAuthFailureHandler(async (reason) => {
 
   useAuthStore.getState().logOut()
   Alert.alert('Session expired', reason || 'Please sign in again.')
+})
+
+installSessionResumeRefresh()
+setSessionResumeHandler(() => {
+  useAuthStore.getState().syncAuthState()
+  resetAuthFailureFlag()
 })

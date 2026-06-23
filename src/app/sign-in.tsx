@@ -1,12 +1,10 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette'
 import { XStack } from '@/components/ui/Stack'
 import { useTheme } from '@/contexts/ThemeContext'
-import { getSavedCredentials } from '@/atproto/credentialVault'
+import { getCurrentUser } from '@/atproto/auth'
+import { hasStoredSession } from '@/atproto/agent'
 import { authenticateWithBiometric, canUseBiometrics, getBiometricLabel } from '@/utils/biometricAuth'
-import {
-  skipBiometricAutoPromptOnLaunch,
-  skipSilentAutoReloginOnLaunch,
-} from '@/utils/androidVideoSafeMode'
+import { skipBiometricAutoPromptOnLaunch } from '@/utils/androidVideoSafeMode'
 import { useAuthStore } from '@/utils/authStore'
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
@@ -104,7 +102,8 @@ export default function SignInScreen() {
     let cancelled = false
 
     ;(async () => {
-      const creds = await getSavedCredentials()
+      const storedSession = await hasStoredSession()
+      const profile = cachedUser ?? getCurrentUser()
       const bioAvailable = await canUseBiometrics()
       const label = await getBiometricLabel()
 
@@ -113,14 +112,16 @@ export default function SignInScreen() {
       setBiometricsAvailable(bioAvailable)
       setBiometricLabel(label)
 
-      if (creds && rememberLogin) {
-        setSavedHandle(creds.identifier)
-        setIdentifier(creds.identifier)
-        setService(creds.service || 'bsky.social')
+      if (storedSession || (profile && rememberLogin)) {
+        const handle = profile?.username ?? null
+        if (handle) {
+          setSavedHandle(handle)
+          setIdentifier(handle)
+        }
 
         if (requireBiometric && bioAvailable) {
           setMode('unlock')
-        } else if (!requireBiometric && !skipSilentAutoReloginOnLaunch) {
+        } else if (!requireBiometric) {
           setIsLoading(true)
           setStatusMessage('Signing you in...')
           const success = await unlockWithSavedCredentials()
@@ -129,11 +130,11 @@ export default function SignInScreen() {
             router.replace('/(tabs)')
             return
           }
-          setLoginError('Saved sign-in failed. Enter your app password.')
-          setMode('password')
+          setLoginError('Could not restore your session. Enter your app password to sign in again.')
+          setMode(handle ? 'password' : 'full')
           setIsLoading(false)
-        } else if (creds) {
-          setMode(requireBiometric && bioAvailable ? 'unlock' : 'password')
+        } else if (storedSession || handle) {
+          setMode(requireBiometric && bioAvailable ? 'unlock' : handle ? 'password' : 'full')
         } else {
           setMode('full')
         }

@@ -25,6 +25,3 @@ export const feedPrefetchAhead = ANDROID_VIDEO_SAFE_MODE ? 0 : 1;
 
 /** Skip biometric auto-prompt on cold start — native prompt races feed/video init. */
 export const skipBiometricAutoPromptOnLaunch = ANDROID_VIDEO_SAFE_MODE;
-
-/** Skip silent credential relogin on cold start — show sign-in form instead. */
-export const skipSilentAutoReloginOnLaunch = ANDROID_VIDEO_SAFE_MODE;
