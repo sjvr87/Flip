@@ -139,16 +139,44 @@ AUTO-EXECUTE (no user approval needed):
 
 ---
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-23 (post-authorize identity blocker)
 **Active Agents:** Cursor (Metro build), Copilot (Device testing)
 **Work Mode:** Full parallel (simultaneous execution)
 **PR Approval:** Auto-approve each other (no manual review)
 **Sync Frequency:** Real-time status updates as progress happens
 
+---
+
+## 🚨 BLOCKER — @Copilot ACTION REQUIRED
+
+**Issue:** OAuth Authorize succeeds on Expo 56 Android, then sign-in fails with misleading "Could not reach Bluesky" alert.
+
+**Root cause (logcat R3GL10HN64A, 2026-06-23):**
+1. Custom Tab returns `code` + `state` — authorize OK
+2. expo-router deep link throws `undefined is not a function` on `/oauth/callback?...`
+3. Token exchange hits `verifyIssuer(sub)` → `Failed to resolve identity: did:plc:…`
+4. Prior fetch-routing commits (0c2dd44, e1bfe91, 3b17738, cca0ab1, 9abe2bb) did **not** fix — same error after Authorize
+
+**Hypothesis (Cursor):** Hermes lacks `AbortSignal.prototype.throwIfAborted` (and possibly `AbortSignal.timeout`). `@atproto/oauth-client` calls `signal.throwIfAborted()` during post-authorize PLC DID resolution — not during initial PAR/authorize. See [atproto#4332](https://github.com/bluesky-social/atproto/issues/4332).
+
+**Cursor fix pushed to main:** `src/bootstrap/abortSignalPolyfill.ts` — polyfill `throwIfAborted` + `timeout` before expo-router entry.
+
+**@Copilot please:**
+1. Pull latest `main`
+2. Run `flip-reset-dev.bat` then test OAuth on device R3GL10HN64A (or any Android)
+3. Confirm: Authorize → lands in feed (no connection error)
+4. If still failing: capture fresh `adb logcat -d -s ReactNativeJS:*` and try **alternative** — custom `identityResolver` via XRPC `com.atproto.identity.resolveIdentity` on bsky.social (skip PLC direct), or pin `@atproto/oauth-client@0.7.3`
+5. Comment results on GitHub issue (see Handoff Log row below)
+
+**Do NOT** loop on oauthFetch routing — that path is exhausted.
+
+**Logcat artifact:** `docs/oauth-logcat-2026-06-23.txt`
+
+---
 
 ## Handoff Log
 
 | When (UTC) | Agent | Status | Notes |
 |------------|-------|--------|-------|
-| 2026-06-23 (overnight) | Cursor (overnight subagent) | User sleeping - no device testing | Device sign-in showed **"could not load flip sign in configuration"** (OAuth metadata/config load failure). **Do not merge PRs overnight.** OAuth/auth file changes owned by other agent - Metro/dev PR work only. PR #2 (debug/metro-fix) does **not** rebase cleanly on main (conflicts: package.json, src/app/sign-in.tsx). PR #7 (perf) CI red: Lint/Type Check, Android build, review-and-merge; Dependency Audit pass. |
+| 2026-06-23 ~22:50 UTC | Cursor (OAuth subagent) | **BLOCKER → @Copilot** — AbortSignal polyfill fix pushed | Logcat: Authorize OK, then `undefined is not a function` on oauth callback deep link + `Failed to resolve identity: did:plc:…`. Fetch routing commits exhausted. Fix: `abortSignalPolyfill.ts` in index.js bootstrap. **@Copilot: pull main, flip-reset-dev, test OAuth on Android, report on issue.** |
 | 2026-06-23 ~20:45 UTC | Cursor (OAuth subagent) | jsDelivr metadata fix pushed — **@Copilot test OAuth on device** | **Root cause:** `assets/oauth-client-metadata.json` `client_id` was `flip.app` while runtime override used jsDelivr — Bluesky rejects mismatch. `flip.app/oauth-client-metadata.json` still returns **HTML** (Cloudflare); Heroku deploy hit non-existent `flip-app` (fixed in 530c5cf, needs `HEROKU_APP_NAME` secret). **Skylight** uses `skylight.expo.app/*.json` (web redirect); **Spark** uses `sprk://` + AIP proxy. Flip stays **native** `app.flip:/oauth/callback`. Sign-in UI → **Continue with Bluesky**. After merge: reload app, tap OAuth, expect bsky.social one-tap + authorize screen. |

@@ -103,6 +103,16 @@ function mapOAuthSignInError(error: unknown): string {
         return 'Sign-in cancelled.';
     }
     if (raw.includes('Failed to resolve identity')) {
+        const cause =
+            error instanceof Error && error.cause instanceof Error
+                ? error.cause.message
+                : null;
+        if (__DEV__ && cause) {
+            console.warn('[auth] identity resolution cause:', cause);
+        }
+        if (cause?.includes('is not a function') || cause?.includes('throwIfAborted')) {
+            return 'Bluesky sign-in failed (AbortSignal polyfill). Close the app fully and try again.';
+        }
         return 'Could not reach Bluesky for sign-in. Check your connection and try again.';
     }
     if (raw.includes('Failed to resolve OAuth server metadata')) {
