@@ -91,6 +91,9 @@ class FlipExpoOAuthClient extends OAuthClient {
             throw new TypeError('A redirect URI with a custom scheme is required for Expo OAuth.');
         }
 
+        // Wipe in-memory + SecureStore nonces before PAR (authorize); stale nonce → handshake error.
+        await this.clearTransientStores();
+
         const url = await this.authorize(input, {
             ...options,
             redirect_uri: redirectUri,
@@ -136,6 +139,8 @@ let client: FlipExpoOAuthClient | null = null;
 let initError: Error | null = null;
 let oauthSignInFlight: Promise<OAuthSession> | null = null;
 let oauthExchangeFlight: Promise<OAuthSession> | null = null;
+/** Serialize resets — concurrent clear/dispose during PAR causes use_dpop_nonce failures. */
+let resetOAuthClientLock: Promise<void> = Promise.resolve();
 
 async function exchangeOAuthCallback(
     oauthClient: FlipExpoOAuthClient,
@@ -212,7 +217,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     });
 }
 
-export async function resetOAuthClient(): Promise<void> {
+async function resetOAuthClientUnlocked(): Promise<void> {
     if (oauthSignInFlight) {
         try {
             await withTimeout(oauthSignInFlight, 500, 'OAuth sign-in cancel');
@@ -251,6 +256,13 @@ export async function resetOAuthClient(): Promise<void> {
         console.warn('[auth] OAuth transient store clear failed:', error);
     }
     initError = null;
+}
+
+export async function resetOAuthClient(): Promise<void> {
+    const run = () => resetOAuthClientUnlocked();
+    const next = resetOAuthClientLock.then(run, run);
+    resetOAuthClientLock = next.catch(() => {});
+    await next;
 }
 
 export function getOAuthClient(): FlipExpoOAuthClient {
@@ -295,7 +307,10 @@ export async function runOAuthSignIn(
         let lastError: unknown;
         for (let attempt = 0; attempt <= OAUTH_DPOP_RETRY_MAX; attempt++) {
             try {
-                await resetOAuthClient();
+                // loginWithOAuth resets before calling us; only reset again on DPoP retry.
+                if (attempt > 0) {
+                    await resetOAuthClient();
+                }
                 const oauthClient = getOAuthClient();
                 return await oauthClient.signIn(input, options);
             } catch (error) {

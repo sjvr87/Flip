@@ -218,10 +218,7 @@ function NativeAppContent() {
     return (
         <>
             <ThemedStatusBar />
-            <Stack>
-                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
-                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
-
+            <Stack initialRouteName="sign-in">
                 <Stack.Protected guard={isLoggedIn}>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     <Stack.Screen name="private" options={{ headerShown: false }} />
@@ -237,6 +234,9 @@ function NativeAppContent() {
                         <Stack.Screen name="create-account" />
                     </Stack.Protected>
                 </Stack.Protected>
+
+                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
+                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
             </Stack>
         </>
     );

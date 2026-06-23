@@ -13,7 +13,7 @@ import { resetAuthFailureFlag } from '@/utils/requests';
 import { useAuthStore } from '@/utils/authStore';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useURL } from 'expo-linking';
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 const OAUTH_WAIT_MS = 60_000;
@@ -34,8 +34,9 @@ export default function OAuthCallbackScreen() {
     const params = useLocalSearchParams();
     const linkingUrl = useURL();
     const handled = useRef(false);
+    const [showProgress, setShowProgress] = useState(false);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (handled.current) return;
         handled.current = true;
         void handleCallback();
@@ -75,6 +76,8 @@ export default function OAuthCallbackScreen() {
             return;
         }
 
+        setShowProgress(true);
+
         try {
             const user = await completeOAuthRedirect(routeParams, linkingUrl);
             await clearCredentials();
@@ -103,8 +106,12 @@ export default function OAuthCallbackScreen() {
 
     return (
         <View style={styles.container}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.text}>Completing sign in...</Text>
+            {showProgress ? (
+                <>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.text}>Completing sign in...</Text>
+                </>
+            ) : null}
         </View>
     );
 }
