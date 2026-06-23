@@ -56,8 +56,19 @@ jobs:
           api-levels: 35
           build-tools-version: 35.0.0
 
-      - name: Build Android dev APK
-        run: npm run android:dev
+      - name: Check if android/ exists, prebuild if needed
+        run: |
+          if [ ! -d "android" ]; then
+            echo "android/ not found, running prebuild..."
+            npm run android:prebuild
+          else
+            echo "android/ already exists, skipping prebuild"
+          fi
+
+      - name: Build Android debug APK (Gradle only)
+        run: |
+          cd android
+          ./gradlew assembleDev --no-daemon -x bundleReleaseResources
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -66,8 +77,8 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: flip-dev-apk
-          path: android/app/build/outputs/apk/dev/**/*.apk
+          name: flip-debug-apk
+          path: android/app/build/outputs/apk/debug/**/*.apk
           retention-days: 7
 
       - name: Report build status
@@ -76,5 +87,5 @@ jobs:
           if [ $? -eq 0 ]; then
             echo "✅ Android build successful"
           else
-            echo "❌ Android build failed"
+            echo "❌ Android build failed — check logs above"
           fi
