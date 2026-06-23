@@ -20,7 +20,12 @@ import {
     withAuthenticatedFetch,
 } from './agent';
 import { clearCredentials, getSavedCredentials } from './credentialVault';
-import { getOAuthClient, resetOAuthClient, completeOAuthCallback } from './oauthClient';
+import { resolveOAuthCallbackSearchParams } from './oauthCallbackUrl';
+import {
+    completeOAuthCallback,
+    resetOAuthClient,
+    runOAuthSignIn,
+} from './oauthClient';
 import {
     oauthMetadataPreflightMessage,
     preflightOAuthClientMetadata,
@@ -107,6 +112,12 @@ function mapOAuthSignInError(error: unknown): string {
     if (raw.includes('use_dpop_nonce') || raw.includes('"use_dpop_nonce"')) {
         return 'Bluesky sign-in security handshake failed. Close the app, reopen, and try again.';
     }
+    if (raw.includes('Missing "state" parameter') || raw.includes('missing state')) {
+        return 'Sign-in expired or was interrupted. Tap Continue with Bluesky and try again.';
+    }
+    if (raw.includes('Unknown authorization session')) {
+        return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
+    }
     if (raw.includes('invalid_redirect_uri')) {
         return detail
             ? `Bluesky rejected the redirect URI: ${detail}`
@@ -142,7 +153,7 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
     let session;
     try {
         // PDS URL (https://) — not handle "bsky.social" — or OAuth resolver treats it as identity and fails.
-        session = await getOAuthClient().signIn('https://bsky.social');
+        session = await runOAuthSignIn('https://bsky.social');
     } catch (error) {
         if (__DEV__) {
             console.warn('[auth] Bluesky OAuth error:', error);
@@ -167,25 +178,12 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
     return user;
 }
 
-function searchParamsFromRouteParams(
-    params: Record<string, string | string[] | undefined>,
-): URLSearchParams {
-    const searchParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-        if (typeof value === 'string') {
-            searchParams.set(key, value);
-        } else if (Array.isArray(value) && typeof value[0] === 'string') {
-            searchParams.set(key, value[0]);
-        }
-    }
-    return searchParams;
-}
-
 /** Finish OAuth when expo-router receives net.jsdelivr.cdn:/oauth/callback (deep link). */
 export async function completeOAuthRedirect(
     params: Record<string, string | string[] | undefined>,
+    linkingUrl?: string | null,
 ): Promise<FlipSessionUser> {
-    const searchParams = searchParamsFromRouteParams(params);
+    const { searchParams } = await resolveOAuthCallbackSearchParams(params, linkingUrl);
 
     if (searchParams.get('error')) {
         const message =
@@ -193,6 +191,10 @@ export async function completeOAuthRedirect(
             searchParams.get('error') ??
             'Authentication failed';
         throw new Error(message);
+    }
+
+    if (!searchParams.get('code') && !searchParams.get('state')) {
+        throw new Error('Missing "state" parameter');
     }
 
     const session = await completeOAuthCallback(searchParams);

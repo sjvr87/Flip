@@ -31,6 +31,21 @@ export async function completeOAuthCallback(
     throw new Error('OAuth deep-link callback is only supported on native.');
 }
 
+export function isOAuthSignInInFlight(): boolean {
+    return false;
+}
+
+export async function waitForOAuthSignIn(): Promise<null> {
+    return null;
+}
+
+export async function runOAuthSignIn(
+    _input: string,
+    _options?: unknown,
+): Promise<never> {
+    throw new Error('OAuth sign-in is only supported on native.');
+}
+
 export function getOAuthClient(): ExpoOAuthClientType {
     if (initError) {
         throw initError;

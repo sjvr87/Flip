@@ -1,15 +1,17 @@
 import { completeOAuthRedirect, getCurrentServer } from '@/atproto/auth';
+import { isOAuthSignInInFlight, waitForOAuthSignIn } from '@/atproto/oauthClient';
 import { clearCredentials } from '@/atproto/credentialVault';
 import { resetAuthFailureFlag } from '@/utils/requests';
 import { useAuthStore } from '@/utils/authStore';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useURL } from 'expo-linking';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
-const OAUTH_WAIT_MS = 3_000;
+const OAUTH_WAIT_MS = 60_000;
 const OAUTH_POLL_MS = 200;
 
-async function waitForExistingOAuthSignIn(): Promise<boolean> {
+async function waitForLoggedIn(): Promise<boolean> {
     const deadline = Date.now() + OAUTH_WAIT_MS;
     while (Date.now() < deadline) {
         if (useAuthStore.getState().isLoggedIn) {
@@ -22,6 +24,7 @@ async function waitForExistingOAuthSignIn(): Promise<boolean> {
 
 export default function OAuthCallbackScreen() {
     const params = useLocalSearchParams();
+    const linkingUrl = useURL();
     const handled = useRef(false);
 
     useEffect(() => {
@@ -41,7 +44,11 @@ export default function OAuthCallbackScreen() {
             return;
         }
 
-        if (await waitForExistingOAuthSignIn()) {
+        if (isOAuthSignInInFlight()) {
+            await waitForOAuthSignIn();
+        }
+
+        if (await waitForLoggedIn()) {
             router.replace('/(tabs)');
             return;
         }
@@ -49,6 +56,7 @@ export default function OAuthCallbackScreen() {
         try {
             const user = await completeOAuthRedirect(
                 params as Record<string, string | string[] | undefined>,
+                linkingUrl,
             );
             await clearCredentials();
             useAuthStore.setState({

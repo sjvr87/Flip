@@ -24,6 +24,8 @@ WebBrowser.maybeCompleteAuthSession();
 const CUSTOM_URI_SCHEME_REGEX = /^(?:[^.]+(?:\.[^.]+)+):\/(?:[^/].*)?$/;
 const isCustomUriScheme = (uri: string) => CUSTOM_URI_SCHEME_REGEX.test(uri);
 
+const OAUTH_SIGNIN_WAIT_MS = 60_000;
+
 const runtimeImplementation = {
     createKey: async (algs: Parameters<typeof ExpoKey.generate>[0]) => ExpoKey.generate(algs),
     digest: async (bytes: Uint8Array, { name }: { name: string }) =>
@@ -63,6 +65,11 @@ class FlipExpoOAuthClient extends OAuthClient {
         return null;
     }
 
+    /** Await SecureStore writes before browser redirect or token exchange. */
+    async readyStores(): Promise<void> {
+        await Promise.all([this.#dpopNonceCache.ready(), this.#stateStore.ready()]);
+    }
+
     async signIn(
         input: Parameters<OAuthClient['authorize']>[0],
         options?: Parameters<OAuthClient['authorize']>[1],
@@ -81,7 +88,7 @@ class FlipExpoOAuthClient extends OAuthClient {
         });
 
         // PAR + state writes go to SecureStore; flush before Chrome Custom Tab backgrounds the app.
-        await Promise.all([this.#dpopNonceCache.ready(), this.#stateStore.ready()]);
+        await this.readyStores();
 
         const result = await openAuthSessionAsync(url.toString(), redirectUri, {
             dismissButtonStyle: 'cancel',
@@ -94,10 +101,7 @@ class FlipExpoOAuthClient extends OAuthClient {
                 this.responseMode === 'fragment'
                     ? new URLSearchParams(callbackUrl.hash.slice(1))
                     : callbackUrl.searchParams;
-            const { session } = await this.callback(params, {
-                redirect_uri: redirectUri,
-            });
-            return session;
+            return exchangeOAuthCallback(this, params, redirectUri);
         }
 
         throw new Error(`Authentication cancelled: ${result.type}`);
@@ -118,20 +122,89 @@ function getCustomRedirectUri(client: FlipExpoOAuthClient): string {
     return redirectUri;
 }
 
+let client: FlipExpoOAuthClient | null = null;
+let initError: Error | null = null;
+let oauthSignInFlight: Promise<OAuthSession> | null = null;
+let oauthExchangeFlight: Promise<OAuthSession> | null = null;
+
+async function exchangeOAuthCallback(
+    oauthClient: FlipExpoOAuthClient,
+    params: URLSearchParams,
+    redirectUri: string,
+): Promise<OAuthSession> {
+    if (oauthExchangeFlight) {
+        return oauthExchangeFlight;
+    }
+
+    oauthExchangeFlight = (async () => {
+        await oauthClient.readyStores();
+        const { session } = await oauthClient.callback(params, { redirect_uri: redirectUri });
+        return session;
+    })();
+
+    try {
+        return await oauthExchangeFlight;
+    } finally {
+        oauthExchangeFlight = null;
+    }
+}
+
 /** Complete Bluesky OAuth when Android delivers the redirect via deep link instead of Custom Tab. */
 export async function completeOAuthCallback(
     params: URLSearchParams,
 ): Promise<OAuthSession> {
-    const client = getOAuthClient();
-    const redirectUri = getCustomRedirectUri(client);
-    const { session } = await client.callback(params, { redirect_uri: redirectUri });
-    return session;
+    if (oauthSignInFlight) {
+        try {
+            return await withTimeout(oauthSignInFlight, OAUTH_SIGNIN_WAIT_MS, 'OAuth sign-in');
+        } catch {
+            // Custom Tab path failed; fall through to deep-link exchange.
+        }
+    }
+
+    if (oauthExchangeFlight) {
+        return oauthExchangeFlight;
+    }
+
+    const oauthClient = getOAuthClient();
+    const redirectUri = getCustomRedirectUri(oauthClient);
+    return exchangeOAuthCallback(oauthClient, params, redirectUri);
 }
 
-let client: FlipExpoOAuthClient | null = null;
-let initError: Error | null = null;
+export function isOAuthSignInInFlight(): boolean {
+    return oauthSignInFlight !== null;
+}
+
+export async function waitForOAuthSignIn(timeoutMs = OAUTH_SIGNIN_WAIT_MS): Promise<OAuthSession | null> {
+    if (!oauthSignInFlight) {
+        return null;
+    }
+    try {
+        return await withTimeout(oauthSignInFlight, timeoutMs, 'OAuth sign-in');
+    } catch {
+        return null;
+    }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${ms}ms`));
+        }, ms);
+        promise
+            .then((value) => {
+                clearTimeout(timer);
+                resolve(value);
+            })
+            .catch((error) => {
+                clearTimeout(timer);
+                reject(error);
+            });
+    });
+}
 
 export async function resetOAuthClient(): Promise<void> {
+    oauthSignInFlight = null;
+    oauthExchangeFlight = null;
     if (client) {
         try {
             await client[Symbol.asyncDispose]();
@@ -163,4 +236,20 @@ export function getOAuthClient(): FlipExpoOAuthClient {
         }
     }
     return client;
+}
+
+/** Wrap signIn so deep-link callback routes can await the in-flight Custom Tab flow. */
+export async function runOAuthSignIn(
+    input: Parameters<FlipExpoOAuthClient['signIn']>[0],
+    options?: Parameters<FlipExpoOAuthClient['signIn']>[1],
+): Promise<OAuthSession> {
+    if (oauthSignInFlight) {
+        return oauthSignInFlight;
+    }
+
+    const oauthClient = getOAuthClient();
+    oauthSignInFlight = oauthClient.signIn(input, options).finally(() => {
+        oauthSignInFlight = null;
+    });
+    return oauthSignInFlight;
 }
