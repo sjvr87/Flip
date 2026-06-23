@@ -8,12 +8,16 @@ import metadata from '../../assets/oauth-client-metadata.json';
  * After merging to main, switch HOSTED_METADATA_URL to @main jsDelivr URL or flip.app.
  */
 const HOSTED_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/assets/oauth-client-metadata.json';
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
         ...metadata,
         client_id: HOSTED_METADATA_URL,
+<<<<<<< Updated upstream
+=======
+        // Must share origin with client_id (Bluesky rejects flip.app vs jsDelivr).
+>>>>>>> Stashed changes
         client_uri: 'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/',
     };
 }
