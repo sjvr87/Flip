@@ -78,13 +78,7 @@ const OUTLINE_STROKE_PROPS = {
 function HeartGradientDefs({ id }) {
     return (
         <Defs>
-            <LinearGradient
-                id={id}
-                x1="1"
-                y1="24"
-                x2="23"
-                y2="1"
-                gradientUnits="userSpaceOnUse">
+            <LinearGradient id={id} x1="1" y1="24" x2="23" y2="1" gradientUnits="userSpaceOnUse">
                 <Stop offset="0" stopColor={HEART_SHADOW} />
                 <Stop offset="0.32" stopColor={HEART_DEEP} />
                 <Stop offset="0.68" stopColor={HEART_MID} />

@@ -54,13 +54,16 @@ function computeMailboxState(
 
 function shouldPreserveActivityZeros(activityMarkedReadAt: number | null): boolean {
     return (
-        activityMarkedReadAt !== null &&
-        Date.now() - activityMarkedReadAt < ACTIVITY_MARK_GRACE_MS
+        activityMarkedReadAt !== null && Date.now() - activityMarkedReadAt < ACTIVITY_MARK_GRACE_MS
     );
 }
 
 function optimisticClearActivityUnread(
-    set: (partial: Partial<NotificationState> | ((s: NotificationState) => Partial<NotificationState>)) => void,
+    set: (
+        partial:
+            | Partial<NotificationState>
+            | ((s: NotificationState) => Partial<NotificationState>),
+    ) => void,
 ): number {
     const markedAt = Date.now();
     set((s) => ({
@@ -87,11 +90,7 @@ function applyBreakdown(
         unreadLikes,
         unreadFollows: breakdown.unreadFollows,
         unreadActivity,
-        mailboxIconState: computeMailboxState(
-            unreadMessages,
-            unreadLikes,
-            breakdown.unreadFollows,
-        ),
+        mailboxIconState: computeMailboxState(unreadMessages, unreadLikes, breakdown.unreadFollows),
     };
 }
 

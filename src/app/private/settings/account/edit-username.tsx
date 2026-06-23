@@ -145,7 +145,10 @@ export default function EditUsernameScreen() {
                         </Text>
                         <Text style={tw`text-sm font-medium text-gray-900 mt-1`}>
                             loops.video/
-                            <MentionText username={username || 'username'} style={tw`text-sm font-medium`} />
+                            <MentionText
+                                username={username || 'username'}
+                                style={tw`text-sm font-medium`}
+                            />
                         </Text>
                     </View>
                 </View>

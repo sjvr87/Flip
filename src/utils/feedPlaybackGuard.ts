@@ -26,9 +26,7 @@ export function getActiveFeedPlayerId(): string | null {
     return activeFeedPlayerId;
 }
 
-export function subscribePlaybackGeneration(
-    listener: (generation: number) => void,
-): () => void {
+export function subscribePlaybackGeneration(listener: (generation: number) => void): () => void {
     playbackGenerationListeners.add(listener);
     listener(playbackGeneration);
     return () => playbackGenerationListeners.delete(listener);

@@ -15,10 +15,7 @@ const REFERENCE_AUDIO_MODE = {
 };
 
 /** Audio-only playback for remix/create flows (no VideoView — avoids camera decoder conflicts on Android). */
-export default function ReferenceAudioPlayer({
-    url,
-    active = true,
-}: ReferenceAudioPlayerProps) {
+export default function ReferenceAudioPlayer({ url, active = true }: ReferenceAudioPlayerProps) {
     if (!isExpoAudioAvailable() || !url) {
         if (__DEV__ && url) {
             console.warn('[ReferenceAudio] expo-audio native module unavailable');
@@ -29,13 +26,7 @@ export default function ReferenceAudioPlayer({
     return <ReferenceAudioPlayerActive url={url} active={active} />;
 }
 
-function ReferenceAudioPlayerActive({
-    url,
-    active,
-}: {
-    url: string;
-    active: boolean;
-}) {
+function ReferenceAudioPlayerActive({ url, active }: { url: string; active: boolean }) {
     const { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } = getExpoAudioModule()!;
     // Stream remote URLs — downloadFirst contends with CameraX encode on Samsung devices.
     const player = useAudioPlayer(url);

@@ -1,4 +1,4 @@
-﻿import { Image } from 'expo-image';
+import { Image } from 'expo-image';
 
 const prefetched = new Set<string>();
 const MAX_THUMBNAIL_PREFETCH = 16;

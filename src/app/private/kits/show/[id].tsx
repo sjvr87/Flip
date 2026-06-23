@@ -343,7 +343,11 @@ export default function StarterKitShow() {
                             style={tw`w-5 h-5 rounded-full bg-gray-800`}
                         />
                         <Text style={tw`text-gray-600 dark:text-gray-400 text-base`}>
-                            Curated by <MentionText username={kit.creator.username} style={tw`font-semibold text-base`} />
+                            Curated by{' '}
+                            <MentionText
+                                username={kit.creator.username}
+                                style={tw`font-semibold text-base`}
+                            />
                         </Text>
                     </Pressable>
 

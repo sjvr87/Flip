@@ -52,10 +52,7 @@ export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics
  */
 export function useFlipTabBarMetrics(): FlipTabBarMetrics {
     const insets = useSafeAreaInsets();
-    return useMemo(
-        () => computeFlipTabBarMetrics(insets.bottom),
-        [insets.bottom],
-    );
+    return useMemo(() => computeFlipTabBarMetrics(insets.bottom), [insets.bottom]);
 }
 
 /** Tab bar style for expo-router `Tabs` `tabBarStyle`. */
@@ -78,9 +75,7 @@ export function getFlipTabBarStyle(
 ): ViewStyle {
     const layout = getTabBarStyleFromMetrics(metrics);
     const sizing =
-        Platform.OS === 'android'
-            ? { minHeight: layout.height }
-            : { height: layout.height };
+        Platform.OS === 'android' ? { minHeight: layout.height } : { height: layout.height };
 
     const base: ViewStyle = {
         paddingTop: layout.paddingTop,

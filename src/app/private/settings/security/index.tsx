@@ -111,10 +111,10 @@ export default function SecurityScreen() {
         }
 
         if (Platform.OS === 'android') {
-            const status = await PermissionsAndroid.request(
-                PermissionsAndroid.PERMISSIONS.CAMERA,
+            const status = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+            setCameraPermission(
+                status === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied',
             );
-            setCameraPermission(status === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied');
             if (status !== PermissionsAndroid.RESULTS.GRANTED) openAppSettings();
             return;
         }

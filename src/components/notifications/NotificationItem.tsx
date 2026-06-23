@@ -82,9 +82,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'video.like':
             case 'comment.like':
             case 'commentReply.like':
-                return (
-                    <FoldedHeartIcon size={FOLDED_HEART_ACTIVITY_SIZE} variant="filled" />
-                );
+                return <FoldedHeartIcon size={FOLDED_HEART_ACTIVITY_SIZE} variant="filled" />;
             case 'video.commentReply':
             case 'video.comment':
                 return <Ionicons name="chatbubble" size={16} color="#007AFF" />;
@@ -128,7 +126,10 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             <Pressable onPress={() => onPress(item)} style={tw`flex-1 flex-row items-center`}>
                 <View style={tw`flex-1 mr-2`}>
                     <Text style={tw`text-base`}>
-                        <MentionText username={item.actor.username} style={tw`font-semibold text-base`} />
+                        <MentionText
+                            username={item.actor.username}
+                            style={tw`font-semibold text-base`}
+                        />
                         <Text style={tw`text-gray-700 dark:text-gray-300`}>
                             {' '}
                             {getNotificationText()}

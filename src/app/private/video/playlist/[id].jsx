@@ -100,10 +100,7 @@ export default function PlaylistFeed({ navigation }) {
         onError: (error) => {},
     });
 
-    const videos = useMemo(
-        () => data?.pages?.flatMap((page) => page?.data ?? []) ?? [],
-        [data],
-    );
+    const videos = useMemo(() => data?.pages?.flatMap((page) => page?.data ?? []) ?? [], [data]);
 
     const partsCount = useMemo(() => {
         const fromParam = parseCount(params.videoCount);

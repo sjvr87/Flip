@@ -22,13 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Alert, FlatList, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 type MainTab = 'activity' | 'followers';
@@ -277,7 +271,13 @@ export default function NotificationsHubScreen() {
     });
 
     const acceptMutation = useMutation({
-        mutationFn: async ({ actorId, notificationId }: { actorId: string; notificationId: string }) => {
+        mutationFn: async ({
+            actorId,
+            notificationId,
+        }: {
+            actorId: string;
+            notificationId: string;
+        }) => {
             setAcceptingId(actorId);
             await followAccount(actorId);
             return notificationId;
@@ -363,7 +363,9 @@ export default function NotificationsHubScreen() {
                         <StackText
                             fontSize="$4"
                             fontWeight={active ? 'semibold' : 'normal'}
-                            style={{ color: active ? LOOP_ACCENT : isDark ? '#a1a1a6' : '#6b7280' }}>
+                            style={{
+                                color: active ? LOOP_ACCENT : isDark ? '#a1a1a6' : '#6b7280',
+                            }}>
                             {tab === 'activity' ? 'Activity' : 'New Followers'}
                         </StackText>
                     </PressableHaptics>
@@ -386,7 +388,9 @@ export default function NotificationsHubScreen() {
         );
 
     const showMarkAllRead =
-        mainTab === 'activity' && activityNotifications.length > 0 && !markAllActivityReadMutation.isPending;
+        mainTab === 'activity' &&
+        activityNotifications.length > 0 &&
+        !markAllActivityReadMutation.isPending;
 
     return (
         <View style={tw`flex-1 bg-white dark:bg-black`}>
@@ -418,7 +422,11 @@ export default function NotificationsHubScreen() {
                             <PressableHaptics
                                 onPress={handleMarkAllActivityRead}
                                 style={tw`flex justify-center items-center w-10`}>
-                                <Ionicons name="checkmark-done-outline" size={24} color={LOOP_ACCENT} />
+                                <Ionicons
+                                    name="checkmark-done-outline"
+                                    size={24}
+                                    color={LOOP_ACCENT}
+                                />
                             </PressableHaptics>
                         ) : null,
                 }}
@@ -520,11 +528,7 @@ function ActivityNotificationsPanel({
             data={notifications}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
-                <NotificationItem
-                    item={item}
-                    onPress={onPress}
-                    onProfilePress={onProfilePress}
-                />
+                <NotificationItem item={item} onPress={onPress} onProfilePress={onProfilePress} />
             )}
             ListFooterComponent={listFooter}
             ListEmptyComponent={renderEmpty}

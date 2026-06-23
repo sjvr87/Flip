@@ -33,8 +33,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
                 fontSize={LABEL_FONT_SIZE}
                 fontWeight="700"
                 letterSpacing={LABEL_LETTER_SPACING}
-                textAnchor="middle"
-            >
+                textAnchor="middle">
                 FLIP
             </Text>
 
@@ -120,8 +119,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
                 fontSize={LABEL_FONT_SIZE}
                 fontWeight="700"
                 letterSpacing={LABEL_LETTER_SPACING}
-                textAnchor="middle"
-            >
+                textAnchor="middle">
                 IT
             </Text>
         </Svg>

@@ -26,7 +26,12 @@ import { toProfilePath } from '@/utils/profileNavigation';
 import { shareContent } from '@/utils/sharer';
 import { timeAgo } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import {
+    useInfiniteQuery,
+    useMutation,
+    useQueryClient,
+    type InfiniteData,
+} from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useSafeNativeShims } from '@/utils/runtime';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
@@ -50,9 +55,7 @@ import tw from 'twrnc';
 import KlipyMedia from './KlipyMedia';
 import { FEED_OVERLAY_SCRIM } from '@/components/feed/feedOverlayScrim';
 
-function SafeKeyboardAvoidingView(
-    props: React.ComponentProps<typeof RNKeyboardAvoidingView>,
-) {
+function SafeKeyboardAvoidingView(props: React.ComponentProps<typeof RNKeyboardAvoidingView>) {
     if (useSafeNativeShims) {
         return <RNKeyboardAvoidingView {...props} />;
     }
@@ -297,7 +300,11 @@ export default function CommentsModal({
         onMutate: async (variables) => {
             await queryClient.cancelQueries({ queryKey: ['videoComments', item?.id] });
 
-            const optimistic = buildOptimisticComment(variables.commentText, user, variables.parentId);
+            const optimistic = buildOptimisticComment(
+                variables.commentText,
+                user,
+                variables.parentId,
+            );
             if (!optimistic) return {};
 
             const previousComments = queryClient.getQueryData<CommentsInfiniteData>([
@@ -321,14 +328,12 @@ export default function CommentsModal({
                     ['videoReplies', item.id, variables.parentId],
                     (old) => appendReplyToPage(old, optimistic),
                 );
-                queryClient.setQueryData<CommentsInfiniteData>(
-                    ['videoComments', item?.id],
-                    (old) => bumpParentReplyCount(old, variables.parentId!, 1),
+                queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                    bumpParentReplyCount(old, variables.parentId!, 1),
                 );
             } else {
-                queryClient.setQueryData<CommentsInfiniteData>(
-                    ['videoComments', item?.id],
-                    (old) => prependToCommentsPage(old, optimistic),
+                queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                    prependToCommentsPage(old, optimistic),
                 );
             }
 
@@ -351,9 +356,8 @@ export default function CommentsModal({
                     (old) => replaceCommentInPages(old, context?.optimisticId, real),
                 );
             } else {
-                queryClient.setQueryData<CommentsInfiniteData>(
-                    ['videoComments', item?.id],
-                    (old) => replaceCommentInPages(old, context?.optimisticId, real),
+                queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                    replaceCommentInPages(old, context?.optimisticId, real),
                 );
             }
         },
@@ -769,7 +773,9 @@ export default function CommentsModal({
                         {timeAgo(reply.created_at)}
                     </Text>
                     {reply.account.id == item.account.id && (
-                        <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>Creator</Text>
+                        <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>
+                            Creator
+                        </Text>
                     )}
                 </View>
                 <LinkifiedCaption
@@ -877,7 +883,11 @@ export default function CommentsModal({
                                         color={isDark ? '#666' : '#999'}
                                     />
                                 ) : (
-                                    <Text style={[tw`text-[13px] font-semibold`, { color: colors.accent }]}>
+                                    <Text
+                                        style={[
+                                            tw`text-[13px] font-semibold`,
+                                            { color: colors.accent },
+                                        ]}>
                                         Load more replies
                                     </Text>
                                 )}
@@ -908,7 +918,9 @@ export default function CommentsModal({
                             {timeAgo(comment.created_at)}
                         </Text>
                         {comment.account.id == item.account.id && (
-                            <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>Creator</Text>
+                            <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>
+                                Creator
+                            </Text>
                         )}
                     </View>
                     <LinkifiedCaption
@@ -933,7 +945,11 @@ export default function CommentsModal({
                     <View style={tw`flex-row mt-2 gap-4`}>
                         {comment.replies > 0 && (
                             <PressableHaptics onPress={() => toggleReplies(comment.id)}>
-                                <Text style={[tw`text-[13px] font-semibold`, { color: colors.accent }]}>
+                                <Text
+                                    style={[
+                                        tw`text-[13px] font-semibold`,
+                                        { color: colors.accent },
+                                    ]}>
                                     {expandedComments.has(comment.id)
                                         ? 'Hide replies'
                                         : `View ${comment.replies} ${comment.replies === 1 ? 'reply' : 'replies'}`}
@@ -1022,11 +1038,14 @@ export default function CommentsModal({
                         onPress={onClose}
                     />
                     <View
-                        style={tw.style(`bg-white dark:bg-black rounded-t-2xl pt-3 overflow-hidden`, {
-                            height: COMMENTS_SHEET_HEIGHT,
-                            maxHeight: COMMENTS_SHEET_MAX_HEIGHT,
-                            paddingBottom: insets.bottom + 20,
-                        })}>
+                        style={tw.style(
+                            `bg-white dark:bg-black rounded-t-2xl pt-3 overflow-hidden`,
+                            {
+                                height: COMMENTS_SHEET_HEIGHT,
+                                maxHeight: COMMENTS_SHEET_MAX_HEIGHT,
+                                paddingBottom: insets.bottom + 20,
+                            },
+                        )}>
                         <View
                             style={tw.style(`flex-1 items-center justify-center px-5`, {
                                 paddingBottom: sheetBottomPad,

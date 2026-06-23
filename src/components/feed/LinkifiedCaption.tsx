@@ -154,9 +154,7 @@ export default function LinkifiedCaption({
         links.forEach((link, index) => {
             if (link.start > lastIndex) {
                 elements.push(
-                    <Text key={`text-${index}`}>
-                        {caption.substring(lastIndex, link.start)}
-                    </Text>,
+                    <Text key={`text-${index}`}>{caption.substring(lastIndex, link.start)}</Text>,
                 );
             }
 
@@ -181,11 +179,7 @@ export default function LinkifiedCaption({
         });
 
         if (lastIndex < caption.length) {
-            elements.push(
-                <Text key="text-end">
-                    {caption.substring(lastIndex)}
-                </Text>,
-            );
+            elements.push(<Text key="text-end">{caption.substring(lastIndex)}</Text>);
         }
 
         return elements;
@@ -262,11 +256,7 @@ export default function LinkifiedCaption({
             <View style={styles.container} onLayout={onMeasureContainer}>
                 {containerWidth > 0 && (
                     <Text
-                        style={[
-                            style,
-                            styles.measurementText,
-                            { width: containerWidth },
-                        ]}
+                        style={[style, styles.measurementText, { width: containerWidth }]}
                         onTextLayout={onMeasureNaturalText}>
                         {renderCaptionForText()}
                     </Text>
@@ -275,11 +265,7 @@ export default function LinkifiedCaption({
                 <View style={styles.measureRow}>
                     <View style={styles.measureItem} onLayout={onMeasureMore}>
                         <Text style={styles.moreText}>more</Text>
-                        <Ionicons
-                            name="chevron-down"
-                            size={13}
-                            style={styles.moreIconMeasure}
-                        />
+                        <Ionicons name="chevron-down" size={13} style={styles.moreIconMeasure} />
                     </View>
                 </View>
 
@@ -304,11 +290,7 @@ export default function LinkifiedCaption({
                     {shouldShowMore && (
                         <Pressable onPress={onMorePress} style={styles.moreInline}>
                             <Text style={styles.moreText}>more</Text>
-                            <Ionicons
-                                name="chevron-down"
-                                size={13}
-                                style={styles.moreIcon}
-                            />
+                            <Ionicons name="chevron-down" size={13} style={styles.moreIcon} />
                         </Pressable>
                     )}
                 </View>

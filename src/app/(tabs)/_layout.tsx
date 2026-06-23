@@ -33,10 +33,7 @@ function TabIconSlot({ children }: { children: ReactNode }) {
 /** Single uniform scrim behind Home tab icons (including safe-area inset). */
 function HomeTabBarBackground() {
     return (
-        <View
-            style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]}
-            pointerEvents="none"
-        />
+        <View style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]} pointerEvents="none" />
     );
 }
 
@@ -66,9 +63,7 @@ export default function TabsLayout() {
             pathname === '/(tabs)/index' ||
             pathname.endsWith('/index');
         const onCreateTab =
-            pathname === '/create' ||
-            pathname === '/(tabs)/create' ||
-            pathname.endsWith('/create');
+            pathname === '/create' || pathname === '/(tabs)/create' || pathname.endsWith('/create');
         if (onCreateTab) {
             prepareForCameraCapture();
         }

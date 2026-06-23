@@ -406,11 +406,7 @@ export default function EditScreen() {
                     { paddingTop: insets.top + 10 },
                 ]}>
                 <TouchableOpacity onPress={handleBack} style={tw`w-11 h-11 justify-center`}>
-                    <Ionicons
-                        name="chevron-back"
-                        size={32}
-                        color={isDark ? '#fff' : '#000'}
-                    />
+                    <Ionicons name="chevron-back" size={32} color={isDark ? '#fff' : '#000'} />
                 </TouchableOpacity>
                 <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>Edit Loop</Text>
                 <TouchableOpacity style={tw`w-11 h-11 justify-center`}>
@@ -669,11 +665,7 @@ export default function EditScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                         <TouchableOpacity onPress={() => setShowMoreOptionsModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                             More Options
@@ -918,11 +910,7 @@ export default function EditScreen() {
                         <View
                             style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                             <TouchableOpacity onPress={() => setShowAltTextModal(false)}>
-                                <Ionicons
-                                    name="close"
-                                    size={28}
-                                    color={isDark ? '#fff' : '#000'}
-                                />
+                                <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                             </TouchableOpacity>
                             <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                                 Alt Text
@@ -955,9 +943,7 @@ export default function EditScreen() {
                                         }
                                     }}
                                     placeholder="Describe what's happening in your video..."
-                                    placeholderTextColor={
-                                        isDark ? '#6b7280' : '#999'
-                                    }
+                                    placeholderTextColor={isDark ? '#6b7280' : '#999'}
                                     multiline
                                     maxLength={MAX_ALT_TEXT_LENGTH}
                                     autoFocus
@@ -986,11 +972,7 @@ export default function EditScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                         <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                             Select Language
@@ -1038,11 +1020,7 @@ export default function EditScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                         <TouchableOpacity onPress={() => setShowVisibilityModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                             Select Visibility

@@ -55,7 +55,11 @@ function PostPreviewThumb({
                 !isFirst && tw`ml-1.5`,
             ]}>
             {thumbnailUrl ? (
-                <Image source={{ uri: thumbnailUrl }} style={tw`w-full h-full`} resizeMode="cover" />
+                <Image
+                    source={{ uri: thumbnailUrl }}
+                    style={tw`w-full h-full`}
+                    resizeMode="cover"
+                />
             ) : loading ? (
                 <View style={tw`flex-1 items-center justify-center`}>
                     <ActivityIndicator size="small" color={LOOP_ACCENT} />
@@ -90,9 +94,14 @@ function SuggestedAccountRow({
     return (
         <View
             style={tw`mx-4 mb-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-900`}>
-            <PressableHaptics onPress={() => onView(account.id)} style={tw`flex-row items-center mb-3`}>
+            <PressableHaptics
+                onPress={() => onView(account.id)}
+                style={tw`flex-row items-center mb-3`}>
                 {account.avatar ? (
-                    <Image source={{ uri: account.avatar }} style={tw`w-11 h-11 rounded-full mr-3`} />
+                    <Image
+                        source={{ uri: account.avatar }}
+                        style={tw`w-11 h-11 rounded-full mr-3`}
+                    />
                 ) : (
                     <View
                         style={tw`w-11 h-11 rounded-full mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
@@ -113,8 +122,12 @@ function SuggestedAccountRow({
                         username={account.username}
                         style={{
                             fontSize: 14,
-                            fontWeight: account.name && account.name !== account.username ? '400' : '600',
-                            color: account.name && account.name !== account.username ? '#9ca3af' : undefined,
+                            fontWeight:
+                                account.name && account.name !== account.username ? '400' : '600',
+                            color:
+                                account.name && account.name !== account.username
+                                    ? '#9ca3af'
+                                    : undefined,
                         }}
                         numberOfLines={1}
                     />
@@ -185,7 +198,10 @@ export function SuggestedAccountsSection() {
     });
 
     const accounts = accountsData || [];
-    const accountIds = useMemo(() => accounts.map((account: ExploreAccount) => account.id), [accounts]);
+    const accountIds = useMemo(
+        () => accounts.map((account: ExploreAccount) => account.id),
+        [accounts],
+    );
 
     const { data: postThumbnails, isLoading: thumbsLoading } = useQuery({
         queryKey: ['accounts', 'suggested', 'post-thumbs', accountIds, PREVIEW_COUNT],
@@ -213,8 +229,10 @@ export function SuggestedAccountsSection() {
         onMutate: async (profileId) => {
             await queryClient.cancelQueries({ queryKey: ['accounts', 'suggested'] });
             const previousAccounts = queryClient.getQueryData(['accounts', 'suggested']);
-            queryClient.setQueryData(['accounts', 'suggested'], (old: ExploreAccount[] | undefined) =>
-                old?.filter((account) => account.id !== profileId) || [],
+            queryClient.setQueryData(
+                ['accounts', 'suggested'],
+                (old: ExploreAccount[] | undefined) =>
+                    old?.filter((account) => account.id !== profileId) || [],
             );
             return { previousAccounts };
         },
@@ -240,7 +258,10 @@ export function SuggestedAccountsSection() {
                     textColor="text-black dark:text-gray-300">
                     Suggested accounts
                 </StackText>
-                <StackText fontSize="$3" textColor="text-gray-500 dark:text-gray-500" style={tw`mt-1`}>
+                <StackText
+                    fontSize="$3"
+                    textColor="text-gray-500 dark:text-gray-500"
+                    style={tw`mt-1`}>
                     People you might want to follow
                 </StackText>
             </View>

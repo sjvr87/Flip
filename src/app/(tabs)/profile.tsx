@@ -10,10 +10,10 @@ import {
     fetchAccountFavorites,
     fetchAccountLikes,
     fetchAccountPlaylists,
+    usesAtprotoBackend,
 } from '@/utils/requests';
 import { reconcilePendingProfilePosts } from '@/utils/feedCache';
 import { toPlaylistFeedRoute, toPostViewPath, toProfileFeedPath } from '@/utils/profileNavigation';
-import { usesAtprotoBackend } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -24,9 +24,7 @@ import tw from 'twrnc';
 export default function ProfileScreen() {
     const router = useRouter();
     const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-    const [activeTab, setActiveTab] = useState(
-        tabParam === 'photos' ? 'photos' : 'videos',
-    );
+    const [activeTab, setActiveTab] = useState(tabParam === 'photos' ? 'photos' : 'videos');
     const [sortBy, setSortBy] = useState('Latest');
     const flatListRef = useRef(null);
     const { isDark } = useTheme();
@@ -349,11 +347,7 @@ export default function ProfileScreen() {
                         accessibilityRole="button"
                         onPress={handleSettingsPress}
                         style={tw`mr-3`}>
-                        <Ionicons
-                            name="menu"
-                            size={30}
-                            color={isDark ? '#fff' : '#000'}
-                        />
+                        <Ionicons name="menu" size={30} color={isDark ? '#fff' : '#000'} />
                     </PressableHaptics>
                 </XStack>
             ),

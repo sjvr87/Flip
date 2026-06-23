@@ -22,11 +22,14 @@ import tw from 'twrnc';
 const REASONS_REQUIRING_DETAILS = ['1012', '1015', '1018', '1021', '1023', '1025', '1026'];
 
 type FeedInfiniteData = {
-    pages?: Array<{ data?: Array<{ id?: string }> }>;
+    pages?: { data?: { id?: string }[] }[];
     pageParams?: unknown[];
 };
 
-function removeVideoFromFeedQueries(queryClient: ReturnType<typeof useQueryClient>, videoId: string) {
+function removeVideoFromFeedQueries(
+    queryClient: ReturnType<typeof useQueryClient>,
+    videoId: string,
+) {
     queryClient.setQueriesData<FeedInfiniteData>({ queryKey: ['videos'] }, (old) => {
         if (!old?.pages?.length) return old;
         return {
@@ -153,10 +156,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
             return (
                 <View
                     style={tw`bg-white dark:bg-gray-900 rounded-t-3xl p-6 items-center min-h-[200px] justify-center`}>
-                    <ActivityIndicator
-                        size="large"
-                        color={isDark ? '#fff' : '#000'}
-                    />
+                    <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
                 </View>
             );
         }
@@ -172,11 +172,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                             Select a reason
                         </Text>
                         <TouchableOpacity onPress={handleClose}>
-                            <Ionicons
-                                name="close"
-                                size={24}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                     </View>
                     <ScrollView contentContainerStyle={tw`pb-10`}>
@@ -215,11 +211,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                             Additional details
                         </Text>
                         <TouchableOpacity onPress={handleClose}>
-                            <Ionicons
-                                name="close"
-                                size={24}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                     </View>
 
@@ -236,9 +228,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                             <TextInput
                                 style={tw`text-base min-h-[120px] text-gray-900 dark:text-white`}
                                 placeholder="Add optional details here..."
-                                placeholderTextColor={
-                                    isDark ? '#6B7280' : '#9CA3AF'
-                                }
+                                placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
                                 multiline
                                 maxLength={500}
                                 value={additionalDetails}
@@ -274,11 +264,7 @@ export function ReportModal({ visible, onClose, onCommunityGuidelines, item, rep
                     <View style={tw`w-8`} />
                     <Text style={tw`text-lg font-bold text-black dark:text-white`}>Report</Text>
                     <TouchableOpacity onPress={handleClose}>
-                        <Ionicons
-                            name="close"
-                            size={24}
-                            color={isDark ? '#fff' : '#000'}
-                        />
+                        <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                     </TouchableOpacity>
                 </View>
 

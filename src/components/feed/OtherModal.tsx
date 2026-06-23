@@ -40,7 +40,9 @@ export default function OtherModal({
             queryClient.invalidateQueries({ queryKey: ['videos', 'forYou'] });
             queryClient.invalidateQueries({ queryKey: ['videos', 'following'] });
             queryClient.invalidateQueries({ queryKey: ['videos', 'local'] });
-            queryClient.invalidateQueries({ queryKey: ['profileVideoFeed', item?.account.id, item?.id] });
+            queryClient.invalidateQueries({
+                queryKey: ['profileVideoFeed', item?.account.id, item?.id],
+            });
         },
     });
 
@@ -169,7 +171,8 @@ export default function OtherModal({
                         <TouchableOpacity
                             style={tw`mt-3 py-4 items-center border-t border-gray-100 dark:border-gray-800`}
                             onPress={() => setShowPlaybackSpeed(false)}>
-                            <Text style={tw`text-base font-semibold text-gray-600 dark:text-gray-400`}>
+                            <Text
+                                style={tw`text-base font-semibold text-gray-600 dark:text-gray-400`}>
                                 Cancel
                             </Text>
                         </TouchableOpacity>
@@ -245,13 +248,7 @@ export default function OtherModal({
                                     <Ionicons
                                         name={option.icon}
                                         size={24}
-                                        color={
-                                            option.danger
-                                                ? '#FF3B30'
-                                                : isDark
-                                                  ? '#fff'
-                                                  : '#000'
-                                        }
+                                        color={option.danger ? '#FF3B30' : isDark ? '#fff' : '#000'}
                                     />
                                 </View>
                                 <Text style={tw`text-xs text-black dark:text-white text-center`}>

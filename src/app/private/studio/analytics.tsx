@@ -98,13 +98,7 @@ interface TabPillProps {
 }
 
 const TabPill = ({ tab, active, onPress, isDark }: TabPillProps) => {
-    const iconColor = active
-        ? isDark
-            ? '#000'
-            : '#FFF'
-        : isDark
-          ? '#9CA3AF'
-          : '#6B7280';
+    const iconColor = active ? (isDark ? '#000' : '#FFF') : isDark ? '#9CA3AF' : '#6B7280';
 
     return (
         <PressableHaptics
