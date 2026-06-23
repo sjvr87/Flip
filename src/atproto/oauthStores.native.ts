@@ -1,4 +1,6 @@
-import type { SimpleStore } from '@atproto-labs/simple-store';\r\nimport type {\r\n    DidDocument,
+import type { SimpleStore } from '@atproto-labs/simple-store';
+import type {
+    DidDocument,
     InternalStateData,
     OAuthAuthorizationServerMetadata,
     OAuthProtectedResourceMetadata,
