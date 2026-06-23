@@ -7,7 +7,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
-import { releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import {
+    pauseAllFeedPlayers,
+    releaseAllFeedPlayers,
+    setFeedPlaybackActive,
+} from '@/utils/feedPlaybackGuard';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -68,6 +72,7 @@ export default function TabsLayout() {
             prepareForCameraCapture();
         }
         if (!onHomeTab) {
+            pauseAllFeedPlayers();
             releaseAllFeedPlayers();
         }
         setFeedPlaybackActive(onHomeTab);

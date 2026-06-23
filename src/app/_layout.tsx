@@ -204,13 +204,23 @@ function WebAppContent() {
     );
 }
 
+/**
+ * Native: flat Stack + router.replace — same as Web/Expo Go.
+ * Stack.Protected drops screens when guards flip and breaks tab/deep-link navigation
+ * (dispatch throws "undefined is not a function"; initialRouteName races sign-in).
+ */
 function NativeAppContent() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
-    const shouldCreateAccount = useAuthStore((s) => s.shouldCreateAccount);
 
     useNotificationObserver();
+
+    useEffect(() => {
+        if (!hasHydrated || !authReady) return;
+        hideSplash();
+        router.replace(isLoggedIn ? '/(tabs)' : '/sign-in');
+    }, [isLoggedIn, hasHydrated, authReady]);
 
     if (!hasHydrated || !authReady) {
         return STARTUP_PLACEHOLDER;
@@ -219,25 +229,16 @@ function NativeAppContent() {
     return (
         <>
             <ThemedStatusBar />
-            <Stack initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
-                <Stack.Protected guard={isLoggedIn}>
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="private" options={{ headerShown: false }} />
-                    <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-                </Stack.Protected>
-
-                <Stack.Protected guard={!isLoggedIn}>
-                    <Stack.Screen
-                        name="sign-in"
-                        options={{ headerShown: false, gestureEnabled: false }}
-                    />
-                    <Stack.Protected guard={shouldCreateAccount}>
-                        <Stack.Screen name="create-account" />
-                    </Stack.Protected>
-                </Stack.Protected>
-
-                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
-                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
+            <Stack
+                screenOptions={{ headerShown: false }}
+                initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
+                <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="private" />
+                <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="create-account" />
+                <Stack.Screen name="oauth-callback" />
+                <Stack.Screen name="oauth/callback" />
             </Stack>
         </>
     );
@@ -270,7 +271,19 @@ function useGlobalStartupErrorHandler() {
 
 function usePortraitOrientationLock() {
     useEffect(() => {
-        if (isWeb) {
+        if (isWeb || isExpoGo) {
+            return;
+        }
+        try {
+            const { requireNativeModule } =
+                require('expo-modules-core') as typeof import('expo-modules-core');
+            requireNativeModule('ExpoScreenOrientation');
+        } catch {
+            if (__DEV__) {
+                console.log(
+                    '[portrait] expo-screen-orientation not linked — rebuild dev client to enforce portrait',
+                );
+            }
             return;
         }
         return subscribePortraitOrientationLock();

@@ -1,13 +1,32 @@
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { AppState, Platform } from 'react-native';
+
+type ScreenOrientationModule = typeof import('expo-screen-orientation');
+
+function getScreenOrientationModule(): ScreenOrientationModule | null {
+    if (Platform.OS === 'web') {
+        return null;
+    }
+    try {
+        return require('expo-screen-orientation') as ScreenOrientationModule;
+    } catch {
+        return null;
+    }
+}
 
 /** Keep the app in upright portrait — re-applied when returning from camera/video. */
 export function lockPortraitOrientation(): void {
-    if (Platform.OS === 'web') {
-        return;
-    }
+    try {
+        const ScreenOrientation = getScreenOrientationModule();
+        if (!ScreenOrientation) {
+            return;
+        }
 
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+        void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(
+            () => {},
+        );
+    } catch {
+        // expo-screen-orientation not linked in this dev client yet
+    }
 }
 
 export function subscribePortraitOrientationLock(): () => void {

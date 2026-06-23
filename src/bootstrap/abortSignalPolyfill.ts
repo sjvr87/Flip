@@ -14,10 +14,27 @@ type AbortSignalWithThrow = AbortSignal & { throwIfAborted?: () => void };
 
 let installed = false;
 
+function installQueueMicrotaskPolyfill(): void {
+    if (typeof queueMicrotask === 'function') {
+        return;
+    }
+    globalThis.queueMicrotask = (callback: () => void) => {
+        Promise.resolve()
+            .then(callback)
+            .catch((error) => {
+                setTimeout(() => {
+                    throw error;
+                });
+            });
+    };
+}
+
 export function installAbortSignalPolyfills(): void {
     if (installed) {
         return;
     }
+
+    installQueueMicrotaskPolyfill();
 
     if (typeof AbortSignal === 'undefined') {
         return;

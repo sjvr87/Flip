@@ -536,6 +536,7 @@ export default function LoopsFeed({ navigation }) {
             return () => {
                 setScreenFocused(false);
                 setFeedPlaybackActive(false);
+                pauseAllFeedPlayers();
                 releaseAllFeedPlayers();
                 releaseAllVideoPrefetch();
                 if (currentVideoRef.current && watchStartTimeRef.current) {
