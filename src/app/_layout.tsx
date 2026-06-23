@@ -1,7 +1,6 @@
 import { ExpoGoStartupBanner } from '@/components/ExpoGoStartupBanner';
 import { StartupErrorBoundary } from '@/components/StartupErrorBoundary';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
-import { subscribePortraitOrientationLock } from '@/utils/portraitLock';
 import { isExpoGo, isWeb, useSafeNativeShims } from '@/utils/runtime';
 import { useAuthStore } from '@/utils/authStore';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -269,27 +268,6 @@ function useGlobalStartupErrorHandler() {
     }, []);
 }
 
-function usePortraitOrientationLock() {
-    useEffect(() => {
-        if (isWeb || isExpoGo) {
-            return;
-        }
-        try {
-            const { requireNativeModule } =
-                require('expo-modules-core') as typeof import('expo-modules-core');
-            requireNativeModule('ExpoScreenOrientation');
-        } catch {
-            if (__DEV__) {
-                console.log(
-                    '[portrait] expo-screen-orientation not linked — rebuild dev client to enforce portrait',
-                );
-            }
-            return;
-        }
-        return subscribePortraitOrientationLock();
-    }, []);
-}
-
 function useAndroidSystemBars() {
     useEffect(() => {
         if (Platform.OS !== 'android') {
@@ -318,7 +296,6 @@ export default function RootLayout() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
 
     useGlobalStartupErrorHandler();
-    usePortraitOrientationLock();
     useAndroidSystemBars();
 
     useLayoutEffect(() => {
