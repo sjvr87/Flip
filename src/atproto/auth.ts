@@ -33,6 +33,17 @@ const PROFILE_FETCH_TIMEOUT_MS = 3_000;
 
 export type FlipSessionUser = FlipUserProfile;
 
+/** Pull error_description / OAuth error code out of SDK or fetch error strings. */
+function extractOAuthDetail(raw: string): string | null {
+    const desc = raw.match(/"error_description"\s*:\s*"([^"]+)"/i)?.[1];
+    if (desc) return desc;
+    const code = raw.match(/"error"\s*:\s*"([^"]+)"/i)?.[1];
+    if (code && code !== 'invalid_request') return code;
+    const trimmed = raw.trim();
+    if (trimmed.length > 0 && trimmed.length < 280) return trimmed;
+    return null;
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -79,6 +90,7 @@ function fetchProfileInBackground(): void {
 function mapOAuthSignInError(error: unknown): string {
     const raw =
         error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
+    const detail = extractOAuthDetail(raw);
 
     if (raw.toLowerCase().includes('cancel')) {
         return 'Sign-in cancelled.';
@@ -96,19 +108,24 @@ function mapOAuthSignInError(error: unknown): string {
         return 'Bluesky sign-in security handshake failed. Close the app, reopen, and try again.';
     }
     if (raw.includes('invalid_redirect_uri')) {
-        return 'Flip sign-in redirect URI was rejected by Bluesky. Update the app and try again.';
+        return detail
+            ? `Bluesky rejected the redirect URI: ${detail}`
+            : 'Bluesky rejected the OAuth redirect URI (scheme must match client_id host in reverse-domain order).';
     }
     if (raw.includes('Invalid client metadata content type')) {
-        return 'Bluesky could not read Flip sign-in config (wrong content type from flip.app).';
+        return detail
+            ? `Bluesky could not read OAuth metadata (wrong content type): ${detail}`
+            : 'Bluesky could not read OAuth metadata (host returned HTML instead of JSON).';
     }
     if (
         raw.includes('client metadata') ||
-        raw.includes('client_id') ||
         raw.includes('invalid_client')
     ) {
-        return 'Bluesky could not load Flip sign-in configuration from flip.app. Try again in a minute.';
+        return detail
+            ? `Bluesky OAuth client error: ${detail}`
+            : `Bluesky OAuth client error: ${raw}`;
     }
-    return raw;
+    return detail ?? raw;
 }
 
 export async function loginWithOAuth(): Promise<FlipSessionUser> {

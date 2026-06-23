@@ -1,7 +1,16 @@
 import metadata from '../../assets/oauth-client-metadata.json';
 
-/** Bluesky fetches this URL during PAR/token exchange; hostname must be flip.app for app.flip: redirect. */
-export const OAUTH_CLIENT_METADATA_URL = 'https://flip.app/oauth-client-metadata.json';
+/**
+ * Bluesky fetches client metadata from the `client_id` URL during PAR/token exchange.
+ * Native redirect scheme must be the client_id hostname in reverse-domain order:
+ *   cdn.jsdelivr.net → net.jsdelivr.cdn:/oauth/callback
+ * (app.flip:/ only pairs with client_id hosted at flip.app.)
+ *
+ * jsDelivr serves application/json today; flip.app still returns SPA HTML until
+ * Heroku/Cloudflare deploy (see docs/OAUTH_HOSTING.md).
+ */
+export const OAUTH_CLIENT_METADATA_URL =
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
@@ -21,7 +30,7 @@ export type OAuthMetadataPreflightResult =
     | { ok: true }
     | { ok: false; reason: OAuthMetadataPreflightError; detail: string };
 
-/** Reverse FQDN custom-scheme prefix required by ATProto OAuth (e.g. flip.app → app.flip:). */
+/** Reverse FQDN custom-scheme prefix required by ATProto OAuth (e.g. cdn.jsdelivr.net → net.jsdelivr.cdn:). */
 function redirectSchemeForClientId(clientIdUrl: string): string {
     const host = new URL(clientIdUrl).hostname;
     return `${host.split('.').reverse().join('.')}:`;
@@ -29,7 +38,7 @@ function redirectSchemeForClientId(clientIdUrl: string): string {
 
 /**
  * Verify hosted client metadata before opening the OAuth browser.
- * flip.app must return application/json — SPA HTML breaks Bluesky sign-in.
+ * Hosted URL must return application/json — SPA HTML breaks Bluesky sign-in.
  */
 export async function preflightOAuthClientMetadata(): Promise<OAuthMetadataPreflightResult> {
     const clientId = OAUTH_CLIENT_METADATA_URL;
@@ -57,7 +66,7 @@ export async function preflightOAuthClientMetadata(): Promise<OAuthMetadataPrefl
         return {
             ok: false,
             reason: 'html_spa',
-            detail: `${clientId} returned HTML (SPA shell) instead of JSON — deploy flip.app OAuth hosting`,
+            detail: `${clientId} returned HTML instead of JSON`,
         };
     }
 
@@ -101,17 +110,19 @@ export async function preflightOAuthClientMetadata(): Promise<OAuthMetadataPrefl
     return { ok: true };
 }
 
-export function oauthMetadataPreflightMessage(result: Extract<OAuthMetadataPreflightResult, { ok: false }>): string {
+export function oauthMetadataPreflightMessage(
+    result: Extract<OAuthMetadataPreflightResult, { ok: false }>,
+): string {
     switch (result.reason) {
         case 'html_spa':
-            return `Flip sign-in config is not deployed yet (${result.detail}).`;
+            return `OAuth client metadata returned HTML instead of JSON (${result.detail}).`;
         case 'unreachable':
-            return `Cannot reach Flip sign-in config at flip.app (${result.detail}).`;
+            return `Cannot reach OAuth client metadata (${result.detail}).`;
         case 'not_json':
-            return `Flip sign-in config returned invalid data (${result.detail}).`;
+            return `OAuth client metadata is not valid JSON (${result.detail}).`;
         case 'client_id_mismatch':
-            return `Flip sign-in config has a mismatched client_id (${result.detail}).`;
+            return `OAuth client_id mismatch (${result.detail}).`;
         case 'redirect_uri_mismatch':
-            return `Flip sign-in config has invalid redirect URIs (${result.detail}).`;
+            return `OAuth redirect_uris do not match client_id host (${result.detail}).`;
     }
 }
