@@ -30,8 +30,9 @@ async function fetchMetadata(url) {
 }
 
 function parseJson(body, label) {
+    const normalized = body.replace(/^\uFEFF/, '');
     try {
-        return JSON.parse(body);
+        return JSON.parse(normalized);
     } catch (error) {
         throw new Error(`${label} is not valid JSON: ${error.message}\n${body.slice(0, 200)}`);
     }
