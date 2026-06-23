@@ -56,3 +56,5 @@ kotlin-compile.log
 dist-oauth-test/
 screen-*.png
 
+# Firebase service account (local + CI ephemeral)
+firebase-credentials.json
