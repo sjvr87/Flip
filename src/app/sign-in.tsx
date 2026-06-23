@@ -71,6 +71,17 @@ export default function SignInScreen() {
         router.replace('/(tabs)');
     }, [hasHydrated, authReady, isLoggedIn]);
 
+    useEffect(() => {
+        if (!hasHydrated || authReady || isLoggedIn) return;
+
+        const loadingFailsafe = setTimeout(() => {
+            setMode((current) => (current === 'loading' ? 'oauth' : current));
+            setIsLoading(false);
+        }, 4000);
+
+        return () => clearTimeout(loadingFailsafe);
+    }, [hasHydrated, authReady, isLoggedIn]);
+
     const runBiometricUnlock = useCallback(async () => {
         setIsLoading(true);
         setStatusMessage('Verifying…');
@@ -360,7 +371,12 @@ export default function SignInScreen() {
 
             <Pressable
                 style={styles.textLink}
-                onPress={() => { setLoginError(null); setIsLoading(false); setShowAppPassword(true); setMode('full'); }}>
+                onPress={() => {
+                    setLoginError(null);
+                    setIsLoading(false);
+                    setShowAppPassword(true);
+                    setMode('full');
+                }}>
                 <Text style={[styles.textLinkLabelMuted, isDark && styles.textLinkLabelMutedDark]}>
                     Use app password instead
                 </Text>
