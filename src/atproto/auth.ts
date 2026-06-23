@@ -76,14 +76,29 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
 
     let session;
     try {
-        session = await getOAuthClient().signIn('bsky.social');
+        // PDS URL (https://) — not handle "bsky.social" — or OAuth resolver treats it as identity and fails.
+        session = await getOAuthClient().signIn('https://bsky.social');
     } catch (error) {
-        const message =
+        const raw =
             error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
-        if (message.toLowerCase().includes('cancel')) {
+        if (raw.toLowerCase().includes('cancel')) {
             throw new Error('Sign-in cancelled.');
         }
-        throw new Error(message);
+        if (raw.includes('Failed to resolve identity')) {
+            throw new Error(
+                'Could not reach Bluesky for sign-in. Check your connection, or use an app password below.',
+            );
+        }
+        if (
+            raw.includes('client metadata') ||
+            raw.includes('client_id') ||
+            raw.includes('invalid_client')
+        ) {
+            throw new Error(
+                'Bluesky browser sign-in is not available on this build. Use an app password below.',
+            );
+        }
+        throw new Error(raw);
     }
 
     setOAuthSession(session);
