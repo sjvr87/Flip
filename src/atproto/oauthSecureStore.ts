@@ -108,10 +108,52 @@ export class SecureSimpleStoreTTL<V extends Value>
         await Promise.all([...this.#pendingWrites.values()]);
     }
 
+    #indexStorageKey(): string {
+        return `${this.#prefix}.__index__`;
+    }
+
+    async #readIndex(): Promise<string[]> {
+        try {
+            const raw = await SecureStore.getItemAsync(this.#indexStorageKey());
+            if (!raw) return [];
+            const keys = JSON.parse(raw) as string[];
+            return Array.isArray(keys) ? keys : [];
+        } catch {
+            return [];
+        }
+    }
+
+    async #writeIndex(keys: string[]): Promise<void> {
+        try {
+            if (keys.length === 0) {
+                await SecureStore.deleteItemAsync(this.#indexStorageKey());
+            } else {
+                await SecureStore.setItemAsync(this.#indexStorageKey(), JSON.stringify(keys));
+            }
+        } catch (error) {
+            console.warn(`[auth] OAuth store index write failed (${this.#prefix}):`, error);
+        }
+    }
+
+    async #trackKey(key: string): Promise<void> {
+        const keys = await this.#readIndex();
+        if (keys.includes(key)) return;
+        keys.push(key);
+        await this.#writeIndex(keys);
+    }
+
+    async #untrackKey(key: string): Promise<void> {
+        const keys = await this.#readIndex();
+        const next = keys.filter((entry) => entry !== key);
+        if (next.length === keys.length) return;
+        await this.#writeIndex(next);
+    }
+
     async #persist(key: string, value: V, exp: number | null): Promise<void> {
         try {
             const entry: StoredEntry = { v: this.#encode(value), exp };
             await SecureStore.setItemAsync(this.#storageKey(key), JSON.stringify(entry));
+            await this.#trackKey(key);
         } catch (error) {
             console.warn(`[auth] OAuth store persist failed (${this.#prefix}):`, error);
             throw error;
@@ -127,6 +169,7 @@ export class SecureSimpleStoreTTL<V extends Value>
     async #remove(key: string): Promise<void> {
         try {
             await SecureStore.deleteItemAsync(this.#storageKey(key));
+            await this.#untrackKey(key);
         } catch (error) {
             console.warn(`[auth] OAuth store delete failed (${this.#prefix}):`, error);
         }
@@ -135,6 +178,15 @@ export class SecureSimpleStoreTTL<V extends Value>
     clear(): void {
         this.#cache.clear();
         this.#exp.clear();
+    }
+
+    /** Wipe in-memory and SecureStore entries (e.g. before a fresh OAuth sign-in). */
+    async clearPersisted(): Promise<void> {
+        await this.ready();
+        const keys = await this.#readIndex();
+        await Promise.all(keys.map((key) => SecureStore.deleteItemAsync(this.#storageKey(key))));
+        await this.#writeIndex([]);
+        this.clear();
     }
 
     isExpired(key: string): boolean {

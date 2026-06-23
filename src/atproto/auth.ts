@@ -15,6 +15,7 @@ import {
     saveOAuthDid,
     setOAuthSession,
     setServiceUrl,
+    awaitPendingSessionRestore,
     tryRefreshSession,
     wasRefreshTokenRejected,
     withAuthenticatedFetch,
@@ -140,6 +141,8 @@ function mapOAuthSignInError(error: unknown): string {
 }
 
 export async function loginWithOAuth(): Promise<FlipSessionUser> {
+    await awaitPendingSessionRestore();
+
     clearSession();
     clearFollowingDidsCache();
 

@@ -96,6 +96,7 @@ export default function OAuthCallbackScreen() {
             if (!message.toLowerCase().includes('cancel')) {
                 Alert.alert('Sign in failed', message);
             }
+            await resetOAuthClient();
             router.replace('/sign-in');
         }
     };

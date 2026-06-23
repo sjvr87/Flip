@@ -18,6 +18,9 @@ const SESSION_INDEX_KEY = 'flip.oauth.expo.sessions';
 const DPOP_NONCE_PREFIX = 'flip.oauth.expo.dpopNonce';
 const STATE_PREFIX = 'flip.oauth.expo.state';
 
+/** Bluesky authorization-server origins used as DPoP nonce cache keys. */
+const BLUESKY_AUTH_ORIGINS = ['https://bsky.social'];
+
 function sessionStorageKey(sub: string): string {
     return `flip.oauth.expo.session.${secureStoreKeySegment(sub)}`;
 }
@@ -63,6 +66,18 @@ export class DpopNonceCache extends SecureSimpleStoreTTL<string> {
             decode: identity,
             encode: identity,
         });
+    }
+
+    /** Also delete legacy nonce keys written before the SecureStore index existed. */
+    async clearPersisted(): Promise<void> {
+        await super.clearPersisted();
+        await Promise.all(
+            BLUESKY_AUTH_ORIGINS.map((origin) =>
+                SecureStore.deleteItemAsync(
+                    `${DPOP_NONCE_PREFIX}.${secureStoreKeySegment(origin)}`,
+                ),
+            ),
+        );
     }
 }
 
@@ -182,4 +197,11 @@ export class SessionStore implements SimpleStore<string, Session>, Disposable {
     clear(): void {
         this.#cache.clear();
     }
+}
+
+/** Clear PKCE/state and DPoP nonce SecureStore entries before a new OAuth attempt. */
+export async function clearOAuthTransientSecureStore(): Promise<void> {
+    const dpop = new DpopNonceCache();
+    const state = new StateStore();
+    await Promise.all([dpop.clearPersisted(), state.clearPersisted()]);
 }

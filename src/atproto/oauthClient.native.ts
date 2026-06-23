@@ -14,6 +14,7 @@ import {
     ProtectedResourceMetadataCache,
     SessionStore,
     StateStore,
+    clearOAuthTransientSecureStore,
 } from './oauthStores.native';
 
 // JSI polyfills (DisposableStack, URL) required by @atproto/oauth-client-expo.
@@ -68,6 +69,15 @@ class FlipExpoOAuthClient extends OAuthClient {
     /** Await SecureStore writes before browser redirect or token exchange. */
     async readyStores(): Promise<void> {
         await Promise.all([this.#dpopNonceCache.ready(), this.#stateStore.ready()]);
+    }
+
+    /** Drop stale PKCE/state and DPoP nonces before a new sign-in attempt. */
+    async clearTransientStores(): Promise<void> {
+        await this.readyStores();
+        await Promise.all([
+            this.#dpopNonceCache.clearPersisted(),
+            this.#stateStore.clearPersisted(),
+        ]);
     }
 
     async signIn(
@@ -203,15 +213,42 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export async function resetOAuthClient(): Promise<void> {
+    if (oauthSignInFlight) {
+        try {
+            await withTimeout(oauthSignInFlight, 500, 'OAuth sign-in cancel');
+        } catch {
+            // Abandon in-flight Custom Tab sign-in before wiping stores.
+        }
+    }
     oauthSignInFlight = null;
+
+    if (oauthExchangeFlight) {
+        try {
+            await withTimeout(oauthExchangeFlight, 500, 'OAuth exchange cancel');
+        } catch {
+            // Abandon in-flight deep-link exchange before wiping stores.
+        }
+    }
     oauthExchangeFlight = null;
+
     if (client) {
+        try {
+            await client.clearTransientStores();
+        } catch (error) {
+            console.warn('[auth] OAuth transient store clear failed:', error);
+        }
         try {
             await client[Symbol.asyncDispose]();
         } catch (error) {
             console.warn('[auth] OAuth client dispose failed:', error);
         }
         client = null;
+    } else {
+        try {
+            await clearOAuthTransientSecureStore();
+        } catch (error) {
+            console.warn('[auth] OAuth transient store clear failed:', error);
+        }
     }
     initError = null;
 }
@@ -247,8 +284,27 @@ export async function runOAuthSignIn(
         return oauthSignInFlight;
     }
 
-    const oauthClient = getOAuthClient();
-    oauthSignInFlight = oauthClient.signIn(input, options).finally(() => {
+    const attempt = async (): Promise<OAuthSession> => {
+        const oauthClient = getOAuthClient();
+        return oauthClient.signIn(input, options);
+    };
+
+    oauthSignInFlight = (async () => {
+        try {
+            return await attempt();
+        } catch (error) {
+            const raw = error instanceof Error ? error.message : '';
+            if (!raw.includes('use_dpop_nonce')) {
+                throw error;
+            }
+            if (__DEV__) {
+                console.warn('[auth] DPoP nonce mismatch on OAuth sign-in; clearing and retrying');
+            }
+            const oauthClient = getOAuthClient();
+            await oauthClient.clearTransientStores();
+            return attempt();
+        }
+    })().finally(() => {
         oauthSignInFlight = null;
     });
     return oauthSignInFlight;

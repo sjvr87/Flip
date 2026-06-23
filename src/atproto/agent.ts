@@ -58,6 +58,11 @@ async function awaitSessionRestore(): Promise<void> {
     }
 }
 
+/** Wait for background session restore before starting OAuth (avoids DPoP races). */
+export async function awaitPendingSessionRestore(): Promise<void> {
+    await awaitSessionRestore();
+}
+
 function parseJwtPayload(token: string): { exp?: number } | null {
     try {
         const part = token.split('.')[1];
