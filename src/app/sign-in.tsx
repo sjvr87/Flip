@@ -333,7 +333,9 @@ export default function SignInScreen() {
                     isLoading && styles.buttonDisabled,
                 ]}
                 onPress={() => void handleOAuthSignIn()}
-                disabled={isLoading}>
+                disabled={isLoading}
+                accessibilityRole="button"
+                accessibilityLabel="Continue with Bluesky">
                 {isLoading ? (
                     <ActivityIndicator color={isDark ? '#fff' : '#0060df'} />
                 ) : (
@@ -344,14 +346,14 @@ export default function SignInScreen() {
                             color={isDark ? '#fff' : '#0060df'}
                         />
                         <Text style={[styles.buttonText, isDark && styles.buttonTextDark]}>
-                            Sign in with Bluesky
+                            Continue with Bluesky
                         </Text>
                     </XStack>
                 )}
             </Pressable>
 
             <Text style={[styles.oauthHint, isDark && styles.oauthHintDark]}>
-                Opens Bluesky so you can approve access. Flip keeps you signed in on this phone.
+                Approve access in Bluesky — one tap if you are already signed in there.
             </Text>
 
             {loginError ? (

@@ -2,17 +2,18 @@ import metadata from '../../assets/oauth-client-metadata.json';
 
 /**
  * Bluesky fetches client metadata from the `client_id` URL during PAR/token exchange.
- * flip.app currently serves the SPA shell (HTML) for /oauth-client-metadata.json.
+ * flip.app (Cloudflare) still returns SPA HTML for /oauth-client-metadata.json; Heroku
+ * deploy target app name was wrong (see deploy-web.yml). jsDelivr serves application/json.
  *
- * Host metadata on jsDelivr (application/json) until flip.app Heroku deploy is live.
- * After merging to main, switch HOSTED_METADATA_URL to @main jsDelivr URL or flip.app.
+ * When flip.app serves JSON, set client_id in assets/oauth-client-metadata.json to
+ * https://flip.app/oauth-client-metadata.json and drop the override below.
  */
-const HOSTED_METADATA_URL =
+export const OAUTH_CLIENT_METADATA_URL =
     'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
         ...metadata,
-        client_id: HOSTED_METADATA_URL,
+        client_id: OAUTH_CLIENT_METADATA_URL,
     };
 }
