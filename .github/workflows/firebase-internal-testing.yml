@@ -1,4 +1,4 @@
-﻿name: Deploy to Firebase Internal Testing
+name: Deploy to Firebase Internal Testing
 
 on:
   push:
