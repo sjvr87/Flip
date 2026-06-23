@@ -20,7 +20,7 @@ import {
     withAuthenticatedFetch,
 } from './agent';
 import { clearCredentials, getSavedCredentials } from './credentialVault';
-import { getOAuthClient, resetOAuthClient } from './oauthClient';
+import { getOAuthClient, resetOAuthClient, completeOAuthCallback } from './oauthClient';
 import {
     oauthMetadataPreflightMessage,
     preflightOAuthClientMetadata,
@@ -149,6 +149,53 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
         }
         throw new Error(mapOAuthSignInError(error));
     }
+
+    setOAuthSession(session);
+    setServiceUrl('bsky.social');
+
+    const agent = getAgent();
+    const profile = await agent.getProfile({ actor: session.did });
+    const user = profileToFlipUser(profile.data, true);
+    await saveOAuthDid(session.did, user.username);
+    setOAuthSession(session, user.username);
+
+    Storage.delete('app.token');
+    Storage.delete('app.instance');
+    Storage.set(PROFILE_KEY, JSON.stringify(user));
+
+    void warmFollowingDidsCache();
+    return user;
+}
+
+function searchParamsFromRouteParams(
+    params: Record<string, string | string[] | undefined>,
+): URLSearchParams {
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (typeof value === 'string') {
+            searchParams.set(key, value);
+        } else if (Array.isArray(value) && typeof value[0] === 'string') {
+            searchParams.set(key, value[0]);
+        }
+    }
+    return searchParams;
+}
+
+/** Finish OAuth when expo-router receives net.jsdelivr.cdn:/oauth/callback (deep link). */
+export async function completeOAuthRedirect(
+    params: Record<string, string | string[] | undefined>,
+): Promise<FlipSessionUser> {
+    const searchParams = searchParamsFromRouteParams(params);
+
+    if (searchParams.get('error')) {
+        const message =
+            searchParams.get('error_description') ??
+            searchParams.get('error') ??
+            'Authentication failed';
+        throw new Error(message);
+    }
+
+    const session = await completeOAuthCallback(searchParams);
 
     setOAuthSession(session);
     setServiceUrl('bsky.social');

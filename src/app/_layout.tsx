@@ -159,6 +159,8 @@ function ExpoGoAppContent() {
                 <Stack.Screen name="private" />
                 <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="create-account" />
+                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
+                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
             </Stack>
         </>
     );
@@ -194,6 +196,8 @@ function WebAppContent() {
                 <Stack.Screen name="private" />
                 <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="create-account" />
+                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
+                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
             </Stack>
         </>
     );
@@ -215,6 +219,9 @@ function NativeAppContent() {
         <>
             <ThemedStatusBar />
             <Stack>
+                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
+                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
+
                 <Stack.Protected guard={isLoggedIn}>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     <Stack.Screen name="private" options={{ headerShown: false }} />

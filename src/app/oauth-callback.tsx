@@ -1,35 +1,74 @@
+import { completeOAuthRedirect, getCurrentServer } from '@/atproto/auth';
+import { clearCredentials } from '@/atproto/credentialVault';
+import { resetAuthFailureFlag } from '@/utils/requests';
 import { useAuthStore } from '@/utils/authStore';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+
+const OAUTH_WAIT_MS = 3_000;
+const OAUTH_POLL_MS = 200;
+
+async function waitForExistingOAuthSignIn(): Promise<boolean> {
+    const deadline = Date.now() + OAUTH_WAIT_MS;
+    while (Date.now() < deadline) {
+        if (useAuthStore.getState().isLoggedIn) {
+            return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, OAUTH_POLL_MS));
+    }
+    return useAuthStore.getState().isLoggedIn;
+}
 
 export default function OAuthCallbackScreen() {
     const params = useLocalSearchParams();
-    const syncAuthState = useAuthStore((state) => state.syncAuthState);
+    const handled = useRef(false);
 
     useEffect(() => {
-        handleCallback();
+        if (handled.current) return;
+        handled.current = true;
+        void handleCallback();
     }, []);
 
     const handleCallback = async () => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Check for OAuth errors in the callback parameters
         if (params?.error) {
             const errorMessage =
-                params.error_description || params.error || 'Authentication failed';
-            Alert.alert('Sign In Error', errorMessage as string);
+                (params.error_description as string) ||
+                (params.error as string) ||
+                'Authentication failed';
+            Alert.alert('Sign In Error', errorMessage);
             router.replace('/sign-in');
             return;
         }
 
-        syncAuthState();
-
-        const isLoggedIn = useAuthStore.getState().isLoggedIn;
-
-        if (isLoggedIn) {
+        if (await waitForExistingOAuthSignIn()) {
             router.replace('/(tabs)');
-        } else {
+            return;
+        }
+
+        try {
+            const user = await completeOAuthRedirect(
+                params as Record<string, string | string[] | undefined>,
+            );
+            await clearCredentials();
+            useAuthStore.setState({
+                requireBiometric: false,
+                isLoggedIn: true,
+                user,
+                server: getCurrentServer(),
+                authReady: true,
+            });
+            resetAuthFailureFlag();
+            router.replace('/(tabs)');
+        } catch (error) {
+            if (__DEV__) {
+                console.warn('[auth] OAuth callback route failed:', error);
+            }
+            const message =
+                error instanceof Error ? error.message : 'Bluesky sign-in failed. Try again.';
+            if (!message.toLowerCase().includes('cancel')) {
+                Alert.alert('Sign in failed', message);
+            }
             router.replace('/sign-in');
         }
     };

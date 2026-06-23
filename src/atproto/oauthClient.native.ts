@@ -1,6 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 import { openAuthSessionAsync } from 'expo-web-browser';
-import { OAuthClient } from '@atproto/oauth-client';
+import { OAuthClient, type OAuthSession } from '@atproto/oauth-client';
 const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
 const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
@@ -109,6 +109,24 @@ class FlipExpoOAuthClient extends OAuthClient {
 }
 
 export type ExpoOAuthClient = FlipExpoOAuthClient;
+
+function getCustomRedirectUri(client: FlipExpoOAuthClient): string {
+    const redirectUri = client.clientMetadata.redirect_uris.find((uri) => isCustomUriScheme(uri));
+    if (!redirectUri) {
+        throw new TypeError('A redirect URI with a custom scheme is required for Expo OAuth.');
+    }
+    return redirectUri;
+}
+
+/** Complete Bluesky OAuth when Android delivers the redirect via deep link instead of Custom Tab. */
+export async function completeOAuthCallback(
+    params: URLSearchParams,
+): Promise<OAuthSession> {
+    const client = getOAuthClient();
+    const redirectUri = getCustomRedirectUri(client);
+    const { session } = await client.callback(params, { redirect_uri: redirectUri });
+    return session;
+}
 
 let client: FlipExpoOAuthClient | null = null;
 let initError: Error | null = null;
