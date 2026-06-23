@@ -52,9 +52,24 @@ jobs:
             echo "::warning::expo export failed; deployed OAuth metadata + SPA shell snapshot only"
           fi
           test -f dist/oauth-client-metadata.json || (echo "Missing dist/oauth-client-metadata.json" && exit 1)
-          test -f dist/static.json || (echo "Missing dist/static.json" && exit 1)
+          cp Procfile dist/Procfile
+          node -e "
+          const fs = require('fs');
+          const server = fs.readFileSync('server.js', 'utf8').replace(
+            \"const dist = path.join(__dirname, 'dist');\",
+            'const dist = __dirname;'
+          );
+          fs.writeFileSync('dist/server.js', server);
+          fs.writeFileSync('dist/package.json', JSON.stringify({
+            name: 'flip-web',
+            private: true,
+            engines: { node: '20.x' }
+          }, null, 2) + '\n');
+          "
+          test -f dist/Procfile || (echo "Missing dist/Procfile" && exit 1)
+          test -f dist/server.js || (echo "Missing dist/server.js" && exit 1)
           echo "dist deploy payload:"
-          ls -la dist/oauth-client-metadata.json dist/static.json dist/index.html 2>/dev/null || true
+          ls -la dist/oauth-client-metadata.json dist/Procfile dist/server.js dist/package.json dist/index.html 2>/dev/null || true
 
       - name: Install Heroku CLI
         run: curl -fsSL https://cli-assets.heroku.com/install.sh | sh
@@ -70,11 +85,14 @@ jobs:
 
       - name: Verify OAuth metadata on flip.app
         run: |
-          sleep 10
-          code=$(curl -fsS -o /tmp/oauth-meta.json -w "%{http_code}" https://flip.app/oauth-client-metadata.json)
-          type=$(curl -fsSI https://flip.app/oauth-client-metadata.json | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2; exit}')
-          echo "HTTP $code Content-Type: $type"
-          head -c 120 /tmp/oauth-meta.json; echo
-          test "$code" = "200" || exit 1
-          echo "$type" | grep -qi 'application/json' || exit 1
-          grep -q '"client_id"' /tmp/oauth-meta.json || exit 1
+          for i in 1 2 3 4 5 6; do
+            sleep 15
+            code=$(curl -fsS -o /tmp/oauth-meta.json -w "%{http_code}" https://flip.app/oauth-client-metadata.json || echo "000")
+            type=$(curl -fsSI https://flip.app/oauth-client-metadata.json 2>/dev/null | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2; exit}')
+            echo "attempt $i: HTTP $code Content-Type: $type"
+            head -c 120 /tmp/oauth-meta.json 2>/dev/null; echo
+            if [ "$code" = "200" ] && echo "$type" | grep -qi 'application/json' && grep -q '"client_id"' /tmp/oauth-meta.json; then
+              exit 0
+            fi
+          done
+          exit 1
