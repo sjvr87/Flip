@@ -1,6 +1,6 @@
 # Flip dev connect: pull, adb reverse, Metro (reuse or start one window), launch app.
-# Deep links always use LAN IP (192.168.x.x) - never 127.0.0.1 - bypassing the dev launcher picker.
-# adb reverse tcp:8081 is set for USB fallback; scripts still launch exp://LAN:8081 via deep link.
+# Deep links bypass the dev launcher picker. USB + adb reverse -> exp://127.0.0.1:8081 (no Wi-Fi needed).
+# Without USB reverse, use LAN IP (192.168.x.x).
 #
 # Modes:
 #   (default)        flip-dev.bat           - pull + adb + reuse Metro (or start one window)
@@ -34,6 +34,18 @@ function Get-LanIp {
 }
 
 $script:LanIp = Get-LanIp
+
+function Get-DevServerHost {
+  param(
+    [bool]$UsbReverseOk,
+    [int]$ConnectedDeviceCount
+  )
+  if ($UsbReverseOk -and $ConnectedDeviceCount -gt 0) {
+    return "127.0.0.1"
+  }
+  return $script:LanIp
+}
+
 
 function Invoke-AdbQuiet {
   param([string]$AdbPath, [string[]]$AdbArgs)
@@ -166,13 +178,18 @@ function Start-MetroInNewWindow([switch]$ClearCache) {
   Write-MetroWindowHint -StartedNew $true
 }
 
-function Wait-MetroHealthy([int]$TimeoutSec = 120) {
+function Wait-MetroHealthy {
+  param(
+    [int]$TimeoutSec = 120,
+    [switch]$LocalhostOnly
+  )
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   $pollMs = 500
   $lastLog = [DateTime]::MinValue
   while ((Get-Date) -lt $deadline) {
     $localhostOk = Test-MetroHealthy
     $lanOk = Test-MetroLanHealthy
+    if ($LocalhostOnly -and $localhostOk) { return $true }
     if ($localhostOk -and ($lanOk -or -not $script:LanIp)) { return $true }
     if (((Get-Date) - $lastLog).TotalSeconds -ge 5) {
       $remaining = [Math]::Max(0, [int]($deadline - (Get-Date)).TotalSeconds)
@@ -184,6 +201,7 @@ function Wait-MetroHealthy([int]$TimeoutSec = 120) {
     Start-Sleep -Milliseconds $pollMs
     if ($pollMs -lt 2000) { $pollMs = [Math]::Min($pollMs * 2, 2000) }
   }
+  if ($LocalhostOnly) { return (Test-MetroHealthy) }
   return ((Test-MetroHealthy) -and ((Test-MetroLanHealthy) -or -not $script:LanIp))
 }
 
@@ -210,6 +228,12 @@ function Ensure-MetroRunning {
   $healthy = Test-MetroHealthy
   $lanHealthy = Test-MetroLanHealthy
   $portInUse = Test-PortListening 8081
+
+  if ($healthy -and -not $lanHealthy -and $script:LanIp -and $script:PreferUsbReverse) {
+    Write-Host "  Metro OK on localhost; LAN not reachable - USB adb reverse will use 127.0.0.1 on device." -ForegroundColor Green
+    Write-MetroWindowHint -StartedNew $false
+    return $true
+  }
 
   if ($healthy -and -not $lanHealthy -and $script:LanIp) {
     Write-Host "  Metro OK on localhost but not LAN ($($script:LanIp)) - recycling..." -ForegroundColor Yellow
@@ -277,6 +301,12 @@ function Select-TargetSerials([string[]]$AllSerials) {
   return $AllSerials
 }
 
+function Get-FlipDevServerHost {
+  param([bool]$ReverseOk)
+  if ($ReverseOk) { return "127.0.0.1" }
+  return $script:LanIp
+}
+
 function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
   $anyOk = $false
   foreach ($serial in $TargetSerials) {
@@ -315,10 +345,11 @@ function Start-FlipApp {
   param(
     [string]$Serial,
     [string]$AdbPath,
-    [string]$DevServerHost
+    [string]$DevServerHost,
+    [switch]$UsbReverse
   )
 
-  if (-not (Wait-MetroHealthy -TimeoutSec 120)) {
+  if (-not (Wait-MetroHealthy -TimeoutSec 120 -LocalhostOnly:$UsbReverse.IsPresent)) {
     Write-Host "  $Serial : Metro not healthy - refusing to launch (avoids DevLauncher manifest loop)" -ForegroundColor Red
     return $false
   }
@@ -352,7 +383,7 @@ function Write-NoLanIpHelp {
   Write-Host "  NO LAN IP FOUND - phone cannot reach Metro safely" -ForegroundColor Red
   Write-Host "============================================================" -ForegroundColor Red
   Write-Host ""
-  Write-Host "Flip dev uses your PC LAN address (192.168.x.x), not 127.0.0.1." -ForegroundColor Yellow
+  Write-Host "Use USB + adb reverse (127.0.0.1 on device) or same Wi-Fi with PC LAN IP." -ForegroundColor Yellow
   Write-Host "Connect phone and PC to the same Wi-Fi, then re-run this script." -ForegroundColor Yellow
   Write-Host ""
 }
@@ -375,7 +406,10 @@ function Write-UsbDeviceHelp {
 }
 
 function Write-DevStatus {
-  param([bool]$ReverseOk)
+  param(
+    [bool]$ReverseOk,
+    [string]$DevServerHost
+  )
   $finalMetroHealthy = Test-MetroHealthy
   $finalLanHealthy = Test-MetroLanHealthy
   Write-Host ""
@@ -386,8 +420,10 @@ function Write-DevStatus {
   if ($finalMetroHealthy) {
     Write-Host 'Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler / QR / connection URL)'
   }
-  if ($script:LanIp) {
-    Write-Host "Launch URL: exp://${script:LanIp}:8081 (bypasses dev launcher picker; Home via initialRouteName)"
+  $launchHost = if ($DevServerHost) { $DevServerHost } elseif ($ReverseOk -and $serials.Count -gt 0) { "127.0.0.1" } else { $script:LanIp }
+  if ($launchHost) {
+    $via = if ($launchHost -eq "127.0.0.1") { " (USB adb reverse)" } else { "" }
+    Write-Host "Launch URL: exp://${launchHost}:8081$via (bypasses dev launcher picker; Home via initialRouteName)"
     Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - run flip-reset-dev.bat" }))
   } else {
     Write-Host "Launch URL: (no LAN IP - connect PC and phone to same Wi-Fi)" -ForegroundColor Yellow
@@ -415,6 +451,7 @@ foreach ($line in ($devicesOut -split "`n")) {
 $serials = Select-TargetSerials $serials
 
 $reverseOk = $false
+$script:PreferUsbReverse = $false
 if ($unauthorized.Count -gt 0) {
   Write-UsbDeviceHelp "adb shows unauthorized ($($unauthorized -join ', '))"
 } elseif ($offline.Count -gt 0) {
@@ -424,6 +461,7 @@ if ($unauthorized.Count -gt 0) {
 } else {
   Write-Host "[3/6] adb reverse tcp:8081 tcp:8081"
   $reverseOk = Ensure-AdbReverse -TargetSerials $serials -AdbPath $adb
+  $script:PreferUsbReverse = $reverseOk
 }
 
 if ($env:CI -eq "true" -or $env:CI -eq "1") {
@@ -449,18 +487,19 @@ if ($Reset) {
 
   Write-Host "[5/6] Launch Flip with LAN dev-server URL"
   if ($serials.Count -gt 0) {
-    if (-not $script:LanIp) {
+    $devHost = Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count
+    if (-not $devHost) {
       Write-NoLanIpHelp
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
   }
 
-  $ok = Write-DevStatus -ReverseOk $reverseOk
+  $ok = Write-DevStatus -ReverseOk $reverseOk -DevServerHost (Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count)
   Write-Host ""
   Write-Host "=== When app won't connect ===" -ForegroundColor Cyan
   Write-Host "- Run flip-reset-dev.bat (this script)"
@@ -471,7 +510,7 @@ if ($Reset) {
 
 if ($NoLaunch) {
   Write-Host "[4/6] Metro (sync - wait for /status, no launch)"
-  $metroHealthy = Wait-MetroHealthy -TimeoutSec 120
+  $metroHealthy = Wait-MetroHealthy -TimeoutSec 120 -LocalhostOnly:($script:PreferUsbReverse)
   if (-not $metroHealthy) {
     Write-Host "  Metro /status not ready after 120s. Run flip-dev.bat or flip-reset-dev.bat." -ForegroundColor Red
     Write-MetroNotRunningBanner
@@ -497,7 +536,7 @@ if ($NoLaunch) {
 
 if ($ConnectOnly -and -not $Reconnect) {
   Write-Host "[4/6] Metro (connect-only - wait for /status before launch)"
-  $metroHealthy = Wait-MetroHealthy -TimeoutSec 120
+  $metroHealthy = Wait-MetroHealthy -TimeoutSec 120 -LocalhostOnly:($script:PreferUsbReverse)
   if (-not $metroHealthy) {
     Write-Host "  Metro /status not ready after 120s. Run flip-reset-dev.bat." -ForegroundColor Red
     Write-MetroNotRunningBanner
@@ -510,12 +549,13 @@ if ($ConnectOnly -and -not $Reconnect) {
     Invoke-MetroReload | Out-Null
   } elseif ($serials.Count -gt 0) {
     Write-Host "[5/6] Launch Flip on device"
-    if (-not $script:LanIp) {
+    $devHost = Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count
+    if (-not $devHost) {
       Write-NoLanIpHelp
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
     }
   } else {
     Write-Host "[5/6] Launch/reload - skipped (no device)" -ForegroundColor Yellow
@@ -541,18 +581,19 @@ if ($Reconnect) {
 
   Write-Host "[5/6] Launch Flip with LAN dev-server URL"
   if ($serials.Count -gt 0) {
-    if (-not $script:LanIp) {
+    $devHost = Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count
+    if (-not $devHost) {
       Write-NoLanIpHelp
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
   }
 
-  $ok = Write-DevStatus -ReverseOk $reverseOk
+  $ok = Write-DevStatus -ReverseOk $reverseOk -DevServerHost (Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count)
   Write-Host ""
   Write-Host "Scripts: flip-reset-dev.bat (nuclear) | flip-reload.bat (JS tweak)"
   exit $(if ($ok) { 0 } else { 1 })
@@ -578,18 +619,19 @@ if (-not $metroHealthy) {
 
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
-  if (-not $script:LanIp) {
+  $devHost = Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count
+  if (-not $devHost) {
     Write-NoLanIpHelp
     exit 1
   }
   foreach ($serial in $serials) {
-    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
 }
 
-$ok = Write-DevStatus -ReverseOk $reverseOk
+$ok = Write-DevStatus -ReverseOk $reverseOk -DevServerHost (Get-DevServerHost -UsbReverseOk $reverseOk -ConnectedDeviceCount $serials.Count)
 Write-Host ""
 Write-Host "=== Scripts ===" -ForegroundColor Cyan
 Write-Host "- flip-reset-dev.bat: kill Metro + clear cache + adb reverse + launch (when nothing works)"
