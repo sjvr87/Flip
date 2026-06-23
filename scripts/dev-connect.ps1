@@ -196,18 +196,9 @@ function Write-MetroWindowHint {
 
 function Start-MetroInNewWindow {
   param(
-    [switch]$ClearCache,
-    [switch]$LocalhostMode
+    [switch]$ClearCache
   )
-  if ($LocalhostMode) {
-    if ($ClearCache) {
-      Write-Host "  Starting Metro (dev-client, localhost/USB, port 8081, clear cache) in new window..."
-      $launcher = Join-Path $PSScriptRoot "start-metro-window-usb.cmd"
-    } else {
-      Write-Host "  Starting Metro (dev-client, localhost/USB, port 8081) in new window..."
-      $launcher = Join-Path $PSScriptRoot "start-metro-window-usb-fast.cmd"
-    }
-  } elseif ($ClearCache) {
+  if ($ClearCache) {
     Write-Host "  Starting Metro (dev-client, LAN, port 8081, clear cache) in new window..."
     $launcher = Join-Path $PSScriptRoot "start-metro-window.cmd"
   } else {
@@ -258,9 +249,9 @@ function Ensure-MetroRunning {
   if ($ForceRecycle) {
     Write-Host "  Force-recycling Metro on 8081..." -ForegroundColor Yellow
     Stop-AllMetroOnPort 8081 | Out-Null
-    Start-MetroInNewWindow -ClearCache:$ClearCacheOnStart -LocalhostMode:($script:PreferUsbReverse)
+    Start-MetroInNewWindow -ClearCache:$ClearCacheOnStart 
     $timeout = if ($ClearCacheOnStart) { 120 } else { 90 }
-    if (Wait-MetroHealthy -TimeoutSec $timeout) {
+    if (Wait-MetroHealthy -TimeoutSec $timeout -LocalhostOnly:($script:PreferUsbReverse)) {
       Write-Host "  Metro started OK (localhost + LAN)." -ForegroundColor Green
       return $true
     }
@@ -282,8 +273,8 @@ function Ensure-MetroRunning {
   if ($healthy -and -not $lanHealthy -and $script:LanIp) {
     Write-Host "  Metro OK on localhost but not LAN ($($script:LanIp)) - recycling..." -ForegroundColor Yellow
     Stop-AllMetroOnPort 8081 | Out-Null
-    Start-MetroInNewWindow -ClearCache:$false -LocalhostMode:($script:PreferUsbReverse)
-    if (Wait-MetroHealthy -TimeoutSec 90) {
+    Start-MetroInNewWindow -ClearCache:$false 
+    if (Wait-MetroHealthy -TimeoutSec 90 -LocalhostOnly:($script:PreferUsbReverse)) {
       Write-Host "  Metro restarted with LAN hostname." -ForegroundColor Green
       return $true
     }
@@ -308,9 +299,9 @@ function Ensure-MetroRunning {
   }
 
   $useClear = $ClearCacheOnStart.IsPresent
-  Start-MetroInNewWindow -ClearCache:$useClear -LocalhostMode:($script:PreferUsbReverse)
+  Start-MetroInNewWindow -ClearCache:$useClear 
   $timeout = if ($useClear) { 120 } else { 90 }
-  if (Wait-MetroHealthy -TimeoutSec $timeout) {
+  if (Wait-MetroHealthy -TimeoutSec $timeout -LocalhostOnly:($script:PreferUsbReverse)) {
     Write-Host "  Metro started OK." -ForegroundColor Green
     return $true
   }
