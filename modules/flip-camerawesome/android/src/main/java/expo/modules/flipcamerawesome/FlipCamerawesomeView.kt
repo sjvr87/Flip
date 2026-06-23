@@ -101,12 +101,11 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         pendingStartRecording = false
         if (recording) {
           recording = false
-        } else {
+        } else if (session?.isRecording() == true) {
+          // In-flight native start (JS recording flag may still be false).
           session?.stopRecording()
         }
-        session?.let { active ->
-          previewView.post { active.refreshPreviewSurface() }
-        }
+        // Preview refresh runs from stopRecording/Finalize — do not race finalize here.
       }
     }
 

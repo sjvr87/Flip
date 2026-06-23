@@ -137,14 +137,15 @@ class FlipCameraSession(
     outputFile: File,
     onFinished: (String) -> Unit,
     onFailed: (String) -> Unit,
+    allowRetry: Boolean = true,
   ) {
-    val capture = imageCapture ?: run {
-      onFailed("Image capture not ready")
+    if (isRecording()) {
+      onFailed("Cannot take photo while recording")
       return
     }
 
-    if (isRecording()) {
-      onFailed("Cannot take photo while recording")
+    val capture = imageCapture ?: run {
+      onFailed("Image capture not ready")
       return
     }
 
@@ -165,7 +166,20 @@ class FlipCameraSession(
         }
 
         override fun onError(exception: ImageCaptureException) {
-          onFailed(exception.message ?: "Photo capture failed")
+          val msg = exception.message ?: "Photo capture failed"
+          if (
+            allowRetry &&
+              exception.imageCaptureError == ImageCapture.ERROR_CAMERA_CLOSED
+          ) {
+            Log.w(TAG, "takePicture: camera closed after recording, rebinding")
+            if (rebindCamera()) {
+              takePicture(outputFile, onFinished, onFailed, allowRetry = false)
+            } else {
+              onFailed(msg)
+            }
+          } else {
+            onFailed(msg)
+          }
         }
       },
     )
@@ -189,6 +203,8 @@ class FlipCameraSession(
 
     val generation = ++recordingGeneration
     recordingStarting = true
+    // Block surface rebind for the whole start pipeline (prepareRecording + start).
+    pausePreviewRefresh = true
 
     val context = previewView.context
     val hasMic =
@@ -211,10 +227,10 @@ class FlipCameraSession(
 
         if (generation != recordingGeneration) {
           recordingStarting = false
+          pausePreviewRefresh = false
           return@execute
         }
 
-        pausePreviewRefresh = true
         lateinit var recording: Recording
         recording =
           pending.start(mainExecutor) { event ->
@@ -229,6 +245,9 @@ class FlipCameraSession(
                 recordingStarting = false
                 activeRecording = recording
                 Log.d(TAG, "Recording started ${profile.badgeLabel}")
+                // After encoder owns the pipeline, re-attach preview (TextureView freezes if we
+                // skip this; doing it before Start races encoder init on Samsung stacks).
+                schedulePostStartPreviewReconnect()
               }
               is VideoRecordEvent.Finalize -> {
                 pausePreviewRefresh = false
@@ -318,8 +337,28 @@ class FlipCameraSession(
     }
   }
 
+  /** One-shot reconnect once VideoRecordEvent.Start confirms the encoder is live. */
+  private fun schedulePostStartPreviewReconnect() {
+    mainExecutor.execute {
+      previewView.postDelayed(
+        {
+          if (activeRecording == null || pausePreviewRefresh) return@postDelayed
+          val previewUseCase = preview ?: return@postDelayed
+          if (previewView.width <= 0 || previewView.height <= 0) return@postDelayed
+          previewUseCase.surfaceProvider = previewView.surfaceProvider
+          Log.d(TAG, "post-start preview reconnect ${previewView.width}x${previewView.height}")
+        },
+        200,
+      )
+    }
+  }
+
   fun refreshPreviewSurface() {
-    if (activeRecording != null || pausePreviewRefresh) {
+    if (pausePreviewRefresh) {
+      Log.d(TAG, "refreshPreviewSurface skipped — recording start in flight")
+      return
+    }
+    if (activeRecording != null) {
       Log.d(TAG, "refreshPreviewSurface skipped — recording active")
       return
     }
