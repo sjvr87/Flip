@@ -3,7 +3,8 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Asset, requestPermissionsAsync } from 'expo-media-library';
+import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions';
+import { Asset } from 'expo-media-library';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useState } from 'react';
@@ -58,8 +59,8 @@ function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duratio
 
     const handleDownload = async () => {
         try {
-            const { status } = await requestPermissionsAsync(true);
-            if (status !== 'granted') {
+            const granted = await ensureAndroidMediaReadPermissions();
+            if (!granted) {
                 Alert.alert(
                     'Permission Required',
                     'Please allow access to your camera roll to save videos.',
@@ -161,8 +162,8 @@ function PhotoPreviewContent({ mediaUri }: { mediaUri: string }) {
 
     const handleDownload = async () => {
         try {
-            const { status } = await requestPermissionsAsync(true);
-            if (status !== 'granted') {
+            const granted = await ensureAndroidMediaReadPermissions();
+            if (!granted) {
                 Alert.alert(
                     'Permission Required',
                     'Please allow access to your camera roll to save photos.',

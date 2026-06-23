@@ -6,14 +6,43 @@ export function canQueryMediaLibrary(perm: MediaLibrary.PermissionResponse): boo
   return Boolean(perm.granted || perm.status === 'granted' || accessPrivileges === 'limited')
 }
 
+async function hasAndroidReadMediaPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false
+
+  if (Number(Platform.Version) >= 33) {
+    const permissions = [
+      PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+      PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
+    ]
+    const checks = await Promise.all(permissions.map((p) => PermissionsAndroid.check(p)))
+    return checks.some(Boolean)
+  }
+
+  const existing = await MediaLibrary.getPermissionsAsync()
+  return canQueryMediaLibrary(existing)
+}
+
 /**
- * Grants read access to on-device media (MediaStore) for gallery thumbnails.
+ * Check-only — never shows a permission dialog or opens a gallery/picker UI.
+ * Use for optional gallery thumbnails on the Create screen.
+ */
+export async function hasAndroidMediaReadPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') {
+    const perm = await MediaLibrary.getPermissionsAsync()
+    return canQueryMediaLibrary(perm)
+  }
+  return hasAndroidReadMediaPermission()
+}
+
+/**
+ * Grants read access to on-device media (MediaStore) for gallery thumbnails or saving drafts.
  *
- * On Android 13+, uses READ_MEDIA_IMAGES + READ_MEDIA_VIDEO via PermissionsAndroid
- * so the standard system permission sheet appears instead of expo-media-library's
- * Photo Picker flow (which on many Samsung devices only offers Google Photos).
+ * On Android, uses READ_MEDIA_IMAGES + READ_MEDIA_VIDEO via PermissionsAndroid only.
+ * Never calls expo-media-library requestPermissionsAsync — on Samsung/Android 14+ that
+ * opens the system Photo Picker (Google Photos) instead of a plain permission sheet.
  *
  * Upload uses a separate intent-based picker and does not require this.
+ * Call only from explicit user actions (e.g. Save to gallery), not on camera open.
  */
 export async function ensureAndroidMediaReadPermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') {
@@ -23,27 +52,17 @@ export async function ensureAndroidMediaReadPermissions(): Promise<boolean> {
     return canQueryMediaLibrary(requested)
   }
 
+  if (await hasAndroidReadMediaPermission()) return true
+
   if (Number(Platform.Version) >= 33) {
     const permissions = [
       PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
       PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
     ]
-    const alreadyGranted = await Promise.all(permissions.map((p) => PermissionsAndroid.check(p)))
-    if (alreadyGranted.some(Boolean)) return true
-
     const results = await PermissionsAndroid.requestMultiple(permissions)
-    if (Object.values(results).some((s) => s === PermissionsAndroid.RESULTS.GRANTED)) {
-      return true
-    }
+    return Object.values(results).some((s) => s === PermissionsAndroid.RESULTS.GRANTED)
   }
 
-  const existing = await MediaLibrary.getPermissionsAsync()
-  if (canQueryMediaLibrary(existing)) return true
-
-  // Avoid requestPermissionsAsync on Android 14+ — it may open the Photo Picker
-  // (Google Photos on Samsung) instead of a plain permission dialog.
-  if (Number(Platform.Version) >= 34) return false
-
-  const requested = await MediaLibrary.requestPermissionsAsync()
-  return canQueryMediaLibrary(requested)
+  // Pre-API-33: avoid MediaLibrary.requestPermissionsAsync on Android (photo picker).
+  return false
 }

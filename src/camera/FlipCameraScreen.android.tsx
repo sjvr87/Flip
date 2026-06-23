@@ -1,6 +1,5 @@
 import { MAX_RECORDING_SECONDS } from '@/camera/camerawesome/config'
 import { launchUploadGalleryPicker } from '@/camera/launchUploadGalleryPicker'
-import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions'
 import { useRecentGalleryThumb } from '@/camera/useRecentGalleryThumb'
 import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer'
 import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability'
@@ -29,6 +28,48 @@ type Props = {
   onClose?: () => void
 }
 
+type AndroidPermissionState = 'unknown' | 'granted' | 'denied' | 'blocked'
+
+function mapPermissionResult(
+  granted: boolean,
+  result: string | undefined,
+): AndroidPermissionState {
+  if (granted || result === PermissionsAndroid.RESULTS.GRANTED) return 'granted'
+  if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) return 'blocked'
+  if (result === PermissionsAndroid.RESULTS.DENIED) return 'denied'
+  return granted ? 'granted' : 'denied'
+}
+
+async function checkAndroidCameraPermissions(): Promise<AndroidPermissionState> {
+  const cameraGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA)
+  const micGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+  return cameraGranted && micGranted ? 'granted' : 'denied'
+}
+
+async function requestAndroidCameraPermissions(): Promise<AndroidPermissionState> {
+  const cameraGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA)
+  const micGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+  if (cameraGranted && micGranted) return 'granted'
+
+  const toRequest: (typeof PermissionsAndroid.PERMISSIONS.CAMERA)[] = []
+  if (!cameraGranted) toRequest.push(PermissionsAndroid.PERMISSIONS.CAMERA)
+  if (!micGranted) toRequest.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+
+  const results = await PermissionsAndroid.requestMultiple(toRequest)
+  const cameraResult = mapPermissionResult(
+    cameraGranted,
+    results[PermissionsAndroid.PERMISSIONS.CAMERA],
+  )
+  const micResult = mapPermissionResult(
+    micGranted,
+    results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO],
+  )
+
+  if (cameraResult === 'blocked' || micResult === 'blocked') return 'blocked'
+  if (cameraResult === 'granted' && micResult === 'granted') return 'granted'
+  return 'denied'
+}
+
 export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const router = useRouter()
   const isFocused = useIsFocused()
@@ -37,7 +78,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const [flash, setFlash] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
-  const [hasPermissions, setHasPermissions] = useState<boolean | null>(null)
+  const [permissionState, setPermissionState] = useState<AndroidPermissionState>('unknown')
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video')
   const [photoRequestId, setPhotoRequestId] = useState(0)
@@ -57,31 +98,20 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending)
   const remixReferenceUrl = pendingRemix?.referenceVideoUrl
 
-  const requestAndroidPermissions = useCallback(async () => {
-    const cameraGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA)
-    const micGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
-    if (cameraGranted && micGranted) return true
+  const refreshPermissionState = useCallback(async () => {
+    setPermissionState(await checkAndroidCameraPermissions())
+  }, [])
 
-    const toRequest: (typeof PermissionsAndroid.PERMISSIONS.CAMERA)[] = []
-    if (!cameraGranted) toRequest.push(PermissionsAndroid.PERMISSIONS.CAMERA)
-    if (!micGranted) toRequest.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
-
-    const results = await PermissionsAndroid.requestMultiple(toRequest)
-    const cameraOk =
-      cameraGranted ||
-      results[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED
-    const micOk =
-      micGranted ||
-      results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED
-    return cameraOk && micOk
+  const grantPermissions = useCallback(async () => {
+    setPermissionState(await requestAndroidCameraPermissions())
   }, [])
 
   useEffect(() => {
-    requestAndroidPermissions().then(setHasPermissions)
+    grantPermissions()
     getCaptureProfile()
       .then((profile: CaptureProfile) => setCaptureBadge(profile.badge))
       .catch(() => undefined)
-  }, [requestAndroidPermissions])
+  }, [grantPermissions])
 
   useFocusEffect(
     useCallback(() => {
@@ -90,16 +120,14 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
       setIsCameraReady(false)
       setIsRecording(false)
       recordingRef.current = false
-      requestAndroidPermissions().then(setHasPermissions)
-      ensureAndroidMediaReadPermissions()
-        .catch(() => undefined)
-        .finally(() => reloadGalleryThumb())
+      refreshPermissionState()
+      reloadGalleryThumb()
       return () => {
         recordingRef.current = false
         setIsRecording(false)
         setIsCameraReady(false)
       }
-    }, [requestAndroidPermissions, reloadGalleryThumb]),
+    }, [refreshPermissionState, reloadGalleryThumb]),
   )
 
   useEffect(() => {
@@ -260,22 +288,23 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const recordButtonGesture = captureMode === 'photo' ? tapPhotoGesture : tapVideoGesture
   const cameraGestures = Gesture.Race(doubleTapGesture, pinchGesture)
 
-  if (hasPermissions === false) {
+  if (permissionState === 'denied' || permissionState === 'blocked') {
+    const blocked = permissionState === 'blocked'
     return (
       <View style={styles.container}>
         <View style={styles.permissionContent}>
           <Ionicons name="camera-outline" size={80} color="rgba(255,255,255,0.6)" />
           <Text style={styles.permissionTitle}>Camera & Microphone Access</Text>
           <Text style={styles.permissionDescription}>
-            Flip needs camera and microphone access to record video. Gallery access alone is not
-            enough — enable Camera in Android settings if you only granted Photos.
+            {blocked
+              ? 'Flip needs camera and microphone access to record. Android blocked the permission prompt — open Settings and enable Camera and Microphone for Flip.'
+              : 'Flip needs camera and microphone access to record video. Gallery access alone is not enough — tap below to grant Camera and Microphone.'}
           </Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={() => requestAndroidPermissions().then(setHasPermissions)}
-          >
-            <Text style={styles.permissionButtonText}>Grant permissions</Text>
-          </TouchableOpacity>
+          {!blocked ? (
+            <TouchableOpacity style={styles.permissionButton} onPress={grantPermissions}>
+              <Text style={styles.permissionButtonText}>Grant permissions</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity onPress={() => Linking.openSettings()}>
             <Text style={styles.settingsButtonText}>Open Settings</Text>
           </TouchableOpacity>
@@ -284,7 +313,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     )
   }
 
-  if (hasPermissions === null) {
+  if (permissionState === 'unknown') {
     return (
       <View style={[styles.container, styles.centered]}>
         <Text style={styles.loadingText}>Initializing CameraX…</Text>

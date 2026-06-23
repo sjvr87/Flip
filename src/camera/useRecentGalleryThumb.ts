@@ -1,4 +1,4 @@
-import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions'
+import { hasAndroidMediaReadPermission } from '@/camera/ensureAndroidMediaReadPermissions'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as MediaLibrary from 'expo-media-library'
 import { createVideoPlayer } from 'expo-video'
@@ -136,7 +136,11 @@ export function useRecentGalleryThumb() {
   const load = useCallback(async () => {
     cancelledRef.current = false
     try {
-      await ensureAndroidMediaReadPermissions()
+      const canRead = await hasAndroidMediaReadPermission()
+      if (!canRead) {
+        if (!cancelledRef.current) setThumbUri(null)
+        return
+      }
       const nextThumb = await loadLatestResolvableThumb()
       if (!cancelledRef.current) setThumbUri(nextThumb)
     } catch {
