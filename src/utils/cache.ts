@@ -61,20 +61,20 @@ function createLocalStorage(): AppStorage {
 }
 
 function createMmkvStorage(): AppStorage {
-    let createMMKV: typeof import('react-native-mmkv').createMMKV;
+    let MMKV: typeof import('react-native-mmkv').MMKV;
     try {
-        ({ createMMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv'));
+        ({ MMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv'));
     } catch (error) {
         throw new Error('react-native-mmkv failed to load', { cause: error });
     }
 
-    const mmkv = createMMKV();
+    const mmkv = new MMKV();
 
     return {
         getString: (key) => mmkv.getString(key),
         set: (key, value) => mmkv.set(key, value),
-        delete: (key) => mmkv.remove(key),
-        remove: (key) => mmkv.remove(key),
+        delete: (key) => mmkv.delete(key),
+        remove: (key) => mmkv.delete(key),
     };
 }
 
