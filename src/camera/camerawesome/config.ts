@@ -3,10 +3,10 @@ export const FLIP_ANDROID_CAPTURE = {
   engine: 'CameraX' as const,
   package: 'flip-camerawesome',
   flagship: {
-    resolution: { width: 3840, height: 2160 },
-    quality: 'UHD' as const,
-    badge: '4K60 · OIS',
-    videoBitrate: 45_000_000,
+    resolution: { width: 1920, height: 1080 },
+    quality: 'FHD' as const,
+    badge: '1080p60 · OIS',
+    videoBitrate: 18_000_000,
   },
   standard: {
     resolution: { width: 1920, height: 1080 },

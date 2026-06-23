@@ -291,9 +291,15 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         onRecordingFinished(mapOf("path" to path, "uri" to "file://$path"))
       },
       onFailed = { msg ->
-        onRecordingError(mapOf("message" to msg))
+        pendingStartRecording = false
         if (recording) {
           recording = false
+        } else {
+          activeSession.stopRecording()
+        }
+        onRecordingError(mapOf("message" to msg))
+        post {
+          previewView.post { activeSession.refreshPreviewSurface() }
         }
       },
     )

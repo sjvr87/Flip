@@ -33,12 +33,7 @@ data class ResolvedCaptureProfile(
       "tier" to tier.name.lowercase(),
       "quality" to qualityLabel,
       "badge" to badgeLabel,
-      "resolution" to
-        if (tier == CaptureTier.FLAGSHIP) {
-          "${previewWidth}x${previewHeight} preview · UHD capture"
-        } else {
-          "${previewWidth}x${previewHeight}"
-        },
+      "resolution" to "${previewWidth}x${previewHeight}",
       "targetFps" to targetFps,
       "videoBitrate" to videoBitrate,
       "videoStabilization" to true,
@@ -50,11 +45,12 @@ data class ResolvedCaptureProfile(
 
 object FlipCaptureProfile {
   const val TARGET_FPS = 60
-  const val FLAGSHIP_BITRATE = 45_000_000
+  /** 1080p60 on flagship — 4K60 encoder OOMs / stalls on Samsung stacks. */
+  const val FLAGSHIP_BITRATE = 18_000_000
   const val STANDARD_BITRATE = 12_000_000
   const val STANDARD_PREVIEW_WIDTH = 1920
   const val STANDARD_PREVIEW_HEIGHT = 1080
-  /** Preview stays 1080p — 4K TextureView preview OOMs / fails bind on Samsung stacks. */
+  /** Preview + capture stay 1080p — 4K preview/encode OOMs / stalls on Samsung stacks. */
   const val FLAGSHIP_PREVIEW_WIDTH = STANDARD_PREVIEW_WIDTH
   const val FLAGSHIP_PREVIEW_HEIGHT = STANDARD_PREVIEW_HEIGHT
 
@@ -114,13 +110,13 @@ object FlipCaptureProfile {
   private fun buildFlagshipProfile(prefersHevc: Boolean): ResolvedCaptureProfile {
     val qualitySelector =
       QualitySelector.fromOrderedList(
-        listOf(Quality.UHD, Quality.FHD),
-        FallbackStrategy.lowerQualityOrHigherThan(Quality.FHD),
+        listOf(Quality.FHD),
+        FallbackStrategy.higherQualityOrLowerThan(Quality.FHD),
       )
     return ResolvedCaptureProfile(
       tier = CaptureTier.FLAGSHIP,
-      qualityLabel = "UHD",
-      badgeLabel = "4K60 · OIS",
+      qualityLabel = "FHD",
+      badgeLabel = "1080p60 · OIS",
       previewWidth = FLAGSHIP_PREVIEW_WIDTH,
       previewHeight = FLAGSHIP_PREVIEW_HEIGHT,
       videoBitrate = FLAGSHIP_BITRATE,

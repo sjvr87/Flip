@@ -6,7 +6,7 @@ import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability'
 import { PressableHaptics } from '@/components/ui/PressableHaptics'
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare'
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore'
-import { FlipCamerawesomeView, getCaptureProfile, type CaptureProfile } from 'flip-camerawesome'
+import { FlipCamerawesomeView } from 'flip-camerawesome'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router'
@@ -22,13 +22,30 @@ import {
   View,
 } from 'react-native'
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
-import Reanimated, { runOnJS, useSharedValue, withSpring } from 'react-native-reanimated'
+import Reanimated, {
+  cancelAnimation,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated'
 
 type Props = {
   onClose?: () => void
 }
 
 type AndroidPermissionState = 'unknown' | 'granted' | 'denied' | 'blocked'
+
+const ZOOM_MIN = 1
+const ZOOM_MAX = 10
+const ZOOM_RAIL_HEIGHT = 176
+const ZOOM_RAIL_THUMB = 10
+
+function formatZoomLabel(value: number) {
+  return value < 1.5 ? '1x' : `${value.toFixed(1)}x`
+}
 
 function mapPermissionResult(
   granted: boolean,
@@ -82,16 +99,16 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video')
   const [photoRequestId, setPhotoRequestId] = useState(0)
-  const [captureBadge, setCaptureBadge] = useState<string | null>(null)
-
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const recordingRef = useRef(false)
 
   const zoom = useSharedValue(1)
   const zoomOffset = useSharedValue(1)
-  const minZoom = 1
-  const maxZoom = 10
+  const zoomRailStartY = useSharedValue(0)
+  const zoomRailStartZoom = useSharedValue(1)
+  const zoomIndicatorOpacity = useSharedValue(0)
   const [zoomLevel, setZoomLevel] = useState(1)
+  const [zoomText, setZoomText] = useState('1x')
 
   const { thumbUri: galleryThumbUri, reload: reloadGalleryThumb } = useRecentGalleryThumb()
   const pendingRemix = usePendingAudioReuseStore((s) => s.pending)
@@ -108,9 +125,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   useEffect(() => {
     grantPermissions()
-    getCaptureProfile()
-      .then((profile: CaptureProfile) => setCaptureBadge(profile.badge))
-      .catch(() => undefined)
   }, [grantPermissions])
 
   useFocusEffect(
@@ -131,7 +145,11 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
   )
 
   useEffect(() => {
-    const interval = setInterval(() => setZoomLevel(zoom.value), 50)
+    const interval = setInterval(() => {
+      const value = zoom.value
+      setZoomLevel(value)
+      setZoomText(formatZoomLabel(value))
+    }, 50)
     return () => clearInterval(interval)
   }, [zoom])
 
@@ -215,14 +233,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     setPhotoRequestId((id) => id + 1)
   }, [isCameraReady, isRecording, captureMode])
 
-  const adjustZoom = useCallback(
-    (delta: number) => {
-      const next = Math.max(minZoom, Math.min(maxZoom, zoomLevel + delta))
-      zoom.value = next
-    },
-    [zoom, zoomLevel, minZoom, maxZoom],
-  )
-
   const handleClose = () => {
     if (isRecording) stopRecording()
     clearPendingRemix()
@@ -251,17 +261,36 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   const clampZoom = (value: number) => {
     'worklet'
-    return Math.max(minZoom, Math.min(value, maxZoom))
+    return Math.max(ZOOM_MIN, Math.min(value, ZOOM_MAX))
+  }
+
+  const revealZoomIndicator = () => {
+    'worklet'
+    cancelAnimation(zoomIndicatorOpacity)
+    zoomIndicatorOpacity.value = withTiming(1, { duration: 150 })
+  }
+
+  const hideZoomIndicatorSoon = () => {
+    'worklet'
+    cancelAnimation(zoomIndicatorOpacity)
+    zoomIndicatorOpacity.value = withDelay(1500, withTiming(0, { duration: 200 }))
   }
 
   const pinchGesture = Gesture.Pinch()
     .onBegin(() => {
       'worklet'
       zoomOffset.value = zoom.value
+      revealZoomIndicator()
     })
     .onUpdate((event) => {
       'worklet'
       zoom.value = clampZoom(zoomOffset.value * event.scale)
+      cancelAnimation(zoomIndicatorOpacity)
+      zoomIndicatorOpacity.value = 1
+    })
+    .onEnd(() => {
+      'worklet'
+      hideZoomIndicatorSoon()
     })
 
   const doubleTapGesture = Gesture.Tap()
@@ -269,6 +298,29 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     .onEnd(() => {
       'worklet'
       zoom.value = withSpring(1)
+      revealZoomIndicator()
+      hideZoomIndicatorSoon()
+    })
+
+  const zoomRailGesture = Gesture.Pan()
+    .activeOffsetY([-6, 6])
+    .onBegin((event) => {
+      'worklet'
+      zoomRailStartY.value = event.absoluteY
+      zoomRailStartZoom.value = zoom.value
+      revealZoomIndicator()
+    })
+    .onUpdate((event) => {
+      'worklet'
+      const deltaY = zoomRailStartY.value - event.absoluteY
+      const zoomDelta = (deltaY / ZOOM_RAIL_HEIGHT) * (ZOOM_MAX - ZOOM_MIN)
+      zoom.value = clampZoom(zoomRailStartZoom.value + zoomDelta)
+      cancelAnimation(zoomIndicatorOpacity)
+      zoomIndicatorOpacity.value = 1
+    })
+    .onEnd(() => {
+      'worklet'
+      hideZoomIndicatorSoon()
     })
 
   const tapVideoGesture = Gesture.Tap()
@@ -287,6 +339,22 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
   const recordButtonGesture = captureMode === 'photo' ? tapPhotoGesture : tapVideoGesture
   const cameraGestures = Gesture.Race(doubleTapGesture, pinchGesture)
+
+  const zoomThumbStyle = useAnimatedStyle(() => {
+    const progress = (zoom.value - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)
+    return {
+      top: (1 - progress) * (ZOOM_RAIL_HEIGHT - ZOOM_RAIL_THUMB),
+    }
+  })
+
+  const zoomRailStyle = useAnimatedStyle(() => ({
+    opacity: 0.28 + zoomIndicatorOpacity.value * 0.52,
+  }))
+
+  const zoomIndicatorStyle = useAnimatedStyle(() => ({
+    opacity: zoomIndicatorOpacity.value,
+    transform: [{ scale: withSpring(zoomIndicatorOpacity.value > 0 ? 1 : 0.85) }],
+  }))
 
   if (permissionState === 'denied' || permissionState === 'blocked') {
     const blocked = permissionState === 'blocked'
@@ -340,10 +408,8 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             recording={isRecording}
             captureMode={captureMode}
             photoRequestId={photoRequestId}
-            onCameraReady={(e) => {
+            onCameraReady={() => {
               setIsCameraReady(true)
-              const badge = e.nativeEvent.profile?.badge
-              if (badge) setCaptureBadge(badge)
               if (__DEV__ && remixReferenceUrl) {
                 console.log('[FlipCamera] ready; remix url:', remixReferenceUrl.slice(0, 80))
               }
@@ -362,9 +428,10 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
               Alert.alert('Photo error', e.nativeEvent.message)
             }}
             onRecordingError={(e) => {
-              Alert.alert('Recording error', e.nativeEvent.message)
-              setIsRecording(false)
               recordingRef.current = false
+              setIsRecording(false)
+              setRecordingDuration(0)
+              Alert.alert('Recording error', e.nativeEvent.message)
             }}
             onCameraError={(e) => {
               Alert.alert('Camera error', e.nativeEvent.message)
@@ -401,13 +468,21 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             </PressableHaptics>
           </View>
         ) : (
-          <View style={styles.topButton}>
-            {captureBadge ? (
-              <Text style={styles.profileBadge}>{captureBadge}</Text>
-            ) : null}
-          </View>
+          <View style={styles.topButton} />
         )}
       </View>
+
+      <GestureDetector gesture={zoomRailGesture}>
+        <Reanimated.View style={styles.zoomRailHitArea}>
+          <Reanimated.View style={[styles.zoomRailTrack, zoomRailStyle]}>
+            <Reanimated.View style={[styles.zoomRailThumb, zoomThumbStyle]} />
+          </Reanimated.View>
+        </Reanimated.View>
+      </GestureDetector>
+
+      <Reanimated.View style={[styles.zoomIndicator, zoomIndicatorStyle]} pointerEvents="none">
+        <Text style={styles.zoomText}>{zoomText}</Text>
+      </Reanimated.View>
 
       <View style={styles.rightControls}>
         <PressableHaptics
@@ -426,14 +501,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         >
           <Ionicons name={flash ? 'flash' : 'flash-off'} size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={styles.zoomControls}>
-          <TouchableOpacity onPress={() => adjustZoom(-0.5)} style={styles.zoomButton}>
-            <Ionicons name="remove" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => adjustZoom(0.5)} style={styles.zoomButton}>
-            <Ionicons name="add" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.modeBar}>
@@ -552,12 +619,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  profileBadge: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
   remixBanner: {
     flex: 1,
     flexDirection: 'row',
@@ -583,7 +644,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 2,
   },
-  rightControls: { position: 'absolute', right: 12, top: '35%', zIndex: 10, gap: 20 },
+  rightControls: { position: 'absolute', right: 28, top: '35%', zIndex: 10, gap: 20 },
+  zoomRailHitArea: {
+    position: 'absolute',
+    right: 0,
+    top: '40%',
+    width: 44,
+    height: ZOOM_RAIL_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9,
+  },
+  zoomRailTrack: {
+    width: 3,
+    height: ZOOM_RAIL_HEIGHT,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    justifyContent: 'flex-start',
+  },
+  zoomRailThumb: {
+    position: 'absolute',
+    left: -((ZOOM_RAIL_THUMB - 3) / 2),
+    width: ZOOM_RAIL_THUMB,
+    height: ZOOM_RAIL_THUMB,
+    borderRadius: ZOOM_RAIL_THUMB / 2,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  zoomIndicator: {
+    position: 'absolute',
+    top: '44%',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    zIndex: 11,
+  },
+  zoomText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   controlButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   bottomContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: 40 },
   recordingIndicator: {
@@ -642,15 +744,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0085ff',
   },
   recordHint: { color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' },
-  zoomControls: { gap: 8, marginTop: 8 },
-  zoomButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   modeBar: {
     position: 'absolute',
     bottom: 150,

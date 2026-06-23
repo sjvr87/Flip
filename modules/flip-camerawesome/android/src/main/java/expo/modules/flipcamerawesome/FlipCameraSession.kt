@@ -31,7 +31,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * CameraX session with flagship (UHD60 @ 45 Mbps) and standard (FHD60 @ 12 Mbps) tiers.
+ * CameraX session with flagship (FHD60 @ 18 Mbps) and standard (FHD60 @ 12 Mbps) tiers.
  */
 class FlipCameraSession(
   private val previewView: PreviewView,
@@ -197,8 +197,12 @@ class FlipCameraSession(
     }
 
     if (isRecording()) {
-      onFailed("Already recording")
-      return
+      Log.w(TAG, "startRecording: stale recording state — recovering before retry")
+      recoverAfterRecordingFailure()
+      if (isRecording()) {
+        onFailed("Already recording")
+        return
+      }
     }
 
     val generation = ++recordingGeneration
@@ -261,13 +265,16 @@ class FlipCameraSession(
                 }
                 schedulePreviewRefresh()
                 if (event.hasError()) {
-                  mainExecutor.execute {
-                    onFailed("Recording error: ${event.error}")
-                  }
+                  notifyRecordingFailed(
+                    generation,
+                    onFailed,
+                    "Recording error: ${event.error}",
+                  )
                 } else {
                   mainExecutor.execute {
                     onFinished(outputFile.absolutePath)
                   }
+                  schedulePostFinalizeRebind()
                 }
               }
               else -> Unit
@@ -280,7 +287,6 @@ class FlipCameraSession(
               if (generation != recordingGeneration) return@postDelayed
               if (activeRecording == null && recordingStarting) {
                 Log.e(TAG, "Recording start timed out after ${RECORDING_START_TIMEOUT_MS}ms")
-                ++recordingGeneration
                 recordingStarting = false
                 pausePreviewRefresh = false
                 try {
@@ -288,8 +294,11 @@ class FlipCameraSession(
                 } catch (e: Exception) {
                   Log.w(TAG, "Recording timeout: stop failed", e)
                 }
-                schedulePreviewRefresh()
-                onFailed("Recording failed to start (timeout)")
+                notifyRecordingFailed(
+                  generation,
+                  onFailed,
+                  "Recording failed to start (timeout)",
+                )
               }
             },
             RECORDING_START_TIMEOUT_MS,
@@ -311,10 +320,11 @@ class FlipCameraSession(
         recordingStarting = false
         Log.e(TAG, "startRecording failed", e)
         if (generation == recordingGeneration) {
-          mainExecutor.execute {
-            schedulePreviewRefresh()
-            onFailed(e.message ?: "Recording failed to start")
-          }
+          notifyRecordingFailed(
+            generation,
+            onFailed,
+            e.message ?: "Recording failed to start",
+          )
         }
       }
     }
@@ -330,10 +340,52 @@ class FlipCameraSession(
     schedulePreviewRefresh()
   }
 
+  /**
+   * Full CameraX rebind after a recording failure — surface-only refresh leaves a dead preview
+   * and a stale Recorder that blocks the next start on Samsung stacks.
+   */
+  fun recoverAfterRecordingFailure() {
+    Log.w(TAG, "recoverAfterRecordingFailure: rebinding camera")
+    clearRecordingBeforeRebind()
+    if (!rebindCamera()) {
+      Log.e(TAG, "recoverAfterRecordingFailure: rebind failed")
+    }
+    schedulePreviewRefresh()
+  }
+
+  private fun notifyRecordingFailed(
+    generation: Int,
+    onFailed: (String) -> Unit,
+    message: String,
+  ) {
+    mainExecutor.execute {
+      if (generation != recordingGeneration) return@execute
+      recoverAfterRecordingFailure()
+      onFailed(message)
+    }
+  }
+
   /** Re-attach preview surface after recording ends or is cancelled (unfreezes TextureView). */
   private fun schedulePreviewRefresh() {
     mainExecutor.execute {
       previewView.post { refreshPreviewSurface() }
+    }
+  }
+
+  /** Encoder teardown after a successful clip — prevents stale Recorder on the next start. */
+  private fun schedulePostFinalizeRebind() {
+    mainExecutor.execute {
+      previewView.postDelayed(
+        {
+          if (isRecording() || pausePreviewRefresh || cameraProvider == null) return@postDelayed
+          Log.d(TAG, "post-finalize rebind for next record")
+          if (!rebindCamera()) {
+            Log.w(TAG, "post-finalize rebind failed")
+          }
+          schedulePreviewRefresh()
+        },
+        300,
+      )
     }
   }
 
@@ -384,8 +436,9 @@ class FlipCameraSession(
     ++recordingGeneration
     recordingStarting = false
     pausePreviewRefresh = false
-    val recording = activeRecording ?: return
+    val recording = activeRecording
     activeRecording = null
+    if (recording == null) return
     try {
       recording.stop()
     } catch (e: Exception) {
