@@ -70,6 +70,14 @@ function createMmkvStorage(): AppStorage {
 
     const mmkv = new MMKV();
 
+    const removeKey = (key: string) => {
+        try {
+            mmkv.delete(key);
+        } catch (error) {
+            console.warn('[storage] MMKV delete failed', error);
+        }
+    };
+
     return {
         getString: (key) => {
             try {
@@ -86,20 +94,8 @@ function createMmkvStorage(): AppStorage {
                 console.warn('[storage] MMKV set failed', error);
             }
         },
-        delete: (key) => {
-            try {
-                mmkv.delete(key);
-            } catch (error) {
-                console.warn('[storage] MMKV delete failed', error);
-            }
-        },
-        remove: (key) => {
-            try {
-                mmkv.delete(key);
-            } catch (error) {
-                console.warn('[storage] MMKV delete failed', error);
-            }
-        },
+        delete: removeKey,
+        remove: removeKey,
     };
 }
 
