@@ -39,6 +39,18 @@ export async function waitForOAuthSignIn(): Promise<null> {
     return null;
 }
 
+export function wasOAuthCustomTabExchangeAttempted(): boolean {
+    return false;
+}
+
+export function getOAuthSignInOutcome(): 'success' | 'failed' | null {
+    return null;
+}
+
+export function isStaleOAuthCallbackError(_error: unknown): boolean {
+    return false;
+}
+
 export async function runOAuthSignIn(
     _input: string,
     _options?: unknown,

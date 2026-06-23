@@ -120,9 +120,6 @@ function mapOAuthSignInError(error: unknown): string {
     if (raw.includes('Unknown authorization session')) {
         return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
     }
-    if (raw.includes('Duplicate OAuth callback')) {
-        return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
-    }
     if (raw.includes('Duplicate OAuth callback after Custom Tab exchange')) {
         return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
     }
