@@ -1,19 +1,27 @@
 {
+  "approvalMode": "unrestricted",
   "mcpAllowlist": ["*:*"],
   "terminalAllowlist": [
+    "*",
     "git",
     "npm",
+    "npm:*",
     "npx",
+    "npx:*",
     "node",
     "gh",
+    "gh:*",
     "adb",
+    "adb:*",
     "powershell",
     "pwsh",
     "curl",
     "gradle",
     "./gradlew",
+    "gradlew",
     "flip-*",
     "expo",
+    "npx:expo",
     "metro",
     "heroku",
     "python",
@@ -52,41 +60,29 @@
     "taskkill",
     "netstat",
     "ipconfig",
-    "ping"
+    "ping",
+    "eas"
   ],
   "autoRun": {
     "allow_instructions": [
-      "All development work for Flip project",
-      "git pull, git push, git checkout, git merge",
-      "npm install, npm run (all scripts)",
-      "adb devices, adb reverse, adb shell, adb push, adb pull",
-      "gradle build, ./gradlew",
-      "expo prebuild, expo run:android, expo start",
-      "Metro bundler operations",
-      "Android native builds and rebuilds",
-      "Device testing and app launching",
-      "flip-*.bat script execution",
-      "GitHub CLI (gh pr, gh issue)",
-      "Full sandbox disable (required_permissions: all)",
-      "Network calls and file writes within workspace"
+      "The user wants zero approval cards — just run and that's it.",
+      "All development work for the Flip React Native / Expo project on Windows.",
+      "Auto-allow all flip-*.bat scripts: flip-dev.bat, flip-dev-restart.bat, flip-connect.bat, flip-reload.bat, flip-reset-dev.bat, flip-sync.bat, flip-reconnect.bat, flip-beta.bat.",
+      "Auto-allow npm scripts: dev:connect, dev:connect:only, dev:connect:reload, dev:connect:restart, dev:connect:reset, start:clear, start:lan, flip:dev, android:dev, android:build, android:prebuild, android:gradle, beta:build.",
+      "Auto-allow scripts/dev-connect.ps1, scripts/Start-FlipDev.ps1, scripts/Start-FlipBeta.ps1, and scripts/android-build.js.",
+      "Auto-allow Metro on port 8081, expo start --dev-client, and adb reverse tcp:8081 tcp:8081.",
+      "Auto-allow git pull, git push, git checkout, git merge, git commit, git status, git diff.",
+      "Auto-allow npm install, npm run (all scripts), npm.cmd when PowerShell blocks npm.",
+      "Auto-allow adb devices, adb reverse, adb shell, adb push, adb pull.",
+      "Auto-allow gradle build, ./gradlew, expo prebuild, expo run:android, expo start.",
+      "Auto-allow gh pr, gh issue, gh api, and all GitHub CLI operations.",
+      "Auto-allow required_permissions all for Windows dev builds, adb, Gradle, Metro, and git on first attempt.",
+      "Auto-allow network calls, MCP tools, and file writes within the workspace."
     ],
     "block_instructions": [
-      "Do NOT commit secrets (.env files, API keys, credentials)",
-      "Do NOT force push to main or master branches",
-      "Do NOT delete critical files without confirmation"
-    ]
-  },
-  "projectContext": {
-    "name": "Flip",
-    "description": "React Native Bluesky client (Android dev with Expo, MMKV, OAuth)",
-    "devScripts": [
-      "flip-dev.bat — git pull + adb + Metro + launch",
-      "flip-reset-dev.bat — kill Metro, clear cache, fresh start",
-      "flip-reconnect.bat — post-crash recovery",
-      "flip-connect.bat — adb + launch (Metro already running)",
-      "flip-reload.bat — JS-only reload (app already running)",
-      "npm run android:dev — native rebuild",
-      "npm run dev:connect:reset — full reset with device testing"
+      "Never auto-allow committing or staging .env, credentials, API keys, or secret files.",
+      "Never auto-allow force push to main or master.",
+      "Never auto-allow destructive git operations unless the user explicitly requested them."
     ]
   }
 }
