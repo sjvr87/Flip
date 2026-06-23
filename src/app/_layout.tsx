@@ -125,7 +125,6 @@ const STARTUP_PLACEHOLDER = <View style={{ flex: 1, backgroundColor: '#000' }} /
 
 /** Expo Go: no Stack.Protected — sign-in or tabs only. */
 function ExpoGoAppContent() {
-    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const [showBanner, setShowBanner] = useState(true);
 
@@ -144,16 +143,13 @@ function ExpoGoAppContent() {
     useEffect(() => {
         if (!hasHydrated) return;
         hideSplash();
-        router.replace(isLoggedIn ? '/(tabs)' : '/sign-in');
-    }, [isLoggedIn, hasHydrated]);
+    }, [hasHydrated]);
 
     return (
         <>
             <ExpoGoStartupBanner visible={showBanner} />
             <ThemedStatusBar />
-            <Stack
-                screenOptions={{ headerShown: false }}
-                initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
+            <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="private" />
@@ -167,30 +163,21 @@ function ExpoGoAppContent() {
 }
 
 /**
- * Web: Stack.Protected re-evaluates guards every render and can loop ContextNavigator
- * (Maximum update depth exceeded). Use a flat Stack + router.replace like Expo Go.
+ * Web: flat Stack (Stack.Protected loops on web). Auth routing via initialRouteName only.
  */
 function WebAppContent() {
-    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
 
     useEffect(() => {
         if (!hasHydrated || !authReady) return;
         hideSplash();
-        router.replace(isLoggedIn ? '/(tabs)' : '/sign-in');
-    }, [isLoggedIn, hasHydrated, authReady]);
-
-    if (!hasHydrated || !authReady) {
-        return STARTUP_PLACEHOLDER;
-    }
+    }, [hasHydrated, authReady]);
 
     return (
         <>
             <ThemedStatusBar />
-            <Stack
-                screenOptions={{ headerShown: false }}
-                initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
+            <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="private" />
@@ -203,23 +190,19 @@ function WebAppContent() {
     );
 }
 
-/**
- * Native: flat Stack + router.replace — same as Web/Expo Go.
- * Stack.Protected drops screens when guards flip and breaks tab/deep-link navigation
- * (dispatch throws "undefined is not a function"; initialRouteName races sign-in).
- */
+/** Native: Stack.Protected gates routes; mount Stack only after authReady (no router.replace). */
 function NativeAppContent() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
+    const shouldCreateAccount = useAuthStore((s) => s.shouldCreateAccount);
 
     useNotificationObserver();
 
     useEffect(() => {
         if (!hasHydrated || !authReady) return;
         hideSplash();
-        router.replace(isLoggedIn ? '/(tabs)' : '/sign-in');
-    }, [isLoggedIn, hasHydrated, authReady]);
+    }, [hasHydrated, authReady]);
 
     if (!hasHydrated || !authReady) {
         return STARTUP_PLACEHOLDER;
@@ -231,13 +214,21 @@ function NativeAppContent() {
             <Stack
                 screenOptions={{ headerShown: false }}
                 initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
-                <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="private" />
-                <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="create-account" />
-                <Stack.Screen name="oauth-callback" />
-                <Stack.Screen name="oauth/callback" />
+                <Stack.Protected guard={isLoggedIn}>
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="private" />
+                    <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+                </Stack.Protected>
+
+                <Stack.Protected guard={!isLoggedIn}>
+                    <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
+                    <Stack.Protected guard={shouldCreateAccount}>
+                        <Stack.Screen name="create-account" />
+                    </Stack.Protected>
+                </Stack.Protected>
+
+                <Stack.Screen name="oauth-callback" options={{ headerShown: false }} />
+                <Stack.Screen name="oauth/callback" options={{ headerShown: false }} />
             </Stack>
         </>
     );

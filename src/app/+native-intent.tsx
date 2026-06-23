@@ -78,6 +78,11 @@ function isMetroOrDevClientUrl(path: string): boolean {
     return false;
 }
 
+function isStaleAppDeepLink(path: string): boolean {
+    const bare = path.replace(/^[a-z0-9.-]+:\/*/i, '').replace(/^\//, '');
+    return bare === 'explore' || bare.startsWith('explore?');
+}
+
 export function redirectSystemPath({
     path,
     initial,
@@ -88,6 +93,9 @@ export function redirectSystemPath({
     try {
         if (!path || isMetroOrDevClientUrl(path)) {
             return initial ? '/' : null;
+        }
+        if (initial && isStaleAppDeepLink(path)) {
+            return '/';
         }
         if (isOAuthCallbackUrl(path)) {
             // Cold start can replay a bare callback intent (no ?code=&state=) and trigger a false error.

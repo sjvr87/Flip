@@ -140,9 +140,33 @@ export const oauthFetch: typeof fetch = ((input: RequestInfo | URL, init?: Reque
 }) as typeof fetch;
 
 /**
- * After OAuth client init, code paths that read globalThis.fetch (identity resolver)
- * must see RN fetch. Call only once OAuth is about to run — not at app bootstrap
- * (breaks metadata preflight and other HTTPS fetches).
+ * Temporarily point globalThis.fetch at RN fetch for code paths that ignore the
+ * OAuthClient `fetch` option (identity resolver). Scoped — does not break expo-router
+ * linking, which relies on expo/fetch remaining on global during navigation init.
+ */
+export function runWithNativeFetchGlobal<T>(fn: () => T): T;
+export function runWithNativeFetchGlobal<T>(fn: () => Promise<T>): Promise<T>;
+export function runWithNativeFetchGlobal<T>(fn: () => T | Promise<T>): T | Promise<T> {
+    const previous = globalThis.fetch;
+    globalThis.fetch = nativeFetch;
+    try {
+        const result = fn();
+        if (result instanceof Promise) {
+            return result.finally(() => {
+                globalThis.fetch = previous;
+            }) as Promise<T>;
+        }
+        globalThis.fetch = previous;
+        return result;
+    } catch (error) {
+        globalThis.fetch = previous;
+        throw error;
+    }
+}
+
+/**
+ * @deprecated Prefer runWithNativeFetchGlobal — permanent global override breaks
+ * expo-router NavigationContainer on Android after OAuth session restore.
  */
 export function installNativeFetchGlobal(): void {
     if (installed || Platform.OS === 'web') return;

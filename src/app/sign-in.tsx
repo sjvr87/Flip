@@ -66,11 +66,6 @@ export default function SignInScreen() {
     const [statusMessage, setStatusMessage] = useState('Signing you in...');
     const biometricAttempted = useRef(false);
 
-    useEffect(() => {
-        if (!hasHydrated || !authReady || !isLoggedIn) return;
-        router.replace('/(tabs)');
-    }, [hasHydrated, authReady, isLoggedIn]);
-
     const runBiometricUnlock = useCallback(async () => {
         setIsLoading(true);
         setStatusMessage('Verifying…');

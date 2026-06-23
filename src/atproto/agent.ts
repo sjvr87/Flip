@@ -10,6 +10,7 @@ import * as SecureStore from 'expo-secure-store';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { getOAuthClient } from './oauthClient';
+import { runWithNativeFetchGlobal } from '@/bootstrap/nativeFetch';
 
 const SESSION_KEY = 'flip.atproto.session';
 const SERVICE_KEY = 'flip.atproto.service';
@@ -125,7 +126,9 @@ async function refreshAgentSession(a: BskyAgent): Promise<void> {
 export async function tryRefreshSession(): Promise<boolean> {
     if (oauthAgent && oauthDid) {
         try {
-            const session = await getOAuthClient().restore(oauthDid, true);
+            const session = await runWithNativeFetchGlobal(() =>
+                getOAuthClient().restore(oauthDid, true),
+            );
             setOAuthSession(session);
             return true;
         } catch (error) {
@@ -362,7 +365,7 @@ export async function resumeOAuthSession(): Promise<boolean> {
     if (!did) return false;
 
     try {
-        const session = await getOAuthClient().restore(did);
+        const session = await runWithNativeFetchGlobal(() => getOAuthClient().restore(did));
         setOAuthSession(session, readOAuthHandle());
         console.warn('[auth] OAuth session restored for', did);
         return true;

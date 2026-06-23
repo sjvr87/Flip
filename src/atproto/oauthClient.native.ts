@@ -4,7 +4,7 @@ import { OAuthClient, type OAuthSession } from '@atproto/oauth-client';
 const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
 const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
-import { installNativeFetchGlobal, nativeFetch, oauthFetch } from '@/bootstrap/nativeFetch';
+import { nativeFetch, oauthFetch, runWithNativeFetchGlobal } from '@/bootstrap/nativeFetch';
 import { getOAuthClientMetadata } from './oauthClientMetadata';
 
 import {
@@ -274,7 +274,7 @@ export async function completeOAuthCallback(
 
     const oauthClient = getOAuthClient();
     const redirectUri = getCustomRedirectUri(oauthClient);
-    return exchangeOAuthCallback(oauthClient, params, redirectUri);
+    return runWithNativeFetchGlobal(() => exchangeOAuthCallback(oauthClient, params, redirectUri));
 }
 
 export function isOAuthSignInInFlight(): boolean {
@@ -373,7 +373,6 @@ export function getOAuthClient(): FlipExpoOAuthClient {
     }
     if (!client) {
         try {
-            installNativeFetchGlobal();
             client = new FlipExpoOAuthClient({
                 handleResolver: 'https://bsky.social',
                 clientMetadata: getOAuthClientMetadata(),
@@ -409,34 +408,36 @@ export async function runOAuthSignIn(
     oauthCustomTabExchangeAttempted = false;
     oauthSignInOutcome = null;
 
-    oauthSignInFlight = (async () => {
-        let lastError: unknown;
-        for (let attempt = 0; attempt <= OAUTH_DPOP_RETRY_MAX; attempt++) {
-            try {
-                // loginWithOAuth resets before calling us; only reset again on DPoP retry.
-                if (attempt > 0) {
-                    await resetOAuthClient({ force: true });
-                }
-                const oauthClient = getOAuthClient();
-                const session = await oauthClient.signIn(input, options);
-                oauthSignInOutcome = 'success';
-                return session;
-            } catch (error) {
-                lastError = error;
-                if (!isDpopNonceOAuthError(error) || attempt === OAUTH_DPOP_RETRY_MAX) {
-                    oauthSignInOutcome = 'failed';
-                    throw error;
-                }
-                if (__DEV__) {
-                    console.warn(
-                        `[auth] DPoP nonce mismatch on OAuth sign-in (attempt ${attempt + 1}); resetting`,
-                    );
+    oauthSignInFlight = runWithNativeFetchGlobal(() =>
+        (async () => {
+            let lastError: unknown;
+            for (let attempt = 0; attempt <= OAUTH_DPOP_RETRY_MAX; attempt++) {
+                try {
+                    // loginWithOAuth resets before calling us; only reset again on DPoP retry.
+                    if (attempt > 0) {
+                        await resetOAuthClient({ force: true });
+                    }
+                    const oauthClient = getOAuthClient();
+                    const session = await oauthClient.signIn(input, options);
+                    oauthSignInOutcome = 'success';
+                    return session;
+                } catch (error) {
+                    lastError = error;
+                    if (!isDpopNonceOAuthError(error) || attempt === OAUTH_DPOP_RETRY_MAX) {
+                        oauthSignInOutcome = 'failed';
+                        throw error;
+                    }
+                    if (__DEV__) {
+                        console.warn(
+                            `[auth] DPoP nonce mismatch on OAuth sign-in (attempt ${attempt + 1}); resetting`,
+                        );
+                    }
                 }
             }
-        }
-        oauthSignInOutcome = 'failed';
-        throw lastError;
-    })().finally(() => {
+            oauthSignInOutcome = 'failed';
+            throw lastError;
+        })(),
+    ).finally(() => {
         oauthSignInFlight = null;
     });
     return oauthSignInFlight;
