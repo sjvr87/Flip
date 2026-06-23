@@ -72,6 +72,19 @@ export function hasOAuthCallbackParams(params: URLSearchParams): boolean {
     return params.has('code') || params.has('state') || params.has('error');
 }
 
+/** True when a deep-link path or URL includes OAuth callback query (code, state, or error). */
+export function hasOAuthCallbackQueryInPath(path: string): boolean {
+    if (!path) return false;
+    try {
+        const normalized = path.includes(':/') ? path : `flip:${path}`;
+        return hasOAuthCallbackParams(searchParamsFromCallbackUrl(normalized));
+    } catch {
+        const queryStart = path.indexOf('?');
+        if (queryStart < 0) return false;
+        return hasOAuthCallbackParams(new URLSearchParams(path.slice(queryStart + 1)));
+    }
+}
+
 /** Resolve callback query from expo-router params and/or the system deep link URL. */
 export async function resolveOAuthCallbackSearchParams(
     routeParams: Record<string, string | string[] | undefined>,

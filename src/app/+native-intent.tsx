@@ -9,6 +9,8 @@
  * net.jsdelivr.cdn:/oauth/callback — map to the expo-router screen at /oauth/callback.
  */
 
+import { hasOAuthCallbackQueryInPath } from '@/atproto/oauthCallbackUrl';
+
 const OAUTH_CALLBACK_PATHS = new Set(['/oauth/callback', '/oauth-callback']);
 
 function isOAuthCallbackUrl(path: string): boolean {
@@ -88,6 +90,10 @@ export function redirectSystemPath({
             return initial ? '/' : null;
         }
         if (isOAuthCallbackUrl(path)) {
+            // Cold start can replay a bare callback intent (no ?code=&state=) and trigger a false error.
+            if (initial && !hasOAuthCallbackQueryInPath(path)) {
+                return '/';
+            }
             return oauthCallbackRoute(path);
         }
         return path;

@@ -1,5 +1,13 @@
 import { completeOAuthRedirect, getCurrentServer } from '@/atproto/auth';
-import { isOAuthSignInInFlight, waitForOAuthSignIn } from '@/atproto/oauthClient';
+import {
+    hasOAuthCallbackParams,
+    resolveOAuthCallbackSearchParams,
+} from '@/atproto/oauthCallbackUrl';
+import {
+    isOAuthSignInInFlight,
+    resetOAuthClient,
+    waitForOAuthSignIn,
+} from '@/atproto/oauthClient';
 import { clearCredentials } from '@/atproto/credentialVault';
 import { resetAuthFailureFlag } from '@/utils/requests';
 import { useAuthStore } from '@/utils/authStore';
@@ -53,11 +61,22 @@ export default function OAuthCallbackScreen() {
             return;
         }
 
+        const routeParams = params as Record<string, string | string[] | undefined>;
+        const { searchParams } = await resolveOAuthCallbackSearchParams(routeParams, linkingUrl);
+
+        if (!hasOAuthCallbackParams(searchParams)) {
+            if (__DEV__) {
+                console.warn(
+                    '[auth] Stale OAuth callback deep link (no code/state); redirecting to sign-in',
+                );
+            }
+            await resetOAuthClient();
+            router.replace('/sign-in');
+            return;
+        }
+
         try {
-            const user = await completeOAuthRedirect(
-                params as Record<string, string | string[] | undefined>,
-                linkingUrl,
-            );
+            const user = await completeOAuthRedirect(routeParams, linkingUrl);
             await clearCredentials();
             useAuthStore.setState({
                 requireBiometric: false,
