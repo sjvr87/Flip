@@ -90,9 +90,10 @@ function tierFromNetInfo(state: NetInfoState | null): FeedNetworkTier {
     }
 
     if (type === 'cellular') {
-        const gen = state.details && 'cellularGeneration' in state.details
-            ? state.details.cellularGeneration
-            : null;
+        const gen =
+            state.details && 'cellularGeneration' in state.details
+                ? state.details.cellularGeneration
+                : null;
         if (gen === '2g' || gen === '3g') {
             return 'slow';
         }
@@ -143,7 +144,9 @@ export function getFeedNetworkProfile(): FeedNetworkProfile {
     return currentProfile;
 }
 
-export function subscribeFeedNetworkProfile(listener: (profile: FeedNetworkProfile) => void): () => void {
+export function subscribeFeedNetworkProfile(
+    listener: (profile: FeedNetworkProfile) => void,
+): () => void {
     listeners.add(listener);
     listener(currentProfile);
     return () => listeners.delete(listener);

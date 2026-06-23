@@ -30,7 +30,12 @@ import {
     subscribeFeedNetworkProfile,
     type FeedNetworkProfile,
 } from '@/utils/feedNetworkQuality';
-import { onFeedTabChanged, pauseAllFeedPlayers, releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import {
+    onFeedTabChanged,
+    pauseAllFeedPlayers,
+    releaseAllFeedPlayers,
+    setFeedPlaybackActive,
+} from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -370,20 +375,10 @@ export default function LoopsFeed({ navigation }) {
         },
     });
 
-    const rawVideos = useMemo(
-        () => data?.pages?.flatMap((page) => page.data) ?? [],
-        [data?.pages],
-    );
-    const videos = useMemo(
-        () => dedupeFeedVideos(rawVideos, activeTab),
-        [rawVideos, activeTab],
-    );
+    const rawVideos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
+    const videos = useMemo(() => dedupeFeedVideos(rawVideos, activeTab), [rawVideos, activeTab]);
     const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
-    const feedExhausted =
-        !isLoading &&
-        !isFetchingNextPage &&
-        !hasNextPage &&
-        videos.length > 0;
+    const feedExhausted = !isLoading && !isFetchingNextPage && !hasNextPage && videos.length > 0;
     const feedDedupeExhausted =
         !isLoading &&
         !isFetchingNextPage &&
@@ -454,7 +449,9 @@ export default function LoopsFeed({ navigation }) {
 
     const refreshFeedIfStale = useCallback(
         (tab: string, epoch: number) => {
-            const state = queryClient.getQueryState(feedVideosQueryKey(tab as FeedTab, epoch, viewerDid));
+            const state = queryClient.getQueryState(
+                feedVideosQueryKey(tab as FeedTab, epoch, viewerDid),
+            );
             if (!state?.data || state.fetchStatus === 'fetching') {
                 return;
             }
@@ -751,7 +748,14 @@ export default function LoopsFeed({ navigation }) {
             }
         }
         prefetchThumbnails(thumbUrls);
-    }, [currentIndex, videos, feedPlaybackEnabled, networkProfile.tier, networkProfile.prefetchAhead, networkProfile.playerPreloadDistance]);
+    }, [
+        currentIndex,
+        videos,
+        feedPlaybackEnabled,
+        networkProfile.tier,
+        networkProfile.prefetchAhead,
+        networkProfile.playerPreloadDistance,
+    ]);
 
     useEffect(() => {
         if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
@@ -763,22 +767,38 @@ export default function LoopsFeed({ navigation }) {
         }
         const nextUrl = videos[1]?.media?.src_url;
         prefetchVideoUrls(nextUrl ? [nextUrl] : []);
-    }, [activeTab, videos.length, feedPlaybackEnabled, networkProfile.tier, networkProfile.prefetchAhead, currentIndex]);
+    }, [
+        activeTab,
+        videos.length,
+        feedPlaybackEnabled,
+        networkProfile.tier,
+        networkProfile.prefetchAhead,
+        currentIndex,
+    ]);
 
-    const handleLike = useCallback((videoId: string, liked: boolean) => {
-        const dir = liked ? 'like' : 'unlike';
-        videoLikeMutation.mutate({ type: dir, id: videoId });
-    }, [videoLikeMutation]);
+    const handleLike = useCallback(
+        (videoId: string, liked: boolean) => {
+            const dir = liked ? 'like' : 'unlike';
+            videoLikeMutation.mutate({ type: dir, id: videoId });
+        },
+        [videoLikeMutation],
+    );
 
-    const handleBookmark = useCallback((videoId: string, bookmarked: boolean) => {
-        const dir = bookmarked ? 'bookmark' : 'unbookmark';
-        videoBookmarkMutation.mutate({ type: dir, id: videoId });
-    }, [videoBookmarkMutation]);
+    const handleBookmark = useCallback(
+        (videoId: string, bookmarked: boolean) => {
+            const dir = bookmarked ? 'bookmark' : 'unbookmark';
+            videoBookmarkMutation.mutate({ type: dir, id: videoId });
+        },
+        [videoBookmarkMutation],
+    );
 
-    const handleRepost = useCallback((videoId: string, reposted: boolean) => {
-        const dir = reposted ? 'repost' : 'unrepost';
-        videoRepostMutation.mutate({ type: dir, id: videoId });
-    }, [videoRepostMutation]);
+    const handleRepost = useCallback(
+        (videoId: string, reposted: boolean) => {
+            const dir = reposted ? 'repost' : 'unrepost';
+            videoRepostMutation.mutate({ type: dir, id: videoId });
+        },
+        [videoRepostMutation],
+    );
 
     const handleComment = useCallback((video: FlipVideo) => {
         setSelectedVideo(video);
@@ -1009,49 +1029,49 @@ export default function LoopsFeed({ navigation }) {
             </View>
 
             <FlatList
-                    key={activeTab}
-                    ref={flatListRef}
-                    style={styles.feedList}
-                    data={videosWithEnd}
-                    extraData={currentIndex}
-                    renderItem={renderItem}
-                    keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                    pagingEnabled
-                    showsVerticalScrollIndicator={false}
-                    {...(Platform.OS === 'ios'
-                        ? {
-                              snapToInterval: feedHeight,
-                              snapToAlignment: 'start' as const,
-                              decelerationRate: 'fast' as const,
-                          }
-                        : {})}
-                    scrollEventThrottle={16}
-                    overScrollMode="never"
-                    viewabilityConfig={viewabilityConfig.current}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    onEndReached={handleEndReached}
-                    onEndReachedThreshold={0.5}
-                    getItemLayout={getItemLayout}
-                    removeClippedSubviews={Platform.OS !== 'android'}
-                    maxToRenderPerBatch={feedMaxToRenderPerBatch}
-                    windowSize={feedFlatListWindowSize}
-                    initialNumToRender={feedInitialNumToRender}
-                    updateCellsBatchingPeriod={50}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            progressViewOffset={insets.top + 60}
-                        />
-                    }
-                    ListFooterComponent={
-                        isFetchingNextPage ? (
-                            <View style={[styles.footer, { height: feedHeight }]}>
-                                <ActivityIndicator size="large" color="#fff" />
-                            </View>
-                        ) : null
-                    }
-                />
+                key={activeTab}
+                ref={flatListRef}
+                style={styles.feedList}
+                data={videosWithEnd}
+                extraData={currentIndex}
+                renderItem={renderItem}
+                keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
+                pagingEnabled
+                showsVerticalScrollIndicator={false}
+                {...(Platform.OS === 'ios'
+                    ? {
+                          snapToInterval: feedHeight,
+                          snapToAlignment: 'start' as const,
+                          decelerationRate: 'fast' as const,
+                      }
+                    : {})}
+                scrollEventThrottle={16}
+                overScrollMode="never"
+                viewabilityConfig={viewabilityConfig.current}
+                onViewableItemsChanged={onViewableItemsChanged}
+                onEndReached={handleEndReached}
+                onEndReachedThreshold={0.5}
+                getItemLayout={getItemLayout}
+                removeClippedSubviews={Platform.OS !== 'android'}
+                maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                windowSize={feedFlatListWindowSize}
+                initialNumToRender={feedInitialNumToRender}
+                updateCellsBatchingPeriod={50}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        progressViewOffset={insets.top + 60}
+                    />
+                }
+                ListFooterComponent={
+                    isFetchingNextPage ? (
+                        <View style={[styles.footer, { height: feedHeight }]}>
+                            <ActivityIndicator size="large" color="#fff" />
+                        </View>
+                    ) : null
+                }
+            />
 
             <CommentsModal
                 visible={showComments}

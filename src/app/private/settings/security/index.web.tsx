@@ -1,8 +1,4 @@
-import {
-    Divider,
-    SectionHeader,
-    SettingsItem,
-} from '@/components/settings/Stack';
+import { Divider, SectionHeader, SettingsItem } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Stack, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';

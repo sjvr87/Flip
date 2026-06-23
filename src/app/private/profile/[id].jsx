@@ -28,7 +28,12 @@ import {
     unfollowAccount,
     usesAtprotoBackend,
 } from '@/utils/requests';
-import { decodeRouteParam, toPlaylistFeedRoute, toPostViewPath, toProfileFeedPath } from '@/utils/profileNavigation';
+import {
+    decodeRouteParam,
+    toPlaylistFeedRoute,
+    toPostViewPath,
+    toProfileFeedPath,
+} from '@/utils/profileNavigation';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -90,9 +95,7 @@ export default function ProfileScreen() {
     } = useQuery({
         queryKey: ['fetchAccount', id?.toString()],
         queryFn: async () => {
-            const res = atproto
-                ? await atprotoFetchAccount(id)
-                : await fetchAccount(id.toString());
+            const res = atproto ? await atprotoFetchAccount(id) : await fetchAccount(id.toString());
             return res.data;
         },
         enabled: !!id,

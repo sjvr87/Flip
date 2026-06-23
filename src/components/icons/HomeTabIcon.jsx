@@ -40,11 +40,7 @@ const RING = {
  * House inside a broken circle — tab bar reference at 30px.
  * Stroke-only line art; tint follows tabBarActiveTintColor / tabBarInactiveTintColor.
  */
-const HomeTabIcon = memo(function HomeTabIcon({
-    size = 30,
-    color = '#000000',
-    focused = false,
-}) {
+const HomeTabIcon = memo(function HomeTabIcon({ size = 30, color = '#000000', focused = false }) {
     const strokeWidth = 1.3;
     const strokeOpacity = focused ? 1 : 0.72;
     const chimneyRadius = 0.58;

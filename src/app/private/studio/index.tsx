@@ -319,8 +319,8 @@ export default function StudioScreen() {
 
     const { data: playlistLimits } = useQuery({
         queryKey: ['studio', 'playlistLimits'],
-        queryFn: () => fetchPlaylistLimits()
-    })
+        queryFn: () => fetchPlaylistLimits(),
+    });
 
     const followers = data?.followers.total ?? 0;
     const followerLabel = followers === 1 ? 'Net follower' : 'Net followers';
@@ -400,7 +400,10 @@ export default function StudioScreen() {
                             onPress={() => {
                                 if (data?.latest_post) {
                                     router.push(
-                                        toProfileFeedPath(data.latest_post.id, data.latest_post.profile_id),
+                                        toProfileFeedPath(
+                                            data.latest_post.id,
+                                            data.latest_post.profile_id,
+                                        ),
                                     );
                                 }
                             }}
@@ -446,7 +449,8 @@ export default function StudioScreen() {
                                 <View style={tw`flex-row items-center mr-4`}>
                                     <Text
                                         style={tw`ml-1 text-base font-bold text-gray-700 dark:text-gray-300`}>
-                                        {  playlistLimits?.max_limit - playlistLimits?.slots_available}
+                                        {playlistLimits?.max_limit -
+                                            playlistLimits?.slots_available}
                                     </Text>
                                     <Text
                                         style={tw`ml-1 text-base text-gray-400 dark:text-gray-500`}>

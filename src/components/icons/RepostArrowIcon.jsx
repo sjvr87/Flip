@@ -32,18 +32,8 @@ function RepostArrowSvg({ color, strokeWidth }) {
             height={REPOST_ARROW_DESIGN_SIZE}
             viewBox={VIEWBOX}
             fill="none">
-            <Path
-                d={MAIN_PATH}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                {...STROKE_PROPS}
-            />
-            <Path
-                d={ARROWHEAD_PATH}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                {...STROKE_PROPS}
-            />
+            <Path d={MAIN_PATH} stroke={color} strokeWidth={strokeWidth} {...STROKE_PROPS} />
+            <Path d={ARROWHEAD_PATH} stroke={color} strokeWidth={strokeWidth} {...STROKE_PROPS} />
         </Svg>
     );
 }

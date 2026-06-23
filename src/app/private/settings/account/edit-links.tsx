@@ -160,11 +160,7 @@ export default function EditLinksScreen() {
                     }}
                 />
                 <View style={tw`flex-1 items-center justify-center p-6`}>
-                    <Ionicons
-                        name="link-outline"
-                        size={64}
-                        color={isDark ? '#666' : '#ccc'}
-                    />
+                    <Ionicons name="link-outline" size={64} color={isDark ? '#666' : '#ccc'} />
                     <Text
                         style={tw`text-lg font-semibold text-gray-800 dark:text-gray-200 mt-4 text-center`}>
                         Profile Links Not Available
@@ -219,10 +215,7 @@ export default function EditLinksScreen() {
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
                 {isLoading ? (
                     <View style={tw`flex-1 items-center justify-center`}>
-                        <ActivityIndicator
-                            size="large"
-                            color={isDark ? '#fff' : '#000'}
-                        />
+                        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
                     </View>
                 ) : (
                     <ScrollView
@@ -330,9 +323,7 @@ export default function EditLinksScreen() {
                                                     : 'border-gray-200 dark:border-gray-800'
                                             } rounded-xl px-4 py-3.5 text-gray-800 dark:text-gray-200 text-base`}
                                             placeholder="https://example.com"
-                                            placeholderTextColor={
-                                                isDark ? '#666' : '#999'
-                                            }
+                                            placeholderTextColor={isDark ? '#666' : '#999'}
                                             value={newLinkUrl}
                                             onChangeText={handleUrlChange}
                                             autoCapitalize="none"

@@ -30,7 +30,12 @@ import {
     videoUnbookmark,
     videoUnlike,
 } from '@/utils/requests';
-import { decodeRouteParam, parseRepoDidFromAtUri, postAtUriToBskyUrl, toProfilePath } from '@/utils/profileNavigation';
+import {
+    decodeRouteParam,
+    parseRepoDidFromAtUri,
+    postAtUriToBskyUrl,
+    toProfilePath,
+} from '@/utils/profileNavigation';
 import { feedFlatListWindowSize, feedMaxToRenderPerBatch } from '@/utils/androidVideoSafeMode';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +43,16 @@ import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Linking,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
+} from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -47,11 +61,8 @@ export default function ProfileFeed({ navigation }) {
     const id = decodeRouteParam(params.id);
     const profileId = decodeRouteParam(params.profileId) || parseRepoDidFromAtUri(id);
     const mediaKind =
-        params.mediaKind === 'photo' || params.mediaKind === 'video'
-            ? params.mediaKind
-            : undefined;
-    const shouldOpenComments =
-        params.openComments === '1' || params.openComments === 'true';
+        params.mediaKind === 'photo' || params.mediaKind === 'video' ? params.mediaKind : undefined;
+    const shouldOpenComments = params.openComments === '1' || params.openComments === 'true';
     const atproto = usesAtprotoBackend();
 
     const insets = useSafeAreaInsets();
@@ -144,10 +155,7 @@ export default function ProfileFeed({ navigation }) {
         },
     });
 
-    const videos = useMemo(
-        () => data?.pages?.flatMap((page) => page.data) ?? [],
-        [data?.pages],
-    );
+    const videos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
 
     const targetIndex = useMemo(() => {
         const normalizedId = decodeRouteParam(id);
@@ -352,7 +360,10 @@ export default function ProfileFeed({ navigation }) {
                     ) : null}
                     {profileId ? (
                         <TouchableOpacity
-                            style={[styles.emptyBackButton, bskyPostUrl ? styles.emptySecondaryButton : null]}
+                            style={[
+                                styles.emptyBackButton,
+                                bskyPostUrl ? styles.emptySecondaryButton : null,
+                            ]}
                             onPress={() => router.push(toProfilePath(profileId))}>
                             <Text style={styles.emptyBackText}>View profile</Text>
                         </TouchableOpacity>

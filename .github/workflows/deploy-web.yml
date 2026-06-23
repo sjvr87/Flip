@@ -1,0 +1,43 @@
+name: Deploy Web Export
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Export & Deploy flip.app
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Export web
+        run: npx expo export --platform web
+
+      - name: Copy OAuth metadata
+        run: npm run web:oauth-metadata -- --dist
+
+      - name: Deploy to Heroku
+        uses: akhileshns/heroku-deploy@v3.13.15
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: flip-app
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+          appdir: dist

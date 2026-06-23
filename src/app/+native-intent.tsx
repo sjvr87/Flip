@@ -23,11 +23,7 @@ function isMetroOrDevClientUrl(path: string): boolean {
         }
 
         // flip://192.168.x.x:8081 — host:port mistaken for a route path
-        if (
-            url.protocol === 'flip:' &&
-            /^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname) &&
-            url.port
-        ) {
+        if (url.protocol === 'flip:' && /^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname) && url.port) {
             return true;
         }
 

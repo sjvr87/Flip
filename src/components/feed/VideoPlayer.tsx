@@ -900,8 +900,7 @@ function VideoPlayerCore({
         setPlaySensitive(true);
     };
 
-    const likeCount =
-        safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
+    const likeCount = safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
     const bookmarkCount =
         safeCount(item.bookmarks) + (isBookmarked && !item.has_bookmarked ? 1 : 0);
     const repostCount =
@@ -954,15 +953,14 @@ function VideoPlayerCore({
 
     const showVideoSurface =
         isActive &&
-        (firstFrameRendered ||
-            (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
+        (firstFrameRendered || (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
     const hidePoster = showVideoSurface;
 
     const videoBody = (
-            <View style={[styles.videoContainer, { height: slideHeight }]}>
-                <View style={styles.videoWrapper}>
-                    {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
-                    {videoViewPlayer ? (
+        <View style={[styles.videoContainer, { height: slideHeight }]}>
+            <View style={styles.videoWrapper}>
+                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
+                {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
                         style={styles.video}
@@ -977,38 +975,38 @@ function VideoPlayerCore({
                         accessibilityHint="Tap to pause or play"
                         contentFit="cover"
                     />
-                    ) : null}
-                </View>
+                ) : null}
+            </View>
 
-                <Pressable
-                    style={styles.tapOverlay}
-                    onPress={handleTapOverlay}
-                    collapsable={false}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play"
-                    accessibilityRole="button"
-                />
+            <Pressable
+                style={styles.tapOverlay}
+                onPress={handleTapOverlay}
+                collapsable={false}
+                accessible={true}
+                accessibilityLabel="Video"
+                accessibilityHint="Tap to pause or play"
+                accessibilityRole="button"
+            />
 
-                {showPauseHint && (
-                    <View style={styles.controlsOverlay} pointerEvents="none">
-                        <View style={styles.playButton}>
-                            <Ionicons name={pauseHintIcon} size={60} color="white" />
-                        </View>
+            {showPauseHint && (
+                <View style={styles.controlsOverlay} pointerEvents="none">
+                    <View style={styles.playButton}>
+                        <Ionicons name={pauseHintIcon} size={60} color="white" />
                     </View>
-                )}
-
-                <View
-                    pointerEvents="none"
-                    style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                        style={StyleSheet.absoluteFillObject}
-                        pointerEvents="none"
-                    />
                 </View>
+            )}
 
-                <FeedActionRail
+            <View
+                pointerEvents="none"
+                style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
+                <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                    style={StyleSheet.absoluteFillObject}
+                    pointerEvents="none"
+                />
+            </View>
+
+            <FeedActionRail
                 avatarUrl={item.account?.avatar}
                 profileLabel={`View ${item.account.username}'s profile`}
                 isLiked={isLiked}
@@ -1033,11 +1031,9 @@ function VideoPlayerCore({
                 onMuteToggle={toggleFeedMuted}
                 onUseAudio={handleUseAudio}
                 onOther={() => onOther(item)}
-                />
+            />
 
-                <View
-                    style={[styles.bottomInfo, { bottom: captionBottom }]}
-                    pointerEvents="box-none">
+            <View style={[styles.bottomInfo, { bottom: captionBottom }]} pointerEvents="box-none">
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
@@ -1046,10 +1042,7 @@ function VideoPlayerCore({
                     accessible={true}
                     accessibilityLabel={`View @${item.account.username}'s profile`}
                     accessibilityRole="link">
-                    <MentionText
-                        username={item.account.username}
-                        style={styles.username}
-                    />
+                    <MentionText username={item.account.username} style={styles.username} />
                 </TouchableOpacity>
                 {item.caption && (
                     <LinkifiedCaption
@@ -1089,7 +1082,7 @@ function VideoPlayerCore({
                     style={styles.audioInfo}
                     onPress={() => {
                         const target = showRemixedAudio
-                            ? item.audioSource?.profileId ?? item.audioSource?.username
+                            ? (item.audioSource?.profileId ?? item.audioSource?.username)
                             : item.account.id;
                         if (!target) return;
                         onNavigate?.();
@@ -1124,8 +1117,8 @@ function VideoPlayerCore({
                         </View>
                     </View>
                 )}
-                </View>
             </View>
+        </View>
     );
 
     return videoBody;

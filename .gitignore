@@ -52,3 +52,9 @@ android-dev-build.log
 assemble-debug.log
 assemble2.log
 kotlin-compile.log
+
+dist-oauth-test/
+screen-*.png
+
+# Firebase service account (local + CI ephemeral)
+firebase-credentials.json

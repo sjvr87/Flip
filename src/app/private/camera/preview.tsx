@@ -138,7 +138,10 @@ function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duratio
                         <Feather name={isSaving ? 'loader' : 'download'} size={28} color="#fff" />
                     </TouchableOpacity>
                 </XStack>
-                <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleNext}
+                    style={styles.nextButton}
+                    activeOpacity={0.7}>
                     <Text style={styles.nextButtonText}>Next</Text>
                 </TouchableOpacity>
             </View>
@@ -212,7 +215,10 @@ function PhotoPreviewContent({ mediaUri }: { mediaUri: string }) {
                     disabled={isSaving}>
                     <Feather name={isSaving ? 'loader' : 'download'} size={28} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleNext}
+                    style={styles.nextButton}
+                    activeOpacity={0.7}>
                     <Text style={styles.nextButtonText}>Next</Text>
                 </TouchableOpacity>
             </View>

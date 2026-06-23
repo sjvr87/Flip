@@ -224,13 +224,7 @@ export default function SearchScreen() {
                         {isLoading ? (
                             <ActivityIndicator
                                 size="small"
-                                color={
-                                    isFollowing
-                                        ? isDark
-                                            ? '#fff'
-                                            : '#000'
-                                        : '#fff'
-                                }
+                                color={isFollowing ? (isDark ? '#fff' : '#000') : '#fff'}
                             />
                         ) : (
                             <Text
@@ -247,9 +241,7 @@ export default function SearchScreen() {
     const renderVideoItem = ({ item, index }) => (
         <TouchableOpacity
             style={tw`w-[48%] mb-3 ${index % 2 === 0 ? 'mr-[4%]' : ''}`}
-            onPress={() =>
-                router.push(toProfileFeedPath(item.id, item?.account?.id ?? ''))
-            }
+            onPress={() => router.push(toProfileFeedPath(item.id, item?.account?.id ?? ''))}
             activeOpacity={0.9}>
             <View style={tw`relative`}>
                 <Image
@@ -331,11 +323,7 @@ export default function SearchScreen() {
 
     const renderEmptyState = () => (
         <View style={tw`flex-1 items-center justify-center py-20`}>
-            <Ionicons
-                name="search-outline"
-                size={72}
-                color={isDark ? '#374151' : '#E5E7EB'}
-            />
+            <Ionicons name="search-outline" size={72} color={isDark ? '#374151' : '#E5E7EB'} />
             <Text style={tw`text-gray-500 dark:text-gray-400 mt-4 text-base`}>
                 {searchQuery ? 'No results found' : 'Search for videos, users, and more'}
             </Text>

@@ -61,7 +61,7 @@ async function getFileSizeBytes(uri: string): Promise<number> {
     try {
         const { File } = await import('expo-file-system');
         const file = new File(path);
-        return file.exists ? file.size ?? 0 : 0;
+        return file.exists ? (file.size ?? 0) : 0;
     } catch {
         return 0;
     }

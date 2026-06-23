@@ -41,7 +41,8 @@ export function FollowerNotificationRow({
     const followText = item.kit?.path ? 'followed you from a Starter Kit.' : 'followed you.';
 
     return (
-        <View style={tw`flex-row items-center py-3 px-4 border-b border-gray-100 dark:border-gray-900`}>
+        <View
+            style={tw`flex-row items-center py-3 px-4 border-b border-gray-100 dark:border-gray-900`}>
             {isUnread ? <View style={tw`w-2 h-2 rounded-full bg-red-500 mr-2`} /> : null}
 
             <Pressable onPress={onProfilePress} style={tw`relative mr-3`}>
@@ -61,17 +62,26 @@ export function FollowerNotificationRow({
 
             <Pressable onPress={onPress} style={tw`flex-1 mr-2`}>
                 <Text style={tw`text-base`}>
-                    <MentionText username={item.actor.username} style={tw`font-semibold text-base`} />
+                    <MentionText
+                        username={item.actor.username}
+                        style={tw`font-semibold text-base`}
+                    />
                     <Text style={tw`text-gray-700 dark:text-gray-300`}> {followText}</Text>
                 </Text>
-                <StackText fontSize="$2" textColor="text-gray-500 dark:text-gray-500" style={tw`mt-0.5`}>
+                <StackText
+                    fontSize="$2"
+                    textColor="text-gray-500 dark:text-gray-500"
+                    style={tw`mt-0.5`}>
                     {timeAgo(item.created_at)}
                 </StackText>
             </Pressable>
 
             {isAccepted ? (
                 <View style={tw`px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-800`}>
-                    <StackText fontSize="$3" textColor="text-gray-500 dark:text-gray-400" fontWeight="semibold">
+                    <StackText
+                        fontSize="$3"
+                        textColor="text-gray-500 dark:text-gray-400"
+                        fontWeight="semibold">
                         Following
                     </StackText>
                 </View>

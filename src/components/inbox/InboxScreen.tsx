@@ -84,7 +84,7 @@ const CategoryCard = ({
 interface ConvoRowProps {
     convo: {
         id: string;
-        members: Array<{ did: string; displayName: string; avatar: string; handle: string }>;
+        members: { did: string; displayName: string; avatar: string; handle: string }[];
         lastMessage?: { text: string; sentAt: string };
         unreadCount: number;
     };
@@ -182,14 +182,7 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
     const { isDark } = useTheme();
     const myDid = user?.id ?? '';
 
-    const {
-        data,
-        isLoading,
-        isFetching,
-        isError,
-        refetch,
-        isRefetching,
-    } = useQuery({
+    const { data, isLoading, isFetching, isError, refetch, isRefetching } = useQuery({
         queryKey: ['main-notifications'],
         queryFn: fetchNotifications,
         refetchOnWindowFocus: true,
@@ -383,14 +376,13 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
                                 key={convo.id}
                                 convo={convo}
                                 myDid={myDid}
-                                onPress={() =>
-                                    router.push(`/private/messages/${convo.id}` as any)
-                                }
+                                onPress={() => router.push(`/private/messages/${convo.id}` as any)}
                             />
                         ))
                     )}
 
-                    <View style={tw`px-4 pt-5 pb-1 mt-2 border-t border-gray-100 dark:border-gray-900`}>
+                    <View
+                        style={tw`px-4 pt-5 pb-1 mt-2 border-t border-gray-100 dark:border-gray-900`}>
                         <StackText
                             fontSize="$5"
                             fontWeight="semibold"

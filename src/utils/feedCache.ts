@@ -122,7 +122,7 @@ export function shuffleFeedVideos(videos: FlipVideo[], seed: number): FlipVideo[
         return videos;
     }
     const arr = [...videos];
-    let state = (seed >>> 0) || 1;
+    let state = seed >>> 0 || 1;
     const rand = () => {
         state = (Math.imul(1664525, state) + 1013904223) >>> 0;
         return state / 0x1_0000_0000;
@@ -320,10 +320,7 @@ function sleep(ms: number) {
 }
 
 /** Hydrate a freshly posted item from the App View (brief retry for indexing lag). */
-export async function hydratePostedMediaItem(
-    uri: string,
-    attempts = 3,
-): Promise<FlipVideo | null> {
+export async function hydratePostedMediaItem(uri: string, attempts = 3): Promise<FlipVideo | null> {
     const agent = getAgent();
 
     for (let attempt = 0; attempt < attempts; attempt++) {
@@ -469,22 +466,14 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
 }
 
 /** Profile grid / optimistic post fallback when App View resolution is slow or incomplete. */
-export function findCachedProfileMedia(
-    queryClient: QueryClient,
-    uri: string,
-): FlipVideo | null {
+export function findCachedProfileMedia(queryClient: QueryClient, uri: string): FlipVideo | null {
     const normalized = decodeRouteParam(uri);
     if (!normalized) return null;
 
     const pending = pendingProfilePosts.get(normalized);
     if (pending?.item) return pending.item;
 
-    const cacheKeys = [
-        'userSelfPhotos',
-        'userSelfVideos',
-        'userPhotos',
-        'userVideos',
-    ] as const;
+    const cacheKeys = ['userSelfPhotos', 'userSelfVideos', 'userPhotos', 'userVideos'] as const;
 
     for (const key of cacheKeys) {
         const entries = queryClient.getQueriesData<InfiniteProfileCache>({

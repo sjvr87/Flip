@@ -38,10 +38,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-    prepareImageForUpload,
-    prepareVideoForUpload,
-} from '@/utils/uploadCompression';
+import { prepareImageForUpload, prepareVideoForUpload } from '@/utils/uploadCompression';
 import type { FlipAudioSource } from '@/atproto/types';
 import tw from 'twrnc';
 
@@ -555,11 +552,7 @@ export default function CaptionScreen() {
                     { paddingTop: insets.top + 10 },
                 ]}>
                 <TouchableOpacity onPress={handleBack} style={tw`w-11 h-11 justify-center`}>
-                    <Ionicons
-                        name="chevron-back"
-                        size={32}
-                        color={isDark ? '#fff' : '#000'}
-                    />
+                    <Ionicons name="chevron-back" size={32} color={isDark ? '#fff' : '#000'} />
                 </TouchableOpacity>
                 <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                     {isPhoto ? 'Upload Photo' : 'Upload Loop'}
@@ -855,11 +848,7 @@ export default function CaptionScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                         <TouchableOpacity onPress={() => setShowMoreOptionsModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                             More Options
@@ -1088,11 +1077,7 @@ export default function CaptionScreen() {
                         <View
                             style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                             <TouchableOpacity onPress={() => setShowAltTextModal(false)}>
-                                <Ionicons
-                                    name="close"
-                                    size={28}
-                                    color={isDark ? '#fff' : '#000'}
-                                />
+                                <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                             </TouchableOpacity>
                             <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                                 Alt Text
@@ -1153,11 +1138,7 @@ export default function CaptionScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                         <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                             Select Language
@@ -1205,11 +1186,7 @@ export default function CaptionScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                         <TouchableOpacity onPress={() => setShowVisibilityModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                             Select Visibility
@@ -1267,10 +1244,7 @@ export default function CaptionScreen() {
                     pointerEvents="auto">
                     <View
                         style={tw`w-[72%] rounded-2xl py-5.5 px-4.5 bg-white dark:bg-gray-900 items-center gap-2`}>
-                        <ActivityIndicator
-                            size="large"
-                            color={isDark ? '#fff' : '#000'}
-                        />
+                        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
                         <Text
                             style={tw`mt-1.5 text-base font-bold text-gray-900 dark:text-gray-100 text-center`}>
                             {overlayMessage}

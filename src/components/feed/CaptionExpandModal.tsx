@@ -96,7 +96,8 @@ export default function CaptionExpandModal({
                                     username={item.account.username}
                                     style={tw`text-[15px] font-bold`}
                                 />
-                                <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
+                                <Text
+                                    style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
                                     {timeAgo(item.created_at)}
                                 </Text>
                             </View>

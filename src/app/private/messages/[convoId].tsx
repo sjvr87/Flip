@@ -2,12 +2,7 @@ import { StackText } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
-import {
-    fetchConvoMessages,
-    fetchConvos,
-    markConvoRead,
-    sendChatMessage,
-} from '@/utils/requests';
+import { fetchConvoMessages, fetchConvos, markConvoRead, sendChatMessage } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -107,7 +102,9 @@ export default function ChatThreadScreen() {
                         data={messages}
                         keyExtractor={(item) => item.id}
                         contentContainerStyle={tw`px-4 py-3`}
-                        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+                        onContentSizeChange={() =>
+                            listRef.current?.scrollToEnd({ animated: false })
+                        }
                         renderItem={({ item }) => (
                             <View
                                 style={[
@@ -118,7 +115,9 @@ export default function ChatThreadScreen() {
                                 ]}>
                                 <StackText
                                     fontSize="$4"
-                                    textColor={item.isFromMe ? 'text-white' : 'text-black dark:text-white'}>
+                                    textColor={
+                                        item.isFromMe ? 'text-white' : 'text-black dark:text-white'
+                                    }>
                                     {item.text}
                                 </StackText>
                             </View>
@@ -158,7 +157,11 @@ export default function ChatThreadScreen() {
                         style={({ pressed }) => [
                             tw`ml-2 w-10 h-10 rounded-full items-center justify-center`,
                             {
-                                backgroundColor: draft.trim() ? colors.accent : isDark ? '#333' : '#ddd',
+                                backgroundColor: draft.trim()
+                                    ? colors.accent
+                                    : isDark
+                                      ? '#333'
+                                      : '#ddd',
                                 opacity: pressed ? 0.8 : 1,
                             },
                         ]}>

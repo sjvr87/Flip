@@ -43,7 +43,9 @@ export default function TextPostSlide({
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
 
     const likeCount =
-        safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0) - (!isLiked && item.has_liked ? 1 : 0);
+        safeCount(item.likes) +
+        (isLiked && !item.has_liked ? 1 : 0) -
+        (!isLiked && item.has_liked ? 1 : 0);
     const bookmarkCount =
         safeCount(item.bookmarks) +
         (isBookmarked && !item.has_bookmarked ? 1 : 0) -

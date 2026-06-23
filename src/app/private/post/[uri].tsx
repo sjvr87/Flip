@@ -36,21 +36,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-    ActivityIndicator,
-    Linking,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PostViewScreen({ navigation }) {
     const params = useLocalSearchParams();
     const uri = decodeRouteParam(params.uri);
-    const shouldOpenComments =
-        params.openComments === '1' || params.openComments === 'true';
+    const shouldOpenComments = params.openComments === '1' || params.openComments === 'true';
     const atproto = usesAtprotoBackend();
 
     const insets = useSafeAreaInsets();
@@ -80,7 +72,12 @@ export default function PostViewScreen({ navigation }) {
         setFeedHeight((prev) => (h > 0 && Math.abs(h - prev) > 1 ? h : prev));
     }, []);
 
-    const { data: postContent, isLoading, isError, refetch } = useQuery({
+    const {
+        data: postContent,
+        isLoading,
+        isError,
+        refetch,
+    } = useQuery({
         queryKey: ['postViewer', uri],
         queryFn: async () => {
             const fetched = await fetchPostForViewer(uri);
@@ -146,7 +143,12 @@ export default function PostViewScreen({ navigation }) {
                 },
                 onSuccess: (result) => {
                     if (result) {
-                        patchExploreTextPostLike(queryClient, videoId, result.has_liked, result.likes);
+                        patchExploreTextPostLike(
+                            queryClient,
+                            videoId,
+                            result.has_liked,
+                            result.likes,
+                        );
                     }
                 },
             },
@@ -284,7 +286,9 @@ export default function PostViewScreen({ navigation }) {
                         </TouchableOpacity>
                     ) : null}
                     {isError ? (
-                        <TouchableOpacity style={[styles.emptyButton, styles.emptySecondary]} onPress={() => refetch()}>
+                        <TouchableOpacity
+                            style={[styles.emptyButton, styles.emptySecondary]}
+                            onPress={() => refetch()}>
                             <Text style={styles.emptyButtonText}>Retry</Text>
                         </TouchableOpacity>
                     ) : null}

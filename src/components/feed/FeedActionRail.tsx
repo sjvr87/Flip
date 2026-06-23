@@ -84,10 +84,7 @@ function LikeActionIcon({ active }: { active: boolean }) {
 function RepostActionIcon({ active }: { active: boolean }) {
     return (
         <View style={styles.iconShadow}>
-            <RepostArrowIcon
-                size={REPOST_ARROW_DESIGN_SIZE}
-                active={active}
-            />
+            <RepostArrowIcon size={REPOST_ARROW_DESIGN_SIZE} active={active} />
         </View>
     );
 }
@@ -167,9 +164,7 @@ function FeedActionRail({
                 onPress={onComment}
                 accessible
                 accessibilityLabel={
-                    canComment
-                        ? `Comments. ${commentCount} comments`
-                        : 'Comments are disabled'
+                    canComment ? `Comments. ${commentCount} comments` : 'Comments are disabled'
                 }
                 accessibilityRole="button">
                 <FeedActionIcon name="chatbubble-ellipses-outline" />

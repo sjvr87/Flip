@@ -63,10 +63,14 @@ const EXPLORE_ACTION_ICON_SIZE = 19;
 const EXPLORE_REPOST_ICON_SIZE = 19;
 const EXPLORE_ACTION_RAIL_HEIGHT = 32;
 const EXPLORE_ACTION_SLOT_WIDTH = TEXT_POST_CARD_WIDTH / 5;
-const EXPLORE_ACTION_COUNT_MAX_WIDTH =
-    EXPLORE_ACTION_SLOT_WIDTH - EXPLORE_ACTION_ICON_SIZE - 6;
+const EXPLORE_ACTION_COUNT_MAX_WIDTH = EXPLORE_ACTION_SLOT_WIDTH - EXPLORE_ACTION_ICON_SIZE - 6;
 const EXPLORE_ACTION_MUTED = '#9CA3AF';
-const exploreActionCellStyle = { flex: 1, minWidth: 0, alignItems: 'center' as const, justifyContent: 'center' as const };
+const exploreActionCellStyle = {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+};
 const exploreActionGroupStyle = {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -407,11 +411,7 @@ const ExploreTagChip = memo(function ExploreTagChip({
                     #{item.name}
                 </Text>
                 {item.count > 0 ? (
-                    <Text
-                        style={[
-                            tw`text-xs`,
-                            isSelected ? tw`text-gray-200` : tw`text-gray-600`,
-                        ]}>
+                    <Text style={[tw`text-xs`, isSelected ? tw`text-gray-200` : tw`text-gray-600`]}>
                         {item.count.toLocaleString()} videos
                     </Text>
                 ) : null}
@@ -460,7 +460,8 @@ const ExploreVideoThumbnail = memo(function ExploreVideoThumbnail({
                         </Text>
                     </View>
                 ) : null}
-                <View style={tw`absolute top-2 right-2 bg-black bg-opacity-70 rounded px-1.5 py-0.5`}>
+                <View
+                    style={tw`absolute top-2 right-2 bg-black bg-opacity-70 rounded px-1.5 py-0.5`}>
                     <Text style={tw`text-white text-xs`}>
                         {minutes}:{seconds.toString().padStart(2, '0')}
                     </Text>
@@ -655,9 +656,7 @@ export default function ExploreScreen() {
 
     const textPosts = useMemo(() => {
         if (!textPostsData?.pages) return [];
-        return textPostsData.pages
-            .flatMap((page) => page?.data || [])
-            .filter(isValidTextPost);
+        return textPostsData.pages.flatMap((page) => page?.data || []).filter(isValidTextPost);
     }, [textPostsData]);
 
     const feedTag = selectedTag ?? EXPLORE_DEFAULT_TAG;
@@ -983,11 +982,7 @@ export default function ExploreScreen() {
 
             <ShareModal
                 visible={showShare}
-                item={
-                    sharePost
-                        ? { ...sharePost, url: postAtUriToBskyUrl(sharePost.id) }
-                        : null
-                }
+                item={sharePost ? { ...sharePost, url: postAtUriToBskyUrl(sharePost.id) } : null}
                 onClose={() => setShowShare(false)}
             />
         </SafeAreaView>

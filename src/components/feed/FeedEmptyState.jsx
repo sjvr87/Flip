@@ -55,8 +55,7 @@ export default function FeedEmptyState({ tab, onRefresh, error, itemHeight }) {
                 return {
                     icon: 'checkmark-circle-outline',
                     title: "You're all caught up",
-                    subtitle:
-                        'Follow more creators for new Flips, or pull down to refresh.',
+                    subtitle: 'Follow more creators for new Flips, or pull down to refresh.',
                     primary: {
                         label: 'Find creators',
                         onPress: () => router.push('/explore'),
