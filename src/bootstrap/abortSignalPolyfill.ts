@@ -15,7 +15,7 @@ function installAbortSignalPolyfills(): void {
     if (typeof proto.throwIfAborted !== 'function') {
         proto.throwIfAborted = function throwIfAborted(this: AbortSignal): void {
             if (this.aborted) {
-                throw this.reason ?? new Error('Aborted');
+                throw this.reason ?? new Error('The operation was aborted');
             }
         };
     }
@@ -25,10 +25,12 @@ function installAbortSignalPolyfills(): void {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
                 const message = `The operation timed out after ${ms} ms`;
+                const timeoutError = new Error(message);
+                timeoutError.name = 'TimeoutError';
                 const reason =
                     typeof DOMException === 'function'
                         ? new DOMException(message, 'TimeoutError')
-                        : new Error(message);
+                        : timeoutError;
                 controller.abort(reason);
             }, ms);
             controller.signal.addEventListener('abort', () => clearTimeout(timeoutId), {
