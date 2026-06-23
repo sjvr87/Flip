@@ -6,12 +6,12 @@ import metadata from '../../assets/oauth-client-metadata.json';
  *   cdn.jsdelivr.net → net.jsdelivr.cdn:/oauth/callback
  * (app.flip:/ only pairs with client_id hosted at flip.app.)
  *
- * jsDelivr serves application/json via the stable @oauth-pin git tag (see
- * scripts/publish-oauth-pin-tag.js). client_uri must share origin with client_id
- * (https://cdn.jsdelivr.net/), not flip.app.
+ * jsDelivr serves application/json via an immutable git tag (e.g. @oauth-pin-2;
+ * see scripts/publish-oauth-pin-tag.js). Reused/moved tags stay cached on jsDelivr.
+ * client_uri must share origin with client_id (https://cdn.jsdelivr.net/).
  */
 export const OAUTH_CLIENT_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-pin/assets/oauth-client-metadata.json';
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-pin-2/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
