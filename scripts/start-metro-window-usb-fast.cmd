@@ -9,7 +9,7 @@ if not exist "package.json" (
 set CI=
 set EXPO_NO_INTERACTIVE=
 set EXPO_NO_TELEMETRY=1
-set REACT_NATIVE_PACKAGER_HOSTNAME=
-echo Metro hostname: 127.0.0.1 (USB adb reverse)
-call npm.cmd run start:localhost
+set REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1
+echo Metro hostname: %REACT_NATIVE_PACKAGER_HOSTNAME% (USB adb reverse)
+call npx expo start --dev-client --port 8081 --localhost
 if errorlevel 1 pause
