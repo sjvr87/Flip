@@ -1,5 +1,7 @@
 # Cursor Auto-Permissions for Flip Dev
 
+**User preference:** zero approval cards — agents should just run without prompting.
+
 ## Overview
 This project uses auto-allow permissions for both Copilot and Cursor agents. All development work is pre-authorized to minimize approval delays.
 
@@ -12,9 +14,13 @@ This project uses auto-allow permissions for both Copilot and Cursor agents. All
 
 This disables approval prompts for all authorized commands.
 
-### 2. Permission Files (Already in Repo)
-- `.cursor/permissions.json` — Flip-specific allowlists + auto-approve rules
-- Global user config: `C:\Users\tomas\.cursor\permissions.json` (if needed for cross-project)
+### 2. Permission Files (repo + global)
+Both files must include **`"approvalMode": "unrestricted"`** — this is the file equivalent of **Run Everything** (no allow clicks):
+
+- `C:\Users\tomas\.cursor\permissions.json` (all projects)
+- `.cursor/permissions.json` (this repo)
+
+Cursor re-reads these on save; reload window if prompts persist.
 
 ## What's Auto-Allowed
 
@@ -62,9 +68,9 @@ See `.github/AGENT_COORDINATION.md` for full workflow.
 ## Troubleshooting
 
 **Approval prompt still appearing?**
-- Verify Run Mode is set to "Run Everything" (not Smart Mode)
-- Check that `permissions.json` is in `.cursor/` (repo-level, not workspace root)
-- Reload Cursor: `Ctrl+Shift+P` → Developer: Reload Window
+1. Confirm both permissions files have `"approvalMode": "unrestricted"` (not `allowlist` or `manual`)
+2. UI backup: **Settings → Agents → Approvals & Execution → Run Everything**
+3. `Ctrl+Shift+P` → **Developer: Reload Window**
 
 **Command not in allowlist?**
 - Edit `.cursor/permissions.json` → `terminalAllowlist` array

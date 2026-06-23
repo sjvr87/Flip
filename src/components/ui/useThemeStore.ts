@@ -121,10 +121,19 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     },
 }));
 
-const savedMode = Storage.getString('theme_mode') as ThemeMode | undefined;
-if (savedMode === 'light' || savedMode === 'dark') {
-    useThemeStore.setState({
-        mode: savedMode,
-        theme: savedMode === 'light' ? lightTheme : darkTheme,
-    });
+function hydrateThemeFromStorage(): void {
+    const savedMode = Storage.getString('theme_mode') as ThemeMode | undefined;
+    if (savedMode === 'light' || savedMode === 'dark') {
+        useThemeStore.setState({
+            mode: savedMode,
+            theme: savedMode === 'light' ? lightTheme : darkTheme,
+        });
+    }
+}
+
+// Defer MMKV/Storage touch until after JS runtime is up (avoids eager native init at import).
+if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => hydrateThemeFromStorage());
+} else {
+    queueMicrotask(() => hydrateThemeFromStorage());
 }

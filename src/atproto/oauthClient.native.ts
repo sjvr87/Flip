@@ -74,6 +74,9 @@ class FlipExpoOAuthClient extends OAuthClient {
             throw new TypeError('A redirect URI with a custom scheme is required for Expo OAuth.');
         }
 
+        this.#dpopNonceCache.clear();
+        this.#stateStore.clear();
+
         const url = await this.authorize(input, {
             ...options,
             redirect_uri: redirectUri,
@@ -133,4 +136,13 @@ export function getOAuthClient(): FlipExpoOAuthClient {
         }
     }
     return client;
+}
+
+/** Fresh OAuth client + stores for each sign-in attempt (avoids stale DPoP/state). */
+export async function resetOAuthClient(): Promise<void> {
+    if (client) {
+        await client[Symbol.asyncDispose]();
+        client = null;
+    }
+    initError = null;
 }

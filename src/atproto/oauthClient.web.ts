@@ -34,3 +34,8 @@ export function getOAuthClient(): ExpoOAuthClientType {
     }
     return client;
 }
+
+export async function resetOAuthClient(): Promise<void> {
+    client = null;
+    initError = null;
+}

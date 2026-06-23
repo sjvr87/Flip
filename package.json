@@ -30,7 +30,9 @@
     "dev:connect:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -Reset",
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
-    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1"
+    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
+    "start:localhost": "expo start --dev-client --localhost --port 8081",
+    "start:localhost:clear": "expo start --dev-client --localhost --port 8081 --clear"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
