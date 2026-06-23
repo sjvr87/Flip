@@ -7,11 +7,81 @@
  *
  * ATProto native OAuth uses reverse-domain custom schemes, e.g.
  * net.jsdelivr.cdn:/oauth/callback — map to the expo-router screen at /oauth/callback.
+ *
+ * Stale flip://explore (and other tab) deep links from prior sessions are rewritten
+ * on cold start so NavigationContainer does not mount an invalid initial route.
  */
 
 import { hasOAuthCallbackQueryInPath } from '@/atproto/oauthCallbackUrl';
 
 const OAUTH_CALLBACK_PATHS = new Set(['/oauth/callback', '/oauth-callback']);
+
+/** Tab names that flip:// may use as hostname (flip://explore → path "explore"). */
+const TAB_DEEP_LINK_NAMES = new Set([
+    'explore',
+    'create',
+    'notifications',
+    'profile',
+    'index',
+    'home',
+]);
+
+const TAB_ROUTE_BY_NAME: Record<string, string> = {
+    explore: '/(tabs)/explore',
+    create: '/(tabs)/create',
+    notifications: '/(tabs)/notifications',
+    profile: '/(tabs)/profile',
+    index: '/(tabs)',
+    home: '/(tabs)',
+};
+
+function querySuffix(path: string): string {
+    const idx = path.indexOf('?');
+    return idx >= 0 ? path.slice(idx) : '';
+}
+
+/** Strip scheme and leading slashes; keep query string on the returned bare segment. */
+function bareDeepLinkSegment(path: string): string {
+    const withoutScheme = path.replace(/^[a-z0-9.-]+:\/*/i, '');
+    return withoutScheme.replace(/^\//, '');
+}
+
+function tabNameFromPath(path: string): string | null {
+    const bare = bareDeepLinkSegment(path);
+    const name = bare.split('?')[0];
+    if (TAB_DEEP_LINK_NAMES.has(name)) {
+        return name;
+    }
+
+    try {
+        const url = new URL(path.includes(':/') ? path : `flip://${bare}`);
+        if (url.protocol === 'flip:' || url.protocol === 'app.flip:') {
+            const host = url.hostname;
+            if (TAB_DEEP_LINK_NAMES.has(host)) {
+                return host;
+            }
+            const pathSegment = url.pathname.replace(/^\//, '').split('/')[0];
+            if (pathSegment && TAB_DEEP_LINK_NAMES.has(pathSegment)) {
+                return pathSegment;
+            }
+        }
+    } catch {
+        // fall through
+    }
+
+    return null;
+}
+
+function isStaleAppDeepLink(path: string): boolean {
+    return tabNameFromPath(path) !== null;
+}
+
+function mapTabDeepLink(path: string): string | null {
+    const tab = tabNameFromPath(path);
+    if (!tab) return null;
+    const route = TAB_ROUTE_BY_NAME[tab];
+    return `${route}${querySuffix(path)}`;
+}
 
 function isOAuthCallbackUrl(path: string): boolean {
     try {
@@ -78,11 +148,6 @@ function isMetroOrDevClientUrl(path: string): boolean {
     return false;
 }
 
-function isStaleAppDeepLink(path: string): boolean {
-    const bare = path.replace(/^[a-z0-9.-]+:\/*/i, '').replace(/^\//, '');
-    return bare === 'explore' || bare.startsWith('explore?');
-}
-
 export function redirectSystemPath({
     path,
     initial,
@@ -94,9 +159,7 @@ export function redirectSystemPath({
         if (!path || isMetroOrDevClientUrl(path)) {
             return initial ? '/' : null;
         }
-        if (initial && isStaleAppDeepLink(path)) {
-            return '/';
-        }
+
         if (isOAuthCallbackUrl(path)) {
             // Cold start can replay a bare callback intent (no ?code=&state=) and trigger a false error.
             if (initial && !hasOAuthCallbackQueryInPath(path)) {
@@ -104,6 +167,14 @@ export function redirectSystemPath({
             }
             return oauthCallbackRoute(path);
         }
+
+        if (isStaleAppDeepLink(path)) {
+            if (initial) {
+                return '/';
+            }
+            return mapTabDeepLink(path);
+        }
+
         return path;
     } catch {
         return initial ? '/' : null;

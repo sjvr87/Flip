@@ -34,7 +34,8 @@ export function installAbortSignalPolyfills(): void {
         return;
     }
 
-    installQueueMicrotaskPolyfill();
+    // queueMicrotask polyfill disabled — RN provides it; custom shim breaks expo-router dispatch.
+    // installQueueMicrotaskPolyfill();
 
     if (typeof AbortSignal === 'undefined') {
         return;
