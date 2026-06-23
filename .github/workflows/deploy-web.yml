@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: web-${{ github.workflow }}-${{ github.ref }}
@@ -33,6 +34,15 @@ jobs:
 
       - name: Copy OAuth metadata
         run: npm run web:oauth-metadata -- --dist
+
+      - name: Add Heroku static routes for OAuth metadata
+        run: |
+          node -e "
+          const fs = require('fs');
+          const cfg = JSON.parse(fs.readFileSync('static.json', 'utf8'));
+          cfg.root = './';
+          fs.writeFileSync('dist/static.json', JSON.stringify(cfg, null, 2));
+          "
 
       - name: Deploy to Heroku
         uses: akhileshns/heroku-deploy@v3.13.15
