@@ -128,7 +128,7 @@ function Test-MetroHealthy {
   return $false
 }
 
-function Wait-MetroAndroidBundle {
+function Warm-MetroBundle {
   param([int]$TimeoutSec = 180)
   $bundleUrl = "http://127.0.0.1:8081/.expo/.virtual-metro-entry.bundle?platform=android&dev=true&minify=false"
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
@@ -396,7 +396,7 @@ function Start-FlipApp {
 
 
   if ($UsbReverse.IsPresent -and -not $RetryOnly) {
-    if (-not (Wait-MetroAndroidBundle)) {
+    if (-not (Warm-MetroBundle)) {
       Write-Host "  $Serial : bundle not ready on 127.0.0.1 - skipping launch" -ForegroundColor Red
       return $false
     }
