@@ -6,6 +6,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 const defaultEnhanceMiddleware = config.server.enhanceMiddleware;
 const warmUpPort = config.server.port ?? 8081;
+const WARM_UP_DELAY_MS = 1000;
 
 let bundleWarmUpStarted = false;
 
@@ -28,8 +29,8 @@ config.server.enhanceMiddleware = (middleware, server) => {
         const timer = setTimeout(() => {
             warmUpBundle('android');
             warmUpBundle('ios');
-        }, 1000);
-        timer.unref?.();
+        }, WARM_UP_DELAY_MS);
+        timer.unref();
     }
 
     return defaultEnhanceMiddleware ? defaultEnhanceMiddleware(middleware, server) : middleware;
