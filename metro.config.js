@@ -19,18 +19,17 @@ function warmUpBundle(platform) {
     );
 
     request.on('error', (error) => {
-        console.debug(`[metro] bundle warm-up skipped for ${platform}: ${error.message}`);
+        console.warn(`[metro] bundle warm-up skipped for ${platform}: ${error.message}`);
     });
 }
 
 config.server.enhanceMiddleware = (middleware, server) => {
     if (!bundleWarmUpStarted) {
         bundleWarmUpStarted = true;
-        const timer = setTimeout(() => {
+        setTimeout(() => {
             warmUpBundle('android');
             warmUpBundle('ios');
         }, WARM_UP_DELAY_MS);
-        timer.unref();
     }
 
     return defaultEnhanceMiddleware ? defaultEnhanceMiddleware(middleware, server) : middleware;

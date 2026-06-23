@@ -312,7 +312,7 @@ function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
 function Resolve-DevServerHost([string]$Serial) {
   $reverseOkForSerial = $false
   if ($script:ReverseStatusBySerial.ContainsKey($Serial)) {
-    $reverseOkForSerial = [bool]$script:ReverseStatusBySerial[$Serial]
+    $reverseOkForSerial = $script:ReverseStatusBySerial[$Serial]
   }
 
   if ($reverseOkForSerial) {
