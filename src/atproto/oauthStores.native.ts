@@ -11,14 +11,14 @@ const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 import * as SecureStore from 'expo-secure-store';
 
 import { MemorySimpleStoreTTL } from './oauthMemoryStore';
-import { SecureSimpleStoreTTL } from './oauthSecureStore';
+import { secureStoreKeySegment, SecureSimpleStoreTTL } from './oauthSecureStore';
 
 const SESSION_INDEX_KEY = 'flip.oauth.expo.sessions';
 const DPOP_NONCE_PREFIX = 'flip.oauth.expo.dpopNonce';
 const STATE_PREFIX = 'flip.oauth.expo.state';
 
 function sessionStorageKey(sub: string): string {
-    return `flip.oauth.expo.session.${encodeURIComponent(sub)}`;
+    return `flip.oauth.expo.session.${secureStoreKeySegment(sub)}`;
 }
 
 function identity<T>(x: T): T {

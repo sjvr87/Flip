@@ -14,6 +14,14 @@ type StoredEntry = {
     exp: number | null;
 };
 
+/** SecureStore allows only [A-Za-z0-9._-]; encodeURIComponent produces invalid `%` chars. */
+export function secureStoreKeySegment(value: string): string {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 /**
  * SecureStore-backed TTL cache for OAuth data that must survive the browser
  * redirect (DPoP nonces, authorization state). In-memory layer for hot reads.
@@ -53,7 +61,7 @@ export class SecureSimpleStoreTTL<V extends Value>
     }
 
     #storageKey(key: string): string {
-        return `${this.#prefix}.${encodeURIComponent(key)}`;
+        return `${this.#prefix}.${secureStoreKeySegment(key)}`;
     }
 
     get(key: string): V | undefined | Promise<V | undefined> {

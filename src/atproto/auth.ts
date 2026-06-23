@@ -20,7 +20,7 @@ import {
     withAuthenticatedFetch,
 } from './agent';
 import { clearCredentials, getSavedCredentials } from './credentialVault';
-import { getOAuthClient } from './oauthClient';
+import { getOAuthClient, resetOAuthClient } from './oauthClient';
 import type { FlipAppConfig, FlipUserProfile } from './types';
 import { Storage } from '@/utils/cache';
 
@@ -77,6 +77,7 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
 
     let session;
     try {
+        await resetOAuthClient();
         // PDS URL (https://) — not handle "bsky.social" — or OAuth resolver treats it as identity and fails.
         session = await getOAuthClient().signIn('https://bsky.social');
     } catch (error) {

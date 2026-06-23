@@ -14,5 +14,6 @@ export function getOAuthClientMetadata() {
     return {
         ...metadata,
         client_id: HOSTED_METADATA_URL,
+        client_uri: 'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/',
     };
 }
