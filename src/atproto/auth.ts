@@ -94,11 +94,16 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
                 'Could not reach Bluesky for sign-in. Check your connection and try again.',
             );
         }
+        if (raw.includes('invalid_redirect_uri')) {
+            throw new Error(
+                'Bluesky rejected Flip sign-in redirect settings. Update the app and try again.',
+            );
+        }
         if (
             raw.includes('client metadata') ||
-            raw.includes('client_id') ||
             raw.includes('invalid_client') ||
-            raw.includes('Invalid client metadata content type')
+            raw.includes('Invalid client metadata content type') ||
+            (raw.includes('client_id') && raw.includes('Failed to fetch'))
         ) {
             throw new Error(
                 'Bluesky could not load Flip sign-in configuration. Try again in a minute.',

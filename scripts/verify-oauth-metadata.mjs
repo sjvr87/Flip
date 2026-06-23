@@ -11,15 +11,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 
 function loadExpectedFromRepo() {
-    const tsSource = readFileSync(join(repoRoot, 'src/atproto/oauthClientMetadata.ts'), 'utf8');
-    const commitMatch = tsSource.match(/JSDELIVR_REF = '([^']+)'/);
-    if (!commitMatch) {
-        throw new Error('Could not parse JSDELIVR_REF from oauthClientMetadata.ts');
+    const local = parseJson(
+        readFileSync(join(repoRoot, 'assets/oauth-client-metadata.json'), 'utf8'),
+        'Local assets metadata',
+    );
+    const clientId = local.client_id;
+    if (!clientId || typeof clientId !== 'string') {
+        throw new Error('assets/oauth-client-metadata.json missing client_id');
     }
-    const ref = commitMatch[1];
-    const clientId = `https://cdn.jsdelivr.net/gh/sjvr87/Flip@${ref}/assets/oauth-client-metadata.json`;
-    const clientUri = `https://cdn.jsdelivr.net/gh/sjvr87/Flip@${ref}/`;
-    return { commit: ref, clientId, clientUri };
+    const clientUri = local.client_uri;
+    if (!clientUri || typeof clientUri !== 'string') {
+        throw new Error('assets/oauth-client-metadata.json missing client_uri');
+    }
+    return { clientId, clientUri, local };
 }
 
 async function fetchMetadata(url) {
@@ -38,10 +42,15 @@ function parseJson(body, label) {
     }
 }
 
+function reverseFqdnScheme(clientIdUrl) {
+    const host = new URL(clientIdUrl).hostname;
+    return `${host.split('.').reverse().join('.')}:`;
+}
+
 async function main() {
-    const { commit, clientId, clientUri } = loadExpectedFromRepo();
-    console.log(`Commit pin: ${commit}`);
-    console.log(`Fetching client_id URL: ${clientId}`);
+    const { clientId, clientUri, local } = loadExpectedFromRepo();
+    console.log(`client_id URL: ${clientId}`);
+    console.log(`Fetching hosted metadata…`);
 
     const { status, contentType, body } = await fetchMetadata(clientId);
     if (status !== 200) {
@@ -52,21 +61,22 @@ async function main() {
     }
 
     const hosted = parseJson(body, 'Hosted metadata');
-    const local = parseJson(
-        readFileSync(join(repoRoot, 'assets/oauth-client-metadata.json'), 'utf8'),
-        'Local assets metadata',
-    );
+    const expectedRedirectScheme = reverseFqdnScheme(clientId);
 
     const checks = [
         ['client_id matches URL', hosted.client_id === clientId],
-        ['client_uri same jsDelivr origin', new URL(hosted.client_uri).origin === new URL(clientId).origin],
-        ['client_uri matches pin', hosted.client_uri === clientUri],
+        ['client_uri same origin as client_id', new URL(hosted.client_uri).origin === new URL(clientId).origin],
+        ['client_uri matches assets', hosted.client_uri === clientUri],
         ['local client_id matches', local.client_id === clientId],
         ['local client_uri matches', local.client_uri === clientUri],
         ['redirect_uris present', Array.isArray(hosted.redirect_uris) && hosted.redirect_uris.length > 0],
         [
             'redirect_uris match',
             JSON.stringify(hosted.redirect_uris) === JSON.stringify(local.redirect_uris),
+        ],
+        [
+            `redirect scheme matches client_id FQDN (${expectedRedirectScheme})`,
+            hosted.redirect_uris?.every((uri) => uri.startsWith(expectedRedirectScheme)),
         ],
     ];
 

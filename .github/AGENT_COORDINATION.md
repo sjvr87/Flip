@@ -147,14 +147,20 @@ AUTO-EXECUTE (no user approval needed):
 
 ## OAuth metadata (perf branch)
 
-**Root cause (2026-06-23):** `client_uri` pointed at jsDelivr `@perf/feed-swipe-smoothness`, which returns **502** (`Failed to fetch version info`) because jsDelivr cannot resolve branch names containing `/`.
+**Root cause (2026-06-23, updated):** jsDelivr `client_id` (`cdn.jsdelivr.net`) requires redirect URI scheme `net.jsdelivr.cdn:`, but Flip registers `app.flip:`. Bluesky PAR returns `invalid_redirect_uri` (mis-mapped in UI as "could not load sign-in configuration" because error text contains `client_id`).
 
-**Fix:** Pin both `client_id` and `client_uri` to git tag **`oauth-metadata`** on jsDelivr (branch names with `/` break jsDelivr). After push + tag, verify:
-
-```bash
-npm run verify:oauth-metadata
+**Logcat (device R3GL10HN64A):**
+```
+OAuth "invalid_redirect_uri" error: Private-Use URI Scheme redirect URI, for discoverable client metadata, must be the fully qualified domain name (FQDN) of the client_id, in reverse order (net.jsdelivr.cdn:)
 ```
 
-**Device retest:** `flip-connect.bat` → Bluesky OAuth sign-in (not app password).
+**Fix (Cursor):** Pin `client_id` / `client_uri` to **`https://flip.app/oauth-client-metadata.json`** (FQDN `flip.app` → `app.flip:` redirect). Deploy-web workflow now copies `static.json` into `dist/` so Heroku serves JSON before SPA fallback. jsDelivr tag/commit pins were a red herring — metadata fetched fine; redirect scheme was wrong.
 
-**PRs:** [#7 perf](https://github.com/sjvr87/Flip/pull/7) (OAuth + perf), [#2 metro-fix](https://github.com/sjvr87/Flip/pull/2) (WIP, separate).
+**Prior attempts (did not fix device):**
+- perf branch on jsDelivr → 502 (branch `/` in name)
+- `oauth-metadata` git tag → metadata OK, redirect still invalid
+- BOM strip (eaf304c) → unrelated
+
+**Device retest:** merge + deploy flip.app OR `gh workflow run "Deploy Web Export"` on main → `npm run verify:oauth-metadata` → `flip-reload.bat` → Bluesky OAuth.
+
+**PRs:** [#7 perf](https://github.com/sjvr87/Flip/pull/7) (OAuth + perf), [#5 MMKV](https://github.com/sjvr87/Flip/pull/5) (separate — do not duplicate).
