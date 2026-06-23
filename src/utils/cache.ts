@@ -12,6 +12,11 @@ function isServer(): boolean {
     return typeof window === 'undefined';
 }
 
+/** MMKV needs JSI; remote Chrome debugging disables it. */
+function canUseMmkvJsi(): boolean {
+    return typeof (globalThis as { nativeCallSyncHook?: unknown }).nativeCallSyncHook === 'function';
+}
+
 function createMemoryStorage(): AppStorage {
     const map = new Map<string, string>();
 
@@ -60,44 +65,49 @@ function createLocalStorage(): AppStorage {
     };
 }
 
-function createMmkvStorage(): AppStorage {
+function createMmkvStorage(): AppStorage | null {
+    if (!canUseMmkvJsi()) {
+        return null;
+    }
+
     let MMKV: typeof import('react-native-mmkv').MMKV;
     try {
         ({ MMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv'));
     } catch (error) {
-        throw new Error('react-native-mmkv failed to load', { cause: error });
+        console.warn('[storage] react-native-mmkv failed to load', error);
+        return null;
     }
 
-    let mmkv: InstanceType<typeof MMKV> | null = null;
-
-    const getMmkv = (): InstanceType<typeof MMKV> => {
-        if (mmkv) return mmkv;
+    let mmkv: InstanceType<typeof MMKV>;
+    try {
         mmkv = new MMKV();
-        return mmkv;
-    };
+    } catch (error) {
+        console.warn('[storage] MMKV init failed (disable remote JS debugging if enabled)', error);
+        return null;
+    }
 
     return {
-        getString: (key) => getMmkv().getString(key),
-        set: (key, value) => getMmkv().set(key, value),
-        delete: (key) => getMmkv().delete(key),
-        remove: (key) => getMmkv().delete(key),
+        getString: (key) => mmkv.getString(key),
+        set: (key, value) => mmkv.set(key, value),
+        delete: (key) => mmkv.delete(key),
+        remove: (key) => mmkv.delete(key),
     };
 }
 
 function createNativeStorage(): AppStorage {
     if (useSafeNativeShims) {
-        console.log('[storage] Expo Go / safe mode â€” using in-memory storage');
+        console.log('[storage] Expo Go / safe mode - using in-memory storage');
         return createMemoryStorage();
     }
 
-    try {
-        const storage = createMmkvStorage();
+    const mmkv = createMmkvStorage();
+    if (mmkv) {
         console.log('[storage] Using MMKV');
-        return storage;
-    } catch (error) {
-        console.warn('[storage] MMKV unavailable, using in-memory storage', error);
-        return createMemoryStorage();
+        return mmkv;
     }
+
+    console.warn('[storage] MMKV unavailable, using in-memory storage');
+    return createMemoryStorage();
 }
 
 let storageInstance: AppStorage | null = null;

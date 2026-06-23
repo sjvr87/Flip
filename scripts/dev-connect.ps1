@@ -415,8 +415,10 @@ function Start-FlipApp {
     $deepLink = "flip://expo-development-client/?url=$encodedUrl"
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @(
       "-s", $Serial, "shell", "am", "start",
+      "-S",
       "-a", "android.intent.action.VIEW",
-      "-d", $deepLink
+      "-d", $deepLink,
+      "-p", "social.flip.app"
     )
     $label = if ($RetryOnly) { "retry deep link" } else { "deep link" }
     Write-Host "  $Serial : $start"
