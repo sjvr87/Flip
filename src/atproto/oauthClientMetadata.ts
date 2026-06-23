@@ -1,4 +1,5 @@
 import metadata from '../../assets/oauth-client-metadata.json';
+import { getDefaultFetch } from '@/bootstrap/nativeFetch';
 
 /**
  * Bluesky fetches client metadata from the `client_id` URL during PAR/token exchange.
@@ -45,7 +46,7 @@ export async function preflightOAuthClientMetadata(): Promise<OAuthMetadataPrefl
     const clientId = OAUTH_CLIENT_METADATA_URL;
     let response: Response;
     try {
-        response = await fetch(clientId, { method: 'GET', redirect: 'follow' });
+        response = await getDefaultFetch()(clientId, { method: 'GET', redirect: 'follow' });
     } catch (error) {
         const detail =
             error instanceof Error ? error.message : 'Network error fetching client metadata';

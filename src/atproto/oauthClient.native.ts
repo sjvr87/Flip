@@ -4,7 +4,7 @@ import { OAuthClient, type OAuthSession } from '@atproto/oauth-client';
 const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
 const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
-import { nativeFetch } from '@/bootstrap/nativeFetch';
+import { installNativeFetchGlobal, nativeFetch } from '@/bootstrap/nativeFetch';
 import { getOAuthClientMetadata } from './oauthClientMetadata';
 
 import {
@@ -373,6 +373,7 @@ export function getOAuthClient(): FlipExpoOAuthClient {
     }
     if (!client) {
         try {
+            installNativeFetchGlobal();
             client = new FlipExpoOAuthClient({
                 handleResolver: 'https://bsky.social',
                 clientMetadata: getOAuthClientMetadata(),
