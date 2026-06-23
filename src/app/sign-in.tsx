@@ -2,7 +2,6 @@ import { LOOP_ACCENT } from '@/constants/loopsPalette'
 import { XStack } from '@/components/ui/Stack'
 import { useTheme } from '@/contexts/ThemeContext'
 import { getSavedCredentials } from '@/atproto/credentialVault'
-import { openBrowser } from '@/atproto/auth'
 import { authenticateWithBiometric, canUseBiometrics, getBiometricLabel } from '@/utils/biometricAuth'
 import {
   skipBiometricAutoPromptOnLaunch,
@@ -19,6 +18,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -26,9 +26,12 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { openBrowserAsync } from 'expo-web-browser'
 import tw from 'twrnc'
 
 type SignInMode = 'loading' | 'unlock' | 'password' | 'full'
+
+const APP_PASSWORD_HELP_URL = 'https://bsky.app/settings/app-passwords'
 
 function formatHandle(identifier: string): string {
   if (identifier.includes('@')) return identifier
@@ -197,8 +200,34 @@ export default function SignInScreen() {
     setMode('full')
   }
 
-  const openAppPasswordHelp = () => {
-    openBrowser('https://bsky.app/settings/app-passwords')
+  const openAppPasswordHelp = async () => {
+    try {
+      await openBrowserAsync(APP_PASSWORD_HELP_URL)
+      return
+    } catch {
+      // Chrome Custom Tabs can fail on some Android builds — fall back to system browser.
+    }
+
+    try {
+      await Linking.openURL(APP_PASSWORD_HELP_URL)
+      return
+    } catch {
+      // Last resort: in-app steps so login is never blocked.
+    }
+
+    Alert.alert(
+      'Create an app password',
+      'Open bsky.app (or the Bluesky app) → Settings → Privacy and security → App passwords → Add App Password.',
+      [
+        {
+          text: 'Open in browser',
+          onPress: () => {
+            void Linking.openURL(APP_PASSWORD_HELP_URL)
+          },
+        },
+        { text: 'OK' },
+      ],
+    )
   }
 
   const displayHandle = savedHandle ? formatHandle(savedHandle) : null
@@ -319,8 +348,16 @@ export default function SignInScreen() {
       ) : null}
 
       {mode === 'full' ? (
-        <Pressable style={styles.helpLink} onPress={openAppPasswordHelp}>
-          <Text style={[styles.helpText, isDark && styles.helpTextDark]}>
+        <Pressable
+          style={styles.helpLink}
+          onPress={() => void openAppPasswordHelp()}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+          accessibilityRole="link"
+        >
+          <Text
+            style={[styles.helpText, isDark && styles.helpTextDark]}
+            pointerEvents="none"
+          >
             How to create an app password →
           </Text>
         </Pressable>
@@ -567,7 +604,12 @@ const styles = StyleSheet.create({
     borderColor: '#3a3a3c',
     color: '#ffffff',
   },
-  helpLink: { marginTop: 8, marginBottom: 8 },
+  helpLink: {
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+  },
   helpText: {
     color: 'rgba(255,255,255,0.9)',
     fontSize: 14,
