@@ -24,6 +24,10 @@ function installAbortSignalPolyfills(): void {
         AbortSignal.timeout = function timeout(ms: number): AbortSignal {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
+                clearTimeout(timeoutId);
+                if (controller.signal.aborted) {
+                    return;
+                }
                 const message = `The operation timed out after ${ms} ms`;
                 const timeoutError = new Error(message);
                 timeoutError.name = 'TimeoutError';
