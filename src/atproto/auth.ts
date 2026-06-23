@@ -1,4 +1,5 @@
 import { profileToFlipUser } from './adapters';
+import { normalizeBlueskyIdentifier } from './identifiers';
 import { clearFollowingDidsCache, warmFollowingDidsCache } from './feeds';
 import {
     clearSession,
@@ -76,14 +77,38 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
 
     let session;
     try {
-        session = await getOAuthClient().signIn('bsky.social');
+        // PDS URL (https://) — not handle "bsky.social" — or OAuth resolver treats it as identity and fails.
+        session = await getOAuthClient().signIn('https://bsky.social');
     } catch (error) {
-        const message =
+        const raw =
             error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
-        if (message.toLowerCase().includes('cancel')) {
+        if (__DEV__) {
+            console.warn('[auth] Bluesky OAuth error:', error);
+        }
+        if (raw.toLowerCase().includes('cancel')) {
             throw new Error('Sign-in cancelled.');
         }
-        throw new Error(message);
+        if (raw.includes('Failed to resolve identity')) {
+            throw new Error(
+                'Could not reach Bluesky for sign-in. Check your connection and try again.',
+            );
+        }
+        if (
+            raw.includes('client metadata') ||
+            raw.includes('client_id') ||
+            raw.includes('invalid_client') ||
+            raw.includes('Invalid client metadata content type')
+        ) {
+            throw new Error(
+                'Bluesky could not load Flip sign-in configuration. Try again in a minute.',
+            );
+        }
+        if (raw.includes('use_dpop_nonce') || raw.includes('"use_dpop_nonce"')) {
+            throw new Error(
+                'Bluesky sign-in security handshake failed. Close the app, reopen, and try again.',
+            );
+        }
+        throw new Error(raw);
     }
 
     setOAuthSession(session);
@@ -117,9 +142,10 @@ export async function loginWithPassword(
     }
 
     const agent = getCredentialAgent();
+    const normalizedIdentifier = normalizeBlueskyIdentifier(identifier);
     let result: Awaited<ReturnType<typeof agent.login>>;
     try {
-        result = await agent.login({ identifier, password });
+        result = await agent.login({ identifier: normalizedIdentifier, password });
     } catch (error) {
         const message =
             error instanceof Error
