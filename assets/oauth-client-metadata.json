@@ -1,5 +1,5 @@
 {
-  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/assets/oauth-client-metadata.json",
+  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-pin/assets/oauth-client-metadata.json",
   "client_name": "Flip",
   "client_uri": "https://flip.app/",
   "logo_uri": "https://flip.app/icon.png",

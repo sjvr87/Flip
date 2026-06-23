@@ -6,11 +6,12 @@ import metadata from '../../assets/oauth-client-metadata.json';
  *   cdn.jsdelivr.net → net.jsdelivr.cdn:/oauth/callback
  * (app.flip:/ only pairs with client_id hosted at flip.app.)
  *
- * jsDelivr serves application/json today; flip.app still returns SPA HTML until
+ * jsDelivr serves application/json via the stable @oauth-pin git tag (see
+ * scripts/publish-oauth-pin-tag.js). flip.app still returns SPA HTML until
  * Heroku/Cloudflare deploy (see docs/OAUTH_HOSTING.md).
  */
 export const OAUTH_CLIENT_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/assets/oauth-client-metadata.json';
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-pin/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
