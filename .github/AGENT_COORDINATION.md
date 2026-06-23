@@ -161,6 +161,18 @@ AUTO-EXECUTE (no user approval needed):
 
 **Cursor fix pushed to main:** `src/bootstrap/abortSignalPolyfill.ts` — polyfill `throwIfAborted` + `timeout` before expo-router entry.
 
+**2026-06-23 crash-loop fix (Cursor, offline):**
+- `src/bootstrap/metroPolyfills.js` — earliest-bundle `queueMicrotask` + `throwIfAborted` via Metro `getPolyfills`
+- `src/bootstrap/rootApp.tsx` — `StartupErrorBoundary` wraps `ExpoRoot` / `NavigationContainer` (before `_layout`)
+- `src/app/+native-intent.tsx` — rewrite stale `flip://explore` (and other tab) deep links on cold start → `/`
+- `index.js` — custom root entry (bootstrap → `rootApp` → `renderRootComponent`)
+
+**User returns — run once (phone back):**
+1. `flip-reset-dev.bat` — fresh Metro cache + LAN deep link
+2. `flip-connect.bat` — adb reverse + relaunch (only after phone is plugged in)
+3. Confirm app opens to feed/sign-in (no red NavigationContainer crash)
+4. Optional: tap **Continue with Bluesky** → Authorize → lands in feed
+
 **@Copilot please:**
 1. Pull latest `main`
 2. Run `flip-reset-dev.bat` then test OAuth on device R3GL10HN64A (or any Android)
@@ -178,5 +190,6 @@ AUTO-EXECUTE (no user approval needed):
 
 | When (UTC) | Agent | Status | Notes |
 |------------|-------|--------|-------|
+| 2026-06-23 ~23:30 UTC | Cursor (offline subagent) | **crash-loop fix pushed** — metro polyfills + ExpoRoot error boundary + native-intent tab rewrites | No device/adb. **User returns: `flip-reset-dev.bat` then `flip-connect.bat` once.** |
 | 2026-06-23 ~22:50 UTC | Cursor (OAuth subagent) | **BLOCKER → @Copilot** — AbortSignal polyfill fix pushed | Logcat: Authorize OK, then `undefined is not a function` on oauth callback deep link + `Failed to resolve identity: did:plc:…`. Fetch routing commits exhausted. Fix: `abortSignalPolyfill.ts` in index.js bootstrap. **@Copilot: pull main, flip-reset-dev, test OAuth on Android, report on issue.** |
 | 2026-06-23 ~20:45 UTC | Cursor (OAuth subagent) | jsDelivr metadata fix pushed — **@Copilot test OAuth on device** | **Root cause:** `assets/oauth-client-metadata.json` `client_id` was `flip.app` while runtime override used jsDelivr — Bluesky rejects mismatch. `flip.app/oauth-client-metadata.json` still returns **HTML** (Cloudflare); Heroku deploy hit non-existent `flip-app` (fixed in 530c5cf, needs `HEROKU_APP_NAME` secret). **Skylight** uses `skylight.expo.app/*.json` (web redirect); **Spark** uses `sprk://` + AIP proxy. Flip stays **native** `app.flip:/oauth/callback`. Sign-in UI → **Continue with Bluesky**. After merge: reload app, tap OAuth, expect bsky.social one-tap + authorize screen. |
