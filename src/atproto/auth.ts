@@ -1,4 +1,5 @@
 import { profileToFlipUser } from './adapters';
+import { normalizeBlueskyIdentifier } from './identifiers';
 import { clearFollowingDidsCache, warmFollowingDidsCache } from './feeds';
 import {
     clearSession,
@@ -132,9 +133,10 @@ export async function loginWithPassword(
     }
 
     const agent = getCredentialAgent();
+    const normalizedIdentifier = normalizeBlueskyIdentifier(identifier);
     let result: Awaited<ReturnType<typeof agent.login>>;
     try {
-        result = await agent.login({ identifier, password });
+        result = await agent.login({ identifier: normalizedIdentifier, password });
     } catch (error) {
         const message =
             error instanceof Error
