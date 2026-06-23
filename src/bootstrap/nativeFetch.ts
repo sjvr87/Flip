@@ -62,6 +62,40 @@ export function getDefaultFetch(): typeof fetch {
 export const nativeFetch: typeof fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
     resolveNativeFetch()(input, init)) as typeof fetch;
 
+function requestUrl(input: RequestInfo | URL): string {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.href;
+    return input.url;
+}
+
+/**
+ * OAuthClient needs both fetch implementations on Android:
+ * - default (expo) fetch for RFC 8414 / 9728 well-known metadata and client_id JSON
+ * - RN fetch for identity (PLC/xrpc), PAR, token exchange, and DPoP nonce headers
+ */
+function needsNativeFetch(url: string): boolean {
+    try {
+        const { hostname, pathname } = new URL(url);
+        if (pathname.startsWith('/.well-known/oauth-')) {
+            return false;
+        }
+        if (hostname === 'cdn.jsdelivr.net') {
+            return false;
+        }
+        return true;
+    } catch {
+        return true;
+    }
+}
+
+export const oauthFetch: typeof fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = requestUrl(input);
+    if (needsNativeFetch(url)) {
+        return nativeFetch(input, init);
+    }
+    return getDefaultFetch()(input, init);
+}) as typeof fetch;
+
 /**
  * After OAuth client init, code paths that read globalThis.fetch (identity resolver)
  * must see RN fetch. Call only once OAuth is about to run — not at app bootstrap

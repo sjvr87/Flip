@@ -105,6 +105,9 @@ function mapOAuthSignInError(error: unknown): string {
     if (raw.includes('Failed to resolve identity')) {
         return 'Could not reach Bluesky for sign-in. Check your connection and try again.';
     }
+    if (raw.includes('Failed to resolve OAuth server metadata')) {
+        return 'Could not reach Bluesky OAuth servers. Check your connection and try again.';
+    }
     if (
         raw.includes('Invalid key provided to SecureStore') ||
         (raw.includes('SecureStore') && raw.includes('Invalid key'))

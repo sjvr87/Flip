@@ -4,7 +4,7 @@ import { OAuthClient, type OAuthSession } from '@atproto/oauth-client';
 const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
 const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
-import { installNativeFetchGlobal, nativeFetch } from '@/bootstrap/nativeFetch';
+import { installNativeFetchGlobal, nativeFetch, oauthFetch } from '@/bootstrap/nativeFetch';
 import { getOAuthClientMetadata } from './oauthClientMetadata';
 
 import {
@@ -68,7 +68,7 @@ class FlipExpoOAuthClient extends OAuthClient {
         const stateStore = stack.use(new StateStore());
         super({
             ...options,
-            fetch: nativeFetch,
+            fetch: oauthFetch,
             responseMode: 'query',
             keyset: undefined,
             runtimeImplementation,
