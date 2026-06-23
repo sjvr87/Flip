@@ -116,7 +116,39 @@ function Test-MetroStatusUrl([string]$BaseUrl) {
 }
 
 function Test-MetroHealthy {
-  return (Test-MetroStatusUrl "http://127.0.0.1:8081")
+  if (Test-MetroStatusUrl "http://127.0.0.1:8081") {
+    return $true
+  }
+  if (Test-MetroStatusUrl "http://localhost:8081") {
+    Write-Host "  Metro on localhost (IPv6) but not 127.0.0.1 (IPv4) - USB adb reverse cannot reach the bundler." -ForegroundColor Red
+    Write-Host "  Recycle Metro (flip-reset-dev.bat). metro.config.js should set server.host to 0.0.0.0." -ForegroundColor Yellow
+  }
+  return $false
+}
+
+function Wait-MetroAndroidBundle {
+  param([int]$TimeoutSec = 180)
+  $bundleUrl = "http://127.0.0.1:8081/.expo/.virtual-metro-entry.bundle?platform=android&dev=true&minify=false"
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  $lastLog = [DateTime]::MinValue
+  while ((Get-Date) -lt $deadline) {
+    try {
+      $r = Invoke-WebRequest -Uri $bundleUrl -UseBasicParsing -TimeoutSec 120
+      if ($r.StatusCode -eq 200 -and $r.RawContentLength -gt 500) {
+        return $true
+      }
+    } catch {
+      # Metro still bundling or unreachable on IPv4
+    }
+    if (((Get-Date) - $lastLog).TotalSeconds -ge 8) {
+      $remaining = [Math]::Max(0, [int]($deadline - (Get-Date)).TotalSeconds)
+      Write-Host "  Waiting for Android bundle on 127.0.0.1 (${remaining}s left)..." -ForegroundColor DarkGray
+      $lastLog = Get-Date
+    }
+    Start-Sleep -Seconds 2
+  }
+  Write-Host "  Android bundle not ready on 127.0.0.1 - check Flip Metro window for compile errors." -ForegroundColor Red
+  return $false
 }
 
 function Test-MetroLanHealthy {
@@ -359,6 +391,14 @@ function Start-FlipApp {
   if (-not (Wait-MetroHealthy -TimeoutSec 120 -LocalhostOnly:$UsbReverse.IsPresent)) {
     Write-Host "  $Serial : Metro not healthy - refusing to launch (avoids DevLauncher manifest loop)" -ForegroundColor Red
     return $false
+  }
+
+
+  if ($UsbReverse.IsPresent -and -not $RetryOnly) {
+    if (-not (Wait-MetroAndroidBundle)) {
+      Write-Host "  $Serial : bundle not ready on 127.0.0.1 - skipping launch" -ForegroundColor Red
+      return $false
+    }
   }
 
   if (-not $RetryOnly) {
