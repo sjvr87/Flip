@@ -27,6 +27,27 @@ const isCustomUriScheme = (uri: string) => CUSTOM_URI_SCHEME_REGEX.test(uri);
 
 const OAUTH_SIGNIN_WAIT_MS = 60_000;
 
+/** Bluesky PAR returns DPoP-Nonce even on invalid requests — seed cache before authorize. */
+function readDpopNonceHeader(headers: Headers): string | null {
+    return headers.get('DPoP-Nonce') ?? headers.get('dpop-nonce');
+}
+
+async function probeAuthorizationServerDpopNonce(parEndpoint: string): Promise<string | null> {
+    const response = await fetch(parEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: 'dpop-nonce-probe' }).toString(),
+    });
+    return readDpopNonceHeader(response.headers);
+}
+
+type OAuthResolverLike = {
+    resolve: (
+        input: string,
+        options?: { signal?: AbortSignal },
+    ) => Promise<{ metadata: { pushed_authorization_request_endpoint?: string } }>;
+};
+
 const runtimeImplementation = {
     createKey: async (algs: Parameters<typeof ExpoKey.generate>[0]) => ExpoKey.generate(algs),
     digest: async (bytes: Uint8Array, { name }: { name: string }) =>
@@ -80,6 +101,46 @@ class FlipExpoOAuthClient extends OAuthClient {
         ]);
     }
 
+    /**
+     * Bluesky requires a DPoP nonce on PAR; RN fetch often skips the library's single
+     * in-flight retry, so obtain a nonce with a plain probe POST before authorize().
+     */
+    async preflightDpopNonce(input: Parameters<OAuthClient['authorize']>[0]): Promise<void> {
+        const resolver = (this as unknown as { oauthResolver?: OAuthResolverLike }).oauthResolver;
+        if (!resolver) return;
+
+        let parEndpoint: string | undefined;
+        try {
+            const { metadata } = await resolver.resolve(String(input), {});
+            parEndpoint = metadata.pushed_authorization_request_endpoint;
+        } catch (error) {
+            if (__DEV__) {
+                console.warn('[auth] DPoP preflight metadata resolve failed:', error);
+            }
+            return;
+        }
+        if (!parEndpoint) return;
+
+        try {
+            const nonce = await probeAuthorizationServerDpopNonce(parEndpoint);
+            if (!nonce) {
+                if (__DEV__) {
+                    console.warn('[auth] DPoP preflight: PAR probe returned no DPoP-Nonce header');
+                }
+                return;
+            }
+            const origin = new URL(parEndpoint).origin;
+            this.#dpopNonceCache.set(origin, nonce);
+            if (__DEV__) {
+                console.log('[auth] DPoP nonce pre-warmed for', origin);
+            }
+        } catch (error) {
+            if (__DEV__) {
+                console.warn('[auth] DPoP nonce preflight probe failed:', error);
+            }
+        }
+    }
+
     async signIn(
         input: Parameters<OAuthClient['authorize']>[0],
         options?: Parameters<OAuthClient['authorize']>[1],
@@ -93,6 +154,7 @@ class FlipExpoOAuthClient extends OAuthClient {
 
         // Wipe in-memory + SecureStore nonces before PAR (authorize); stale nonce → handshake error.
         await this.clearTransientStores();
+        await this.preflightDpopNonce(input);
 
         const url = await this.authorize(input, {
             ...options,

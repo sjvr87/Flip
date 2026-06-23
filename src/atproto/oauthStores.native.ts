@@ -57,20 +57,23 @@ export class ProtectedResourceMetadataCache extends MemorySimpleStoreTTL<OAuthPr
     }
 }
 
-/** Persists DPoP nonces across the OAuth browser redirect (MMKV in upstream expo client). */
-export class DpopNonceCache extends SecureSimpleStoreTTL<string> {
+/**
+ * In-memory DPoP nonces (matches @atproto/oauth-client-expo). SecureStore persistence
+ * caused async load races and stale nonces before PAR; the live client survives the
+ * Custom Tab redirect. Legacy SecureStore keys are wiped on clear.
+ */
+export class DpopNonceCache extends MemorySimpleStoreTTL<string> {
     constructor() {
         super({
-            storagePrefix: DPOP_NONCE_PREFIX,
             expiresAt: tenMinutesFromNow,
             decode: identity,
             encode: identity,
         });
     }
 
-    /** Also delete legacy nonce keys written before the SecureStore index existed. */
+    /** Wipe memory and legacy SecureStore nonce keys from older builds. */
     async clearPersisted(): Promise<void> {
-        await super.clearPersisted();
+        this.clear();
         await Promise.all([
             SecureStore.deleteItemAsync(`${DPOP_NONCE_PREFIX}.__index__`),
             ...BLUESKY_AUTH_ORIGINS.map((origin) =>
