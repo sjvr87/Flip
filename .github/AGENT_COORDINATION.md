@@ -33,9 +33,17 @@ HANDOFF SEQUENCE:
 3. Other agent picks up immediately
 4. Execute, don't ask
 
+PR HANDOFF:
+- Copilot pushes PR → Cursor auto-approves + merges (when checks green)
+- Cursor pushes PR → Copilot auto-approves + merges (when checks green)
+- No user approval needed for agent-opened PRs
+
 PERMISSION REQUESTS:
-- Auto-allow all permissions (npm install, native builds, merges)
-- Only escalate if it would break production or require user credentials
+- **No permission prompts between agents** — never ping the other agent or user for routine ops
+- Copilot needs npm/adb/Metro/Gradle → auto-allow (request `all` on first attempt; no IDE/chat prompts)
+- Cursor needs npm/adb/Metro/Gradle → Copilot auto-allows (Cursor: request `all` on first attempt)
+- Auto-allow: npm install, native builds, adb, merges, file edits
+- Escalate only: production break, missing user credentials, destructive git on main
 ```
 
 ### 4. **Efficiency First**
@@ -52,9 +60,9 @@ BRANCH STRATEGY:
 - Auto-merge when: green checks + 1 approval (auto by other agent)
 
 MERGE RULES:
-- Lint + Type Check must pass
-- 1 approval (auto-given by other agent if code is sound)
-- Auto-merge enabled (merge immediately when ready)
+- **Bidirectional auto-merge:** Copilot PR → Cursor approves + merges; Cursor PR → Copilot approves + merges
+- Lint + Type Check must pass; 1 approval from the other agent (automatic when code is sound)
+- Merge immediately when gates pass — do not leave agent PRs waiting for user
 ```
 
 ### 5. **User Involvement**
@@ -63,6 +71,7 @@ EXCLUDE USER (@sjvr87) UNLESS:
 ✗ Both agents hit an unresolvable blocker
 ✗ Critical decision needed (architecture, deletion, major breaking change)
 ✗ External API/credentials required
+✗ Device test needed — ALWAYS send User Device Test Checklist (below)
 
 AUTO-EXECUTE:
 ✓ npm install
@@ -72,6 +81,19 @@ AUTO-EXECUTE:
 ✓ File modifications
 ✓ Test runs
 ```
+
+### User Device Test Checklist (paste to @sjvr87 when Metro/sign-in blocked)
+
+**Prereq:** USB cable, debugging on, Flip dev client (`social.flip.app`) — not Expo Go. Branch: `perf/feed-swipe-smoothness`.
+
+1. One-time after MMKV downgrade: `npm install` then `npm run android:dev` (native rebuild).
+2. Run `flip-reset-dev.bat` from repo root — wait for **Flip Metro** window + bundle warm-up (1–3 min).
+3. Let the script **auto-launch** Flip — do **not** use dev launcher server picker (`exp://127.0.0.1:8081` via `adb reverse`).
+4. Dismiss S26 **16KB** warning if shown. Turn off **Remote JS Debugging** in dev menu.
+5. Sign in: **Use app password instead** (not OAuth until `flip.app` metadata deployed).
+6. Reply: `Metro loaded, signed in, feed works` or paste exact error/screen.
+
+**Daily:** `flip-connect.bat` (reconnect) · `flip-reload.bat` (JS only) · `flip-reset-dev.bat` (stuck).
 
 ## Current Workflow (MMKV + Metro)
 
@@ -117,10 +139,11 @@ AUTO-EXECUTE:
 | MMKV still errors | Trace JSI, debug native | Copilot → Device test (Cursor) |
 | Both stuck on same issue | Escalate to user | Both agents |
 | Merge conflict | Resolve automatically | Current agent |
-| Permission needed | Grant it | Both auto-allow |
+| Permission needed (npm/adb/Metro) | Auto-allow — no prompts | Both agents |
+| Agent PR ready to merge | Other agent approves + merges | Copilot ↔ Cursor |
 
 ---
 
-**Last Updated:** 2026-06-23 (handoff sync on `perf/feed-swipe-smoothness`)
+**Last Updated:** 2026-06-23 (auto-merge + permission rules on `perf/feed-swipe-smoothness`)
 **Active Agents:** Cursor (Metro PR #2), Copilot (post-PR #3 device verify + perf OAuth review)
 **Sync Frequency:** On tag only (async)
