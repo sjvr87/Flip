@@ -71,10 +71,35 @@ function createMmkvStorage(): AppStorage {
     const mmkv = new MMKV();
 
     return {
-        getString: (key) => mmkv.getString(key),
-        set: (key, value) => mmkv.set(key, value),
-        delete: (key) => mmkv.delete(key),
-        remove: (key) => mmkv.delete(key),
+        getString: (key) => {
+            try {
+                return mmkv.getString(key);
+            } catch (error) {
+                console.warn('[storage] MMKV getString failed', error);
+                return undefined;
+            }
+        },
+        set: (key, value) => {
+            try {
+                mmkv.set(key, value);
+            } catch (error) {
+                console.warn('[storage] MMKV set failed', error);
+            }
+        },
+        delete: (key) => {
+            try {
+                mmkv.delete(key);
+            } catch (error) {
+                console.warn('[storage] MMKV delete failed', error);
+            }
+        },
+        remove: (key) => {
+            try {
+                mmkv.delete(key);
+            } catch (error) {
+                console.warn('[storage] MMKV delete failed', error);
+            }
+        },
     };
 }
 

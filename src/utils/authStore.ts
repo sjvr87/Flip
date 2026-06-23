@@ -278,23 +278,28 @@ export const useAuthStore = create(
             },
 
             unlockWithSavedCredentials: async () => {
-                const resumed = await resumeSession();
-                if (!resumed && !(await hasStoredSession())) {
+                try {
+                    const resumed = await resumeSession();
+                    if (!resumed && !(await hasStoredSession())) {
+                        return false;
+                    }
+
+                    const sessionOk = await ensureFreshSession();
+                    if (!sessionOk && !isAuthenticated()) {
+                        console.warn(
+                            '[auth] session unlock failed — tokens missing or refresh rejected',
+                        );
+                        return false;
+                    }
+
+                    get().syncAuthState();
+                    resetAuthFailureFlag();
+                    set({ authReady: true });
+                    return isAuthenticated();
+                } catch (error) {
+                    console.warn('[auth] unlockWithSavedCredentials failed:', error);
                     return false;
                 }
-
-                const sessionOk = await ensureFreshSession();
-                if (!sessionOk && !isAuthenticated()) {
-                    console.warn(
-                        '[auth] session unlock failed — tokens missing or refresh rejected',
-                    );
-                    return false;
-                }
-
-                get().syncAuthState();
-                resetAuthFailureFlag();
-                set({ authReady: true });
-                return isAuthenticated();
             },
 
             clearSavedLogin: async () => {
