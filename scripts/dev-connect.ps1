@@ -247,7 +247,7 @@ function Ensure-MetroRunning {
   if ($ForceRecycle) {
     Write-Host "  Force-recycling Metro on 8081..." -ForegroundColor Yellow
     Stop-AllMetroOnPort 8081 | Out-Null
-    Start-MetroInNewWindow -ClearCache:$ClearCacheOnStart 
+    Start-MetroInNewWindow -ClearCache:$ClearCacheOnStart -LocalhostMode:($script:PreferUsbReverse)
     $timeout = if ($ClearCacheOnStart) { 120 } else { 90 }
     if (Wait-MetroHealthy -TimeoutSec $timeout -LocalhostOnly:($script:PreferUsbReverse)) {
       Write-Host "  Metro started OK (localhost + LAN)." -ForegroundColor Green
@@ -271,7 +271,7 @@ function Ensure-MetroRunning {
   if ($healthy -and -not $lanHealthy -and $script:LanIp) {
     Write-Host "  Metro OK on localhost but not LAN ($($script:LanIp)) - recycling..." -ForegroundColor Yellow
     Stop-AllMetroOnPort 8081 | Out-Null
-    Start-MetroInNewWindow -ClearCache:$false 
+    Start-MetroInNewWindow -ClearCache:$false -LocalhostMode:($script:PreferUsbReverse)
     if (Wait-MetroHealthy -TimeoutSec 90 -LocalhostOnly:($script:PreferUsbReverse)) {
       Write-Host "  Metro restarted with LAN hostname." -ForegroundColor Green
       return $true
@@ -297,7 +297,7 @@ function Ensure-MetroRunning {
   }
 
   $useClear = $ClearCacheOnStart.IsPresent
-  Start-MetroInNewWindow -ClearCache:$useClear 
+  Start-MetroInNewWindow -ClearCache:$useClear -LocalhostMode:($script:PreferUsbReverse)
   $timeout = if ($useClear) { 120 } else { 90 }
   if (Wait-MetroHealthy -TimeoutSec $timeout -LocalhostOnly:($script:PreferUsbReverse)) {
     Write-Host "  Metro started OK." -ForegroundColor Green
