@@ -99,6 +99,14 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
                 'Bluesky browser sign-in is not available on this build. Use an app password below.',
             );
         }
+        if (
+            raw.includes('use_dpop_nonce') ||
+            (raw.toLowerCase().includes('dpop') && raw.toLowerCase().includes('nonce'))
+        ) {
+            throw new Error(
+                'Bluesky browser sign-in hit a security handshake error. Try again, or use an app password below.',
+            );
+        }
         throw new Error(raw);
     }
 
