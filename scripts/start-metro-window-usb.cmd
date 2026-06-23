@@ -10,6 +10,6 @@ set CI=
 set EXPO_NO_INTERACTIVE=
 set EXPO_NO_TELEMETRY=1
 set REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1
-echo Metro hostname: %REACT_NATIVE_PACKAGER_HOSTNAME% (USB adb reverse, clear cache)
-call npx expo start --dev-client --port 8081 --localhost --clear
+echo Metro: LAN bind (0.0.0.0) + packager hostname 127.0.0.1 for USB adb reverse (clear cache)
+call npx expo start --dev-client --lan --port 8081 --clear
 if errorlevel 1 pause
