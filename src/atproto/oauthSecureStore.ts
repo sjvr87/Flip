@@ -28,6 +28,7 @@ export class SecureSimpleStoreTTL<V extends Value>
     readonly #decode: (value: string) => V;
     readonly #encode: (value: V) => string;
     readonly #clearTimer?: ReturnType<typeof setInterval>;
+    readonly #pendingWrites = new Map<string, Promise<void>>();
 
     constructor({
         clearInterval = 60 * 1e3,
@@ -89,7 +90,20 @@ export class SecureSimpleStoreTTL<V extends Value>
         const expirationDate = this.#expiresAt.call(null, value);
         if (expirationDate == null) this.#exp.delete(key);
         else this.#exp.set(key, expirationDate);
-        return this.#persist(key, value, expirationDate);
+        const write = this.#persist(key, value, expirationDate);
+        this.#pendingWrites.set(key, write);
+        void write.finally(() => {
+            if (this.#pendingWrites.get(key) === write) {
+                this.#pendingWrites.delete(key);
+            }
+        });
+        return write;
+    }
+
+    /** Await in-flight SecureStore writes (e.g. before opening the OAuth browser). */
+    async ready(): Promise<void> {
+        if (this.#pendingWrites.size === 0) return;
+        await Promise.all([...this.#pendingWrites.values()]);
     }
 
     async #persist(key: string, value: V, exp: number | null): Promise<void> {
@@ -98,6 +112,7 @@ export class SecureSimpleStoreTTL<V extends Value>
             await SecureStore.setItemAsync(this.#storageKey(key), JSON.stringify(entry));
         } catch (error) {
             console.warn(`[auth] OAuth store persist failed (${this.#prefix}):`, error);
+            throw error;
         }
     }
 

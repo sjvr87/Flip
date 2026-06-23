@@ -1,6 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 
-import clientMetadata from '../../assets/oauth-client-metadata.json';
+import { getOAuthClientMetadata } from './oauthClientMetadata';
 
 import type { ExpoOAuthClient as ExpoOAuthClientType } from '@atproto/oauth-client-expo/dist/expo-oauth-client.web';
 
@@ -21,7 +21,7 @@ export function getOAuthClient(): ExpoOAuthClientType {
         try {
             client = new ExpoOAuthClient({
                 handleResolver: 'https://bsky.social',
-                clientMetadata,
+                clientMetadata: getOAuthClientMetadata(),
             });
         } catch (error) {
             initError =

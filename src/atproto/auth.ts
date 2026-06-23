@@ -82,29 +82,30 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
     } catch (error) {
         const raw =
             error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
+        if (__DEV__) {
+            console.warn('[auth] Bluesky OAuth error:', error);
+        }
         if (raw.toLowerCase().includes('cancel')) {
             throw new Error('Sign-in cancelled.');
         }
         if (raw.includes('Failed to resolve identity')) {
             throw new Error(
-                'Could not reach Bluesky for sign-in. Check your connection, or use an app password below.',
+                'Could not reach Bluesky for sign-in. Check your connection and try again.',
             );
         }
         if (
             raw.includes('client metadata') ||
             raw.includes('client_id') ||
-            raw.includes('invalid_client')
+            raw.includes('invalid_client') ||
+            raw.includes('Invalid client metadata content type')
         ) {
             throw new Error(
-                'Bluesky browser sign-in is not available on this build. Use an app password below.',
+                'Bluesky could not load Flip sign-in configuration. Try again in a minute.',
             );
         }
-        if (
-            raw.includes('use_dpop_nonce') ||
-            (raw.toLowerCase().includes('dpop') && raw.toLowerCase().includes('nonce'))
-        ) {
+        if (raw.includes('use_dpop_nonce') || raw.includes('"use_dpop_nonce"')) {
             throw new Error(
-                'Bluesky browser sign-in hit a security handshake error. Try again, or use an app password below.',
+                'Bluesky sign-in security handshake failed. Close the app, reopen, and try again.',
             );
         }
         throw new Error(raw);

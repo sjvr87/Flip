@@ -4,7 +4,7 @@ import { OAuthClient } from '@atproto/oauth-client';
 const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
 const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
-import clientMetadata from '../../assets/oauth-client-metadata.json';
+import { getOAuthClientMetadata } from './oauthClientMetadata';
 
 import {
     AuthorizationServerMetadataCache,
@@ -34,23 +34,29 @@ const runtimeImplementation = {
 /** Bluesky Expo OAuth client without MMKV (avoids JSI / remote-debug failures). */
 class FlipExpoOAuthClient extends OAuthClient {
     #disposables: DisposableStack;
+    #dpopNonceCache: DpopNonceCache;
+    #stateStore: StateStore;
 
     constructor(options: { handleResolver: string; clientMetadata }) {
         const stack = new DisposableStack();
+        const dpopNonceCache = stack.use(new DpopNonceCache());
+        const stateStore = stack.use(new StateStore());
         super({
             ...options,
             responseMode: 'query',
             keyset: undefined,
             runtimeImplementation,
             sessionStore: stack.use(new SessionStore()),
-            stateStore: stack.use(new StateStore()),
+            stateStore,
             didCache: stack.use(new DidCache()),
             handleCache: stack.use(new HandleCache()),
-            dpopNonceCache: stack.use(new DpopNonceCache()),
+            dpopNonceCache,
             authorizationServerMetadataCache: stack.use(new AuthorizationServerMetadataCache()),
             protectedResourceMetadataCache: stack.use(new ProtectedResourceMetadataCache()),
         });
         this.#disposables = stack.move();
+        this.#dpopNonceCache = dpopNonceCache;
+        this.#stateStore = stateStore;
     }
 
     async handleCallback() {
@@ -73,6 +79,9 @@ class FlipExpoOAuthClient extends OAuthClient {
             redirect_uri: redirectUri,
             display: options?.display ?? 'touch',
         });
+
+        // PAR + state writes go to SecureStore; flush before Chrome Custom Tab backgrounds the app.
+        await Promise.all([this.#dpopNonceCache.ready(), this.#stateStore.ready()]);
 
         const result = await openAuthSessionAsync(url.toString(), redirectUri, {
             dismissButtonStyle: 'cancel',
@@ -112,7 +121,7 @@ export function getOAuthClient(): FlipExpoOAuthClient {
         try {
             client = new FlipExpoOAuthClient({
                 handleResolver: 'https://bsky.social',
-                clientMetadata,
+                clientMetadata: getOAuthClientMetadata(),
             });
         } catch (error) {
             initError =
