@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
+    "@atproto/oauth-client-expo": "^0.1.1",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "12.0.1",
@@ -78,6 +79,7 @@
     "react-native-screens": "4.25.2",
     "react-native-svg": "15.15.4",
     "react-native-uitextview": "^2.1.0-rc.0",
+    "react-native-url-polyfill": "^3.0.0",
     "react-native-vision-camera": "^4.7.2",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.8.3",

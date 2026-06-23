@@ -1,4 +1,5 @@
-import { BskyAgent, type AtpSessionData } from '@atproto/api'
+import { Agent, BskyAgent, type AtpSessionData } from '@atproto/api'
+import type { OAuthSession } from '@atproto/oauth-client'
 
 import { triggerAuthFailure } from '@/utils/authEvents'
 import { Storage } from '@/utils/cache'
@@ -8,19 +9,23 @@ import { isWeb } from '@/utils/runtime'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, type AppStateStatus } from 'react-native'
 
-
+import { getOAuthClient } from './oauthClient'
 
 const SESSION_KEY = 'flip.atproto.session'
-
 const SERVICE_KEY = 'flip.atproto.service'
-
-
+const OAUTH_DID_KEY = 'flip.atproto.oauth.did'
+const OAUTH_HANDLE_KEY = 'flip.atproto.oauth.handle'
 
 const DEFAULT_SERVICE = 'https://bsky.social'
 
-
+type OAuthBackedAgent = Agent & {
+  session: { did: string; handle?: string }
+}
 
 let agent: BskyAgent | null = null
+let oauthAgent: OAuthBackedAgent | null = null
+let oauthDid: string | null = null
+let activeOAuthSession: OAuthSession | null = null
 
 let pendingSessionRestore: Promise<boolean> | null = null
 
@@ -109,10 +114,21 @@ async function refreshAgentSession(a: BskyAgent): Promise<void> {
 }
 
 export async function tryRefreshSession(): Promise<boolean> {
+  if (oauthAgent && oauthDid) {
+    try {
+      const session = await getOAuthClient().restore(oauthDid, true)
+      setOAuthSession(session)
+      return true
+    } catch (error) {
+      console.warn('[auth] OAuth session refresh failed:', error)
+      return false
+    }
+  }
+
   lastRefreshRejected = false
   await restoreSessionFromStorageIfEmpty()
 
-  const a = getAgent()
+  const a = getCredentialAgent()
   if (!a.session?.refreshJwt) return false
 
   try {
@@ -136,15 +152,18 @@ export async function tryRefreshSession(): Promise<boolean> {
 
 /** Reload persisted tokens when the in-memory agent lost its session (e.g. after a 401). */
 export async function restoreSessionFromStorageIfEmpty(): Promise<boolean> {
-  if (getAgent().session) return true
+  if (oauthAgent?.did) return true
+  if (getCredentialAgent().session) return true
   return resumeSession()
 }
 
 async function recoverAuth(): Promise<boolean> {
+  if (oauthAgent?.did) return true
+
   await restoreSessionFromStorageIfEmpty()
 
   const refreshed = await tryRefreshSession()
-  if (refreshed && !isAccessTokenExpired(getAgent().session?.accessJwt)) {
+  if (refreshed && !isAccessTokenExpired(getCredentialAgent().session?.accessJwt)) {
     return true
   }
 
@@ -164,10 +183,12 @@ async function recoverAuth(): Promise<boolean> {
  * Ensure the agent has a non-expired access token before authenticated API calls.
  */
 export async function ensureFreshSession(): Promise<boolean> {
+  if (oauthAgent?.did) return true
+
   await awaitSessionRestore()
   await restoreSessionFromStorageIfEmpty()
 
-  const a = getAgent()
+  const a = getCredentialAgent()
   if (!a.session) return false
   if (!isAccessTokenExpired(a.session.accessJwt)) return true
 
@@ -207,6 +228,10 @@ async function prepareAuthenticatedSession(): Promise<boolean> {
  * Run an authenticated ATProto call with proactive refresh and one retry on token errors.
  */
 export async function withAuthenticatedFetch<T>(fn: () => Promise<T>): Promise<T> {
+  if (oauthAgent?.did) {
+    return fn()
+  }
+
   const ready = await prepareAuthenticatedSession()
   if (!ready) {
     if (!(await hasStoredSession()) || wasRefreshTokenRejected()) {
@@ -273,16 +298,107 @@ export function getServiceUrl(): string {
 
 
 
-export function getAgent(): BskyAgent {
-
+export function getCredentialAgent(): BskyAgent {
   if (!agent) {
-
     agent = createAgent(getServiceUrl())
+  }
+  return agent
+}
 
+function readOAuthHandle(): string | undefined {
+  return Storage.getString(OAUTH_HANDLE_KEY) || undefined
+}
+
+function createOAuthBackedAgent(session: OAuthSession, handle?: string): OAuthBackedAgent {
+  const oauthBacked = new Agent(session)
+  oauthBacked.configureProxy('did:web:api.bsky.app#bsky_appview')
+  const sessionView = { did: session.did, handle }
+
+  return new Proxy(oauthBacked, {
+    get(target, prop, receiver) {
+      if (prop === 'session') return sessionView
+      return Reflect.get(target, prop, receiver)
+    },
+  }) as OAuthBackedAgent
+}
+
+export function setOAuthSession(session: OAuthSession, handle?: string): void {
+  activeOAuthSession = session
+  oauthDid = session.did
+  oauthAgent = createOAuthBackedAgent(session, handle)
+  Storage.set(OAUTH_DID_KEY, session.did)
+  if (handle) {
+    Storage.set(OAUTH_HANDLE_KEY, handle)
+  }
+  agent = null
+}
+
+export async function saveOAuthDid(did: string, handle?: string): Promise<void> {
+  oauthDid = did
+  Storage.set(OAUTH_DID_KEY, did)
+  if (handle) {
+    Storage.set(OAUTH_HANDLE_KEY, handle)
+  }
+  if (!isWeb) {
+    await SecureStore.setItemAsync(OAUTH_DID_KEY, did)
+    if (handle) {
+      await SecureStore.setItemAsync(OAUTH_HANDLE_KEY, handle)
+    }
+  }
+}
+
+export async function getSavedOAuthDid(): Promise<string | null> {
+  const cached = oauthDid ?? Storage.getString(OAUTH_DID_KEY)
+  if (cached) return cached
+  if (!isWeb) {
+    return (await SecureStore.getItemAsync(OAUTH_DID_KEY)) ?? null
+  }
+  return null
+}
+
+export async function hasStoredOAuthSession(): Promise<boolean> {
+  return !!(await getSavedOAuthDid())
+}
+
+export async function resumeOAuthSession(): Promise<boolean> {
+  const did = await getSavedOAuthDid()
+  if (!did) return false
+
+  try {
+    const session = await getOAuthClient().restore(did)
+    setOAuthSession(session, readOAuthHandle())
+    console.warn('[auth] OAuth session restored for', did)
+    return true
+  } catch (error) {
+    console.warn('[auth] OAuth session restore failed:', error)
+    await clearOAuthSession()
+    return false
+  }
+}
+
+export async function clearOAuthSession(): Promise<void> {
+  if (activeOAuthSession) {
+    try {
+      await activeOAuthSession.signOut()
+    } catch {
+      // Best-effort sign-out; local wipe proceeds regardless.
+    }
   }
 
-  return agent
+  activeOAuthSession = null
+  oauthAgent = null
+  oauthDid = null
+  Storage.delete(OAUTH_DID_KEY)
+  Storage.delete(OAUTH_HANDLE_KEY)
+  if (!isWeb) {
+    await SecureStore.deleteItemAsync(OAUTH_DID_KEY)
+    await SecureStore.deleteItemAsync(OAUTH_HANDLE_KEY)
+  }
+}
 
+export function getAgent(): BskyAgent | OAuthBackedAgent {
+  if (oauthAgent) return oauthAgent
+  return getCredentialAgent()
 }
 
 
@@ -332,36 +448,32 @@ export function clearSession(): void {
   Storage.delete(SERVICE_KEY)
 
   if (!isWeb) {
-
     void SecureStore.deleteItemAsync(SESSION_KEY)
-
     void SecureStore.deleteItemAsync(SERVICE_KEY)
-
   }
 
   agent = null
-
+  void clearOAuthSession()
 }
 
 
 
 export async function hasStoredSession(): Promise<boolean> {
+  if (await hasStoredOAuthSession()) return true
 
   if (Storage.getString(SESSION_KEY)) return true
 
   if (!isWeb) {
-
     return !!(await SecureStore.getItemAsync(SESSION_KEY))
-
   }
 
   return false
-
 }
 
 
 
 export async function resumeSession(): Promise<boolean> {
+  if (await resumeOAuthSession()) return true
 
   if (!isWeb) {
 
@@ -416,7 +528,7 @@ export async function resumeSession(): Promise<boolean> {
 
 
 
-  const a = getAgent()
+  const a = getCredentialAgent()
   const sm = a.sessionManager
 
   // Load tokens without AtpAgent.resumeSession() — it always POSTs refreshSession (no body).
@@ -460,17 +572,17 @@ export async function resumeSession(): Promise<boolean> {
 
 
 export function getAccessToken(): string | null {
-
-  return getAgent().session?.accessJwt ?? null
-
+  if (oauthAgent) return null
+  return getCredentialAgent().session?.accessJwt ?? null
 }
 
-
+export function isOAuthAuthenticated(): boolean {
+  return !!oauthAgent?.did
+}
 
 export function isAuthenticated(): boolean {
-
-  return !!getAgent().session
-
+  if (oauthAgent?.did) return true
+  return !!getCredentialAgent().session
 }
 
 type SessionResumeHandler = () => void
@@ -499,7 +611,7 @@ export function installSessionResumeRefresh(): void {
     void (async () => {
       await awaitSessionRestore()
       const hasSession = await hasStoredSession()
-      if (!hasSession && !getAgent().session) return
+      if (!hasSession && !isAuthenticated()) return
 
       const refreshed = await tryRefreshSession()
       if (refreshed) {

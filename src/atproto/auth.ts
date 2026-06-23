@@ -4,17 +4,22 @@ import {
   clearSession,
   ensureFreshSession,
   getAgent,
+  getCredentialAgent,
   getServiceUrl,
   isAccessTokenExpired,
   isAuthenticated,
+  isOAuthAuthenticated,
   persistSession,
   resumeSession,
+  saveOAuthDid,
+  setOAuthSession,
   setServiceUrl,
   tryRefreshSession,
   wasRefreshTokenRejected,
   withAuthenticatedFetch,
 } from './agent'
 import { clearCredentials, getSavedCredentials } from './credentialVault'
+import { getOAuthClient } from './oauthClient'
 import type { FlipAppConfig, FlipUserProfile } from './types'
 import { Storage } from '@/utils/cache'
 
@@ -65,6 +70,39 @@ function fetchProfileInBackground(): void {
   })()
 }
 
+export async function loginWithOAuth(): Promise<FlipSessionUser> {
+  clearSession()
+  clearFollowingDidsCache()
+
+  let session
+  try {
+    session = await getOAuthClient().signIn('bsky.social')
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.'
+    if (message.toLowerCase().includes('cancel')) {
+      throw new Error('Sign-in cancelled.')
+    }
+    throw new Error(message)
+  }
+
+  setOAuthSession(session)
+  setServiceUrl('bsky.social')
+
+  const agent = getAgent()
+  const profile = await agent.getProfile({ actor: session.did })
+  const user = profileToFlipUser(profile.data, true)
+  await saveOAuthDid(session.did, user.username)
+  setOAuthSession(session, user.username)
+
+  Storage.delete('app.token')
+  Storage.delete('app.instance')
+  Storage.set(PROFILE_KEY, JSON.stringify(user))
+
+  void warmFollowingDidsCache()
+  return user
+}
+
 export async function loginWithPassword(
   identifier: string,
   password: string,
@@ -78,7 +116,7 @@ export async function loginWithPassword(
     setServiceUrl(service)
   }
 
-  const agent = getAgent()
+  const agent = getCredentialAgent()
   let result: Awaited<ReturnType<typeof agent.login>>
   try {
     result = await agent.login({ identifier, password })
@@ -122,12 +160,18 @@ export async function hydrateSession(): Promise<boolean> {
   const ok = await resumeSession()
   if (!ok) return false
 
-  // Prefer ATProto routing — drop stale Loops REST credentials from older sessions.
   Storage.delete('app.token')
   Storage.delete('app.instance')
 
-  const agent = getAgent()
-  const session = agent.session
+  if (!isAuthenticated()) return false
+
+  if (isOAuthAuthenticated()) {
+    fetchProfileInBackground()
+    void warmFollowingDidsCache()
+    return true
+  }
+
+  const session = getCredentialAgent().session
   if (!session) return false
 
   if (wasRefreshTokenRejected()) {
@@ -135,14 +179,12 @@ export async function hydrateSession(): Promise<boolean> {
     return false
   }
 
-  // Valid access token — unblock the app immediately; profile loads in background.
   if (!isAccessTokenExpired(session.accessJwt)) {
     fetchProfileInBackground()
     void warmFollowingDidsCache()
     return true
   }
 
-  // Expired access token but refresh may still be in flight — keep session for retry.
   fetchProfileInBackground()
   void warmFollowingDidsCache()
   return true

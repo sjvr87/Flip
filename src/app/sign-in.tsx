@@ -27,7 +27,7 @@ import {
 import { openBrowserAsync } from 'expo-web-browser'
 import tw from 'twrnc'
 
-type SignInMode = 'loading' | 'unlock' | 'password' | 'full'
+type SignInMode = 'loading' | 'unlock' | 'password' | 'full' | 'oauth'
 
 const APP_PASSWORD_HELP_URL = 'https://bsky.app/settings/app-passwords'
 
@@ -38,6 +38,7 @@ function formatHandle(identifier: string): string {
 
 export default function SignInScreen() {
   const loginWithBluesky = useAuthStore((s) => s.loginWithBluesky)
+  const signInWithBlueskyOAuth = useAuthStore((s) => s.signInWithBlueskyOAuth)
   const unlockWithSavedCredentials = useAuthStore((s) => s.unlockWithSavedCredentials)
   const clearSavedLogin = useAuthStore((s) => s.clearSavedLogin)
   const requireBiometric = useAuthStore((s) => s.requireBiometric)
@@ -55,7 +56,7 @@ export default function SignInScreen() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [service, setService] = useState('bsky.social')
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showAppPassword, setShowAppPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState('Signing you in...')
@@ -95,7 +96,7 @@ export default function SignInScreen() {
     if (!hasHydrated || !authReady || isLoggedIn) return
 
     const loadingFailsafe = setTimeout(() => {
-      setMode((current) => (current === 'loading' ? 'full' : current))
+      setMode((current) => (current === 'loading' ? 'oauth' : current))
       setIsLoading(false)
     }, 4000)
 
@@ -130,16 +131,16 @@ export default function SignInScreen() {
             router.replace('/(tabs)')
             return
           }
-          setLoginError('Could not restore your session. Enter your app password to sign in again.')
-          setMode(handle ? 'password' : 'full')
+          setLoginError('Could not restore your session. Sign in with Bluesky again.')
+          setMode(handle ? 'password' : 'oauth')
           setIsLoading(false)
         } else if (storedSession || handle) {
-          setMode(requireBiometric && bioAvailable ? 'unlock' : handle ? 'password' : 'full')
+          setMode(requireBiometric && bioAvailable ? 'unlock' : handle ? 'password' : 'oauth')
         } else {
-          setMode('full')
+          setMode('oauth')
         }
       } else {
-        setMode('full')
+        setMode('oauth')
       }
     })()
 
@@ -155,6 +156,24 @@ export default function SignInScreen() {
     biometricAttempted.current = true
     void runBiometricUnlock()
   }, [mode, isLoading, runBiometricUnlock])
+
+  const handleOAuthSignIn = async () => {
+    setLoginError(null)
+    setIsLoading(true)
+    setStatusMessage('Opening Bluesky…')
+    try {
+      const success = await signInWithBlueskyOAuth()
+      if (success) {
+        router.replace('/(tabs)')
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Bluesky sign-in failed. Try again.'
+      setLoginError(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleLogin = async () => {
     const loginIdentifier = (identifier.trim() || savedHandle?.trim() || '')
@@ -197,8 +216,9 @@ export default function SignInScreen() {
     setIdentifier('')
     setPassword('')
     setService('bsky.social')
-    setShowAdvanced(false)
-    setMode('full')
+    setService('bsky.social')
+    setShowAppPassword(false)
+    setMode('oauth')
   }
 
   const openAppPasswordHelp = async () => {
@@ -287,6 +307,45 @@ export default function SignInScreen() {
     </View>
   )
 
+  const oauthView = (
+    <View style={styles.form}>
+      <Pressable
+        style={[styles.button, styles.oauthButton, isDark && styles.buttonDark, isLoading && styles.buttonDisabled]}
+        onPress={() => void handleOAuthSignIn()}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color={isDark ? '#fff' : '#0060df'} />
+        ) : (
+          <XStack alignItems="center" gap={10}>
+            <Ionicons name="cloud-outline" size={22} color={isDark ? '#fff' : '#0060df'} />
+            <Text style={[styles.buttonText, isDark && styles.buttonTextDark]}>Sign in with Bluesky</Text>
+          </XStack>
+        )}
+      </Pressable>
+
+      <Text style={[styles.oauthHint, isDark && styles.oauthHintDark]}>
+        Opens Bluesky so you can approve access. Flip keeps you signed in on this phone.
+      </Text>
+
+      {loginError ? (
+        <Text style={[styles.errorText, isDark && styles.errorTextDark]}>{loginError}</Text>
+      ) : null}
+
+      <Pressable
+        style={styles.textLink}
+        onPress={() => {
+          setShowAppPassword(true)
+          setMode('full')
+        }}
+      >
+        <Text style={[styles.textLinkLabelMuted, isDark && styles.textLinkLabelMutedDark]}>
+          Use app password instead
+        </Text>
+      </Pressable>
+    </View>
+  )
+
   const formView = (
     <View style={styles.form}>
       {savedHandle && mode === 'password' ? (
@@ -306,7 +365,7 @@ export default function SignInScreen() {
         </>
       ) : null}
 
-      {mode === 'full' ? (
+      {mode === 'full' && showAppPassword ? (
         <>
           <Text style={[styles.label, isDark && styles.labelDark]}>Bluesky handle or email</Text>
           <TextInput
@@ -334,9 +393,9 @@ export default function SignInScreen() {
         autoFocus={mode === 'password'}
       />
 
-      {mode === 'full' && showAdvanced ? (
+      {mode === 'full' && showAppPassword ? (
         <>
-          <Text style={[styles.label, isDark && styles.labelDark]}>Server</Text>
+          <Text style={[styles.label, isDark && styles.labelDark]}>Server (optional)</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="bsky.social"
@@ -348,7 +407,7 @@ export default function SignInScreen() {
         </>
       ) : null}
 
-      {mode === 'full' ? (
+      {mode === 'full' && showAppPassword ? (
         <Pressable
           style={styles.helpLink}
           onPress={() => void openAppPasswordHelp()}
@@ -364,10 +423,10 @@ export default function SignInScreen() {
         </Pressable>
       ) : null}
 
-      {mode === 'full' && !showAdvanced ? (
-        <Pressable style={styles.textLink} onPress={() => setShowAdvanced(true)}>
-          <Text style={[styles.textLinkLabelMuted, isDark && styles.textLinkLabelMutedDark]}>
-            Advanced options
+      {mode === 'full' && showAppPassword ? (
+        <Pressable style={styles.textLink} onPress={() => setMode('oauth')}>
+          <Text style={[styles.textLinkLabel, isDark && styles.textLinkLabelDark]}>
+            Back to Bluesky sign in
           </Text>
         </Pressable>
       ) : null}
@@ -376,9 +435,7 @@ export default function SignInScreen() {
         style={[
           styles.button,
           isDark && styles.buttonDark,
-          (!identifier && !savedHandle) || !password || isLoading
-            ? styles.buttonDisabled
-            : null,
+          ((!identifier && !savedHandle) || !password || isLoading) ? styles.buttonDisabled : null,
         ]}
         onPress={() => void handleLogin()}
         disabled={(!identifier && !savedHandle) || !password || isLoading}
@@ -441,6 +498,7 @@ export default function SignInScreen() {
 
         {mode === 'loading' ? loadingView : null}
         {mode === 'unlock' ? unlockView : null}
+        {mode === 'oauth' ? oauthView : null}
         {mode === 'full' || mode === 'password' ? formView : null}
 
         {mode !== 'loading' ? (
@@ -579,6 +637,19 @@ const styles = StyleSheet.create({
   },
   textLinkLabelMutedDark: {
     color: 'rgba(255,255,255,0.45)',
+  },
+  oauthButton: {
+    marginTop: 4,
+  },
+  oauthHint: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  oauthHintDark: {
+    color: 'rgba(255,255,255,0.55)',
   },
   form: { gap: 8 },
   label: {

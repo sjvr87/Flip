@@ -4,6 +4,7 @@ import {
   getPreferences,
   hydrateSession,
   isAuthenticated,
+  loginWithOAuth,
   loginWithPassword,
   logout as atprotoLogout,
   refreshSession,
@@ -54,6 +55,7 @@ type UserState = {
     password: string,
     service?: string,
   ) => Promise<boolean>
+  signInWithBlueskyOAuth: () => Promise<boolean>
   /** @deprecated Loops OAuth — use loginWithBluesky */
   loginWithOAuth: (server: string, scopes?: string) => Promise<boolean>
   loginWithApple: (server: string, credential: unknown) => Promise<boolean>
@@ -130,7 +132,6 @@ export const useAuthStore = create(
           const user = await loginWithPassword(identifier, password, service)
           const { rememberLogin } = get()
 
-          // Session JWTs are persisted in SecureStore — never keep the app password.
           await clearCredentials()
 
           if (rememberLogin && !ANDROID_VIDEO_SAFE_MODE) {
@@ -163,9 +164,36 @@ export const useAuthStore = create(
         }
       },
 
+      signInWithBlueskyOAuth: async () => {
+        loginInFlight = true
+        try {
+          const user = await loginWithOAuth()
+          await clearCredentials()
+          set({ requireBiometric: false })
+          set((state) => ({
+            ...state,
+            isLoggedIn: true,
+            user,
+            server: getCurrentServer(),
+            authReady: true,
+          }))
+          resetAuthFailureFlag()
+          return true
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Bluesky sign-in failed. Try again.'
+          if (!message.toLowerCase().includes('cancel')) {
+            console.error('Bluesky OAuth failed:', error)
+            Alert.alert('Sign in failed', message)
+          }
+          return false
+        } finally {
+          loginInFlight = false
+        }
+      },
+
       loginWithOAuth: async () => {
-        Alert.alert('Not available', 'Flip uses Bluesky login with an app password.')
-        return false
+        return get().signInWithBlueskyOAuth()
       },
 
       loginWithApple: async () => {

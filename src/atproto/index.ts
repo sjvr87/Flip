@@ -54,6 +54,7 @@ export {
   updatePreferences,
   openBrowser,
   loginWithPassword,
+  loginWithOAuth,
   hydrateSession,
   refreshSession,
   getCurrentUser,
