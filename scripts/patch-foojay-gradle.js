@@ -24,13 +24,18 @@ const settingsFile = path.join(
 
 if (fs.existsSync(settingsFile)) {
   const src = fs.readFileSync(settingsFile, 'utf8');
-  const next = src.replace(
-    'foojay-resolver-convention").version("0.5.0")',
-    'foojay-resolver-convention").version("1.0.0")',
-  );
+  const next = src
+    .replace(
+      'plugins { id("org.gradle.toolchains.foojay-resolver-convention").version("0.5.0") }',
+      '',
+    )
+    .replace(
+      'plugins { id("org.gradle.toolchains.foojay-resolver-convention").version("1.0.0") }',
+      '',
+    );
   if (next !== src) {
     fs.writeFileSync(settingsFile, next);
-    console.log('[patch-foojay-gradle] Updated foojay-resolver-convention to 1.0.0');
+    console.log('[patch-foojay-gradle] Removed foojay-resolver-convention plugin block');
   }
 }
 
