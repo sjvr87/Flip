@@ -171,6 +171,7 @@ class FlipExpoOAuthClient extends OAuthClient {
         });
 
         if (result.type === 'success') {
+            oauthCustomTabExchangeAttempted = true;
             const callbackUrl = new URL(result.url);
             const params =
                 this.responseMode === 'fragment'
@@ -201,8 +202,29 @@ let client: FlipExpoOAuthClient | null = null;
 let initError: Error | null = null;
 let oauthSignInFlight: Promise<OAuthSession> | null = null;
 let oauthExchangeFlight: Promise<OAuthSession> | null = null;
+/** Set when Custom Tab returned a callback URL and signIn attempted token exchange. */
+let oauthCustomTabExchangeAttempted = false;
+/** Outcome of the most recent runOAuthSignIn (cleared on resetOAuthClient). */
+let oauthSignInOutcome: 'success' | 'failed' | null = null;
 /** Serialize resets — concurrent clear/dispose during PAR causes use_dpop_nonce failures. */
 let resetOAuthClientLock: Promise<void> = Promise.resolve();
+
+export function wasOAuthCustomTabExchangeAttempted(): boolean {
+    return oauthCustomTabExchangeAttempted;
+}
+
+export function getOAuthSignInOutcome(): 'success' | 'failed' | null {
+    return oauthSignInOutcome;
+}
+
+export function isStaleOAuthCallbackError(error: unknown): boolean {
+    const raw = error instanceof Error ? error.message : String(error);
+    return (
+        raw.includes('Unknown authorization session') ||
+        raw.includes('Missing "state" parameter') ||
+        raw.toLowerCase().includes('missing state')
+    );
+}
 
 async function exchangeOAuthCallback(
     oauthClient: FlipExpoOAuthClient,
@@ -234,12 +256,18 @@ export async function completeOAuthCallback(
         try {
             return await withTimeout(oauthSignInFlight, OAUTH_SIGNIN_WAIT_MS, 'OAuth sign-in');
         } catch {
-            // Custom Tab path failed; fall through to deep-link exchange.
+            // Custom Tab path failed; do not re-exchange the same callback params.
         }
     }
 
     if (oauthExchangeFlight) {
         return oauthExchangeFlight;
+    }
+
+    // Android often delivers the redirect to both Custom Tab and expo-router; the Custom Tab
+    // path already consumed (or failed on) this authorization — a second exchange 404s state.
+    if (oauthCustomTabExchangeAttempted) {
+        throw new Error('Duplicate OAuth callback after Custom Tab exchange');
     }
 
     const oauthClient = getOAuthClient();
@@ -279,10 +307,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     });
 }
 
-async function resetOAuthClientUnlocked(): Promise<void> {
+async function resetOAuthClientUnlocked(force: boolean): Promise<void> {
+    if (!force && (oauthSignInFlight || oauthExchangeFlight)) {
+        if (__DEV__) {
+            console.warn('[auth] Skipping OAuth client reset while sign-in/exchange in flight');
+        }
+        return;
+    }
+
     if (oauthSignInFlight) {
         try {
-            await withTimeout(oauthSignInFlight, 500, 'OAuth sign-in cancel');
+            await withTimeout(oauthSignInFlight, OAUTH_SIGNIN_WAIT_MS, 'OAuth sign-in cancel');
         } catch {
             // Abandon in-flight Custom Tab sign-in before wiping stores.
         }
@@ -291,12 +326,14 @@ async function resetOAuthClientUnlocked(): Promise<void> {
 
     if (oauthExchangeFlight) {
         try {
-            await withTimeout(oauthExchangeFlight, 500, 'OAuth exchange cancel');
+            await withTimeout(oauthExchangeFlight, OAUTH_SIGNIN_WAIT_MS, 'OAuth exchange cancel');
         } catch {
             // Abandon in-flight deep-link exchange before wiping stores.
         }
     }
     oauthExchangeFlight = null;
+    oauthCustomTabExchangeAttempted = false;
+    oauthSignInOutcome = null;
 
     if (client) {
         try {
@@ -320,8 +357,9 @@ async function resetOAuthClientUnlocked(): Promise<void> {
     initError = null;
 }
 
-export async function resetOAuthClient(): Promise<void> {
-    const run = () => resetOAuthClientUnlocked();
+export async function resetOAuthClient(options?: { force?: boolean }): Promise<void> {
+    const force = options?.force === true;
+    const run = () => resetOAuthClientUnlocked(force);
     const next = resetOAuthClientLock.then(run, run);
     resetOAuthClientLock = next.catch(() => {});
     await next;
@@ -365,19 +403,25 @@ export async function runOAuthSignIn(
         return oauthSignInFlight;
     }
 
+    oauthCustomTabExchangeAttempted = false;
+    oauthSignInOutcome = null;
+
     oauthSignInFlight = (async () => {
         let lastError: unknown;
         for (let attempt = 0; attempt <= OAUTH_DPOP_RETRY_MAX; attempt++) {
             try {
                 // loginWithOAuth resets before calling us; only reset again on DPoP retry.
                 if (attempt > 0) {
-                    await resetOAuthClient();
+                    await resetOAuthClient({ force: true });
                 }
                 const oauthClient = getOAuthClient();
-                return await oauthClient.signIn(input, options);
+                const session = await oauthClient.signIn(input, options);
+                oauthSignInOutcome = 'success';
+                return session;
             } catch (error) {
                 lastError = error;
                 if (!isDpopNonceOAuthError(error) || attempt === OAUTH_DPOP_RETRY_MAX) {
+                    oauthSignInOutcome = 'failed';
                     throw error;
                 }
                 if (__DEV__) {
@@ -387,6 +431,7 @@ export async function runOAuthSignIn(
                 }
             }
         }
+        oauthSignInOutcome = 'failed';
         throw lastError;
     })().finally(() => {
         oauthSignInFlight = null;

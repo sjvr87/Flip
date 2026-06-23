@@ -120,6 +120,12 @@ function mapOAuthSignInError(error: unknown): string {
     if (raw.includes('Unknown authorization session')) {
         return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
     }
+    if (raw.includes('Duplicate OAuth callback')) {
+        return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
+    }
+    if (raw.includes('Duplicate OAuth callback after Custom Tab exchange')) {
+        return 'Sign-in session expired. Tap Continue with Bluesky and try again.';
+    }
     if (raw.includes('invalid_redirect_uri')) {
         return detail
             ? `Bluesky rejected the redirect URI: ${detail}`
@@ -188,37 +194,44 @@ export async function completeOAuthRedirect(
     params: Record<string, string | string[] | undefined>,
     linkingUrl?: string | null,
 ): Promise<FlipSessionUser> {
-    const { searchParams } = await resolveOAuthCallbackSearchParams(params, linkingUrl);
+    try {
+        const { searchParams } = await resolveOAuthCallbackSearchParams(params, linkingUrl);
 
-    if (searchParams.get('error')) {
-        const message =
-            searchParams.get('error_description') ??
-            searchParams.get('error') ??
-            'Authentication failed';
-        throw new Error(message);
+        if (searchParams.get('error')) {
+            const message =
+                searchParams.get('error_description') ??
+                searchParams.get('error') ??
+                'Authentication failed';
+            throw new Error(message);
+        }
+
+        if (!searchParams.get('code') && !searchParams.get('state')) {
+            throw new Error('Missing "state" parameter');
+        }
+
+        const session = await completeOAuthCallback(searchParams);
+
+        setOAuthSession(session);
+        setServiceUrl('bsky.social');
+
+        const agent = getAgent();
+        const profile = await agent.getProfile({ actor: session.did });
+        const user = profileToFlipUser(profile.data, true);
+        await saveOAuthDid(session.did, user.username);
+        setOAuthSession(session, user.username);
+
+        Storage.delete('app.token');
+        Storage.delete('app.instance');
+        Storage.set(PROFILE_KEY, JSON.stringify(user));
+
+        void warmFollowingDidsCache();
+        return user;
+    } catch (error) {
+        if (__DEV__) {
+            console.warn('[auth] OAuth redirect completion failed:', error);
+        }
+        throw new Error(mapOAuthSignInError(error));
     }
-
-    if (!searchParams.get('code') && !searchParams.get('state')) {
-        throw new Error('Missing "state" parameter');
-    }
-
-    const session = await completeOAuthCallback(searchParams);
-
-    setOAuthSession(session);
-    setServiceUrl('bsky.social');
-
-    const agent = getAgent();
-    const profile = await agent.getProfile({ actor: session.did });
-    const user = profileToFlipUser(profile.data, true);
-    await saveOAuthDid(session.did, user.username);
-    setOAuthSession(session, user.username);
-
-    Storage.delete('app.token');
-    Storage.delete('app.instance');
-    Storage.set(PROFILE_KEY, JSON.stringify(user));
-
-    void warmFollowingDidsCache();
-    return user;
 }
 
 export async function loginWithPassword(

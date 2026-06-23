@@ -4,9 +4,11 @@ import {
     resolveOAuthCallbackSearchParams,
 } from '@/atproto/oauthCallbackUrl';
 import {
+    getOAuthSignInOutcome,
     isOAuthSignInInFlight,
     resetOAuthClient,
     waitForOAuthSignIn,
+    wasOAuthCustomTabExchangeAttempted,
 } from '@/atproto/oauthClient';
 import { clearCredentials } from '@/atproto/credentialVault';
 import { resetAuthFailureFlag } from '@/utils/requests';
@@ -16,11 +18,12 @@ import { useURL } from 'expo-linking';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
-const OAUTH_WAIT_MS = 60_000;
+const OAUTH_LOGGED_IN_WAIT_MS = 3_000;
+const OAUTH_CUSTOM_TAB_LOGIN_WAIT_MS = 60_000;
 const OAUTH_POLL_MS = 200;
 
-async function waitForLoggedIn(): Promise<boolean> {
-    const deadline = Date.now() + OAUTH_WAIT_MS;
+async function waitForLoggedIn(maxMs = OAUTH_LOGGED_IN_WAIT_MS): Promise<boolean> {
+    const deadline = Date.now() + maxMs;
     while (Date.now() < deadline) {
         if (useAuthStore.getState().isLoggedIn) {
             return true;
@@ -62,6 +65,23 @@ export default function OAuthCallbackScreen() {
             return;
         }
 
+        // Custom Tab already exchanged (or failed on) this callback — ignore duplicate deep link.
+        if (wasOAuthCustomTabExchangeAttempted()) {
+            if (getOAuthSignInOutcome() === 'success') {
+                if (await waitForLoggedIn(OAUTH_CUSTOM_TAB_LOGIN_WAIT_MS)) {
+                    router.replace('/(tabs)');
+                    return;
+                }
+            }
+            if (__DEV__) {
+                console.warn(
+                    '[auth] Ignoring duplicate OAuth callback deep link after Custom Tab exchange',
+                );
+            }
+            router.replace('/sign-in');
+            return;
+        }
+
         const routeParams = params as Record<string, string | string[] | undefined>;
         const { searchParams } = await resolveOAuthCallbackSearchParams(routeParams, linkingUrl);
 
@@ -96,10 +116,15 @@ export default function OAuthCallbackScreen() {
             }
             const message =
                 error instanceof Error ? error.message : 'Bluesky sign-in failed. Try again.';
-            if (!message.toLowerCase().includes('cancel')) {
+            const isStale =
+                isStaleOAuthCallbackError(error) ||
+                message.includes('Duplicate OAuth callback after Custom Tab exchange');
+            if (!message.toLowerCase().includes('cancel') && !isStale) {
                 Alert.alert('Sign in failed', message);
             }
-            await resetOAuthClient();
+            if (!isStale) {
+                await resetOAuthClient();
+            }
             router.replace('/sign-in');
         }
     };
