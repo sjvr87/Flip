@@ -116,6 +116,10 @@ function Test-MetroStatusUrl([string]$BaseUrl) {
 }
 
 function Test-MetroHealthy {
+  param([switch]$RequireIpv4Loopback)
+  if ($RequireIpv4Loopback) {
+    return (Test-MetroStatusUrl "http://127.0.0.1:8081")
+  }
   foreach ($base in @("http://127.0.0.1:8081", "http://localhost:8081", "http://[::1]:8081")) {
     if (Test-MetroStatusUrl $base) {
       return $true
@@ -196,7 +200,15 @@ function Start-MetroInNewWindow {
   param(
     [switch]$ClearCache
   )
-  if ($ClearCache) {
+  if ($script:PreferUsbReverse) {
+    if ($ClearCache) {
+      Write-Host "  Starting Metro (dev-client, USB/127.0.0.1, port 8081, clear cache) in new window..."
+      $launcher = Join-Path $PSScriptRoot "start-metro-window-usb.cmd"
+    } else {
+      Write-Host "  Starting Metro (dev-client, USB/127.0.0.1, port 8081) in new window..."
+      $launcher = Join-Path $PSScriptRoot "start-metro-window-usb-fast.cmd"
+    }
+  } elseif ($ClearCache) {
     Write-Host "  Starting Metro (dev-client, LAN, port 8081, clear cache) in new window..."
     $launcher = Join-Path $PSScriptRoot "start-metro-window.cmd"
   } else {
@@ -220,7 +232,7 @@ function Wait-MetroHealthy {
   $pollMs = 500
   $lastLog = [DateTime]::MinValue
   while ((Get-Date) -lt $deadline) {
-    $localhostOk = Test-MetroHealthy
+    $localhostOk = Test-MetroHealthy -RequireIpv4Loopback:$LocalhostOnly
     $lanOk = Test-MetroLanHealthy
     if ($LocalhostOnly -and $localhostOk) { return $true }
     if ($localhostOk -and ($lanOk -or -not $script:LanIp)) { return $true }
@@ -234,7 +246,7 @@ function Wait-MetroHealthy {
     Start-Sleep -Milliseconds $pollMs
     if ($pollMs -lt 2000) { $pollMs = [Math]::Min($pollMs * 2, 2000) }
   }
-  if ($LocalhostOnly) { return (Test-MetroHealthy) }
+  if ($LocalhostOnly) { return (Test-MetroHealthy -RequireIpv4Loopback) }
   return ((Test-MetroHealthy) -and ((Test-MetroLanHealthy) -or -not $script:LanIp))
 }
 
