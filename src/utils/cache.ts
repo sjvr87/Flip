@@ -68,19 +68,25 @@ function createMmkvStorage(): AppStorage {
         throw new Error('react-native-mmkv failed to load', { cause: error });
     }
 
-    const mmkv = new MMKV();
+    let mmkv: InstanceType<typeof MMKV> | null = null;
+
+    const getMmkv = (): InstanceType<typeof MMKV> => {
+        if (mmkv) return mmkv;
+        mmkv = new MMKV();
+        return mmkv;
+    };
 
     return {
-        getString: (key) => mmkv.getString(key),
-        set: (key, value) => mmkv.set(key, value),
-        delete: (key) => mmkv.delete(key),
-        remove: (key) => mmkv.delete(key),
+        getString: (key) => getMmkv().getString(key),
+        set: (key, value) => getMmkv().set(key, value),
+        delete: (key) => getMmkv().delete(key),
+        remove: (key) => getMmkv().delete(key),
     };
 }
 
 function createNativeStorage(): AppStorage {
     if (useSafeNativeShims) {
-        console.log('[storage] Expo Go / safe mode — using in-memory storage');
+        console.log('[storage] Expo Go / safe mode â€” using in-memory storage');
         return createMemoryStorage();
     }
 
