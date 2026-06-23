@@ -301,12 +301,6 @@ function Select-TargetSerials([string[]]$AllSerials) {
   return $AllSerials
 }
 
-function Get-FlipDevServerHost {
-  param([bool]$ReverseOk)
-  if ($ReverseOk) { return "127.0.0.1" }
-  return $script:LanIp
-}
-
 function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
   $anyOk = $false
   foreach ($serial in $TargetSerials) {
@@ -346,7 +340,8 @@ function Start-FlipApp {
     [string]$Serial,
     [string]$AdbPath,
     [string]$DevServerHost,
-    [switch]$UsbReverse
+    [switch]$UsbReverse,
+    [switch]$RetryOnly
   )
 
   if (-not (Wait-MetroHealthy -TimeoutSec 120 -LocalhostOnly:$UsbReverse.IsPresent)) {
@@ -354,11 +349,13 @@ function Start-FlipApp {
     return $false
   }
 
-  $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "force-stop", "social.flip.app")
-  Start-Sleep -Milliseconds 400
+  if (-not $RetryOnly) {
+    $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "force-stop", "social.flip.app")
+    Start-Sleep -Milliseconds 400
+  }
 
   if ($DevServerHost) {
-    # Base exp:// URL only — route paths break DevLauncherManifestParser.downloadManifest.
+    # Base exp:// URL only - route paths break DevLauncherManifestParser.downloadManifest.
     # Home tab is set via Tabs initialRouteName="index" in src/app/(tabs)/_layout.tsx.
     $metroUrl = "exp://${DevServerHost}:8081"
     $encodedUrl = Escape-DeepLinkUrlParam $metroUrl
@@ -368,13 +365,33 @@ function Start-FlipApp {
       "-a", "android.intent.action.VIEW",
       "-d", $deepLink
     )
+    $label = if ($RetryOnly) { "retry deep link" } else { "deep link" }
     Write-Host "  $Serial : $start"
-    Write-Host "  $Serial : deep link $metroUrl (bypasses dev launcher picker)" -ForegroundColor DarkGray
+    Write-Host "  $Serial : $label $metroUrl (bypasses dev launcher picker)" -ForegroundColor DarkGray
   } else {
     $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "start", "-n", "social.flip.app/.MainActivity")
     Write-Host "  $Serial : $start"
   }
   return $true
+}
+
+function Start-FlipOnDevices {
+  param(
+    [string[]]$TargetSerials,
+    [string]$AdbPath,
+    [string]$DevServerHost
+  )
+  $usb = ($DevServerHost -eq "127.0.0.1")
+  foreach ($serial in $TargetSerials) {
+    if (-not (Start-FlipApp -Serial $serial -AdbPath $AdbPath -DevServerHost $DevServerHost -UsbReverse:$usb)) {
+      continue
+    }
+    if ($usb) {
+      Write-Host "  $serial : waiting 4s then retrying USB deep link (stale dev launcher / white screen)" -ForegroundColor DarkGray
+      Start-Sleep -Seconds 4
+      $null = Start-FlipApp -Serial $serial -AdbPath $AdbPath -DevServerHost $DevServerHost -UsbReverse:$usb -RetryOnly
+    }
+  }
 }
 
 function Write-NoLanIpHelp {
@@ -496,9 +513,7 @@ if ($Reset) {
       Write-NoLanIpHelp
       exit 1
     }
-    foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
-    }
+    Start-FlipOnDevices -TargetSerials $serials -AdbPath $adb -DevServerHost $devHost
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
   }
@@ -558,9 +573,7 @@ if ($ConnectOnly -and -not $Reconnect) {
       Write-NoLanIpHelp
       exit 1
     }
-    foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
-    }
+    Start-FlipOnDevices -TargetSerials $serials -AdbPath $adb -DevServerHost $devHost
   } else {
     Write-Host "[5/6] Launch/reload - skipped (no device)" -ForegroundColor Yellow
   }
@@ -590,9 +603,7 @@ if ($Reconnect) {
       Write-NoLanIpHelp
       exit 1
     }
-    foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
-    }
+    Start-FlipOnDevices -TargetSerials $serials -AdbPath $adb -DevServerHost $devHost
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
   }
@@ -628,9 +639,7 @@ if ($serials.Count -gt 0) {
     Write-NoLanIpHelp
     exit 1
   }
-  foreach ($serial in $serials) {
-    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
-  }
+  Start-FlipOnDevices -TargetSerials $serials -AdbPath $adb -DevServerHost $devHost
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
 }
