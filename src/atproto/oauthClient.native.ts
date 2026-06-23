@@ -243,12 +243,12 @@ export async function resetOAuthClient(): Promise<void> {
             console.warn('[auth] OAuth client dispose failed:', error);
         }
         client = null;
-    } else {
-        try {
-            await clearOAuthTransientSecureStore();
-        } catch (error) {
-            console.warn('[auth] OAuth transient store clear failed:', error);
-        }
+    }
+
+    try {
+        await clearOAuthTransientSecureStore();
+    } catch (error) {
+        console.warn('[auth] OAuth transient store clear failed:', error);
     }
     initError = null;
 }
@@ -275,6 +275,13 @@ export function getOAuthClient(): FlipExpoOAuthClient {
     return client;
 }
 
+const OAUTH_DPOP_RETRY_MAX = 2;
+
+function isDpopNonceOAuthError(error: unknown): boolean {
+    const raw = error instanceof Error ? error.message : String(error);
+    return raw.includes('use_dpop_nonce') || raw.includes('"use_dpop_nonce"');
+}
+
 /** Wrap signIn so deep-link callback routes can await the in-flight Custom Tab flow. */
 export async function runOAuthSignIn(
     input: Parameters<FlipExpoOAuthClient['signIn']>[0],
@@ -284,26 +291,26 @@ export async function runOAuthSignIn(
         return oauthSignInFlight;
     }
 
-    const attempt = async (): Promise<OAuthSession> => {
-        const oauthClient = getOAuthClient();
-        return oauthClient.signIn(input, options);
-    };
-
     oauthSignInFlight = (async () => {
-        try {
-            return await attempt();
-        } catch (error) {
-            const raw = error instanceof Error ? error.message : '';
-            if (!raw.includes('use_dpop_nonce')) {
-                throw error;
+        let lastError: unknown;
+        for (let attempt = 0; attempt <= OAUTH_DPOP_RETRY_MAX; attempt++) {
+            try {
+                await resetOAuthClient();
+                const oauthClient = getOAuthClient();
+                return await oauthClient.signIn(input, options);
+            } catch (error) {
+                lastError = error;
+                if (!isDpopNonceOAuthError(error) || attempt === OAUTH_DPOP_RETRY_MAX) {
+                    throw error;
+                }
+                if (__DEV__) {
+                    console.warn(
+                        `[auth] DPoP nonce mismatch on OAuth sign-in (attempt ${attempt + 1}); resetting`,
+                    );
+                }
             }
-            if (__DEV__) {
-                console.warn('[auth] DPoP nonce mismatch on OAuth sign-in; clearing and retrying');
-            }
-            const oauthClient = getOAuthClient();
-            await oauthClient.clearTransientStores();
-            return attempt();
         }
+        throw lastError;
     })().finally(() => {
         oauthSignInFlight = null;
     });

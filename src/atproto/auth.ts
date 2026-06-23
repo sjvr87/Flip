@@ -3,6 +3,7 @@ import { normalizeBlueskyIdentifier } from './identifiers';
 import { clearFollowingDidsCache, warmFollowingDidsCache } from './feeds';
 import {
     clearSession,
+    clearSessionAsync,
     ensureFreshSession,
     getAgent,
     getCredentialAgent,
@@ -143,7 +144,8 @@ function mapOAuthSignInError(error: unknown): string {
 export async function loginWithOAuth(): Promise<FlipSessionUser> {
     await awaitPendingSessionRestore();
 
-    clearSession();
+    // Finish OAuth sign-out before wiping DPoP stores (clearSession() is fire-and-forget).
+    await clearSessionAsync();
     clearFollowingDidsCache();
 
     await resetOAuthClient();

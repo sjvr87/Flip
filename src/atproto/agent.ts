@@ -443,6 +443,22 @@ export function clearSession(): void {
     void clearOAuthSession();
 }
 
+/** Await OAuth sign-out and credential wipe before starting a new Bluesky OAuth flow. */
+export async function clearSessionAsync(): Promise<void> {
+    lastPersistedSessionJson = null;
+
+    Storage.delete(SESSION_KEY);
+    Storage.delete(SERVICE_KEY);
+
+    if (!isWeb) {
+        await SecureStore.deleteItemAsync(SESSION_KEY);
+        await SecureStore.deleteItemAsync(SERVICE_KEY);
+    }
+
+    agent = null;
+    await clearOAuthSession();
+}
+
 export async function hasStoredSession(): Promise<boolean> {
     if (await hasStoredOAuthSession()) return true;
 

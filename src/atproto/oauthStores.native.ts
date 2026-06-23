@@ -71,13 +71,14 @@ export class DpopNonceCache extends SecureSimpleStoreTTL<string> {
     /** Also delete legacy nonce keys written before the SecureStore index existed. */
     async clearPersisted(): Promise<void> {
         await super.clearPersisted();
-        await Promise.all(
-            BLUESKY_AUTH_ORIGINS.map((origin) =>
+        await Promise.all([
+            SecureStore.deleteItemAsync(`${DPOP_NONCE_PREFIX}.__index__`),
+            ...BLUESKY_AUTH_ORIGINS.map((origin) =>
                 SecureStore.deleteItemAsync(
                     `${DPOP_NONCE_PREFIX}.${secureStoreKeySegment(origin)}`,
                 ),
             ),
-        );
+        ]);
     }
 }
 
@@ -203,5 +204,9 @@ export class SessionStore implements SimpleStore<string, Session>, Disposable {
 export async function clearOAuthTransientSecureStore(): Promise<void> {
     const dpop = new DpopNonceCache();
     const state = new StateStore();
-    await Promise.all([dpop.clearPersisted(), state.clearPersisted()]);
+    await Promise.all([
+        dpop.clearPersisted(),
+        state.clearPersisted(),
+        SecureStore.deleteItemAsync(`${STATE_PREFIX}.__index__`),
+    ]);
 }

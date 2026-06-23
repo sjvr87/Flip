@@ -3,6 +3,7 @@ import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
 import { hasStoredSession } from '@/atproto/agent';
+import { resetOAuthClient } from '@/atproto/oauthClient';
 import {
     authenticateWithBiometric,
     canUseBiometrics,
@@ -169,6 +170,12 @@ export default function SignInScreen() {
         biometricAttempted.current = true;
         void runBiometricUnlock();
     }, [mode, isLoading, runBiometricUnlock]);
+
+    // Drop stale DPoP/PKCE state left by session-restore or a prior failed OAuth attempt.
+    useEffect(() => {
+        if (!authReady || mode !== 'oauth' || isLoading) return;
+        void resetOAuthClient();
+    }, [authReady, mode, isLoading]);
 
     const handleOAuthSignIn = async () => {
         setLoginError(null);
