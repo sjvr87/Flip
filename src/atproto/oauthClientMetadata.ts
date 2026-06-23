@@ -10,7 +10,7 @@ import metadata from '../../assets/oauth-client-metadata.json';
  * Heroku/Cloudflare deploy (see docs/OAUTH_HOSTING.md).
  */
 export const OAUTH_CLIENT_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@11648a5/assets/oauth-client-metadata.json';
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@4f2710a/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
