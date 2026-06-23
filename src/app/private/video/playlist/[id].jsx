@@ -13,13 +13,15 @@ import {
     videoUnlike,
 } from '@/utils/requests';
 import { decodeRouteParam } from '@/utils/profileNavigation';
+import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import { parseCount } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { FlatList } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -98,10 +100,7 @@ export default function PlaylistFeed({ navigation }) {
         onError: (error) => {},
     });
 
-    const videos = useMemo(
-        () => data?.pages?.flatMap((page) => page?.data ?? []) ?? [],
-        [data],
-    );
+    const videos = useMemo(() => data?.pages?.flatMap((page) => page?.data ?? []) ?? [], [data]);
 
     const partsCount = useMemo(() => {
         const fromParam = parseCount(params.videoCount);
@@ -175,7 +174,8 @@ export default function PlaylistFeed({ navigation }) {
                 key={item.id}
                 item={item}
                 isActive={index === currentIndex}
-                itemHeight={feedHeight}
+                standalonePlayback
+                feedHeight={feedHeight}
                 onLike={handleLike}
                 onComment={handleComment}
                 onShare={handleShare}
@@ -230,43 +230,45 @@ export default function PlaylistFeed({ navigation }) {
                     <ActivityIndicator size="large" color="#fff" />
                 </View>
             ) : (
-                <FlatList
-                    ref={flatListRef}
-                    data={videos}
-                    renderItem={renderItem}
-                    keyExtractor={(item, index) => `${item.id}-${index}`}
-                    pagingEnabled
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={feedHeight}
-                    snapToAlignment="start"
-                    decelerationRate="fast"
-                    viewabilityConfig={viewabilityConfig.current}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    onEndReached={handleEndReached}
-                    onEndReachedThreshold={0.5}
-                    getItemLayout={(data, index) => ({
-                        length: feedHeight,
-                        offset: feedHeight * index,
-                        index,
-                    })}
-                    removeClippedSubviews={false}
-                    maxToRenderPerBatch={1}
-                    windowSize={3}
-                    initialNumToRender={1}
-                    updateCellsBatchingPeriod={100}
-                    onScrollToIndexFailed={({ index }) => {
-                        setTimeout(() => {
-                            flatListRef.current?.scrollToIndex({ index, animated: false });
-                        }, 100);
-                    }}
-                    ListFooterComponent={
-                        isFetchingNextPage ? (
-                            <View style={[styles.footer, { height: feedHeight }]}>
-                                <ActivityIndicator size="large" color="#fff" />
-                            </View>
-                        ) : null
-                    }
-                />
+                <FeedScrollGestureRoot>
+                    <FlatList
+                        ref={flatListRef}
+                        data={videos}
+                        renderItem={renderItem}
+                        keyExtractor={(item, index) => `${item.id}-${index}`}
+                        pagingEnabled
+                        showsVerticalScrollIndicator={false}
+                        snapToInterval={feedHeight}
+                        snapToAlignment="start"
+                        decelerationRate="fast"
+                        viewabilityConfig={viewabilityConfig.current}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        onEndReached={handleEndReached}
+                        onEndReachedThreshold={0.5}
+                        getItemLayout={(data, index) => ({
+                            length: feedHeight,
+                            offset: feedHeight * index,
+                            index,
+                        })}
+                        removeClippedSubviews={false}
+                        maxToRenderPerBatch={1}
+                        windowSize={3}
+                        initialNumToRender={1}
+                        updateCellsBatchingPeriod={100}
+                        onScrollToIndexFailed={({ index }) => {
+                            setTimeout(() => {
+                                flatListRef.current?.scrollToIndex({ index, animated: false });
+                            }, 100);
+                        }}
+                        ListFooterComponent={
+                            isFetchingNextPage ? (
+                                <View style={[styles.footer, { height: feedHeight }]}>
+                                    <ActivityIndicator size="large" color="#fff" />
+                                </View>
+                            ) : null
+                        }
+                    />
+                </FeedScrollGestureRoot>
             )}
 
             {!isLoading && feedHeight > 0 && videos.length > 0 && (

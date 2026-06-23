@@ -1,4 +1,5 @@
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
@@ -57,6 +58,10 @@ export default function DuetCameraScreen() {
     const device = useCameraDevice(cameraPosition);
     const { hasPermission, requestPermission } = useCameraPermission();
     const isFocused = useIsFocused();
+
+    useEffect(() => {
+        prepareForCameraCapture();
+    }, []);
 
     const recordingProgress = useRef(new Animated.Value(0)).current;
     const recordingTimer = useRef<NodeJS.Timeout | null>(null);
@@ -715,7 +720,7 @@ const styles = StyleSheet.create({
     duetBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
@@ -797,7 +802,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     recordButtonActive: {
-        borderColor: '#F02C56',
+        borderColor: '#22D3EE',
     },
     recordButtonPaused: {
         borderColor: '#FFA500',
@@ -812,7 +817,7 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 4,
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
     },
     recordButtonInnerPaused: {
         width: 24,
@@ -831,7 +836,7 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         justifyContent: 'center',
         alignItems: 'center',
     },

@@ -5,7 +5,7 @@ import { memo, useCallback } from 'react';
 import { FlatList, Image, Modal, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import tw from 'twrnc';
 
-const ACCENT = '#F02C56';
+const ACCENT = '#22D3EE';
 
 const getThumb = (v) =>
     v?.media?.thumbnail || v?.thumbnail || v?.preview_url || v?.media?.preview_url || null;

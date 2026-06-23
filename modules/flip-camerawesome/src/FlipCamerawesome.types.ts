@@ -4,9 +4,10 @@ export type FlipCamerawesomeViewProps = {
   torchEnabled?: boolean
   isActive?: boolean
   recording?: boolean
+  captureMode?: 'video' | 'photo'
   photoRequestId?: number
   style?: object
-  onCameraReady?: () => void
+  onCameraReady?: (event: { nativeEvent: { ready: boolean; profile?: CaptureProfile } }) => void
   onRecordingFinished?: (event: { nativeEvent: { path: string; uri: string } }) => void
   onRecordingError?: (event: { nativeEvent: { message: string } }) => void
   onPhotoCaptured?: (event: { nativeEvent: { path: string; uri: string } }) => void
@@ -17,10 +18,14 @@ export type FlipCamerawesomeViewProps = {
 export type CaptureProfile = {
   platform: string
   engine: string
+  tier: 'flagship' | 'standard'
+  quality: string
+  badge: string
   resolution: string
   targetFps: number
+  videoBitrate: number
   videoStabilization: boolean
-  quality: string
+  codec: 'hevc' | 'h264'
 }
 
 export type GalleryPickerResult =

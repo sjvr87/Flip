@@ -1,48 +1,82 @@
+import CreateCameraTabIcon from '@/components/icons/CreateCameraTabIcon';
+import ExploreTabIcon from '@/components/icons/ExploreTabIcon';
+import HomeTabIcon from '@/components/icons/HomeTabIcon';
+import MailboxTabIcon from '@/components/icons/MailboxTabIcon';
+import ProfileTabIcon from '@/components/icons/ProfileTabIcon';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
+import { prefetchExploreQueries } from '@/utils/explorePrefetch';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
+import { releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
-import { useFlipTabBarMetrics, getTabBarStyleFromMetrics } from '@/utils/tabBarLayout';
-import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import { ComponentProps, useMemo } from 'react';
+import {
+    TAB_BAR_HOME_OVERLAY_BG,
+    getFlipTabBarStyle,
+    useFlipTabBarMetrics,
+} from '@/utils/tabBarLayout';
+import { useQueryClient } from '@tanstack/react-query';
+import { Tabs, usePathname } from 'expo-router';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-type IoniconName = ComponentProps<typeof Ionicons>['name'];
+/** Fixed square slot so every tab icon shares the same footprint and center. */
+const TAB_ICON_SLOT_SIZE = 42;
+const ICON_SIZE = 42;
+/** Mailbox SVG uses a 30×30 viewBox; other tab icons use 26×26. */
+const MAILBOX_ICON_SIZE = Math.round(ICON_SIZE * (30 / 26));
 
-const ICON_SIZE = 26;
-
-function TabIcon({
-    focused,
-    activeName,
-    inactiveName,
-    color,
-    size = ICON_SIZE,
-}: {
-    focused: boolean;
-    activeName: IoniconName;
-    inactiveName: IoniconName;
-    color: string;
-    size?: number;
-}) {
-    return <Ionicons name={focused ? activeName : inactiveName} size={size} color={color} />;
+function TabIconSlot({ children }: { children: ReactNode }) {
+    return <View style={styles.tabIconSlot}>{children}</View>;
 }
 
-function CreateTabIcon({ isDark }: { isDark: boolean }) {
-    const backgroundColor = isDark ? '#ffffff' : '#000000';
-    const iconColor = isDark ? '#000000' : '#ffffff';
-
+/** Single uniform scrim behind Home tab icons (including safe-area inset). */
+function HomeTabBarBackground() {
     return (
-        <View style={[styles.createButton, { backgroundColor }]}>
-            <Ionicons name="add" size={24} color={iconColor} />
-        </View>
+        <View style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]} pointerEvents="none" />
     );
 }
 
 export default function TabsLayout() {
-    const { badgeCount } = useNotificationStore();
+    const { badgeCount, mailboxIconState, unreadActivity, unreadMessages } = useNotificationStore();
     const { colors, isDark } = useTheme();
     const tabBarMetrics = useFlipTabBarMetrics();
-    const tabBarLayout = getTabBarStyleFromMetrics(tabBarMetrics);
+    const solidTabBarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder;
+    const solidTabBarStyle = useMemo(
+        () => getFlipTabBarStyle(tabBarMetrics, 'solid', isDark, solidTabBarBorder),
+        [tabBarMetrics, isDark, solidTabBarBorder],
+    );
+    const homeTabBarStyle = useMemo(
+        () => getFlipTabBarStyle(tabBarMetrics, 'home', isDark, solidTabBarBorder),
+        [tabBarMetrics, isDark, solidTabBarBorder],
+    );
+    const queryClient = useQueryClient();
+    const pathname = usePathname();
+    const authReady = useAuthStore((s) => s.authReady);
+    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+
+    useEffect(() => {
+        const onHomeTab =
+            pathname === '/' ||
+            pathname === '/index' ||
+            pathname === '/(tabs)' ||
+            pathname === '/(tabs)/index' ||
+            pathname.endsWith('/index');
+        const onCreateTab =
+            pathname === '/create' || pathname === '/(tabs)/create' || pathname.endsWith('/create');
+        if (onCreateTab) {
+            prepareForCameraCapture();
+        }
+        if (!onHomeTab) {
+            releaseAllFeedPlayers();
+        }
+        setFeedPlaybackActive(onHomeTab);
+    }, [pathname]);
+
+    useEffect(() => {
+        if (!authReady || !isLoggedIn) return;
+        prefetchExploreQueries(queryClient);
+    }, [authReady, isLoggedIn, queryClient]);
 
     const displayBadgeCount = useMemo(() => {
         if (!badgeCount || badgeCount <= 0) return undefined;
@@ -59,20 +93,20 @@ export default function TabsLayout() {
                 backBehavior: 'order',
                 tabBarActiveTintColor: colors.accent,
                 tabBarInactiveTintColor: colors.tabIconInactive,
-                tabBarStyle: {
-                    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.96)' : 'rgba(255, 255, 255, 0.98)',
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.tabBarBorder,
-                    paddingTop: tabBarLayout.paddingTop,
-                    paddingBottom: tabBarLayout.paddingBottom,
-                    ...(Platform.OS === 'android'
-                        ? { minHeight: tabBarLayout.height }
-                        : { height: tabBarLayout.height }),
-                    elevation: 0,
-                    shadowOpacity: 0,
-                },
+                tabBarStyle: solidTabBarStyle,
                 tabBarItemStyle: {
-                    paddingTop: 2,
+                    flex: 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingTop: 0,
+                    paddingBottom: 0,
+                    paddingHorizontal: 0,
+                    marginTop: 0,
+                    marginBottom: 0,
+                },
+                tabBarIconStyle: {
+                    width: TAB_ICON_SLOT_SIZE,
+                    height: TAB_ICON_SLOT_SIZE,
                 },
             }}>
             <Tabs.Screen
@@ -82,13 +116,14 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Home',
                     tabBarShowLabel: false,
                     headerShown: false,
+                    tabBarStyle: homeTabBarStyle,
+                    tabBarBackground: () => <HomeTabBarBackground />,
+                    safeAreaInsets: { bottom: 0 },
+                    sceneStyle: { flex: 1, backgroundColor: 'transparent' },
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="home"
-                            inactiveName="home-outline"
-                            color={color}
-                        />
+                        <TabIconSlot>
+                            <HomeTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -100,12 +135,9 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="search"
-                            inactiveName="search-outline"
-                            color={color}
-                        />
+                        <TabIconSlot>
+                            <ExploreTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -116,14 +148,18 @@ export default function TabsLayout() {
                     tabBarAccessibilityLabel: 'Create',
                     tabBarShowLabel: false,
                     headerShown: false,
-                    tabBarIcon: () => <CreateTabIcon isDark={isDark} />,
+                    tabBarIcon: ({ color, focused }) => (
+                        <TabIconSlot>
+                            <CreateCameraTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
+                    ),
                 }}
             />
             <Tabs.Screen
                 name="notifications"
                 options={{
-                    title: 'Notifications',
-                    tabBarAccessibilityLabel: 'Notifications',
+                    title: 'Inbox',
+                    tabBarAccessibilityLabel: 'Inbox',
                     tabBarShowLabel: false,
                     ...(Platform.OS !== 'web' && displayBadgeCount
                         ? {
@@ -136,12 +172,16 @@ export default function TabsLayout() {
                           }
                         : {}),
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="heart"
-                            inactiveName="heart-outline"
-                            color={color}
-                        />
+                        <TabIconSlot>
+                            <MailboxTabIcon
+                                color={color}
+                                focused={focused}
+                                size={MAILBOX_ICON_SIZE}
+                                state={mailboxIconState}
+                                hasUnreadActivity={unreadActivity > 0}
+                                hasUnreadMessages={unreadMessages > 0}
+                            />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -153,12 +193,9 @@ export default function TabsLayout() {
                     tabBarShowLabel: false,
                     headerShown: false,
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIcon
-                            focused={focused}
-                            activeName="person-circle"
-                            inactiveName="person-circle-outline"
-                            color={color}
-                        />
+                        <TabIconSlot>
+                            <ProfileTabIcon color={color} focused={focused} size={ICON_SIZE} />
+                        </TabIconSlot>
                     ),
                 }}
             />
@@ -167,11 +204,13 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-    createButton: {
-        width: 48,
-        height: 30,
-        borderRadius: 8,
+    tabIconSlot: {
+        width: TAB_ICON_SLOT_SIZE,
+        height: TAB_ICON_SLOT_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    homeTabBarOverlay: {
+        backgroundColor: TAB_BAR_HOME_OVERLAY_BG,
     },
 });

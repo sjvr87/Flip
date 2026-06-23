@@ -1,0 +1,16 @@
+{
+  "root": "dist/",
+  "clean_urls": false,
+  "routes": {
+    "/oauth-client-metadata.json": {
+      "file": "oauth-client-metadata.json"
+    },
+    "/**": "index.html"
+  },
+  "headers": {
+    "/oauth-client-metadata.json": {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=300"
+    }
+  }
+}

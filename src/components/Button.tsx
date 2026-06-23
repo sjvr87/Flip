@@ -24,7 +24,7 @@ type ButtonProps = {
 } & Omit<PressableProps, 'style'>;
 
 const COLORS = {
-    primary: '#F02C56',
+    primary: '#22D3EE',
     action: '#0095f6',
     light: '#f1f1f1',
     white: '#ffffff',
@@ -75,8 +75,8 @@ const themeConfig: Record<
         bg: `bg-[${COLORS.primary}]`,
         border: `border-[${COLORS.primary}]`,
         text: 'text-white',
-        pressedBg: 'bg-[#d02647]',
-        disabledBg: 'bg-[#f59db3]',
+        pressedBg: 'bg-[#06B6D4]',
+        disabledBg: 'bg-[#67e8f9]',
     },
     action: {
         bg: `bg-[${COLORS.action}]`,
@@ -96,9 +96,9 @@ const themeConfig: Record<
         bg: 'bg-transparent',
         border: `border-[${COLORS.primary}]`,
         text: `text-[${COLORS.primary}]`,
-        pressedBg: 'bg-[#fef0f3]',
+        pressedBg: 'bg-[#ecfeff]',
         disabledBg: 'bg-transparent',
-        disabledText: 'text-[#f59db3]',
+        disabledText: 'text-[#67e8f9]',
     },
     'action-outlined': {
         bg: 'bg-transparent',

@@ -106,13 +106,16 @@ internal class GalleryPickerContract :
           }
         }
 
-        // Package is installed — launch it directly. Do NOT gate on resolveActivity();
-        // on API 30+ it returns null without <queries> even when the app can handle the intent.
+        // Package is installed — launch Samsung Gallery directly via ACTION_PICK.
+        // GET_CONTENT with setPackage can still route to Google Photos on some One UI builds.
         val direct =
-          Intent(createSamsungGetContentIntent())
-            .setPackage(packageName)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        Log.i(TAG, "Using direct package intent for installed package: $packageName")
+          Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
+            setPackage(packageName)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+            type = "*/*"
+          }
+        Log.i(TAG, "Using direct ACTION_PICK for installed package: $packageName")
         return direct
       }
 

@@ -11,12 +11,11 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-call npm.cmd run dev:connect:restart
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-connect.ps1"
 if errorlevel 1 (
   echo.
   echo Dev connect failed. See errors above.
   pause
   exit /b 1
 )
-echo.
-echo Leave this window open while Metro is running.
+exit 0

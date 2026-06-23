@@ -1,6 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import type { FlipVideo } from '@/atproto/types';
+import { postToFlipItem } from '@/atproto/adapters';
+import { getAgent } from '@/atproto/agent';
+import type { FlipFeedPage, FlipVideo } from '@/atproto/types';
+import { decodeRouteParam } from '@/utils/profileNavigation';
 
 /** For You — refresh sooner so reopen feels algorithmically fresh. */
 export const FEED_FYP_STALE_MS = 6_000;
@@ -76,13 +79,50 @@ export function videoDedupeKey(video: FlipVideo): string | null {
     return null;
 }
 
+type FeedInfiniteData = {
+    pages: FlipFeedPage[];
+    pageParams: unknown[];
+};
+
+/** Optimistically sync comment count on main-feed and profile-reel cards. */
+export function patchFeedVideoComments(
+    queryClient: QueryClient,
+    videoId: string,
+    delta: number,
+): void {
+    const patch = (old: FeedInfiniteData | undefined) => {
+        if (!old?.pages?.length) return old;
+
+        let changed = false;
+        const pages = old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((video) => {
+                if (video.id !== videoId) return video;
+                changed = true;
+                return {
+                    ...video,
+                    comments: Math.max(0, (video.comments ?? 0) + delta),
+                };
+            }),
+        }));
+
+        return changed ? { ...old, pages } : old;
+    };
+
+    queryClient.setQueriesData<FeedInfiniteData>({ queryKey: ['videos'], exact: false }, patch);
+    queryClient.setQueriesData<FeedInfiniteData>(
+        { queryKey: ['profileVideoFeed'], exact: false },
+        patch,
+    );
+}
+
 /** Deterministic shuffle — same seed yields same order within a session page. */
 export function shuffleFeedVideos(videos: FlipVideo[], seed: number): FlipVideo[] {
     if (videos.length <= 1 || seed === 0) {
         return videos;
     }
     const arr = [...videos];
-    let state = (seed >>> 0) || 1;
+    let state = seed >>> 0 || 1;
     const rand = () => {
         state = (Math.imul(1664525, state) + 1013904223) >>> 0;
         return state / 0x1_0000_0000;
@@ -96,11 +136,11 @@ export function shuffleFeedVideos(videos: FlipVideo[], seed: number): FlipVideo[
 
 /**
  * Flatten infinite-query pages: drop cross-page duplicates (reposts, overlaps).
- * Session seen is tracked for refresh boundaries only — not removed from the
- * visible list while scrolling (removing watched items caused list shrink + refetch storms).
+ * Session-seen keys suppress pagination loops when the API returns the same posts again.
  */
-export function dedupeFeedVideos(videos: FlipVideo[], _tab?: string): FlipVideo[] {
+export function dedupeFeedVideos(videos: FlipVideo[], tab?: string): FlipVideo[] {
     const pageSeen = new Set<string>();
+    const sessionSeen = tab ? getSessionSeen(tab) : null;
     const result: FlipVideo[] = [];
 
     for (const video of videos) {
@@ -112,7 +152,54 @@ export function dedupeFeedVideos(videos: FlipVideo[], _tab?: string): FlipVideo[
         result.push(video);
     }
 
+    if (!sessionSeen || sessionSeen.size === 0 || result.length === 0) {
+        return result;
+    }
+
+    const firstIndexByKey = new Map<string, number>();
+    for (let i = 0; i < result.length; i++) {
+        const key = videoDedupeKey(result[i]!);
+        if (key && !firstIndexByKey.has(key)) {
+            firstIndexByKey.set(key, i);
+        }
+    }
+
+    // Drop watched posts that reappear at the tail from stale cursors / overlapping pages.
+    while (result.length > 0) {
+        const last = result[result.length - 1]!;
+        const key = videoDedupeKey(last);
+        if (!key || !sessionSeen.has(key)) {
+            break;
+        }
+        const firstIdx = firstIndexByKey.get(key) ?? result.length - 1;
+        if (firstIdx >= result.length - 1) {
+            break;
+        }
+        result.pop();
+    }
+
     return result;
+}
+
+/** How many items in `incoming` are not already in `existing` (by dedupe key). */
+export function countNewFeedVideos(existing: FlipVideo[], incoming: FlipVideo[]): number {
+    const seen = new Set<string>();
+    for (const video of existing) {
+        const key = videoDedupeKey(video);
+        if (key) {
+            seen.add(key);
+        }
+    }
+    let added = 0;
+    for (const video of incoming) {
+        const key = videoDedupeKey(video);
+        if (!key || seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        added += 1;
+    }
+    return added;
 }
 
 /** Record a video as seen this session (used on pull-to-refresh / hard refresh boundaries). */
@@ -155,7 +242,211 @@ export function hardRefreshFeed(queryClient: QueryClient, tab: string) {
     queryClient.removeQueries({ queryKey: ['videos', tab], exact: false });
 }
 
-/** After a new post: trim pagination, invalidate, and refetch feeds + profile. */
+type InfiniteProfileCache = {
+    pages?: FlipFeedPage[];
+    pageParams?: unknown[];
+};
+
+const pendingProfilePosts = new Map<string, { item: FlipVideo; isPhoto: boolean }>();
+
+/** Optimistic grid entries survive server refetch until the post appears in author feed. */
+export function registerPendingProfilePost(item: FlipVideo, isPhoto: boolean) {
+    pendingProfilePosts.set(item.id, { item, isPhoto });
+}
+
+export function reconcilePendingProfilePosts(
+    serverItems: FlipVideo[],
+    isPhoto: boolean,
+): FlipVideo[] {
+    const serverIds = new Set(serverItems.map((entry) => entry.id));
+    for (const id of serverIds) {
+        const pending = pendingProfilePosts.get(id);
+        if (pending?.isPhoto === isPhoto) {
+            pendingProfilePosts.delete(id);
+        }
+    }
+
+    const optimistic = [...pendingProfilePosts.values()]
+        .filter((entry) => entry.isPhoto === isPhoto)
+        .map((entry) => entry.item)
+        .filter((entry) => !serverIds.has(entry.id));
+
+    if (optimistic.length === 0) {
+        return serverItems;
+    }
+
+    const merged = [...optimistic];
+    for (const entry of serverItems) {
+        if (!merged.some((item) => item.id === entry.id)) {
+            merged.push(entry);
+        }
+    }
+    return merged;
+}
+
+function prependToProfileMediaCache(
+    queryClient: QueryClient,
+    queryKeyRoot: 'userSelfPhotos' | 'userSelfVideos',
+    item: FlipVideo,
+) {
+    queryClient.setQueriesData<InfiniteProfileCache>(
+        { queryKey: [queryKeyRoot], exact: false },
+        (old) => {
+            const emptyPage: FlipFeedPage = {
+                data: [item],
+                meta: { path: 'atproto', per_page: 1, next_cursor: null },
+            };
+
+            if (!old?.pages?.length) {
+                return { pages: [emptyPage], pageParams: [undefined] };
+            }
+
+            const [firstPage, ...rest] = old.pages;
+            const existing = firstPage?.data ?? [];
+            if (existing.some((entry) => entry.id === item.id)) {
+                return old;
+            }
+
+            return {
+                ...old,
+                pages: [{ ...firstPage, data: [item, ...existing] }, ...rest],
+            };
+        },
+    );
+}
+
+function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Hydrate a freshly posted item from the App View (brief retry for indexing lag). */
+export async function hydratePostedMediaItem(uri: string, attempts = 3): Promise<FlipVideo | null> {
+    const agent = getAgent();
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        try {
+            const res = await agent.getPosts({ uris: [uri] });
+            const post = res.data.posts[0];
+            if (post && !('error' in post)) {
+                const item = postToFlipItem({ post, reply: undefined }, { forceOwner: true });
+                if (item) return item;
+            }
+        } catch {
+            // retry
+        }
+
+        if (attempt < attempts - 1) {
+            await sleep(350);
+        }
+    }
+
+    return null;
+}
+
+function buildLocalPostedMediaItem(options: {
+    uri: string;
+    cid: string;
+    isPhoto: boolean;
+    localMediaUri: string;
+    caption: string;
+}): FlipVideo | null {
+    const agent = getAgent();
+    const did = agent.session?.did;
+    const handle = agent.session?.handle;
+    if (!did || !handle) return null;
+
+    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const uriSuffix = options.uri.split('/').pop() ?? '';
+    const mediaUri = options.localMediaUri.startsWith('file://')
+        ? options.localMediaUri
+        : `file://${options.localMediaUri}`;
+
+    return {
+        id: options.uri,
+        cid: options.cid,
+        account: {
+            id: did,
+            name: handle,
+            avatar: '',
+            username,
+            url: `https://bsky.app/profile/${handle}`,
+        },
+        caption: options.caption,
+        url: `https://bsky.app/profile/${handle}/post/${uriSuffix}`,
+        is_owner: true,
+        is_sensitive: false,
+        is_photo: options.isPhoto,
+        media_type: options.isPhoto ? 'photo' : 'video',
+        media: {
+            width: options.isPhoto ? 1 : 9,
+            height: options.isPhoto ? 1 : 16,
+            thumbnail: mediaUri,
+            src_url: mediaUri,
+            duration: 0,
+        },
+        likes: 0,
+        shares: 0,
+        comments: 0,
+        bookmarks: 0,
+        has_liked: false,
+        has_bookmarked: false,
+        has_reposted: false,
+        created_at: new Date().toISOString(),
+    };
+}
+
+/** Show a new post in the profile grid immediately, then let refetch reconcile. */
+export async function prependPostedMediaToProfile(
+    queryClient: QueryClient,
+    options: {
+        uri: string;
+        cid: string;
+        isPhoto: boolean;
+        localMediaUri: string;
+        caption?: string;
+    },
+) {
+    const hydrated =
+        (await hydratePostedMediaItem(options.uri)) ??
+        buildLocalPostedMediaItem({
+            uri: options.uri,
+            cid: options.cid,
+            isPhoto: options.isPhoto,
+            localMediaUri: options.localMediaUri,
+            caption: options.caption ?? '',
+        });
+
+    const localFallback = buildLocalPostedMediaItem({
+        uri: options.uri,
+        cid: options.cid,
+        isPhoto: options.isPhoto,
+        localMediaUri: options.localMediaUri,
+        caption: options.caption ?? '',
+    });
+
+    let item = hydrated ?? localFallback;
+    if (options.isPhoto && localFallback) {
+        item = {
+            ...(item ?? localFallback),
+            is_photo: true,
+            media_type: 'photo',
+            media: {
+                ...(item?.media ?? localFallback.media),
+                thumbnail: localFallback.media.thumbnail,
+                src_url: localFallback.media.src_url,
+            },
+        };
+    }
+
+    if (!item) return;
+
+    registerPendingProfilePost(item, options.isPhoto);
+
+    const queryKeyRoot = options.isPhoto ? 'userSelfPhotos' : 'userSelfVideos';
+    prependToProfileMediaCache(queryClient, queryKeyRoot, item);
+}
+
+/** After a new post: trim pagination, invalidate feeds, keep profile grid prepend intact. */
 export async function invalidateFeedAfterPost(queryClient: QueryClient) {
     for (const tab of FEED_TABS) {
         trimFeedToFirstPage(queryClient, tab);
@@ -163,13 +454,39 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
 
     await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['videos'] }),
-        queryClient.invalidateQueries({ queryKey: ['userSelfVideos'] }),
+        queryClient.invalidateQueries({ queryKey: ['userVideos'] }),
         queryClient.invalidateQueries({ queryKey: ['fetchSelfAccount', 'self'] }),
+        // Do not invalidate userSelfPhotos / userSelfVideos — optimistic prepend must survive.
     ]);
 
     await Promise.all([
         queryClient.refetchQueries({ queryKey: ['videos', 'following'] }),
         queryClient.refetchQueries({ queryKey: ['videos', 'local'] }),
-        queryClient.refetchQueries({ queryKey: ['userSelfVideos'] }),
     ]);
+}
+
+/** Profile grid / optimistic post fallback when App View resolution is slow or incomplete. */
+export function findCachedProfileMedia(queryClient: QueryClient, uri: string): FlipVideo | null {
+    const normalized = decodeRouteParam(uri);
+    if (!normalized) return null;
+
+    const pending = pendingProfilePosts.get(normalized);
+    if (pending?.item) return pending.item;
+
+    const cacheKeys = ['userSelfPhotos', 'userSelfVideos', 'userPhotos', 'userVideos'] as const;
+
+    for (const key of cacheKeys) {
+        const entries = queryClient.getQueriesData<InfiniteProfileCache>({
+            queryKey: [key],
+            exact: false,
+        });
+        for (const [, data] of entries) {
+            const found = data?.pages
+                ?.flatMap((page) => page?.data ?? [])
+                .find((entry) => decodeRouteParam(entry.id) === normalized);
+            if (found) return found;
+        }
+    }
+
+    return null;
 }

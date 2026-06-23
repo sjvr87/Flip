@@ -1,4 +1,7 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
+import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer';
+import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { uploadMediaPost } from '@/atproto/upload';
@@ -9,7 +12,8 @@ import {
     uploadVideo,
     usesAtprotoBackend,
 } from '@/utils/requests';
-import { invalidateFeedAfterPost } from '@/utils/feedCache';
+import { invalidateFeedAfterPost, prependPostedMediaToProfile } from '@/utils/feedCache';
+import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { prettyCount } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -33,8 +37,9 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Image as ImageCompressor, Video as VideoCompressor } from 'react-native-compressor';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { prepareImageForUpload, prepareVideoForUpload } from '@/utils/uploadCompression';
+import type { FlipAudioSource } from '@/atproto/types';
 import tw from 'twrnc';
 
 const MAX_CAPTION_LENGTH = 200;
@@ -210,10 +215,12 @@ export default function CaptionScreen() {
     const [allowDownloads, setAllowDownloads] = useState(true);
     const [allowDuets, setAllowDuets] = useState(true);
     const [allowStitches, setAllowStitches] = useState(true);
+    const [allowUseAudio, setAllowUseAudio] = useState(true);
+    const [reusedAudioSource, setReusedAudioSource] = useState<FlipAudioSource | null>(null);
     const [isSensitive, setIsSensitive] = useState(false);
     const [isAd, setIsAd] = useState(false);
     const [isAi, setIsAi] = useState(false);
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const [cursorPosition, setCursorPosition] = useState(0);
     const [autocompleteType, setAutocompleteType] = useState<'hashtag' | 'mention' | null>(null);
@@ -234,6 +241,7 @@ export default function CaptionScreen() {
     const isFocused = useIsFocused();
     const queryClient = useQueryClient();
     const atprotoUpload = usesAtprotoBackend();
+    const takePendingAudioReuse = usePendingAudioReuseStore((s) => s.takePending);
     const visibilityOptions = VISIBILITY.map((item) => ({
         ...item,
         description: atprotoUpload
@@ -249,6 +257,13 @@ export default function CaptionScreen() {
             if (match) setSelectedVisibility(match);
         });
     }, []);
+
+    useEffect(() => {
+        const pending = takePendingAudioReuse();
+        if (pending) {
+            setReusedAudioSource(pending);
+        }
+    }, [takePendingAudioReuse]);
 
     const videoUri = mediaSourcePath?.startsWith('file://')
         ? mediaSourcePath
@@ -282,11 +297,13 @@ export default function CaptionScreen() {
         allowDownloads,
         allowDuets,
         allowStitches,
+        allowUseAudio,
         isSensitive,
         isAd,
         isAi,
         selectedSound,
         isPhotoPost,
+        reusedAudioSource,
     }: any) => {
         setOverlayVisible(true);
         setOverlayMessage('Compressing… 0%');
@@ -297,14 +314,7 @@ export default function CaptionScreen() {
         let fileField: Record<string, { uri: string; name: string; type: string }>;
 
         if (isPhotoPost) {
-            const compressedUri = await ImageCompressor.compress(originalPath, {
-                maxWidth: 1920,
-                maxHeight: 1920,
-                quality: 0.9,
-            });
-            uploadUri = compressedUri.startsWith('file://')
-                ? compressedUri
-                : `file://${compressedUri}`;
+            uploadUri = await prepareImageForUpload(originalPath);
             filename = `upload_${Date.now()}.jpg`;
             fileField = {
                 image: {
@@ -314,22 +324,10 @@ export default function CaptionScreen() {
                 },
             };
         } else {
-            const compressedUri = await VideoCompressor.compress(
-                originalPath,
-                {
-                    maxSize: 1920,
-                    compressionMethod: 'auto',
-                },
-                (progress) => {
-                    const pct = Math.round(progress * 100);
-                    setProgressPct(pct);
-                    setOverlayMessage(`Compressing… ${pct}%`);
-                },
-            );
-
-            uploadUri = compressedUri.startsWith('file://')
-                ? compressedUri
-                : `file://${compressedUri}`;
+            uploadUri = await prepareVideoForUpload(originalPath, (pct) => {
+                setProgressPct(pct);
+                setOverlayMessage(`Compressing… ${pct}%`);
+            });
             filename = `upload_${Date.now()}.mp4`;
             fileField = {
                 video: {
@@ -354,6 +352,21 @@ export default function CaptionScreen() {
                     ? { id: visibility.id, apiValue: visibility.apiValue, name: visibility.name }
                     : undefined,
                 onProgress: setOverlayMessage,
+                permissions: {
+                    can_comment: allowComments,
+                    can_download: allowDownloads,
+                    can_duet: allowDuets,
+                    can_stitch: allowStitches,
+                    can_use_audio: allowUseAudio,
+                },
+                audioSource: reusedAudioSource
+                    ? {
+                          username: reusedAudioSource.username,
+                          profileId: reusedAudioSource.profileId,
+                          postUri: reusedAudioSource.postUri,
+                          isOriginal: false,
+                      }
+                    : undefined,
             });
             return { json: result, uploadUri };
         }
@@ -368,9 +381,16 @@ export default function CaptionScreen() {
             can_download: allowDownloads ? '1' : '0',
             can_duet: allowDuets ? '1' : '0',
             can_stitch: allowStitches ? '1' : '0',
+            can_use_audio: allowUseAudio ? '1' : '0',
             is_sensitive: isSensitive ? '1' : '0',
             contains_ad: isAd ? '1' : '0',
             contains_ai: isAi ? '1' : '0',
+            ...(reusedAudioSource?.postUri
+                ? {
+                      audio_source_post_uri: reusedAudioSource.postUri,
+                      audio_source_username: reusedAudioSource.username,
+                  }
+                : {}),
         };
 
         const res = isPhotoPost ? await uploadImage(uploadParams) : await uploadVideo(uploadParams);
@@ -386,15 +406,24 @@ export default function CaptionScreen() {
 
     const postMutation = useMutation({
         mutationFn: uploadLoop,
-        onSuccess: async (_result, variables) => {
+        onSuccess: async (result, variables) => {
             setOverlayMessage('Done!');
+            const postUri = result?.json?.uri;
+            const postCid = result?.json?.cid;
+            if (postUri && postCid) {
+                await prependPostedMediaToProfile(queryClient, {
+                    uri: postUri,
+                    cid: postCid,
+                    isPhoto: !!variables?.isPhotoPost,
+                    localMediaUri: result.uploadUri,
+                    caption: variables?.caption ?? '',
+                });
+            }
             await invalidateFeedAfterPost(queryClient);
             setOverlayVisible(false);
             if (variables?.isPhotoPost) {
-                Alert.alert('Posted to Bluesky', 'Your photo is on your profile.');
-                router.replace('/(tabs)/profile');
+                router.replace({ pathname: '/(tabs)/profile', params: { tab: 'photos' } });
             } else {
-                Alert.alert('Posted to Bluesky', 'Your video is on your profile. It may take a moment to appear in feeds while processing.');
                 router.replace('/(tabs)/profile');
             }
         },
@@ -416,11 +445,13 @@ export default function CaptionScreen() {
             allowDownloads,
             allowDuets,
             allowStitches,
+            allowUseAudio,
             isSensitive,
             isAd,
             isAi,
             selectedSound,
             isPhotoPost: isPhoto,
+            reusedAudioSource,
         });
     };
 
@@ -499,6 +530,10 @@ export default function CaptionScreen() {
         router.back();
     };
 
+    const handleRemoveRemix = () => {
+        setReusedAudioSource(null);
+    };
+
     const charsRemaining = MAX_CAPTION_LENGTH - caption.length;
     const isNearLimit = charsRemaining <= 20;
 
@@ -517,11 +552,7 @@ export default function CaptionScreen() {
                     { paddingTop: insets.top + 10 },
                 ]}>
                 <TouchableOpacity onPress={handleBack} style={tw`w-11 h-11 justify-center`}>
-                    <Ionicons
-                        name="chevron-back"
-                        size={32}
-                        color={isDark ? '#fff' : '#000'}
-                    />
+                    <Ionicons name="chevron-back" size={32} color={isDark ? '#fff' : '#000'} />
                 </TouchableOpacity>
                 <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                     {isPhoto ? 'Upload Photo' : 'Upload Loop'}
@@ -530,6 +561,36 @@ export default function CaptionScreen() {
                     <Ionicons name="chevron-back" size={32} color="transparent" />
                 </TouchableOpacity>
             </View>
+
+            {reusedAudioSource ? (
+                <>
+                    {reusedAudioSource.referenceVideoUrl ? (
+                        <ReferenceAudioPlayer
+                            url={reusedAudioSource.referenceVideoUrl}
+                            active={isFocused}
+                        />
+                    ) : null}
+                    <View
+                        style={tw`mx-5 mt-3 flex-row items-center gap-2 self-start rounded-full bg-cyan-500/10 px-3 py-2`}>
+                        <Ionicons name="musical-notes" size={16} color="#22D3EE" />
+                        <Text style={tw`text-sm text-cyan-700 dark:text-cyan-300 flex-shrink`}>
+                            Remix · audio credit @{reusedAudioSource.username}
+                            {remixReferenceBannerSuffix(reusedAudioSource.referenceVideoUrl)}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={handleRemoveRemix}
+                            hitSlop={8}
+                            accessibilityLabel="Remove remix audio"
+                            accessibilityHint="Stops reference audio and clears remix credit from this post">
+                            <Ionicons
+                                name="close"
+                                size={18}
+                                color={isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.55)'}
+                            />
+                        </TouchableOpacity>
+                    </View>
+                </>
+            ) : null}
 
             <View>
                 <View style={tw`flex-row p-5 gap-3`}>
@@ -609,10 +670,10 @@ export default function CaptionScreen() {
                                             <Avatar url={item?.avatar} />
                                             <YStack style={tw`flex-1`} justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
-                                                    <Text
-                                                        style={tw`text-[15px] font-semibold text-black dark:text-white`}>
-                                                        @{item.username}
-                                                    </Text>
+                                                    <MentionText
+                                                        username={item.username}
+                                                        style={tw`text-[15px] font-semibold`}
+                                                    />
                                                     <Text
                                                         style={tw`text-gray-600 dark:text-gray-400`}>
                                                         ·
@@ -771,7 +832,7 @@ export default function CaptionScreen() {
                 <TouchableOpacity
                     onPress={handlePost}
                     disabled={postMutation.isPending}
-                    style={tw`flex-1 flex-row items-center justify-center bg-[#F02C56] py-4 rounded-full gap-2 ${postMutation.isPending ? 'opacity-60' : ''}`}
+                    style={tw`flex-1 flex-row items-center justify-center bg-[#22D3EE] py-4 rounded-full gap-2 ${postMutation.isPending ? 'opacity-60' : ''}`}
                     activeOpacity={0.7}>
                     <Feather name="upload" size={20} color="#fff" />
                     <Text style={tw`text-[22px] font-bold text-white`}>Post</Text>
@@ -787,11 +848,7 @@ export default function CaptionScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                         <TouchableOpacity onPress={() => setShowMoreOptionsModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                             More Options
@@ -881,6 +938,28 @@ export default function CaptionScreen() {
                                 </YStack>
                             </View>
                             <Switch value={allowStitches} onValueChange={setAllowStitches} />
+                        </View>
+
+                        <View style={tw`flex-row items-center justify-between px-5 py-4`}>
+                            <View style={tw`flex-row items-center max-w-[70%] gap-3 flex-1`}>
+                                <View style={tw`pr-2.5`}>
+                                    <Ionicons
+                                        name="musical-notes-outline"
+                                        size={20}
+                                        color={isDark ? '#999' : '#999'}
+                                    />
+                                </View>
+                                <YStack>
+                                    <Text
+                                        style={tw`text-[15px] font-semibold text-gray-900 dark:text-gray-100`}>
+                                        Allow audio reuse
+                                    </Text>
+                                    <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
+                                        Others can create videos using your audio
+                                    </Text>
+                                </YStack>
+                            </View>
+                            <Switch value={allowUseAudio} onValueChange={setAllowUseAudio} />
                         </View>
 
                         <View style={tw`bg-gray-50 dark:bg-black h-2.5`} />
@@ -998,17 +1077,13 @@ export default function CaptionScreen() {
                         <View
                             style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                             <TouchableOpacity onPress={() => setShowAltTextModal(false)}>
-                                <Ionicons
-                                    name="close"
-                                    size={28}
-                                    color={isDark ? '#fff' : '#000'}
-                                />
+                                <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                             </TouchableOpacity>
                             <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                                 Alt Text
                             </Text>
                             <TouchableOpacity onPress={() => setShowAltTextModal(false)}>
-                                <Text style={tw`text-base font-semibold text-[#F02C56]`}>Done</Text>
+                                <Text style={tw`text-base font-semibold text-[#22D3EE]`}>Done</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -1063,11 +1138,7 @@ export default function CaptionScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                         <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                             Select Language
@@ -1094,7 +1165,7 @@ export default function CaptionScreen() {
                                     {item.name}
                                 </Text>
                                 {selectedLanguage.code === item.code && (
-                                    <Ionicons name="checkmark" size={24} color="#F02C56" />
+                                    <Ionicons name="checkmark" size={24} color="#22D3EE" />
                                 )}
                             </TouchableOpacity>
                         )}
@@ -1115,11 +1186,7 @@ export default function CaptionScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-800`}>
                         <TouchableOpacity onPress={() => setShowVisibilityModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-black dark:text-white`}>
                             Select Visibility
@@ -1157,7 +1224,7 @@ export default function CaptionScreen() {
 
                                 {selectedVisibility.id === item.id ? (
                                     <View
-                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#F02C56] justify-center items-center`}>
+                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#22D3EE] justify-center items-center`}>
                                         <View style={tw`w-3.5 h-3.5 rounded-full bg-white`} />
                                     </View>
                                 ) : (
@@ -1177,10 +1244,7 @@ export default function CaptionScreen() {
                     pointerEvents="auto">
                     <View
                         style={tw`w-[72%] rounded-2xl py-5.5 px-4.5 bg-white dark:bg-gray-900 items-center gap-2`}>
-                        <ActivityIndicator
-                            size="large"
-                            color={isDark ? '#fff' : '#000'}
-                        />
+                        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
                         <Text
                             style={tw`mt-1.5 text-base font-bold text-gray-900 dark:text-gray-100 text-center`}>
                             {overlayMessage}

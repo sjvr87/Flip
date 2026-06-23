@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     duetBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderRadius: 24,
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingVertical: 16,
         borderRadius: 12,
         gap: 8,

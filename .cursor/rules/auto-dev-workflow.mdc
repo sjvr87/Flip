@@ -1,11 +1,25 @@
 ﻿---
-description: Before testing Flip on device or emulator, sync main and start Metro with a clean cache.
+description: Before testing Flip on device or emulator, sync main and connect without stacking Metro windows.
 alwaysApply: true
 ---
 
 # Auto dev workflow (test on latest)
 
-The user wants agents on the **latest main** with a **fresh Metro cache** before validating fixes or asking the user to test.
+The user wants agents on **latest main**, **one Metro window**, and **git commits for backtracking** — not a new Metro popup on every subagent task.
+
+## Which script to run
+
+| Situation | Script | Metro |
+|-----------|--------|-------|
+| Metro down, first connect of the day, adb broken | `flip-dev.bat` | Starts **one** window if `/status` not healthy |
+| Metro stuck, stale cache, native dep change | `flip-dev-restart.bat` | Kills 8081, then **one** new window |
+| JS/icon tweak, Metro already running | `flip-reload.bat` or hot-reload on device | **No** recycle |
+| USB replug, app crashed, Metro already up | `flip-connect.bat` | **No** recycle |
+| Native Android rebuild | `npm run android:dev` | Metro separate |
+
+**Agents:** do **not** run `flip-dev.bat` or `dev:connect:restart` for routine JS edits when Metro is already healthy. Commit + push; user hot-reloads or runs `flip-reload.bat`. Use git history to backtrack mistakes.
+
+`flip-dev.bat` reuses Metro when `http://127.0.0.1:8081/status` returns `packager-status:running` — it does **not** open another Metro window.
 
 ## Before testing or saying "please test"
 
@@ -13,21 +27,21 @@ The user wants agents on the **latest main** with a **fresh Metro cache** before
    ```bash
    git pull origin main
    ```
-   Report whether new commits were pulled. If you just pushed, pull still ensures you match remote.
+   Report whether new commits were pulled. `flip-dev.bat` pulls automatically; lightweight scripts do not.
 
-2. **Start Metro (clear cache)** — use the project dev-client scripts when possible:
-   - Preferred: `npm run start:clear` (runs `expo start --dev-client --clear`)
-   - Equivalent: `npx expo start -c` or `npx expo start --dev-client --clear`
+2. **Connect device** — only when you need the user to validate on hardware:
+   - Metro already up: `flip-reload.bat` (JS reload) or `flip-connect.bat` (adb + relaunch)
+   - Metro down or unsure: `flip-dev.bat` once
+   - Never run `npm run start:clear` in a **new** window if Metro is already healthy — that stacks windows
 
-   Run Metro when **you** are actively testing (device, emulator, or verifying a fix). Do **not** leave `expo start` running indefinitely in the background unless it is useful for the current task; the user can start Metro themselves — this rule is for agent-driven verification.
-
-3. **Windows** — if `npm` fails under PowerShell execution policy or script blocking, use `npm.cmd` (e.g. `npm.cmd run start:clear`).
+3. **Windows** — if `npm` fails under PowerShell execution policy, use `npm.cmd`.
 
 ## Pair with other Flip rules
 
-- **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt when pulling, installing, or starting Metro; do not stop to ask for routine approval.
+- **[dev-permissions.mdc](dev-permissions.mdc)** — use `required_permissions: ["all"]` for flip-dev, flip-connect, adb, Metro, git remote.
+- **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt when pulling, installing, or connecting; do not stop to ask for routine approval.
 - **[auto-push-progress.mdc](auto-push-progress.mdc)** — after meaningful work, commit and push unless the user says not to; then pull again before the next test cycle if others may have merged.
 
 ## After dependency or native changes
 
-If `package.json`, lockfile, or native modules changed on pull, run `npm install` (or `npm.cmd install` on Windows) before starting Metro. For Android native changes, follow existing project scripts (`android:prebuild`, etc.) as needed.
+If `package.json`, lockfile, or native modules changed on pull, run `npm install` (or `npm.cmd install` on Windows) before connecting. For Android native changes, follow existing project scripts (`android:prebuild`, `android:dev`, etc.) and use `flip-dev-restart.bat` afterward.

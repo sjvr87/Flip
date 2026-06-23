@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -160,7 +161,7 @@ const VISIBILITY = [
 ];
 
 export default function EditScreen() {
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -174,6 +175,7 @@ export default function EditScreen() {
     const [allowDownloads, setAllowDownloads] = useState(true);
     const [allowDuets, setAllowDuets] = useState(true);
     const [allowStitches, setAllowStitches] = useState(true);
+    const [allowUseAudio, setAllowUseAudio] = useState(true);
     const [isSensitive, setIsSensitive] = useState(false);
     const [isPinned, setIsPinned] = useState(false);
     const [isAd, setIsAd] = useState(false);
@@ -234,6 +236,7 @@ export default function EditScreen() {
             setAllowDownloads(video.permissions?.can_download ?? true);
             setAllowDuets(video.permissions?.can_duet ?? false);
             setAllowStitches(video.permissions?.can_stitch ?? false);
+            setAllowUseAudio(video.permissions?.can_use_audio ?? true);
 
             const sensitiveValue = video.is_sensitive ?? false;
             setIsSensitive(sensitiveValue);
@@ -291,6 +294,7 @@ export default function EditScreen() {
             can_comment: allowComments,
             can_duet: allowDuets,
             can_stitch: allowStitches,
+            can_use_audio: allowUseAudio,
             is_pinned: isPinned,
             alt_text: altText,
             is_sensitive: isSensitive,
@@ -402,11 +406,7 @@ export default function EditScreen() {
                     { paddingTop: insets.top + 10 },
                 ]}>
                 <TouchableOpacity onPress={handleBack} style={tw`w-11 h-11 justify-center`}>
-                    <Ionicons
-                        name="chevron-back"
-                        size={32}
-                        color={isDark ? '#fff' : '#000'}
-                    />
+                    <Ionicons name="chevron-back" size={32} color={isDark ? '#fff' : '#000'} />
                 </TouchableOpacity>
                 <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>Edit Loop</Text>
                 <TouchableOpacity style={tw`w-11 h-11 justify-center`}>
@@ -488,10 +488,10 @@ export default function EditScreen() {
                                             <Avatar url={item?.avatar} />
                                             <YStack style={tw`flex-1`} justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
-                                                    <Text
-                                                        style={tw`text-[15px] font-semibold text-gray-900 dark:text-white`}>
-                                                        @{item.username}
-                                                    </Text>
+                                                    <MentionText
+                                                        username={item.username}
+                                                        style={tw`text-[15px] font-semibold`}
+                                                    />
                                                     <Text
                                                         style={tw`text-gray-600 dark:text-gray-400`}>
                                                         ·
@@ -665,11 +665,7 @@ export default function EditScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                         <TouchableOpacity onPress={() => setShowMoreOptionsModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                             More Options
@@ -787,6 +783,28 @@ export default function EditScreen() {
                             <Switch value={allowStitches} onValueChange={setAllowStitches} />
                         </View>
 
+                        <View style={tw`flex-row items-center justify-between px-5 py-4`}>
+                            <View style={tw`flex-row items-center max-w-[70%] gap-3 flex-1`}>
+                                <View style={tw`pr-2.5`}>
+                                    <Ionicons
+                                        name="musical-notes-outline"
+                                        size={20}
+                                        color={isDark ? '#9ca3af' : '#999'}
+                                    />
+                                </View>
+                                <YStack>
+                                    <Text
+                                        style={tw`text-[15px] font-semibold text-gray-900 dark:text-gray-100`}>
+                                        Allow audio reuse
+                                    </Text>
+                                    <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
+                                        Others can create videos using your audio
+                                    </Text>
+                                </YStack>
+                            </View>
+                            <Switch value={allowUseAudio} onValueChange={setAllowUseAudio} />
+                        </View>
+
                         <View style={tw`bg-gray-50 dark:bg-gray-800 h-2.5`} />
 
                         <XStack>
@@ -892,11 +910,7 @@ export default function EditScreen() {
                         <View
                             style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                             <TouchableOpacity onPress={() => setShowAltTextModal(false)}>
-                                <Ionicons
-                                    name="close"
-                                    size={28}
-                                    color={isDark ? '#fff' : '#000'}
-                                />
+                                <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                             </TouchableOpacity>
                             <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                                 Alt Text
@@ -929,9 +943,7 @@ export default function EditScreen() {
                                         }
                                     }}
                                     placeholder="Describe what's happening in your video..."
-                                    placeholderTextColor={
-                                        isDark ? '#6b7280' : '#999'
-                                    }
+                                    placeholderTextColor={isDark ? '#6b7280' : '#999'}
                                     multiline
                                     maxLength={MAX_ALT_TEXT_LENGTH}
                                     autoFocus
@@ -960,11 +972,7 @@ export default function EditScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                         <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                             Select Language
@@ -1012,11 +1020,7 @@ export default function EditScreen() {
                     <View
                         style={tw`flex-row justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700`}>
                         <TouchableOpacity onPress={() => setShowVisibilityModal(false)}>
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color={isDark ? '#fff' : '#000'}
-                            />
+                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                         <Text style={tw`text-lg font-bold text-gray-900 dark:text-white`}>
                             Select Visibility
@@ -1052,7 +1056,7 @@ export default function EditScreen() {
 
                                 {selectedVisibility.id === item.id ? (
                                     <View
-                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#F02C56] justify-center items-center`}>
+                                        style={tw`w-7.5 h-7.5 rounded-full bg-[#22D3EE] justify-center items-center`}>
                                         <View style={tw`w-3.75 h-3.75 rounded-full bg-white`} />
                                     </View>
                                 ) : (

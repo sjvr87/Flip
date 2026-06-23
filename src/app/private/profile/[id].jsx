@@ -11,6 +11,7 @@ import {
     fetchAccount as atprotoFetchAccount,
     fetchAccountState as atprotoFetchAccountState,
     fetchUserVideos as atprotoFetchUserVideos,
+    fetchUserPhotos as atprotoFetchUserPhotos,
     followAccount as atprotoFollowAccount,
     unblockAccount as atprotoUnblockAccount,
     unfollowAccount as atprotoUnfollowAccount,
@@ -27,7 +28,13 @@ import {
     unfollowAccount,
     usesAtprotoBackend,
 } from '@/utils/requests';
-import { decodeRouteParam, toPlaylistFeedRoute, toProfileFeedPath } from '@/utils/profileNavigation';
+import {
+    decodeRouteParam,
+    toPlaylistFeedRoute,
+    toPostViewPath,
+    toProfileFeedPath,
+} from '@/utils/profileNavigation';
+import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -49,7 +56,8 @@ import tw from 'twrnc';
 const EmptyVideos = memo(({ activeTab }) => (
     <YStack paddingY="$8" alignItems="center" justifyContent="center">
         <StackText fontSize="$4" style={tw`dark:text-gray-400`}>
-            {activeTab === 'videos' && 'No posts yet'}
+            {activeTab === 'videos' && 'No videos yet'}
+            {activeTab === 'photos' && 'No photos yet'}
             {activeTab === 'favorites' && 'No favorites yet'}
             {activeTab === 'reblogs' && 'No reblogs yet'}
         </StackText>
@@ -58,13 +66,13 @@ const EmptyVideos = memo(({ activeTab }) => (
 
 const LoadingIndicator = memo(() => (
     <YStack paddingY="$8" alignItems="center">
-        <ActivityIndicator size="large" color="#F02C56" />
+        <ActivityIndicator size="large" color="#22D3EE" />
     </YStack>
 ));
 
 const FooterLoader = memo(() => (
     <YStack paddingY="$6" alignItems="center">
-        <ActivityIndicator color="#F02C56" />
+        <ActivityIndicator color="#22D3EE" />
     </YStack>
 ));
 
@@ -87,9 +95,7 @@ export default function ProfileScreen() {
     } = useQuery({
         queryKey: ['fetchAccount', id?.toString()],
         queryFn: async () => {
-            const res = atproto
-                ? await atprotoFetchAccount(id)
-                : await fetchAccount(id.toString());
+            const res = atproto ? await atprotoFetchAccount(id) : await fetchAccount(id.toString());
             return res.data;
         },
         enabled: !!id,
@@ -120,18 +126,34 @@ export default function ProfileScreen() {
 
     const {
         data: videosData,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-        refetch,
+        fetchNextPage: videosFetchNextPage,
+        hasNextPage: videosHasNextPage,
+        isFetchingNextPage: videosIsFetchingNextPage,
+        refetch: videosRefetch,
         isLoading: videosLoading,
-        isError: videosError,
     } = useInfiniteQuery({
         queryKey: ['userVideos', id?.toString(), sortBy],
         queryFn: atproto ? atprotoFetchUserVideos : fetchUserVideos,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: !!user && !!id,
+        enabled: !!user && !!id && activeTab === 'videos',
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+
+    const {
+        data: photosData,
+        fetchNextPage: photosFetchNextPage,
+        hasNextPage: photosHasNextPage,
+        isFetchingNextPage: photosIsFetchingNextPage,
+        refetch: photosRefetch,
+        isLoading: photosLoading,
+    } = useInfiniteQuery({
+        queryKey: ['userPhotos', id?.toString(), sortBy],
+        queryFn: atproto ? atprotoFetchUserPhotos : fetchUserVideos,
+        initialPageParam: undefined,
+        getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
+        enabled: !!user && !!id && activeTab === 'photos' && atproto,
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
     });
@@ -141,11 +163,23 @@ export default function ProfileScreen() {
         return videosData.pages.flatMap((page) => page?.data ?? []);
     }, [videosData?.pages]);
 
+    const photos = useMemo(() => {
+        if (!photosData?.pages) return [];
+        return photosData.pages.flatMap((page) => page?.data ?? []);
+    }, [photosData?.pages]);
+
+    const gridItems = activeTab === 'photos' ? photos : videos;
+    const gridLoading = activeTab === 'photos' ? photosLoading : videosLoading;
+    const gridHasNextPage = activeTab === 'photos' ? photosHasNextPage : videosHasNextPage;
+    const gridIsFetchingNextPage =
+        activeTab === 'photos' ? photosIsFetchingNextPage : videosIsFetchingNextPage;
+    const gridFetchNextPage = activeTab === 'photos' ? photosFetchNextPage : videosFetchNextPage;
+
     const handleEndReached = useCallback(() => {
-        if (hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
+        if (gridHasNextPage && !gridIsFetchingNextPage) {
+            gridFetchNextPage();
         }
-    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [gridHasNextPage, gridIsFetchingNextPage, gridFetchNextPage]);
 
     const followMutation = useMutation({
         mutationFn: async () => {
@@ -205,9 +239,15 @@ export default function ProfileScreen() {
     const handleVideoPress = useCallback(
         (video) => {
             if (!video?.id || !video?.account?.id) return;
-            router.push(toProfileFeedPath(video.id, video.account.id));
+            const isPhoto = video.is_photo || video.media_type === 'photo';
+            if (isPhoto && atproto) {
+                router.push(toPostViewPath(video.id));
+                return;
+            }
+            const mediaKind = isPhoto ? 'photo' : 'video';
+            router.push(toProfileFeedPath(video.id, video.account.id, { mediaKind }));
         },
-        [router],
+        [router, atproto],
     );
 
     const handleOnOpenMenu = useCallback(() => {
@@ -260,10 +300,22 @@ export default function ProfileScreen() {
         try {
             await shareContent({
                 message: `Check out @${user.username}'s account on Flip!`,
-                url: user.url,
+                url: getProfileUrl(user),
             });
         } catch (error) {
             console.error('Share error:', error);
+        }
+    }, [user]);
+
+    const handleCopyProfileLink = useCallback(async () => {
+        if (!user) return;
+
+        setShowMenuModal(false);
+
+        try {
+            await copyProfileLink(user);
+        } catch (error) {
+            console.error('Copy profile link error:', error);
         }
     }, [user]);
 
@@ -307,15 +359,15 @@ export default function ProfileScreen() {
     }, [user, userState, followMutation]);
 
     const renderEmpty = useCallback(() => {
-        if (videosLoading) {
+        if (gridLoading) {
             return <LoadingIndicator />;
         }
         return <EmptyVideos activeTab={activeTab} />;
-    }, [videosLoading, activeTab]);
+    }, [gridLoading, activeTab]);
 
     const renderFooter = useCallback(() => {
-        return isFetchingNextPage ? <FooterLoader /> : null;
-    }, [isFetchingNextPage]);
+        return gridIsFetchingNextPage ? <FooterLoader /> : null;
+    }, [gridIsFetchingNextPage]);
 
     const renderItem = useCallback(
         ({ item }) => <VideoGrid video={item} onPress={handleVideoPress} />,
@@ -353,7 +405,7 @@ export default function ProfileScreen() {
                         ),
                     }}
                 />
-                <ActivityIndicator size="large" color="#F02C56" />
+                <ActivityIndicator size="large" color="#22D3EE" />
             </View>
         );
     }
@@ -398,7 +450,7 @@ export default function ProfileScreen() {
             />
 
             <FlatList
-                data={videos}
+                data={gridItems}
                 numColumns={3}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
@@ -460,6 +512,17 @@ export default function ProfileScreen() {
                                 <Text
                                     style={tw`text-base text-gray-900 dark:text-gray-300 font-medium`}>
                                     Open in browser
+                                </Text>
+                            </Pressable>
+
+                            <View style={tw`h-px bg-gray-200 dark:bg-gray-800 mx-6`} />
+
+                            <Pressable
+                                style={tw`px-6 py-4 flex-row items-center`}
+                                onPress={handleCopyProfileLink}>
+                                <Text
+                                    style={tw`text-base text-gray-900 dark:text-gray-300 font-medium`}>
+                                    Copy profile link
                                 </Text>
                             </Pressable>
 

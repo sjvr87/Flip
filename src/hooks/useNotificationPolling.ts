@@ -11,7 +11,7 @@ export function useNotificationPolling(intervalMs: number = 900000) {
         fetchBadgeCount();
 
         const startPolling = () => {
-            if (pollInterval.current) return;
+            if (pollInterval.current || AppState.currentState !== 'active') return;
 
             pollInterval.current = setInterval(() => {
                 fetchBadgeCount();

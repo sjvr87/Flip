@@ -3,6 +3,7 @@ import {
     fetchAccountFavorites as atprotoFetchAccountFavorites,
     fetchAccountLikes as atprotoFetchAccountLikes,
     fetchActivityNotifications as atprotoFetchActivityNotifications,
+    fetchAuthorRecentMediaThumbnails as atprotoFetchAuthorRecentMediaThumbnails,
     fetchFollowerNotifications as atprotoFetchFollowerNotifications,
     fetchNotifications as atprotoFetchNotifications,
     blockAccount as atprotoBlockAccount,
@@ -13,6 +14,11 @@ import {
     getExploreTagsFeed as atprotoGetExploreTagsFeed,
     notificationMarkAsRead as atprotoNotificationMarkAsRead,
     notificationTypeMarkAllAsRead as atprotoNotificationTypeMarkAllAsRead,
+    fetchConvos as atprotoFetchConvos,
+    fetchConvoMessages as atprotoFetchConvoMessages,
+    sendChatMessage as atprotoSendChatMessage,
+    markConvoRead as atprotoMarkConvoRead,
+    getOrCreateConvo as atprotoGetOrCreateConvo,
     postExploreAccountHideSuggestion as atprotoPostExploreAccountHideSuggestion,
     searchContent as atprotoSearchContent,
     submitReport as atprotoSubmitReport,
@@ -1322,6 +1328,44 @@ export async function notificationTypeMarkAllAsRead(type): Promise<any> {
 }
 
 // ============================================================================
+// DIRECT MESSAGES (ATProto chat)
+// ============================================================================
+
+export async function fetchConvos({ pageParam }: { pageParam?: string } = {}) {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchConvos(pageParam);
+    }
+    return { convos: [], cursor: undefined };
+}
+
+export async function fetchConvoMessages(convoId: string, cursor?: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchConvoMessages(convoId, cursor);
+    }
+    return { messages: [], cursor: undefined };
+}
+
+export async function sendChatMessage(convoId: string, text: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoSendChatMessage(convoId, text);
+    }
+    throw new Error('Direct messages require an ATProto session');
+}
+
+export async function markConvoRead(convoId: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoMarkConvoRead(convoId);
+    }
+}
+
+export async function getOrCreateConvo(memberDid: string) {
+    if (usesAtprotoBackend()) {
+        return atprotoGetOrCreateConvo(memberDid);
+    }
+    return null;
+}
+
+// ============================================================================
 // ACCOUNT UPDATES
 // ============================================================================
 
@@ -1414,6 +1458,16 @@ export async function getExploreAccounts(): Promise<any> {
     }
     const res = await _selfGet('api/v1/accounts/suggested');
     return res.data as Account[];
+}
+
+export async function fetchAuthorRecentMediaThumbnails(
+    actors: string[],
+    limit = 3,
+): Promise<Record<string, string[]>> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchAuthorRecentMediaThumbnails(actors, limit);
+    }
+    return Object.fromEntries(actors.map((actor) => [actor, [] as string[]]));
 }
 
 export async function getExploreTagsFeed({

@@ -111,10 +111,10 @@ export default function SecurityScreen() {
         }
 
         if (Platform.OS === 'android') {
-            const status = await PermissionsAndroid.request(
-                PermissionsAndroid.PERMISSIONS.CAMERA,
+            const status = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+            setCameraPermission(
+                status === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied',
             );
-            setCameraPermission(status === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied');
             if (status !== PermissionsAndroid.RESULTS.GRANTED) openAppSettings();
             return;
         }
@@ -214,7 +214,7 @@ export default function SecurityScreen() {
                 <SettingsToggleItemDescription
                     icon="save-outline"
                     label="Remember login"
-                    description="Stay signed in on this device. Your app password is stored securely."
+                    description="Stay signed in on this device. Session tokens are stored securely."
                     value={rememberLogin}
                     onValueChange={(value) => void handleRememberLoginChange(value)}
                 />
@@ -261,7 +261,7 @@ export default function SecurityScreen() {
                     isActive={cameraPermission === 'granted'}
                     inactiveText={getPermissionLabel(cameraPermission)}
                     onPress={handleCameraPermission}
-                    activeIconColor="#F02C56"
+                    activeIconColor="#22D3EE"
                 />
                 <Divider />
                 <SettingsStatusItem
@@ -270,7 +270,7 @@ export default function SecurityScreen() {
                     isActive={microphonePermission === 'granted'}
                     inactiveText={getPermissionLabel(microphonePermission)}
                     onPress={handleMicrophonePermission}
-                    activeIconColor="#F02C56"
+                    activeIconColor="#22D3EE"
                 />
                 <Divider />
                 <SettingsStatusItem
@@ -279,7 +279,7 @@ export default function SecurityScreen() {
                     isActive={photosPermission === 'granted'}
                     inactiveText={getPermissionLabel(photosPermission)}
                     onPress={handlePhotosPermission}
-                    activeIconColor="#F02C56"
+                    activeIconColor="#22D3EE"
                 />
             </ScrollView>
         </View>

@@ -1,4 +1,5 @@
 import CommentsModal from '@/components/feed/CommentsModal';
+import CaptionExpandModal from '@/components/feed/CaptionExpandModal';
 import FeedEmptyState from '@/components/feed/FeedEmptyState';
 import OtherModal from '@/components/feed/OtherModal';
 import ShareModal from '@/components/feed/ShareModal';
@@ -19,12 +20,29 @@ import {
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
+    markVideoSeenInSession,
     resetSessionSeen,
     softRefreshFeed,
 } from '@/utils/feedCache';
+import {
+    getFeedNetworkProfile,
+    startFeedNetworkMonitoring,
+    subscribeFeedNetworkProfile,
+    type FeedNetworkProfile,
+} from '@/utils/feedNetworkQuality';
+import {
+    onFeedTabChanged,
+    pauseAllFeedPlayers,
+    releaseAllFeedPlayers,
+    setFeedPlaybackActive,
+} from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
-import { prefetchVideoUrls } from '@/utils/videoPrefetch';
+import {
+    cancelOffscreenPrefetch,
+    prefetchVideoUrls,
+    releaseAllVideoPrefetch,
+} from '@/utils/videoPrefetch';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -48,7 +66,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     AppState,
-    Dimensions,
     FlatList,
     InteractionManager,
     Platform,
@@ -56,17 +73,16 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 /** Start loading next page when this many videos from the end (TikTok-style). */
 const LOAD_MORE_THRESHOLD = 4;
-/** Preload HLS for the next N videos beyond the FlatList render window. */
+/** Preload HLS for the next video only (network tier may disable entirely). */
 const PREFETCH_AHEAD = feedPrefetchAhead;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
-const MAX_EMPTY_DEDUPE_FETCHES = 2;
+const MAX_EMPTY_DEDUPE_FETCHES = 8;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = feedPlayerPreloadDistance;
 
@@ -74,11 +90,14 @@ type FeedVideoCellProps = {
     item: FlipVideo;
     index: number;
     activeIndex: number;
+    shouldPreload: boolean;
+    feedHeight: number;
     bottomInset: number;
     tabBarHeight: number;
     feedOverlayBottom: number;
     actionRailBottom: number;
     screenFocused: boolean;
+    feedPlaybackEnabled: boolean;
     commentsOpen: boolean;
     shareOpen: boolean;
     otherOpen: boolean;
@@ -86,6 +105,7 @@ type FeedVideoCellProps = {
     navigation: unknown;
     onLike: (videoId: string, liked: boolean) => void;
     onComment: (video: FlipVideo) => void;
+    onCaptionExpand: (video: FlipVideo) => void;
     onShare: (video: FlipVideo) => void;
     onBookmark: (videoId: string, bookmarked: boolean) => void;
     onRepost: (videoId: string, reposted: boolean) => void;
@@ -97,11 +117,14 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     item,
     index,
     activeIndex,
+    shouldPreload,
+    feedHeight,
     bottomInset,
     tabBarHeight,
     feedOverlayBottom,
     actionRailBottom,
     screenFocused,
+    feedPlaybackEnabled,
     commentsOpen,
     shareOpen,
     otherOpen,
@@ -109,6 +132,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     navigation,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -116,16 +140,16 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     onNavigate,
 }: FeedVideoCellProps) {
     const isActive = index === activeIndex;
-    const shouldPreload =
-        isActive || Math.abs(index - activeIndex) <= PLAYER_PRELOAD_DISTANCE;
 
     return (
         <VideoPlayer
             item={item}
             isActive={isActive}
             shouldPreload={shouldPreload}
+            feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
+            onCaptionExpand={onCaptionExpand}
             onShare={onShare}
             onBookmark={onBookmark}
             onRepost={onRepost}
@@ -134,7 +158,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
             commentsOpen={commentsOpen}
             shareOpen={shareOpen}
             otherOpen={otherOpen}
-            screenFocused={screenFocused}
+            screenFocused={screenFocused && feedPlaybackEnabled}
             videoPlaybackRates={videoPlaybackRates}
             navigation={navigation}
             onNavigate={onNavigate}
@@ -176,12 +200,17 @@ const feedQueryFn = ({
     return fetchVideos({ pageParam, tab, refreshEpoch });
 };
 
+const feedVideosQueryKey = (tab: FeedTab, epoch: number, viewerDid?: string | null) =>
+    ['videos', tab, epoch, viewerDid ?? 'anon'] as const;
+
 const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0])) as Record<
     (typeof FEED_TABS)[number],
     number
 >;
 
 export default function LoopsFeed({ navigation }) {
+    const { height: windowHeight } = useWindowDimensions();
+    const feedHeight = Math.round(windowHeight);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const authReady = useAuthStore((state) => state.authReady);
@@ -189,6 +218,7 @@ export default function LoopsFeed({ navigation }) {
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
     const hasHydrated = useAuthStore((state) => state._hasHydrated);
     const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+    const viewerDid = useAuthStore((state) => state.user?.id);
     const feedQueryEnabled = hasHydrated && isLoggedIn && authReady;
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
     const [activeTab, setActiveTab] = useState(defaultFeed);
@@ -203,10 +233,16 @@ export default function LoopsFeed({ navigation }) {
     const [dedupeExhausted, setDedupeExhausted] = useState(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
+    const [showCaptionExpand, setShowCaptionExpand] = useState(false);
     const [showShare, setShowShare] = useState(false);
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
     const [screenFocused, setScreenFocused] = useState(true);
+    const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+    const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
+        getFeedNetworkProfile(),
+    );
+    const feedPlaybackEnabled = screenFocused && appActive;
     const flatListRef = useRef(null);
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -226,14 +262,6 @@ export default function LoopsFeed({ navigation }) {
     const forYouEnabled = appConfig?.fyf === true && !hideForYouFeed;
 
     useEffect(() => {
-        if (!isConfigLoading && appConfig) {
-            if (!forYouEnabled && activeTab === 'forYou') {
-                setActiveTab('local');
-            }
-        }
-    }, [isConfigLoading, appConfig, forYouEnabled, activeTab]);
-
-    useEffect(() => {
         if (!feedQueryEnabled) {
             return;
         }
@@ -244,7 +272,7 @@ export default function LoopsFeed({ navigation }) {
             }
             const epoch = epochs[tab] ?? 0;
             void queryClient.prefetchInfiniteQuery({
-                queryKey: ['videos', tab, epoch],
+                queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
                 queryFn: feedQueryFn,
                 initialPageParam: null,
                 staleTime: getFeedStaleMs(tab),
@@ -256,7 +284,7 @@ export default function LoopsFeed({ navigation }) {
                 prefetchTab(tab);
             }
         }
-    }, [feedQueryEnabled, forYouEnabled, queryClient]);
+    }, [feedQueryEnabled, forYouEnabled, queryClient, viewerDid]);
 
     const recordVideoImpression = useCallback(
         async (video, duration) => {
@@ -287,7 +315,7 @@ export default function LoopsFeed({ navigation }) {
         isFetching,
         isRefetching,
     } = useInfiniteQuery({
-        queryKey: ['videos', activeTab, feedEpoch],
+        queryKey: feedVideosQueryKey(activeTab, feedEpoch, viewerDid),
         queryFn: feedQueryFn,
         getNextPageParam: (lastPage) => {
             const cursor = lastPage.meta?.next_cursor;
@@ -347,21 +375,10 @@ export default function LoopsFeed({ navigation }) {
         },
     });
 
-    const rawVideos = useMemo(
-        () => data?.pages?.flatMap((page) => page.data) ?? [],
-        [data?.pages],
-    );
-    const videos = useMemo(
-        () => dedupeFeedVideos(rawVideos, activeTab),
-        [rawVideos, activeTab],
-    );
-    const feedTrulyEmpty =
-        !isLoading && !isFetching && rawVideos.length === 0;
-    const feedExhausted =
-        !isLoading &&
-        !isFetchingNextPage &&
-        !hasNextPage &&
-        videos.length > 0;
+    const rawVideos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
+    const videos = useMemo(() => dedupeFeedVideos(rawVideos, activeTab), [rawVideos, activeTab]);
+    const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
+    const feedExhausted = !isLoading && !isFetchingNextPage && !hasNextPage && videos.length > 0;
     const feedDedupeExhausted =
         !isLoading &&
         !isFetchingNextPage &&
@@ -383,6 +400,8 @@ export default function LoopsFeed({ navigation }) {
         : (data?.pages?.[0]?.meta?.error ?? null);
     const videosRef = useRef(videos);
     videosRef.current = videos;
+    const currentIndexRef = useRef(currentIndex);
+    currentIndexRef.current = currentIndex;
 
     const hasNextPageRef = useRef(hasNextPage);
     hasNextPageRef.current = hasNextPage;
@@ -392,12 +411,16 @@ export default function LoopsFeed({ navigation }) {
     fetchNextPageRef.current = fetchNextPage;
     const emptyDedupeFetchCountRef = useRef(0);
     const lastRawCountRef = useRef(0);
+    const lastVideosCountRef = useRef(0);
+    const stagnantPageFetchCountRef = useRef(0);
     const autoFetchInFlightRef = useRef(false);
     const dedupeExhaustedRef = useRef(false);
 
     useEffect(() => {
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
+        lastVideosCountRef.current = 0;
+        stagnantPageFetchCountRef.current = 0;
         autoFetchInFlightRef.current = false;
         dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
@@ -426,26 +449,60 @@ export default function LoopsFeed({ navigation }) {
 
     const refreshFeedIfStale = useCallback(
         (tab: string, epoch: number) => {
-            const state = queryClient.getQueryState(['videos', tab, epoch]);
+            const state = queryClient.getQueryState(
+                feedVideosQueryKey(tab as FeedTab, epoch, viewerDid),
+            );
             if (!state?.data || state.fetchStatus === 'fetching') {
                 return;
             }
             const age = Date.now() - (state.dataUpdatedAt ?? 0);
             const softMs = getFeedSoftRefreshMs(tab);
-            // Soft refresh only on focus — never bump feedEpoch here (caused max update depth).
-            if (age >= softMs) {
+            // Soft refresh page 0 only when at the top — avoids resetting mid-scroll feed.
+            if (age >= softMs && currentIndexRef.current === 0) {
                 softRefreshFeed(queryClient, tab);
             }
         },
-        [queryClient],
+        [queryClient, viewerDid],
     );
+
+    const switchFeedTab = useCallback((tab: FeedTab) => {
+        if (tab === activeTabRef.current) {
+            return;
+        }
+
+        onFeedTabChanged();
+        releaseAllVideoPrefetch();
+
+        if (currentVideoRef.current && watchStartTimeRef.current) {
+            const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
+            recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
+        }
+        currentVideoRef.current = null;
+        watchStartTimeRef.current = null;
+
+        setActiveTab(tab);
+        setCurrentIndex(0);
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }, []);
+
+    useEffect(() => {
+        if (!isConfigLoading && appConfig) {
+            if (!forYouEnabled && activeTab === 'forYou') {
+                switchFeedTab('local');
+            }
+        }
+    }, [isConfigLoading, appConfig, forYouEnabled, activeTab, switchFeedTab]);
 
     const onRefresh = useCallback(() => {
         const tab = activeTabRef.current;
+        onFeedTabChanged();
+        releaseAllVideoPrefetch();
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         setCurrentIndex(0);
         emptyDedupeFetchCountRef.current = 0;
         lastRawCountRef.current = 0;
+        lastVideosCountRef.current = 0;
+        stagnantPageFetchCountRef.current = 0;
         autoFetchInFlightRef.current = false;
         dedupeExhaustedRef.current = false;
         setDedupeExhausted(false);
@@ -454,13 +511,33 @@ export default function LoopsFeed({ navigation }) {
         hardRefreshFeed(queryClient, tab);
     }, [bumpFeedEpoch, queryClient]);
 
+    useEffect(() => {
+        const stopNetwork = startFeedNetworkMonitoring();
+        const unsubNetwork = subscribeFeedNetworkProfile(setNetworkProfile);
+        return () => {
+            stopNetwork();
+            unsubNetwork();
+        };
+    }, []);
+
+    useEffect(() => {
+        setFeedPlaybackActive(feedPlaybackEnabled);
+        if (!feedPlaybackEnabled) {
+            releaseAllVideoPrefetch();
+        }
+    }, [feedPlaybackEnabled]);
+
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
+            setFeedPlaybackActive(true);
             refreshFeedIfStale(activeTabRef.current, feedEpochRef.current);
 
             return () => {
                 setScreenFocused(false);
+                setFeedPlaybackActive(false);
+                releaseAllFeedPlayers();
+                releaseAllVideoPrefetch();
                 if (currentVideoRef.current && watchStartTimeRef.current) {
                     const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
                     recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
@@ -471,16 +548,23 @@ export default function LoopsFeed({ navigation }) {
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextState) => {
-            if (nextState !== 'active') {
-                return;
+            const active = nextState === 'active';
+            setAppActive(active);
+            if (!active) {
+                setFeedPlaybackActive(false);
+                releaseAllVideoPrefetch();
+            } else {
+                setFeedPlaybackActive(screenFocused);
             }
-            for (const tab of FEED_TABS) {
-                const epoch = feedEpochsRef.current[tab] ?? 0;
-                refreshFeedIfStale(tab, epoch);
+            if (active) {
+                for (const tab of FEED_TABS) {
+                    const epoch = feedEpochsRef.current[tab] ?? 0;
+                    refreshFeedIfStale(tab, epoch);
+                }
             }
         });
         return () => subscription.remove();
-    }, [refreshFeedIfStale]);
+    }, [refreshFeedIfStale, screenFocused]);
 
     useEffect(() => {
         if (videos.length > 0) {
@@ -537,6 +621,44 @@ export default function LoopsFeed({ navigation }) {
         feedEpoch,
     ]);
 
+    useEffect(() => {
+        if (isLoading || isFetchingNextPage) {
+            return;
+        }
+
+        const prevVideos = lastVideosCountRef.current;
+        const prevRaw = lastRawCountRef.current;
+
+        if (rawVideos.length > prevRaw && videos.length === prevVideos && videos.length > 0) {
+            stagnantPageFetchCountRef.current += 1;
+            if (
+                stagnantPageFetchCountRef.current <= 6 &&
+                hasNextPage &&
+                !autoFetchInFlightRef.current
+            ) {
+                autoFetchInFlightRef.current = true;
+                void fetchNextPage().finally(() => {
+                    autoFetchInFlightRef.current = false;
+                });
+            } else if (stagnantPageFetchCountRef.current > 6) {
+                dedupeExhaustedRef.current = true;
+                setDedupeExhausted(true);
+            }
+        } else if (videos.length > prevVideos) {
+            stagnantPageFetchCountRef.current = 0;
+        }
+
+        lastVideosCountRef.current = videos.length;
+        lastRawCountRef.current = rawVideos.length;
+    }, [
+        videos.length,
+        rawVideos.length,
+        isLoading,
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+    ]);
+
     const videosWithEnd = React.useMemo(() => {
         if (feedTrulyEmpty) {
             return [{ id: 'feed-empty', isEmptyMarker: true }];
@@ -557,11 +679,20 @@ export default function LoopsFeed({ navigation }) {
             const prevVideo = currentVideoRef.current;
             const prevWatchStart = watchStartTimeRef.current;
 
+            if (newIndex !== currentIndexRef.current) {
+                pauseAllFeedPlayers();
+                releaseAllVideoPrefetch();
+            }
+
             maybeLoadMoreVideos(newIndex);
 
             setCurrentIndex(newIndex);
             currentVideoRef.current = newVideo;
             watchStartTimeRef.current = Date.now();
+
+            if (newVideo) {
+                markVideoSeenInSession(activeTabRef.current, newVideo);
+            }
 
             if (prevVideo && prevWatchStart) {
                 InteractionManager.runAfterInteractions(() => {
@@ -582,52 +713,101 @@ export default function LoopsFeed({ navigation }) {
     }, [activeTab]);
 
     useEffect(() => {
-        if (videos.length === 0) {
+        if (!feedPlaybackEnabled || videos.length === 0) {
             return;
         }
-        const ahead = [];
-        for (let i = 0; i <= PREFETCH_AHEAD; i++) {
-            ahead.push(videos[currentIndex + i]?.media?.src_url);
-        }
-        prefetchVideoUrls(ahead);
 
-        const urls: string[] = [];
-        for (let i = -1; i <= 3; i++) {
+        const preloadDistance = Math.min(
+            PLAYER_PRELOAD_DISTANCE,
+            networkProfile.playerPreloadDistance,
+        );
+        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
+
+        const keepUrls = new Set<string>();
+        for (let offset = -preloadDistance; offset <= prefetchAhead; offset += 1) {
+            const url = videos[currentIndex + offset]?.media?.src_url;
+            if (url) {
+                keepUrls.add(url);
+            }
+        }
+        cancelOffscreenPrefetch(keepUrls);
+
+        if (prefetchAhead > 0) {
+            const nextUrl = videos[currentIndex + 1]?.media?.src_url;
+            prefetchVideoUrls(nextUrl ? [nextUrl] : []);
+        }
+
+        const thumbUrls: string[] = [];
+        for (let i = -1; i <= 2; i += 1) {
             const video = videos[currentIndex + i];
             if (video?.media?.thumbnail) {
-                urls.push(video.media.thumbnail);
+                thumbUrls.push(video.media.thumbnail);
             }
             if (video?.account?.avatar) {
-                urls.push(video.account.avatar);
+                thumbUrls.push(video.account.avatar);
             }
         }
-        prefetchThumbnails(urls);
-    }, [currentIndex, videos]);
+        prefetchThumbnails(thumbUrls);
+    }, [
+        currentIndex,
+        videos,
+        feedPlaybackEnabled,
+        networkProfile.tier,
+        networkProfile.prefetchAhead,
+        networkProfile.playerPreloadDistance,
+    ]);
 
     useEffect(() => {
-        if (videos.length > 0 && currentIndex === 0) {
-            prefetchVideoUrls(videos.slice(1, PREFETCH_AHEAD + 2).map((v) => v.media?.src_url));
+        if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
+            return;
         }
-    }, [activeTab, videos.length]);
+        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
+        if (prefetchAhead <= 0) {
+            return;
+        }
+        const nextUrl = videos[1]?.media?.src_url;
+        prefetchVideoUrls(nextUrl ? [nextUrl] : []);
+    }, [
+        activeTab,
+        videos.length,
+        feedPlaybackEnabled,
+        networkProfile.tier,
+        networkProfile.prefetchAhead,
+        currentIndex,
+    ]);
 
-    const handleLike = useCallback((videoId: string, liked: boolean) => {
-        const dir = liked ? 'like' : 'unlike';
-        videoLikeMutation.mutate({ type: dir, id: videoId });
-    }, [videoLikeMutation]);
+    const handleLike = useCallback(
+        (videoId: string, liked: boolean) => {
+            const dir = liked ? 'like' : 'unlike';
+            videoLikeMutation.mutate({ type: dir, id: videoId });
+        },
+        [videoLikeMutation],
+    );
 
-    const handleBookmark = useCallback((videoId: string, bookmarked: boolean) => {
-        const dir = bookmarked ? 'bookmark' : 'unbookmark';
-        videoBookmarkMutation.mutate({ type: dir, id: videoId });
-    }, [videoBookmarkMutation]);
+    const handleBookmark = useCallback(
+        (videoId: string, bookmarked: boolean) => {
+            const dir = bookmarked ? 'bookmark' : 'unbookmark';
+            videoBookmarkMutation.mutate({ type: dir, id: videoId });
+        },
+        [videoBookmarkMutation],
+    );
 
-    const handleRepost = useCallback((videoId: string, reposted: boolean) => {
-        const dir = reposted ? 'repost' : 'unrepost';
-        videoRepostMutation.mutate({ type: dir, id: videoId });
-    }, [videoRepostMutation]);
+    const handleRepost = useCallback(
+        (videoId: string, reposted: boolean) => {
+            const dir = reposted ? 'repost' : 'unrepost';
+            videoRepostMutation.mutate({ type: dir, id: videoId });
+        },
+        [videoRepostMutation],
+    );
 
     const handleComment = useCallback((video: FlipVideo) => {
         setSelectedVideo(video);
         setShowComments(true);
+    }, []);
+
+    const handleCaptionExpand = useCallback((video: FlipVideo) => {
+        setSelectedVideo(video);
+        setShowCaptionExpand(true);
     }, []);
 
     const handleShare = useCallback((video: FlipVideo) => {
@@ -651,66 +831,83 @@ export default function LoopsFeed({ navigation }) {
 
     const handleNavigate = useCallback(() => {
         setShowComments(false);
+        setShowCaptionExpand(false);
         setShowShare(false);
         setShowOther(false);
     }, []);
 
     const renderItem = useCallback(
         ({ item, index }) => {
-            if (item.isEmptyMarker) {
+            const cell = (() => {
+                if (item.isEmptyMarker) {
+                    return (
+                        <FeedEmptyState
+                            tab={activeTab}
+                            onRefresh={onRefresh}
+                            error={feedError}
+                            itemHeight={feedHeight}
+                        />
+                    );
+                }
+
+                if (item.isEndMarker) {
+                    const endTab =
+                        activeTab === 'forYou'
+                            ? 'forYou-end'
+                            : activeTab === 'local'
+                              ? 'local-end'
+                              : 'following-end';
+                    return (
+                        <FeedEmptyState
+                            tab={endTab}
+                            onRefresh={onRefresh}
+                            itemHeight={feedHeight}
+                        />
+                    );
+                }
+
+                const shouldPreloadPlayer =
+                    feedPlaybackEnabled &&
+                    (index === currentIndex ||
+                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE);
+
                 return (
-                    <FeedEmptyState
-                        tab={activeTab}
-                        onRefresh={onRefresh}
-                        error={feedError}
+                    <FeedVideoCell
+                        item={item}
+                        index={index}
+                        activeIndex={currentIndex}
+                        shouldPreload={shouldPreloadPlayer}
+                        feedHeight={feedHeight}
+                        onLike={handleLike}
+                        onComment={handleComment}
+                        onCaptionExpand={handleCaptionExpand}
+                        onShare={handleShare}
+                        onBookmark={handleBookmark}
+                        onRepost={handleRepost}
+                        onOther={handleOther}
+                        bottomInset={tabBarMetrics.bottomInset}
+                        commentsOpen={showComments && selectedVideo?.id === item.id}
+                        shareOpen={showShare && selectedVideo?.id === item.id}
+                        otherOpen={showOther && selectedVideo?.id === item.id}
+                        screenFocused={screenFocused}
+                        feedPlaybackEnabled={feedPlaybackEnabled}
+                        videoPlaybackRates={videoPlaybackRates}
+                        navigation={navigation}
+                        onNavigate={handleNavigate}
+                        tabBarHeight={tabBarMetrics.contentHeight}
+                        feedOverlayBottom={tabBarMetrics.feedOverlayBottom}
+                        actionRailBottom={tabBarMetrics.actionRailBottom}
                     />
                 );
-            }
+            })();
 
-            if (item.isEndMarker) {
-                const endTab =
-                    activeTab === 'forYou'
-                        ? 'forYou-end'
-                        : activeTab === 'local'
-                          ? 'local-end'
-                          : 'following-end';
-                return (
-                    <FeedEmptyState
-                        tab={endTab}
-                        onRefresh={onRefresh}
-                    />
-                );
-            }
-
-            return (
-                <FeedVideoCell
-                    item={item}
-                    index={index}
-                    activeIndex={currentIndex}
-                    onLike={handleLike}
-                    onComment={handleComment}
-                    onShare={handleShare}
-                    onBookmark={handleBookmark}
-                    onRepost={handleRepost}
-                    onOther={handleOther}
-                    bottomInset={tabBarMetrics.bottomInset}
-                    commentsOpen={showComments && selectedVideo?.id === item.id}
-                    shareOpen={showShare && selectedVideo?.id === item.id}
-                    otherOpen={showOther && selectedVideo?.id === item.id}
-                    screenFocused={screenFocused}
-                    videoPlaybackRates={videoPlaybackRates}
-                    navigation={navigation}
-                    onNavigate={handleNavigate}
-                    tabBarHeight={tabBarMetrics.contentHeight}
-                    feedOverlayBottom={tabBarMetrics.feedOverlayBottom}
-                    actionRailBottom={tabBarMetrics.actionRailBottom}
-                />
-            );
+            return <View style={{ height: feedHeight, overflow: 'hidden' }}>{cell}</View>;
         },
         [
             activeTab,
             currentIndex,
             feedError,
+            feedHeight,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -718,6 +915,7 @@ export default function LoopsFeed({ navigation }) {
             tabBarMetrics.feedOverlayBottom,
             handleLike,
             handleComment,
+            handleCaptionExpand,
             handleShare,
             handleBookmark,
             handleRepost,
@@ -728,13 +926,18 @@ export default function LoopsFeed({ navigation }) {
             showOther,
             selectedVideo,
             screenFocused,
+            feedPlaybackEnabled,
             videoPlaybackRates,
             navigation,
         ],
     );
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
-    const showInitialLoader = !feedQueryEnabled || (isLoading && !hasFeedData);
+    const feedListEmpty = videosWithEnd.length === 0;
+    const showInitialLoader =
+        !feedQueryEnabled ||
+        (isLoading && !hasFeedData) ||
+        (feedListEmpty && !feedTrulyEmpty && !feedCaughtUp && (isFetching || isFetchingNextPage));
 
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
@@ -742,19 +945,21 @@ export default function LoopsFeed({ navigation }) {
 
     const getItemLayout = useCallback(
         (data, index) => ({
-            length: SCREEN_HEIGHT,
-            offset: SCREEN_HEIGHT * index,
+            length: feedHeight,
+            offset: feedHeight * index,
             index,
         }),
-        [],
+        [feedHeight],
     );
 
     const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
 
     if (showInitialLoader) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#fff" />
+            <View style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#fff" />
+                </View>
             </View>
         );
     }
@@ -762,6 +967,7 @@ export default function LoopsFeed({ navigation }) {
     return (
         <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
+                <View style={styles.headerSide} />
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
                         accessibilityRole="tab"
@@ -770,11 +976,7 @@ export default function LoopsFeed({ navigation }) {
                             selected: activeTab === 'following',
                         }}
                         style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => {
-                            setActiveTab('following');
-                            setCurrentIndex(0);
-                            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                        }}>
+                        onPress={() => switchFeedTab('following')}>
                         <Text
                             style={[
                                 styles.tabText,
@@ -790,11 +992,7 @@ export default function LoopsFeed({ navigation }) {
                             selected: activeTab === 'local',
                         }}
                         style={[styles.tab, activeTab === 'local' && styles.activeTab]}
-                        onPress={() => {
-                            setActiveTab('local');
-                            setCurrentIndex(0);
-                            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                        }}>
+                        onPress={() => switchFeedTab('local')}>
                         <Text
                             style={[styles.tabText, activeTab === 'local' && styles.activeTabText]}>
                             Local
@@ -803,47 +1001,52 @@ export default function LoopsFeed({ navigation }) {
                     {forYouEnabled && (
                         <TouchableOpacity
                             accessibilityRole="tab"
-                            accessibilityLabel="For You"
+                            accessibilityLabel="FYP"
                             accessibilityState={{
                                 selected: activeTab === 'forYou',
                             }}
                             style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
-                            onPress={() => {
-                                setActiveTab('forYou');
-                                setCurrentIndex(0);
-                                flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                            }}>
+                            onPress={() => switchFeedTab('forYou')}>
                             <Text
                                 style={[
                                     styles.tabText,
                                     activeTab === 'forYou' && styles.activeTabText,
                                 ]}>
-                                For You
+                                FYP
                             </Text>
                         </TouchableOpacity>
                     )}
                 </View>
-                <TouchableOpacity
-                    accessibilityLabel="Search"
-                    accessibilityRole="button"
-                    style={styles.searchButton}
-                    onPress={() => router.push('/private/search')}>
-                    <Ionicons name="search" size={28} color="white" />
-                </TouchableOpacity>
+                <View style={styles.headerSide}>
+                    <TouchableOpacity
+                        accessibilityLabel="Search"
+                        accessibilityRole="button"
+                        style={styles.searchButton}
+                        onPress={() => router.push('/private/search')}>
+                        <Ionicons name="search" size={24} color="white" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <FlatList
                 key={activeTab}
                 ref={flatListRef}
+                style={styles.feedList}
                 data={videosWithEnd}
                 extraData={currentIndex}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                 pagingEnabled
                 showsVerticalScrollIndicator={false}
-                snapToInterval={SCREEN_HEIGHT}
-                snapToAlignment="start"
-                decelerationRate="fast"
+                {...(Platform.OS === 'ios'
+                    ? {
+                          snapToInterval: feedHeight,
+                          snapToAlignment: 'start' as const,
+                          decelerationRate: 'fast' as const,
+                      }
+                    : {})}
+                scrollEventThrottle={16}
+                overScrollMode="never"
                 viewabilityConfig={viewabilityConfig.current}
                 onViewableItemsChanged={onViewableItemsChanged}
                 onEndReached={handleEndReached}
@@ -863,7 +1066,7 @@ export default function LoopsFeed({ navigation }) {
                 }
                 ListFooterComponent={
                     isFetchingNextPage ? (
-                        <View style={styles.footer}>
+                        <View style={[styles.footer, { height: feedHeight }]}>
                             <ActivityIndicator size="large" color="#fff" />
                         </View>
                     ) : null
@@ -875,6 +1078,20 @@ export default function LoopsFeed({ navigation }) {
                 item={selectedVideo}
                 onClose={() => setShowComments(false)}
                 navigation={navigation}
+                onNavigate={handleNavigate}
+                onCommentCountChange={(delta) => {
+                    setSelectedVideo((prev) =>
+                        prev
+                            ? { ...prev, comments: Math.max(0, (prev.comments ?? 0) + delta) }
+                            : prev,
+                    );
+                }}
+            />
+
+            <CaptionExpandModal
+                visible={showCaptionExpand}
+                item={selectedVideo}
+                onClose={() => setShowCaptionExpand(false)}
                 onNavigate={handleNavigate}
             />
 
@@ -902,6 +1119,10 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
     },
+    feedList: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -913,21 +1134,26 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
-        paddingHorizontal: 16,
+        paddingHorizontal: 12,
+    },
+    headerSide: {
+        flex: 1,
+        alignItems: 'flex-end',
+        justifyContent: 'center',
     },
     tabContainer: {
         flexDirection: 'row',
-        gap: 24,
+        alignItems: 'center',
+        gap: 20,
     },
     tab: {
         paddingVertical: 8,
     },
     activeTab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#F02C56',
+        borderBottomColor: '#22D3EE',
     },
     tabText: {
         color: 'rgba(255,255,255,0.6)',
@@ -939,16 +1165,16 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     searchButton: {
-        position: 'absolute',
-        right: 16,
+        padding: 4,
+        minWidth: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     footer: {
-        height: SCREEN_HEIGHT,
         justifyContent: 'center',
         alignItems: 'center',
     },
     endOfFeedContainer: {
-        height: SCREEN_HEIGHT,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 40,

@@ -201,7 +201,7 @@ export default function DeleteAccountScreen() {
                             Changed your mind?
                         </Text>
                         <Pressable onPress={() => router.back()}>
-                            <Text style={tw`text-[#F02C56] text-base font-medium`}>
+                            <Text style={tw`text-[#22D3EE] text-base font-medium`}>
                                 Keep My Account
                             </Text>
                         </Pressable>

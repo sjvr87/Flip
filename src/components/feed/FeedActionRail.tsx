@@ -1,4 +1,6 @@
 import Avatar from '@/components/Avatar';
+import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
+import RepostArrowIcon, { REPOST_ARROW_DESIGN_SIZE } from '@/components/icons/RepostArrowIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +11,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 const ICON_SIZE = 30;
+const LIKE_ICON_SIZE = FOLDED_HEART_DESIGN_SIZE;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 
@@ -18,11 +21,15 @@ type FeedActionRailProps = {
     isLiked: boolean;
     isBookmarked: boolean;
     isReposted: boolean;
+    isMuted: boolean;
     likeCount: number;
     commentCount: number;
     bookmarkCount: number;
     repostCount: number;
     canComment?: boolean;
+    canUseAudio?: boolean;
+    /** When false, hides feed mute/unmute (e.g. text-only posts with no audio). */
+    showMuteControl?: boolean;
     bottomInset: number;
     tabBarHeight?: number;
     /** When set, overrides bottomInset + tabBarHeight (Good Lock–aware total). */
@@ -33,6 +40,8 @@ type FeedActionRailProps = {
     onBookmark: () => void;
     onRepost: () => void;
     onShare: () => void;
+    onMuteToggle: () => void;
+    onUseAudio?: () => void;
     onOther: () => void;
 };
 
@@ -59,17 +68,41 @@ function FeedActionIcon({
     );
 }
 
+function LikeActionIcon({ active }: { active: boolean }) {
+    return (
+        <View style={styles.iconShadow}>
+            <FoldedHeartIcon
+                size={LIKE_ICON_SIZE}
+                variant={active ? 'filled' : 'outline'}
+                outlineColor={ICON_COLOR}
+                outlineOpacity={1}
+            />
+        </View>
+    );
+}
+
+function RepostActionIcon({ active }: { active: boolean }) {
+    return (
+        <View style={styles.iconShadow}>
+            <RepostArrowIcon size={REPOST_ARROW_DESIGN_SIZE} active={active} />
+        </View>
+    );
+}
+
 function FeedActionRail({
     avatarUrl,
     profileLabel,
     isLiked,
     isBookmarked,
     isReposted,
+    isMuted,
     likeCount,
     commentCount,
     bookmarkCount,
     repostCount,
     canComment = true,
+    canUseAudio = false,
+    showMuteControl = true,
     bottomInset,
     tabBarHeight = 20,
     overlayBottom,
@@ -79,6 +112,8 @@ function FeedActionRail({
     onBookmark,
     onRepost,
     onShare,
+    onMuteToggle,
+    onUseAudio,
     onOther,
 }: FeedActionRailProps) {
     const railBottom = overlayBottom ?? bottomInset + tabBarHeight + 20;
@@ -92,7 +127,7 @@ function FeedActionRail({
                 accessibilityLabel={profileLabel}
                 accessibilityRole="button">
                 <LinearGradient
-                    colors={['#F02C56', '#FF6B6B', '#FFC371']}
+                    colors={['#22D3EE', '#06B6D4', '#0891B2']}
                     start={{ x: 0, y: 1 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.avatarRing}>
@@ -118,11 +153,7 @@ function FeedActionRail({
                 }
                 accessibilityRole="button"
                 accessibilityState={{ selected: isLiked }}>
-                <FeedActionIcon
-                    name="heart-outline"
-                    activeName="heart"
-                    active={isLiked}
-                />
+                <LikeActionIcon active={isLiked} />
                 <Text style={styles.actionText} accessibilityElementsHidden>
                     {likeCount}
                 </Text>
@@ -133,9 +164,7 @@ function FeedActionRail({
                 onPress={onComment}
                 accessible
                 accessibilityLabel={
-                    canComment
-                        ? `Comments. ${commentCount} comments`
-                        : 'Comments are disabled'
+                    canComment ? `Comments. ${commentCount} comments` : 'Comments are disabled'
                 }
                 accessibilityRole="button">
                 <FeedActionIcon name="chatbubble-ellipses-outline" />
@@ -178,11 +207,7 @@ function FeedActionRail({
                 }
                 accessibilityRole="button"
                 accessibilityState={{ selected: isReposted }}>
-                <FeedActionIcon
-                    name="repeat-outline"
-                    activeName="repeat"
-                    active={isReposted}
-                />
+                <RepostActionIcon active={isReposted} />
                 <Text style={styles.actionText} accessibilityElementsHidden>
                     {repostCount}
                 </Text>
@@ -196,6 +221,33 @@ function FeedActionRail({
                 accessibilityRole="button">
                 <FeedActionIcon name="arrow-redo-outline" />
             </TouchableOpacity>
+
+            {showMuteControl ? (
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={onMuteToggle}
+                    accessible
+                    accessibilityLabel={isMuted ? 'Unmute feed videos' : 'Mute feed videos'}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isMuted }}>
+                    <FeedActionIcon
+                        name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
+                        active={isMuted}
+                    />
+                </TouchableOpacity>
+            ) : null}
+
+            {canUseAudio && onUseAudio ? (
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={onUseAudio}
+                    accessible
+                    accessibilityLabel="Use audio with credit"
+                    accessibilityHint="Opens camera to record a remix; audio credit is attached to your post"
+                    accessibilityRole="button">
+                    <FeedActionIcon name="musical-notes-outline" />
+                </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
                 style={styles.actionButton}

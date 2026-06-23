@@ -1,0 +1,8 @@
+Flip on your phone — 5 steps
+============================
+
+1. Double-click flip-beta.bat in your Flip folder (C:\Users\tomas\Documents\Flip).
+2. When your browser opens, sign in to Expo (one time only — free account is fine).
+3. Wait about 15 minutes while Flip builds in the cloud. Leave the window open.
+4. When you see a link, open it on your Samsung phone and tap Install.
+5. Use Flip like a normal app — your PC can be off; you do not need flip-dev.bat.

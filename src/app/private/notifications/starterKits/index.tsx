@@ -3,7 +3,9 @@ import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
+import { navigateFromNotification } from '@/utils/notificationNavigation';
 import { useNotificationStore } from '@/utils/notificationStore';
+import { toProfilePath } from '@/utils/profileNavigation';
 import {
     fetchStarterKitNotifications,
     notificationMarkAsRead,
@@ -143,17 +145,11 @@ export default function StarterKitNotificationsScreen() {
         return data.pages.flatMap((p: any) => p?.data ?? []);
     }, [data]);
 
-    const handleOnPress = (item: any) => {
+    const handleOnPress = async (item: any) => {
         if (!item.read_at) {
             readMutation.mutate(item.id);
         }
-        if (item.type === 'starterKit.awaitingApproval') {
-            router.push(`/private/notifications/starterKits/review/${item?.kit?.id}`);
-        } else if (item.kit?.path) {
-            router.push(`/private/kits/show/${item?.kit?.id}`);
-        } else {
-            router.push(`/private/profile/${item?.actor?.id}`);
-        }
+        await navigateFromNotification(router, item);
     };
 
     const handleMarkAllAsRead = () => {
@@ -179,7 +175,9 @@ export default function StarterKitNotificationsScreen() {
             readMutation.mutate(item.id);
         }
 
-        router.push(`/private/profile/${account?.id}`);
+        if (account?.id) {
+            router.push(toProfilePath(account.id));
+        }
     };
 
     const renderEmpty = () => (
@@ -226,7 +224,7 @@ export default function StarterKitNotificationsScreen() {
                                 color={
                                     markAllReadMutation.isPending || notifications.length === 0
                                         ? '#ccc'
-                                        : '#F02C56'
+                                        : '#22D3EE'
                                 }
                             />
                         </PressableHaptics>

@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import KlipyKeyboard from '@/components/feed/KlipyKeyboard';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
@@ -17,16 +18,24 @@ import {
     fetchVideoComments,
     fetchVideoReplies,
 } from '@/atproto';
+import type { FlipComment } from '@/atproto/comments';
+import type { FlipUserProfile } from '@/atproto/types';
+import { patchFeedVideoComments } from '@/utils/feedCache';
 import { commentPostMedia, type KlipyItem, type KlipyMediaType } from '@/utils/requests';
 import { toProfilePath } from '@/utils/profileNavigation';
 import { shareContent } from '@/utils/sharer';
 import { timeAgo } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+    useInfiniteQuery,
+    useMutation,
+    useQueryClient,
+    type InfiniteData,
+} from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useSafeNativeShims } from '@/utils/runtime';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -44,10 +53,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import KlipyMedia from './KlipyMedia';
+import { FEED_OVERLAY_SCRIM } from '@/components/feed/feedOverlayScrim';
 
-function SafeKeyboardAvoidingView(
-    props: React.ComponentProps<typeof RNKeyboardAvoidingView>,
-) {
+function SafeKeyboardAvoidingView(props: React.ComponentProps<typeof RNKeyboardAvoidingView>) {
     if (useSafeNativeShims) {
         return <RNKeyboardAvoidingView {...props} />;
     }
@@ -62,7 +70,14 @@ function SafeKeyboardAvoidingView(
 }
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = 60;
+const COMMENTS_SHEET_HEIGHT = SCREEN_HEIGHT * 0.62;
+const COMMENTS_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
+
+const commentsModalProps = {
+    animationType: 'slide' as const,
+    transparent: true,
+    statusBarTranslucent: Platform.OS === 'android',
+};
 
 type ReportPayload = {
     id: string;
@@ -101,10 +116,145 @@ type CommentReplyLikePayload = {
     parentId: string;
 };
 
-export default function CommentsModal({ visible, item, onClose, navigation, onNavigate }) {
+type CommentPage = {
+    data: FlipComment[];
+    meta: { next_cursor: string | null; path: string; per_page: number };
+};
+
+type CommentsInfiniteData = InfiniteData<CommentPage>;
+
+function buildOptimisticComment(
+    text: string,
+    author: FlipUserProfile | null | undefined,
+    parentId?: string,
+): FlipComment | null {
+    if (!author) return null;
+
+    return {
+        id: `optimistic-${Date.now()}`,
+        account: {
+            id: author.id,
+            name: author.name,
+            avatar: author.avatar,
+            username: author.username,
+            url: author.url,
+        },
+        caption: text,
+        tags: [],
+        mentions: [],
+        created_at: new Date().toISOString(),
+        likes: 0,
+        liked: false,
+        replies: 0,
+        is_owner: true,
+        ...(parentId ? { p_id: parentId } : {}),
+    };
+}
+
+function prependToCommentsPage(
+    old: CommentsInfiniteData | undefined,
+    comment: FlipComment,
+): CommentsInfiniteData {
+    const emptyPage: CommentPage = {
+        data: [comment],
+        meta: { path: 'atproto', per_page: 1, next_cursor: null },
+    };
+
+    if (!old?.pages?.length) {
+        return { pages: [emptyPage], pageParams: [null] };
+    }
+
+    return {
+        ...old,
+        pages: old.pages.map((page, index) =>
+            index === 0 ? { ...page, data: [comment, ...page.data] } : page,
+        ),
+    };
+}
+
+function appendReplyToPage(
+    old: CommentsInfiniteData | undefined,
+    reply: FlipComment,
+): CommentsInfiniteData {
+    const emptyPage: CommentPage = {
+        data: [reply],
+        meta: { path: 'atproto', per_page: 1, next_cursor: null },
+    };
+
+    if (!old?.pages?.length) {
+        return { pages: [emptyPage], pageParams: [null] };
+    }
+
+    return {
+        ...old,
+        pages: old.pages.map((page, index) =>
+            index === 0 ? { ...page, data: [...page.data, reply] } : page,
+        ),
+    };
+}
+
+function replaceCommentInPages(
+    old: CommentsInfiniteData | undefined,
+    optimisticId: string | undefined,
+    real: FlipComment,
+): CommentsInfiniteData {
+    if (!old?.pages?.length) {
+        return prependToCommentsPage(old, real);
+    }
+
+    let replaced = false;
+    const pages = old.pages.map((page, index) => {
+        let data = page.data.map((entry) => {
+            if (optimisticId && entry.id === optimisticId) {
+                replaced = true;
+                return real;
+            }
+            return entry;
+        });
+
+        if (index === 0 && !replaced && !data.some((entry) => entry.id === real.id)) {
+            data = [real, ...data];
+            replaced = true;
+        }
+
+        return { ...page, data };
+    });
+
+    return { ...old, pages };
+}
+
+function bumpParentReplyCount(
+    old: CommentsInfiniteData | undefined,
+    parentId: string,
+    delta: number,
+): CommentsInfiniteData | undefined {
+    if (!old?.pages) return old;
+
+    return {
+        ...old,
+        pages: old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((entry) =>
+                entry.id === parentId
+                    ? { ...entry, replies: Math.max(0, entry.replies + delta) }
+                    : entry,
+            ),
+        })),
+    };
+}
+
+export default function CommentsModal({
+    visible,
+    item,
+    onClose,
+    navigation,
+    onNavigate,
+    onCommentCountChange,
+}) {
     const [comment, setComment] = useState('');
     const [replyingTo, setReplyingTo] = useState(null);
     const [expandedComments, setExpandedComments] = useState(new Set());
+    const [headerCommentCount, setHeaderCommentCount] = useState(item?.comments ?? 0);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const sheetBottomPad =
@@ -117,76 +267,111 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     const [reportContent, setReportContent] = useState();
     const { user } = useAuthStore();
     const canComment = item?.permissions?.can_comment !== false;
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
     const [showKlipy, setShowKlipy] = useState(false);
     const hasKlipy = useFeatureFlag('hasKlipy');
+
+    useEffect(() => {
+        setHeaderCommentCount(item?.comments ?? 0);
+    }, [item?.id, item?.comments]);
+
+    const bumpVideoCommentCount = (delta: number) => {
+        if (!item?.id || delta === 0) return;
+        setHeaderCommentCount((count) => Math.max(0, count + delta));
+        patchFeedVideoComments(queryClient, item.id, delta);
+        onCommentCountChange?.(delta);
+    };
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
         queryKey: ['videoComments', item?.id],
         queryFn: ({ pageParam }) => fetchVideoComments(item.id, pageParam),
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
         initialPageParam: null,
-        enabled: visible && !!item,
+        enabled: visible && !!item?.id,
+        staleTime: 60_000,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
     });
-
-    const ListHeader = useCallback(() => {
-        return (
-            <View style={tw`p-4 border-b border-gray-200 dark:border-gray-700`}>
-                <TouchableOpacity
-                    style={tw`flex-row items-center mb-3`}
-                    onPress={() => {
-                        onNavigate?.();
-                        onClose();
-                        navigation?.navigate('Profile', {
-                            username: item?.account?.username,
-                            profileId: item?.account?.id,
-                        });
-                    }}>
-                    <Avatar url={item?.account.avatar} size={36} />
-                    <View style={tw`ml-3 flex-1`}>
-                        <Text style={tw`text-[15px] font-bold text-black dark:text-white`}>
-                            {item?.account?.username}
-                        </Text>
-                        <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400 mt-0.5`}>
-                            {timeAgo(item?.created_at)}
-                        </Text>
-                    </View>
-                </TouchableOpacity>
-                <LinkifiedCaption
-                    caption={item?.caption}
-                    tags={item?.tags || []}
-                    mentions={item?.mentions || []}
-                    style={tw`text-[15px] text-black dark:text-white leading-5`}
-                    onHashtagPress={(tag) => {
-                        onNavigate?.();
-                        onClose();
-                        router.push(`/private/search?query=${tag}`);
-                    }}
-                    onMentionPress={(username, profileId) => {
-                        onNavigate?.();
-                        onClose();
-                        router.push(toProfilePath(profileId ?? username));
-                    }}
-                />
-            </View>
-        );
-    }, [item, isDark, router, onNavigate, onClose, navigation]);
 
     const commentMutation = useMutation({
         mutationFn: async (data: CommentPayload) => {
             return await commentPost(data);
         },
-        onSuccess: async (res) => {
-            queryClient.setQueryData(['videoComments', item?.id], (old) => {
-                if (!old) return old;
+        onMutate: async (variables) => {
+            await queryClient.cancelQueries({ queryKey: ['videoComments', item?.id] });
 
-                return {
-                    ...old,
-                    pages: old.pages.map((page, index) =>
-                        index === 0 ? { ...page, data: [res.data[0], ...page.data] } : page,
-                    ),
-                };
-            });
+            const optimistic = buildOptimisticComment(
+                variables.commentText,
+                user,
+                variables.parentId,
+            );
+            if (!optimistic) return {};
+
+            const previousComments = queryClient.getQueryData<CommentsInfiniteData>([
+                'videoComments',
+                item?.id,
+            ]);
+            let previousReplies: CommentsInfiniteData | undefined;
+
+            if (variables.parentId) {
+                await queryClient.cancelQueries({
+                    queryKey: ['videoReplies', item.id, variables.parentId],
+                });
+                previousReplies = queryClient.getQueryData<CommentsInfiniteData>([
+                    'videoReplies',
+                    item.id,
+                    variables.parentId,
+                ]);
+
+                setExpandedComments((prev) => new Set(prev).add(variables.parentId!));
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoReplies', item.id, variables.parentId],
+                    (old) => appendReplyToPage(old, optimistic),
+                );
+                queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                    bumpParentReplyCount(old, variables.parentId!, 1),
+                );
+            } else {
+                queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                    prependToCommentsPage(old, optimistic),
+                );
+            }
+
+            bumpVideoCommentCount(1);
+
+            return {
+                previousComments,
+                previousReplies,
+                optimisticId: optimistic.id,
+                parentId: variables.parentId,
+            };
+        },
+        onSuccess: (res, variables, context) => {
+            const real = res.data[0];
+            if (!real) return;
+
+            if (variables.parentId) {
+                queryClient.setQueryData<CommentsInfiniteData>(
+                    ['videoReplies', item.id, variables.parentId],
+                    (old) => replaceCommentInPages(old, context?.optimisticId, real),
+                );
+            } else {
+                queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                    replaceCommentInPages(old, context?.optimisticId, real),
+                );
+            }
+        },
+        onError: (_err, variables, context) => {
+            if (context?.previousComments) {
+                queryClient.setQueryData(['videoComments', item?.id], context.previousComments);
+            }
+            if (variables.parentId && context?.previousReplies) {
+                queryClient.setQueryData(
+                    ['videoReplies', item.id, variables.parentId],
+                    context.previousReplies,
+                );
+            }
+            bumpVideoCommentCount(-1);
         },
     });
 
@@ -195,15 +380,10 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             return await commentPostMedia(payload);
         },
         onSuccess: (res) => {
-            queryClient.setQueryData(['videoComments', item?.id], (old: any) => {
-                if (!old) return old;
-                return {
-                    ...old,
-                    pages: old.pages.map((page: any, index: number) =>
-                        index === 0 ? { ...page, data: [res.data[0], ...page.data] } : page,
-                    ),
-                };
-            });
+            queryClient.setQueryData<CommentsInfiniteData>(['videoComments', item?.id], (old) =>
+                prependToCommentsPage(old, res.data[0]),
+            );
+            bumpVideoCommentCount(1);
         },
     });
 
@@ -466,7 +646,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     if (!item) return null;
 
     const allComments = data?.pages?.flatMap((page) => page.data) || [];
-    const totalComments = item.comments;
+    const totalComments = headerCommentCount;
 
     const handleLikeComment = async (commentId, likeState) => {
         commentLikeMutation.mutate({
@@ -584,15 +764,18 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             <View style={tw`flex-1`}>
                 <View style={tw`flex-row items-center gap-2 mb-1`}>
                     <PressableHaptics onPress={() => handleProfilePress(reply.account?.id)}>
-                        <Text style={tw`text-sm font-bold text-black dark:text-white`}>
-                            {reply.account.username}
-                        </Text>
+                        <MentionText
+                            username={reply.account.username}
+                            style={tw`text-sm font-bold`}
+                        />
                     </PressableHaptics>
                     <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
                         {timeAgo(reply.created_at)}
                     </Text>
                     {reply.account.id == item.account.id && (
-                        <Text style={tw`text-xs font-bold text-[#F02C56]`}>Creator</Text>
+                        <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>
+                            Creator
+                        </Text>
                     )}
                 </View>
                 <LinkifiedCaption
@@ -665,6 +848,9 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
             getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor,
             initialPageParam: null,
             enabled: expandedComments.has(parentComment.id),
+            staleTime: 60_000,
+            refetchOnMount: false,
+            refetchOnWindowFocus: false,
         });
 
         const replies = repliesData?.pages?.flatMap((page) => page.data) || [];
@@ -697,7 +883,11 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                                         color={isDark ? '#666' : '#999'}
                                     />
                                 ) : (
-                                    <Text style={tw`text-[13px] font-semibold text-[#F02C56]`}>
+                                    <Text
+                                        style={[
+                                            tw`text-[13px] font-semibold`,
+                                            { color: colors.accent },
+                                        ]}>
                                         Load more replies
                                     </Text>
                                 )}
@@ -719,15 +909,18 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                 <View style={tw`flex-1`}>
                     <View style={tw`flex flex-row items-center gap-2 mb-1`}>
                         <PressableHaptics onPress={() => handleProfilePress(comment.account?.id)}>
-                            <Text style={tw`text-sm font-bold text-black dark:text-white`}>
-                                {comment.account.username}
-                            </Text>
+                            <MentionText
+                                username={comment.account.username}
+                                style={tw`text-sm font-bold`}
+                            />
                         </PressableHaptics>
                         <Text style={tw`text-[13px] text-gray-600 dark:text-gray-400`}>
                             {timeAgo(comment.created_at)}
                         </Text>
                         {comment.account.id == item.account.id && (
-                            <Text style={tw`text-xs font-bold text-[#F02C56]`}>Creator</Text>
+                            <Text style={[tw`text-xs font-bold`, { color: colors.accent }]}>
+                                Creator
+                            </Text>
                         )}
                     </View>
                     <LinkifiedCaption
@@ -752,7 +945,11 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                     <View style={tw`flex-row mt-2 gap-4`}>
                         {comment.replies > 0 && (
                             <PressableHaptics onPress={() => toggleReplies(comment.id)}>
-                                <Text style={tw`text-[13px] font-semibold text-[#F02C56]`}>
+                                <Text
+                                    style={[
+                                        tw`text-[13px] font-semibold`,
+                                        { color: colors.accent },
+                                    ]}>
                                     {expandedComments.has(comment.id)
                                         ? 'Hide replies'
                                         : `View ${comment.replies} ${comment.replies === 1 ? 'reply' : 'replies'}`}
@@ -834,19 +1031,21 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
 
     if (!canComment) {
         return (
-            <Modal
-                visible={visible}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={onClose}>
-                <View style={tw`flex-1 justify-end`}>
-                    <Pressable style={tw`absolute inset-0`} onPress={onClose} />
+            <Modal visible={visible} {...commentsModalProps} onRequestClose={onClose}>
+                <View style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}>
+                    <Pressable
+                        style={[tw`flex-1`, { backgroundColor: FEED_OVERLAY_SCRIM }]}
+                        onPress={onClose}
+                    />
                     <View
-                        style={tw.style(`bg-white dark:bg-black rounded-t-2xl pt-3`, {
-                            minHeight: 400,
-                            paddingBottom: insets.bottom + 20,
-                        })}>
-                        <ListHeader />
+                        style={tw.style(
+                            `bg-white dark:bg-black rounded-t-2xl pt-3 overflow-hidden`,
+                            {
+                                height: COMMENTS_SHEET_HEIGHT,
+                                maxHeight: COMMENTS_SHEET_MAX_HEIGHT,
+                                paddingBottom: insets.bottom + 20,
+                            },
+                        )}>
                         <View
                             style={tw.style(`flex-1 items-center justify-center px-5`, {
                                 paddingBottom: sheetBottomPad,
@@ -871,20 +1070,27 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
     }
 
     return (
-        <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+        <Modal visible={visible} {...commentsModalProps} onRequestClose={onClose}>
             <SafeKeyboardAvoidingView
                 behavior={'padding'}
-                style={tw`flex-1 justify-end`}
+                style={[tw`flex-1 justify-end`, { backgroundColor: 'transparent' }]}
                 keyboardVerticalOffset={Platform.OS === 'android' ? -20 : 0}>
-                <Pressable style={tw`absolute inset-0`} onPress={onClose} />
-                <View style={tw`bg-white dark:bg-black rounded-t-2xl min-h-[50%] max-h-[85%]`}>
+                <Pressable
+                    style={[tw`flex-1`, { backgroundColor: FEED_OVERLAY_SCRIM }]}
+                    onPress={onClose}
+                />
+                <View
+                    style={[
+                        tw`bg-white dark:bg-black rounded-t-2xl overflow-hidden`,
+                        { height: COMMENTS_SHEET_HEIGHT, maxHeight: COMMENTS_SHEET_MAX_HEIGHT },
+                    ]}>
                     <View
-                        style={tw`flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
-                        <Text style={tw`text-lg font-bold text-black dark:text-white`}>
+                        style={tw`flex-row justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700`}>
+                        <Text style={tw`text-base font-bold text-black dark:text-white`}>
                             {totalComments} {totalComments === 1 ? 'comment' : 'comments'}
                         </Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="close" size={28} color={isDark ? '#fff' : '#000'} />
+                        <TouchableOpacity onPress={onClose} hitSlop={8}>
+                            <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                         </TouchableOpacity>
                     </View>
 
@@ -893,38 +1099,36 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <ActivityIndicator size="large" color={isDark ? '#666' : '#999'} />
                         </View>
                     ) : (
-                        <>
-                            <ListHeader />
-                            <FlatList
-                                ref={flatListRef}
-                                data={allComments}
-                                renderItem={renderComment}
-                                keyExtractor={(comment) => comment.id}
-                                onEndReached={() => {
-                                    if (hasNextPage && !isFetchingNextPage) {
-                                        fetchNextPage();
-                                    }
-                                }}
-                                onEndReachedThreshold={0.5}
-                                ListEmptyComponent={EmptyList}
-                                ListFooterComponent={
-                                    isFetchingNextPage ? (
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={isDark ? '#666' : '#999'}
-                                            style={tw`my-5`}
-                                        />
-                                    ) : null
+                        <FlatList
+                            ref={flatListRef}
+                            style={tw`flex-1 bg-white dark:bg-black`}
+                            data={allComments}
+                            renderItem={renderComment}
+                            keyExtractor={(comment) => comment.id}
+                            onEndReached={() => {
+                                if (hasNextPage && !isFetchingNextPage) {
+                                    fetchNextPage();
                                 }
-                            />
-                        </>
+                            }}
+                            onEndReachedThreshold={0.5}
+                            ListEmptyComponent={EmptyList}
+                            ListFooterComponent={
+                                isFetchingNextPage ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={isDark ? '#666' : '#999'}
+                                        style={tw`my-5`}
+                                    />
+                                ) : null
+                            }
+                        />
                     )}
 
                     {replyingTo && (
                         <View
                             style={tw`flex-row justify-between items-center px-4 py-2 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700`}>
                             <Text style={tw`text-sm text-gray-600 dark:text-gray-400`}>
-                                Replying to @{replyingTo.account.username}
+                                Replying to <MentionText username={replyingTo.account.username} />
                             </Text>
                             <TouchableOpacity onPress={cancelReply}>
                                 <Ionicons
@@ -965,7 +1169,7 @@ export default function CommentsModal({ visible, item, onClose, navigation, onNa
                             <Feather
                                 name="send"
                                 size={24}
-                                color={comment.trim() ? '#F02C56' : isDark ? '#555' : '#CCC'}
+                                color={comment.trim() ? colors.accent : isDark ? '#555' : '#CCC'}
                             />
                         </TouchableOpacity>
                     </View>

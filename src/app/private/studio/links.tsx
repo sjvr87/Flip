@@ -7,7 +7,7 @@ import { useCallback, useMemo } from 'react';
 import { Alert, FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
 import tw from 'twrnc';
 
-const ACCENT = '#F02C56';
+const ACCENT = '#22D3EE';
 
 interface ProfileLink {
     id: string;

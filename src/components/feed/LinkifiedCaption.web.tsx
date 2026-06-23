@@ -1,3 +1,4 @@
+import { LOOP_ACCENT, MENTION_AT_COLOR, MENTION_HANDLE_COLOR } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -132,12 +133,20 @@ export default function LinkifiedCaption({
                 );
             }
 
+            const segment = caption.substring(link.start, link.end);
             elements.push(
                 <Text
                     key={`link-${index}`}
                     style={styles.linkText}
                     onPress={() => handleLinkPress(link)}>
-                    {caption.substring(link.start, link.end)}
+                    {link.type === 'mention' && segment.startsWith('@') ? (
+                        <>
+                            <Text style={styles.mentionAt}>@</Text>
+                            <Text style={styles.mentionHandle}>{segment.slice(1)}</Text>
+                        </>
+                    ) : (
+                        segment
+                    )}
                 </Text>,
             );
 
@@ -241,7 +250,9 @@ const styles = StyleSheet.create({
         flexWrap: 'nowrap',
     },
     captionInlineText: { flexShrink: 1, minWidth: 0 },
-    linkText: { fontWeight: '700' },
+    linkText: { fontWeight: '700', color: LOOP_ACCENT },
+    mentionAt: { fontWeight: '700', color: MENTION_AT_COLOR },
+    mentionHandle: { fontWeight: '700', color: MENTION_HANDLE_COLOR },
     moreInline: {
         flexDirection: 'row',
         alignItems: 'baseline',

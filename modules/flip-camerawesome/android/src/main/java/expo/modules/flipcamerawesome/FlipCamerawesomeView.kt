@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import android.view.View
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -20,15 +21,21 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   private val previewView =
     PreviewView(context).also {
-      // COMPATIBLE (TextureView) avoids black preview with RN view hierarchies on Samsung devices.
+      // TextureView composites correctly over RN; PERFORMANCE can black-screen on some stacks.
       it.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
       it.scaleType = PreviewView.ScaleType.FILL_CENTER
+      it.setBackgroundColor(android.graphics.Color.BLACK)
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
   private var session: FlipCameraSession? = null
   private var pendingStartRecording = false
   private var bindRetryCount = 0
+  private var bindGeneration = 0
+  private var isBinding = false
+  private var isSyncingLayout = false
+  private var lastSyncedWidth = 0
+  private var lastSyncedHeight = 0
 
   val onCameraReady by EventDispatcher()
   val onRecordingFinished by EventDispatcher()
@@ -55,10 +62,22 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       session?.setTorch(value)
     }
 
-  var isActive: Boolean = true
+  var isActive: Boolean = false
     set(value) {
+      if (field == value) return
       field = value
-      if (value) bindSession() else session?.unbind()
+      if (value) {
+        post { maybeBindAfterLayout() }
+      } else {
+        ++bindGeneration
+        isBinding = false
+        pendingStartRecording = false
+        if (recording) {
+          recording = false
+        }
+        session?.unbind()
+        session = null
+      }
     }
 
   var recording: Boolean = false
@@ -68,7 +87,25 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       if (value) {
         startRecordingInternal()
       } else {
+        pendingStartRecording = false
         session?.stopRecording()
+      }
+    }
+
+  /** JS capture mode — stops any in-flight recording when leaving video. */
+  var captureMode: String = "video"
+    set(value) {
+      if (field == value) return
+      field = value
+      if (value != "video") {
+        pendingStartRecording = false
+        if (recording) {
+          recording = false
+        } else if (session?.isRecording() == true) {
+          // In-flight native start (JS recording flag may still be false).
+          session?.stopRecording()
+        }
+        // Preview refresh runs from stopRecording/Finalize — do not race finalize here.
       }
     }
 
@@ -81,7 +118,71 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   init {
     installHierarchyFitter()
-    post { bindSession() }
+    previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+      maybeBindAfterLayout()
+    }
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    if (isActive) {
+      post { maybeBindAfterLayout() }
+    }
+  }
+
+  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+    super.onSizeChanged(w, h, oldw, oldh)
+    // RN lays out the ExpoView root; PreviewView often stays 0x0 until we sync it.
+    if (w > 0 && h > 0) {
+      maybeBindAfterLayout()
+    }
+  }
+
+  /** RN sizes the root view; child PreviewView may not receive a layout pass on its own. */
+  private fun hasUsableLayout(): Boolean =
+    (width > 0 && height > 0) || (previewView.width > 0 && previewView.height > 0)
+
+  private fun syncPreviewLayout() {
+    if (width <= 0 || height <= 0) return
+    if (previewView.width == width && previewView.height == height) {
+      lastSyncedWidth = width
+      lastSyncedHeight = height
+      return
+    }
+    if (isSyncingLayout) return
+    isSyncingLayout = true
+    try {
+      previewView.measure(
+        View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+      )
+      previewView.layout(0, 0, width, height)
+      lastSyncedWidth = width
+      lastSyncedHeight = height
+    } finally {
+      isSyncingLayout = false
+    }
+  }
+
+  private fun maybeBindAfterLayout() {
+    if (!isActive) return
+    val rootChanged = width != lastSyncedWidth || height != lastSyncedHeight
+    if (session != null && !rootChanged) return
+
+    syncPreviewLayout()
+    if (!hasUsableLayout()) return
+
+    val activeSession = session
+    if (activeSession != null) {
+      if (rootChanged && !activeSession.isRecording() && !recording) {
+        previewView.post { activeSession.refreshPreviewSurface() }
+      }
+      return
+    }
+
+    if (!isBinding) {
+      post { bindSession() }
+    }
   }
 
   private fun resolveLifecycleOwner(): LifecycleOwner? {
@@ -95,6 +196,15 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   private fun bindSession() {
     if (!isActive) return
+
+    syncPreviewLayout()
+    if (!hasUsableLayout()) {
+      Log.d(
+        TAG,
+        "bindSession: defer until layout (root=${width}x${height} preview=${previewView.width}x${previewView.height})",
+      )
+      return
+    }
 
     if (!hasCameraPermission()) {
       Log.w(TAG, "bindSession: CAMERA permission not granted")
@@ -112,35 +222,56 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       return
     }
 
+    if (isBinding) {
+      // A stale bind can block retries if the async callback never fires.
+      if (session == null) isBinding = false else return
+    }
+
     bindRetryCount = 0
-    Log.d(TAG, "bindSession: preview=${previewView.width}x${previewView.height} facing=$facing")
+    val generation = ++bindGeneration
+    isBinding = true
+    Log.d(
+      TAG,
+      "bindSession: root=${width}x${height} preview=${previewView.width}x${previewView.height} facing=$facing gen=$generation",
+    )
 
     session?.unbind()
-    session =
+    val newSession =
       FlipCameraSession(
         previewView,
         lifecycleOwner,
         context.mainExecutor,
+        facing,
+        zoom,
+        torchEnabled,
       )
+    session = newSession
 
-    session?.bind(
+    newSession.bind(
       onReady = {
+        if (!isActive || generation != bindGeneration || session !== newSession) return@bind
+        isBinding = false
         Log.d(TAG, "CameraX bound; preview=${previewView.width}x${previewView.height}")
-        onCameraReady(mapOf("ready" to true))
+        previewView.post {
+          val willRecord = pendingStartRecording || recording
+          if (!willRecord) {
+            newSession.refreshPreviewSurface()
+          }
+          val profileMap = newSession.currentProfile().toMap()
+          onCameraReady(mapOf("ready" to true, "profile" to profileMap))
+          if (willRecord) {
+            pendingStartRecording = false
+            startRecordingInternal()
+          }
+        }
       },
       onError = { msg ->
+        if (generation != bindGeneration) return@bind
+        isBinding = false
         Log.e(TAG, "CameraX bind failed: $msg")
         onCameraError(mapOf("message" to msg))
       },
     )
-    session?.setLensFacing(facing)
-    session?.setZoom(zoom)
-    session?.setTorch(torchEnabled)
-
-    if (pendingStartRecording || recording) {
-      pendingStartRecording = false
-      startRecordingInternal()
-    }
   }
 
   private fun startRecordingInternal() {
@@ -160,7 +291,16 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         onRecordingFinished(mapOf("path" to path, "uri" to "file://$path"))
       },
       onFailed = { msg ->
+        pendingStartRecording = false
+        if (recording) {
+          recording = false
+        } else {
+          activeSession.stopRecording()
+        }
         onRecordingError(mapOf("message" to msg))
+        post {
+          previewView.post { activeSession.refreshPreviewSurface() }
+        }
       },
     )
   }
@@ -184,6 +324,8 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   }
 
   override fun onDetachedFromWindow() {
+    ++bindGeneration
+    isBinding = false
     session?.unbind()
     session = null
     super.onDetachedFromWindow()

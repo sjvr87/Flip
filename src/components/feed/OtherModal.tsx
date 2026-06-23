@@ -1,5 +1,6 @@
 import { ReportModal } from '@/components/ReportModal';
 import { useTheme } from '@/contexts/ThemeContext';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { videoDelete } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +17,7 @@ const DEFAULT_PERMISSIONS = {
     can_comment: true,
     can_download: false,
     can_duet: false,
+    can_use_audio: false,
 };
 
 export default function OtherModal({
@@ -38,13 +40,17 @@ export default function OtherModal({
             queryClient.invalidateQueries({ queryKey: ['videos', 'forYou'] });
             queryClient.invalidateQueries({ queryKey: ['videos', 'following'] });
             queryClient.invalidateQueries({ queryKey: ['videos', 'local'] });
-            queryClient.invalidateQueries({ queryKey: ['profileVideoFeed', item?.account.id, item?.id] });
+            queryClient.invalidateQueries({
+                queryKey: ['profileVideoFeed', item?.account.id, item?.id],
+            });
         },
     });
 
     if (!item) {
         return null;
     }
+
+    const hasPlayableMedia = 'media' in item && !!item.media;
 
     const handleReport = () => {
         setShowReport(true);
@@ -102,6 +108,7 @@ export default function OtherModal({
 
     const handleDuet = () => {
         onClose();
+        prepareForCameraCapture();
         router.push(`/private/video/duet/${item.id}?duetVideoUri=${item.media.src_url}`);
     };
 
@@ -150,13 +157,13 @@ export default function OtherModal({
                                 <Text
                                     style={tw`text-base flex-1 ${
                                         currentPlaybackRate === speed.value
-                                            ? 'text-[#F02C56] font-semibold'
+                                            ? 'text-[#22D3EE] font-semibold'
                                             : 'text-black dark:text-white'
                                     }`}>
                                     {speed.label}
                                 </Text>
                                 {currentPlaybackRate === speed.value && (
-                                    <Ionicons name="checkmark" size={24} color="#F02C56" />
+                                    <Ionicons name="checkmark" size={24} color="#22D3EE" />
                                 )}
                             </TouchableOpacity>
                         ))}
@@ -164,7 +171,8 @@ export default function OtherModal({
                         <TouchableOpacity
                             style={tw`mt-3 py-4 items-center border-t border-gray-100 dark:border-gray-800`}
                             onPress={() => setShowPlaybackSpeed(false)}>
-                            <Text style={tw`text-base font-semibold text-gray-600 dark:text-gray-400`}>
+                            <Text
+                                style={tw`text-base font-semibold text-gray-600 dark:text-gray-400`}>
                                 Cancel
                             </Text>
                         </TouchableOpacity>
@@ -179,7 +187,7 @@ export default function OtherModal({
             icon: 'film-outline',
             label: 'Playback speed',
             onPress: () => setShowPlaybackSpeed(true),
-            show: true,
+            show: hasPlayableMedia,
         },
         {
             icon: 'flag-outline',
@@ -240,13 +248,7 @@ export default function OtherModal({
                                     <Ionicons
                                         name={option.icon}
                                         size={24}
-                                        color={
-                                            option.danger
-                                                ? '#FF3B30'
-                                                : isDark
-                                                  ? '#fff'
-                                                  : '#000'
-                                        }
+                                        color={option.danger ? '#FF3B30' : isDark ? '#fff' : '#000'}
                                     />
                                 </View>
                                 <Text style={tw`text-xs text-black dark:text-white text-center`}>

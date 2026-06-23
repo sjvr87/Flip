@@ -10,7 +10,7 @@ export default function VideoGrid({ video, onPress }) {
             onPress={() => onPress(video)}
             style={{
                 width: '33.33%',
-                aspectRatio: 9 / 16,
+                aspectRatio: video.is_photo || video.media_type === 'photo' ? 1 : 9 / 16,
                 padding: 1,
             }}>
             <View style={{ flex: 1, position: 'relative' }}>
@@ -28,22 +28,6 @@ export default function VideoGrid({ video, onPress }) {
                         }}
                         resizeMode="cover"
                     />
-                )}
-
-                {video.is_photo && (
-                    <YStack
-                        position="absolute"
-                        top={8}
-                        right={8}
-                        flexDirection="row"
-                        alignItems="center"
-                        gap={1}
-                        backgroundColor="rgba(0,0,0,0.55)"
-                        paddingY={1}
-                        paddingX={2}
-                        style={{ borderRadius: 4 }}>
-                        <Ionicons name="image-outline" size={12} color="white" />
-                    </YStack>
                 )}
 
                 <LinearGradient

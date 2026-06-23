@@ -22,4 +22,7 @@ NEVER paste a PowerShell prompt into the terminal (lines starting with "PS C:\..
 
 NEVER use bare "npm" in PowerShell — use npm.cmd or the scripts above.
 
-Leave the dev window open while Metro is running.
+flip-dev.bat closes on success (Metro stays in its own window).
+Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler log, QR, exp://LAN:8081).
+The flip-dev.bat window is only the connect script - not Metro. Close it after "Done" if you like.
+Use flip-dev-pause.bat if you want this window to stay open to read the log.

@@ -1,3 +1,4 @@
+import { LOOP_ACCENT, MENTION_AT_COLOR, MENTION_HANDLE_COLOR } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeNativeShims } from '@/utils/runtime';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -47,6 +48,7 @@ type LinkifiedCaptionProps = {
     onHashtagPress?: (tag: string) => void;
     onMentionPress?: (username: string, profileId?: string | number) => void;
     onMorePress?: () => void;
+    onCaptionPress?: () => void;
 };
 
 const escapeRegExp = (value: string) => {
@@ -62,6 +64,7 @@ export default function LinkifiedCaption({
     onHashtagPress,
     onMentionPress,
     onMorePress,
+    onCaptionPress,
 }: LinkifiedCaptionProps) {
     const [containerWidth, setContainerWidth] = useState(0);
     const [naturalLineCount, setNaturalLineCount] = useState(0);
@@ -151,18 +154,24 @@ export default function LinkifiedCaption({
         links.forEach((link, index) => {
             if (link.start > lastIndex) {
                 elements.push(
-                    <Text key={`text-${index}`}>
-                        {caption.substring(lastIndex, link.start)}
-                    </Text>,
+                    <Text key={`text-${index}`}>{caption.substring(lastIndex, link.start)}</Text>,
                 );
             }
 
+            const segment = caption.substring(link.start, link.end);
             elements.push(
                 <Text
                     key={`link-${index}`}
                     style={styles.linkText}
                     onPress={() => handleLinkPress(link)}>
-                    {caption.substring(link.start, link.end)}
+                    {link.type === 'mention' && segment.startsWith('@') ? (
+                        <>
+                            <Text style={styles.mentionAt}>@</Text>
+                            <Text style={styles.mentionHandle}>{segment.slice(1)}</Text>
+                        </>
+                    ) : (
+                        segment
+                    )}
                 </Text>,
             );
 
@@ -170,11 +179,7 @@ export default function LinkifiedCaption({
         });
 
         if (lastIndex < caption.length) {
-            elements.push(
-                <Text key="text-end">
-                    {caption.substring(lastIndex)}
-                </Text>,
-            );
+            elements.push(<Text key="text-end">{caption.substring(lastIndex)}</Text>);
         }
 
         return elements;
@@ -191,12 +196,20 @@ export default function LinkifiedCaption({
                 elements.push(caption.substring(lastIndex, link.start));
             }
 
+            const segment = caption.substring(link.start, link.end);
             elements.push(
                 <UITextView
                     key={`link-${index}`}
                     style={styles.linkText}
                     onPress={() => handleLinkPress(link)}>
-                    {caption.substring(link.start, link.end)}
+                    {link.type === 'mention' && segment.startsWith('@') ? (
+                        <>
+                            <UITextView style={styles.mentionAt}>@</UITextView>
+                            <UITextView style={styles.mentionHandle}>{segment.slice(1)}</UITextView>
+                        </>
+                    ) : (
+                        segment
+                    )}
                 </UITextView>,
             );
 
@@ -243,11 +256,7 @@ export default function LinkifiedCaption({
             <View style={styles.container} onLayout={onMeasureContainer}>
                 {containerWidth > 0 && (
                     <Text
-                        style={[
-                            style,
-                            styles.measurementText,
-                            { width: containerWidth },
-                        ]}
+                        style={[style, styles.measurementText, { width: containerWidth }]}
                         onTextLayout={onMeasureNaturalText}>
                         {renderCaptionForText()}
                     </Text>
@@ -256,39 +265,32 @@ export default function LinkifiedCaption({
                 <View style={styles.measureRow}>
                     <View style={styles.measureItem} onLayout={onMeasureMore}>
                         <Text style={styles.moreText}>more</Text>
-                        <Ionicons
-                            name="chevron-down"
-                            size={13}
-                            style={styles.moreIconMeasure}
-                        />
+                        <Ionicons name="chevron-down" size={13} style={styles.moreIconMeasure} />
                     </View>
                 </View>
 
                 <View style={styles.inlineRow}>
-                    <Text
+                    <Pressable
+                        onPress={onCaptionPress}
+                        disabled={!onCaptionPress}
                         style={[
-                            style,
-                            styles.captionInlineText,
+                            styles.captionPressable,
                             shouldShowMore && {
-                                maxWidth: Math.max(
-                                    0,
-                                    containerWidth - (moreWidth || 0),
-                                ),
+                                maxWidth: Math.max(0, containerWidth - (moreWidth || 0)),
                             },
-                        ]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail">
-                        {renderCaptionForText()}
-                    </Text>
+                        ]}>
+                        <Text
+                            style={[style, styles.captionInlineText]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail">
+                            {renderCaptionForText()}
+                        </Text>
+                    </Pressable>
 
                     {shouldShowMore && (
                         <Pressable onPress={onMorePress} style={styles.moreInline}>
                             <Text style={styles.moreText}>more</Text>
-                            <Ionicons
-                                name="chevron-down"
-                                size={13}
-                                style={styles.moreIcon}
-                            />
+                            <Ionicons name="chevron-down" size={13} style={styles.moreIcon} />
                         </Pressable>
                     )}
                 </View>
@@ -297,18 +299,22 @@ export default function LinkifiedCaption({
     }
 
     if (useSafeNativeShims) {
-        return (
+        const content = (
             <Text style={style} selectable>
                 {renderCaptionForText()}
             </Text>
         );
+        if (!onCaptionPress) return content;
+        return <Pressable onPress={onCaptionPress}>{content}</Pressable>;
     }
 
-    return (
+    const content = (
         <UITextView style={style} selectable uiTextView>
             {renderCaptionForUITextView()}
         </UITextView>
     );
+    if (!onCaptionPress) return content;
+    return <Pressable onPress={onCaptionPress}>{content}</Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -347,8 +353,24 @@ const styles = StyleSheet.create({
         minWidth: 0,
     },
 
+    captionPressable: {
+        flexShrink: 1,
+        minWidth: 0,
+    },
+
     linkText: {
         fontWeight: '700',
+        color: LOOP_ACCENT,
+    },
+
+    mentionAt: {
+        fontWeight: '700',
+        color: MENTION_AT_COLOR,
+    },
+
+    mentionHandle: {
+        fontWeight: '700',
+        color: MENTION_HANDLE_COLOR,
     },
 
     moreInline: {

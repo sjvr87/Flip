@@ -3,7 +3,8 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Asset, requestPermissionsAsync } from 'expo-media-library';
+import { ensureAndroidMediaReadPermissions } from '@/camera/ensureAndroidMediaReadPermissions';
+import { Asset } from 'expo-media-library';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useState } from 'react';
@@ -58,8 +59,8 @@ function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duratio
 
     const handleDownload = async () => {
         try {
-            const { status } = await requestPermissionsAsync(true);
-            if (status !== 'granted') {
+            const granted = await ensureAndroidMediaReadPermissions();
+            if (!granted) {
                 Alert.alert(
                     'Permission Required',
                     'Please allow access to your camera roll to save videos.',
@@ -137,7 +138,10 @@ function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duratio
                         <Feather name={isSaving ? 'loader' : 'download'} size={28} color="#fff" />
                     </TouchableOpacity>
                 </XStack>
-                <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleNext}
+                    style={styles.nextButton}
+                    activeOpacity={0.7}>
                     <Text style={styles.nextButtonText}>Next</Text>
                 </TouchableOpacity>
             </View>
@@ -161,8 +165,8 @@ function PhotoPreviewContent({ mediaUri }: { mediaUri: string }) {
 
     const handleDownload = async () => {
         try {
-            const { status } = await requestPermissionsAsync(true);
-            if (status !== 'granted') {
+            const granted = await ensureAndroidMediaReadPermissions();
+            if (!granted) {
                 Alert.alert(
                     'Permission Required',
                     'Please allow access to your camera roll to save photos.',
@@ -211,7 +215,10 @@ function PhotoPreviewContent({ mediaUri }: { mediaUri: string }) {
                     disabled={isSaving}>
                     <Feather name={isSaving ? 'loader' : 'download'} size={28} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleNext}
+                    style={styles.nextButton}
+                    activeOpacity={0.7}>
                     <Text style={styles.nextButtonText}>Next</Text>
                 </TouchableOpacity>
             </View>
@@ -290,7 +297,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     nextButton: {
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         paddingHorizontal: 40,
         paddingVertical: 16,
         borderRadius: 25,

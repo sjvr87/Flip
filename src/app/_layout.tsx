@@ -100,9 +100,11 @@ function useNotificationObserver() {
                 redirect(response.notification);
             }
 
-            const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-                redirect(response.notification);
-            });
+            const subscription = Notifications.addNotificationResponseReceivedListener(
+                (response) => {
+                    redirect(response.notification);
+                },
+            );
 
             return () => {
                 subscription.remove();
@@ -241,7 +243,14 @@ function useGlobalStartupErrorHandler() {
     useEffect(() => {
         if (!isExpoGo) return;
 
-        const errorUtils = (global as { ErrorUtils?: { setGlobalHandler?: (handler: (error: Error, isFatal?: boolean) => void) => void; getGlobalHandler?: () => (error: Error, isFatal?: boolean) => void } }).ErrorUtils;
+        const errorUtils = (
+            global as {
+                ErrorUtils?: {
+                    setGlobalHandler?: (handler: (error: Error, isFatal?: boolean) => void) => void;
+                    getGlobalHandler?: () => (error: Error, isFatal?: boolean) => void;
+                };
+            }
+        ).ErrorUtils;
         const previousHandler = errorUtils?.getGlobalHandler?.();
 
         errorUtils?.setGlobalHandler?.((error, isFatal) => {

@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -143,7 +144,11 @@ export default function EditUsernameScreen() {
                             Your profile will be available at:
                         </Text>
                         <Text style={tw`text-sm font-medium text-gray-900 mt-1`}>
-                            loops.video/@{username || 'username'}
+                            loops.video/
+                            <MentionText
+                                username={username || 'username'}
+                                style={tw`text-sm font-medium`}
+                            />
                         </Text>
                     </View>
                 </View>

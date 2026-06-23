@@ -1,4 +1,5 @@
 import CommentsModal from '@/components/feed/CommentsModal';
+import CaptionExpandModal from '@/components/feed/CaptionExpandModal';
 import OtherModal from '@/components/feed/OtherModal';
 import PhotoFeedSlide from '@/components/feed/PhotoFeedSlide';
 import ShareModal from '@/components/feed/ShareModal';
@@ -16,8 +17,10 @@ import {
     fetchVideoReplies,
     videoBookmark as atprotoVideoBookmark,
     videoLike as atprotoVideoLike,
+    videoRepost as atprotoVideoRepost,
     videoUnbookmark as atprotoVideoUnbookmark,
     videoUnlike as atprotoVideoUnlike,
+    videoUnrepost as atprotoVideoUnrepost,
 } from '@/atproto';
 import {
     fetchUserVideoCursor,
@@ -27,19 +30,39 @@ import {
     videoUnbookmark,
     videoUnlike,
 } from '@/utils/requests';
-import { decodeRouteParam } from '@/utils/profileNavigation';
+import {
+    decodeRouteParam,
+    parseRepoDidFromAtUri,
+    postAtUriToBskyUrl,
+    toProfilePath,
+} from '@/utils/profileNavigation';
+import { feedFlatListWindowSize, feedMaxToRenderPerBatch } from '@/utils/androidVideoSafeMode';
+import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Linking,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
+} from 'react-native';
+import { FlatList } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileFeed({ navigation }) {
     const params = useLocalSearchParams();
-    const profileId = decodeRouteParam(params.profileId);
     const id = decodeRouteParam(params.id);
+    const profileId = decodeRouteParam(params.profileId) || parseRepoDidFromAtUri(id);
+    const mediaKind =
+        params.mediaKind === 'photo' || params.mediaKind === 'video' ? params.mediaKind : undefined;
+    const shouldOpenComments = params.openComments === '1' || params.openComments === 'true';
     const atproto = usesAtprotoBackend();
 
     const insets = useSafeAreaInsets();
@@ -48,11 +71,13 @@ export default function ProfileFeed({ navigation }) {
     const hasScrolledToTarget = useRef(false);
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [showComments, setShowComments] = useState(false);
+    const [showCaptionExpand, setShowCaptionExpand] = useState(false);
     const [showShare, setShowShare] = useState(false);
     const [showOther, setShowOther] = useState(false);
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
     const [screenFocused, setScreenFocused] = useState(true);
-    const [feedHeight, setFeedHeight] = useState(0);
+    const { height: windowHeight } = useWindowDimensions();
+    const feedHeight = Math.round(windowHeight);
     const flatListRef = useRef(null);
     const router = useRouter();
 
@@ -69,16 +94,11 @@ export default function ProfileFeed({ navigation }) {
         }, []),
     );
 
-    const onContainerLayout = useCallback((e) => {
-        const h = e.nativeEvent.layout.height;
-        setFeedHeight((prev) => (h > 0 && Math.abs(h - prev) > 1 ? h : prev));
-    }, []);
-
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
-        queryKey: ['profileVideoFeed', profileId, id],
+        queryKey: ['profileVideoFeed', profileId, id, mediaKind],
         queryFn: ({ pageParam }) =>
             (atproto ? atprotoFetchUserVideoCursor : fetchUserVideoCursor)({
-                queryKey: ['profileVideoFeed', profileId, id],
+                queryKey: ['profileVideoFeed', profileId, id, mediaKind],
                 pageParam,
             }),
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
@@ -120,10 +140,22 @@ export default function ProfileFeed({ navigation }) {
         onError: (error) => {},
     });
 
-    const videos = useMemo(
-        () => data?.pages?.flatMap((page) => page.data) ?? [],
-        [data?.pages],
-    );
+    const videoRepostMutation = useMutation({
+        mutationFn: async (data) => {
+            if (!atproto) return;
+            if (data.type === 'repost') {
+                return await atprotoVideoRepost(data.id);
+            }
+            if (data.type === 'unrepost') {
+                return await atprotoVideoUnrepost(data.id);
+            }
+        },
+        onError: (error) => {
+            console.warn('[profileFeed] repost failed:', error);
+        },
+    });
+
+    const videos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
 
     const targetIndex = useMemo(() => {
         const normalizedId = decodeRouteParam(id);
@@ -137,7 +169,7 @@ export default function ProfileFeed({ navigation }) {
     }, [id, profileId, targetIndex]);
 
     useEffect(() => {
-        if (hasScrolledToTarget.current || feedHeight === 0 || videos.length === 0) {
+        if (hasScrolledToTarget.current || videos.length === 0) {
             return;
         }
 
@@ -151,6 +183,20 @@ export default function ProfileFeed({ navigation }) {
             flatListRef.current?.scrollToIndex({ index: targetIndex, animated: false });
         });
     }, [feedHeight, videos.length, targetIndex, id, profileId]);
+
+    useEffect(() => {
+        if (!shouldOpenComments || videos.length === 0) {
+            return;
+        }
+
+        const targetVideo = videos[targetIndex] ?? videos[0];
+        if (!targetVideo) {
+            return;
+        }
+
+        setSelectedVideo(targetVideo);
+        setShowComments(true);
+    }, [shouldOpenComments, videos, targetIndex]);
 
     const onViewableItemsChanged = useRef(({ viewableItems }) => {
         if (viewableItems.length > 0) {
@@ -169,9 +215,19 @@ export default function ProfileFeed({ navigation }) {
         videoBookmarkMutation.mutate({ type: dir, id: videoId });
     };
 
+    const handleRepost = (videoId, reposted) => {
+        const dir = reposted ? 'repost' : 'unrepost';
+        videoRepostMutation.mutate({ type: dir, id: videoId });
+    };
+
     const handleComment = (video) => {
         setSelectedVideo(video);
         setShowComments(true);
+    };
+
+    const handleCaptionExpand = (video) => {
+        setSelectedVideo(video);
+        setShowCaptionExpand(true);
     };
 
     const handleShare = (video) => {
@@ -195,6 +251,7 @@ export default function ProfileFeed({ navigation }) {
 
     const handleNavigate = () => {
         setShowComments(false);
+        setShowCaptionExpand(false);
         setShowShare(false);
         setShowOther(false);
     };
@@ -207,9 +264,11 @@ export default function ProfileFeed({ navigation }) {
                 bottomInset: insets.bottom,
                 onLike: handleLike,
                 onComment: handleComment,
+                onCaptionExpand: handleCaptionExpand,
                 onShare: handleShare,
                 onOther: handleOther,
                 onBookmark: handleBookmark,
+                onRepost: handleRepost,
                 tabBarHeight: 20,
                 onNavigate: handleNavigate,
             };
@@ -226,7 +285,9 @@ export default function ProfileFeed({ navigation }) {
                 <VideoPlayer
                     {...sharedProps}
                     isActive={index === currentIndex}
-                    itemHeight={feedHeight}
+                    shouldPreload={index === currentIndex}
+                    standalonePlayback
+                    feedHeight={feedHeight}
                     commentsOpen={showComments && selectedVideo?.id === item.id}
                     shareOpen={showShare && selectedVideo?.id === item.id}
                     otherOpen={showOther && selectedVideo?.id === item.id}
@@ -256,8 +317,21 @@ export default function ProfileFeed({ navigation }) {
         }
     };
 
+    const showEmptyFeed = !isLoading && videos.length === 0;
+    const bskyPostUrl = postAtUriToBskyUrl(id);
+
+    const handleOpenOnBsky = () => {
+        if (bskyPostUrl) {
+            Linking.openURL(bskyPostUrl);
+            return;
+        }
+        if (profileId) {
+            router.push(toProfilePath(profileId));
+        }
+    };
+
     return (
-        <View style={styles.container} onLayout={onContainerLayout}>
+        <View style={styles.container}>
             <StatusBar style="light" />
             <Stack.Screen options={{ headerShown: false }} />
 
@@ -268,50 +342,84 @@ export default function ProfileFeed({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {isLoading || feedHeight === 0 ? (
+            {isLoading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#fff" />
                 </View>
+            ) : showEmptyFeed ? (
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.emptyText}>
+                        {bskyPostUrl
+                            ? 'This post is text-only or could not be shown in the video feed.'
+                            : 'This post could not be loaded.'}
+                    </Text>
+                    {bskyPostUrl ? (
+                        <TouchableOpacity style={styles.emptyBackButton} onPress={handleOpenOnBsky}>
+                            <Text style={styles.emptyBackText}>View on Bluesky</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    {profileId ? (
+                        <TouchableOpacity
+                            style={[
+                                styles.emptyBackButton,
+                                bskyPostUrl ? styles.emptySecondaryButton : null,
+                            ]}
+                            onPress={() => router.push(toProfilePath(profileId))}>
+                            <Text style={styles.emptyBackText}>View profile</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                        style={[styles.emptyBackButton, styles.emptySecondaryButton]}
+                        onPress={() => router.back()}>
+                        <Text style={styles.emptyBackText}>Go back</Text>
+                    </TouchableOpacity>
+                </View>
             ) : (
-                <FlatList
-                    key={`${profileId}-${id}`}
-                    ref={flatListRef}
-                    data={videos}
-                    renderItem={renderItem}
-                    keyExtractor={(item, index) => `${item.id}-${index}`}
-                    pagingEnabled
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={feedHeight}
-                    snapToAlignment="start"
-                    decelerationRate="fast"
-                    viewabilityConfig={viewabilityConfig.current}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    onEndReached={handleEndReached}
-                    onEndReachedThreshold={0.5}
-                    getItemLayout={(data, index) => ({
-                        length: feedHeight,
-                        offset: feedHeight * index,
-                        index,
-                    })}
-                    removeClippedSubviews={false}
-                    maxToRenderPerBatch={3}
-                    windowSize={5}
-                    initialNumToRender={Math.min(Math.max(targetIndex + 1, 1), 5)}
-                    initialScrollIndex={targetIndex > 0 ? targetIndex : undefined}
-                    onScrollToIndexFailed={({ index }) => {
-                        setTimeout(() => {
-                            flatListRef.current?.scrollToIndex({ index, animated: false });
-                        }, 100);
-                    }}
-                    updateCellsBatchingPeriod={100}
-                    ListFooterComponent={
-                        isFetchingNextPage ? (
-                            <View style={[styles.footer, { height: feedHeight }]}>
-                                <ActivityIndicator size="large" color="#fff" />
-                            </View>
-                        ) : null
-                    }
-                />
+                <FeedScrollGestureRoot>
+                    <FlatList
+                        key={`${profileId}-${id}`}
+                        ref={flatListRef}
+                        data={videos}
+                        renderItem={renderItem}
+                        keyExtractor={(item, index) => `${item.id}-${index}`}
+                        pagingEnabled
+                        showsVerticalScrollIndicator={false}
+                        {...(Platform.OS === 'ios'
+                            ? {
+                                  snapToInterval: feedHeight,
+                                  snapToAlignment: 'start' as const,
+                                  decelerationRate: 'fast' as const,
+                              }
+                            : {})}
+                        viewabilityConfig={viewabilityConfig.current}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        onEndReached={handleEndReached}
+                        onEndReachedThreshold={0.5}
+                        getItemLayout={(data, index) => ({
+                            length: feedHeight,
+                            offset: feedHeight * index,
+                            index,
+                        })}
+                        removeClippedSubviews={false}
+                        maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                        windowSize={feedFlatListWindowSize}
+                        initialNumToRender={Math.min(Math.max(targetIndex + 1, 1), 5)}
+                        initialScrollIndex={targetIndex > 0 ? targetIndex : undefined}
+                        onScrollToIndexFailed={({ index }) => {
+                            setTimeout(() => {
+                                flatListRef.current?.scrollToIndex({ index, animated: false });
+                            }, 100);
+                        }}
+                        updateCellsBatchingPeriod={100}
+                        ListFooterComponent={
+                            isFetchingNextPage ? (
+                                <View style={[styles.footer, { height: feedHeight }]}>
+                                    <ActivityIndicator size="large" color="#fff" />
+                                </View>
+                            ) : null
+                        }
+                    />
+                </FeedScrollGestureRoot>
             )}
 
             <CommentsModal
@@ -319,6 +427,20 @@ export default function ProfileFeed({ navigation }) {
                 item={selectedVideo}
                 onClose={() => setShowComments(false)}
                 navigation={navigation}
+                onNavigate={handleNavigate}
+                onCommentCountChange={(delta) => {
+                    setSelectedVideo((prev) =>
+                        prev
+                            ? { ...prev, comments: Math.max(0, (prev.comments ?? 0) + delta) }
+                            : prev,
+                    );
+                }}
+            />
+
+            <CaptionExpandModal
+                visible={showCaptionExpand}
+                item={selectedVideo}
+                onClose={() => setShowCaptionExpand(false)}
                 onNavigate={handleNavigate}
             />
 
@@ -373,5 +495,27 @@ const styles = StyleSheet.create({
     footer: {
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyText: {
+        color: '#fff',
+        fontSize: 16,
+        marginBottom: 16,
+        textAlign: 'center',
+        paddingHorizontal: 24,
+    },
+    emptyBackButton: {
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        marginBottom: 10,
+    },
+    emptySecondaryButton: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    emptyBackText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
     },
 });

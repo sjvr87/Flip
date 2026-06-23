@@ -40,7 +40,8 @@ Metro always uses `--dev-client` (`expo-dev-client` package). You never need Exp
 Before you start, you need:
 
 - [ ] **Node.js 20+** (you have v26 — good). Check: `node --version`
-- [ ] **Android Studio** (Ladybug or newer) with Android SDK
+- [ ] **Samsung Galaxy S26 Ultra** (or Android flagship) — daily workflow: [ANDROID_FLAGSHIP_DEV.md](./ANDROID_FLAGSHIP_DEV.md)
+- [ ] **Android Studio** (Ladybug or newer) with Android SDK — optional plugins: [ANDROID_STUDIO_PLUGINS.md](./ANDROID_STUDIO_PLUGINS.md)
 - [ ] **JDK 17 or 21** (Android Studio bundles JDK 21 — use that)
 - [ ] **USB cable** (data-capable, not charge-only)
 - [ ] Samsung **Developer options** + **USB debugging** enabled
@@ -476,6 +477,8 @@ eas build --profile development --platform android
 
 ## Related docs
 
+- [ANDROID_FLAGSHIP_DEV.md](./ANDROID_FLAGSHIP_DEV.md) — S26 Ultra quick start, logcat, camera vs native, `flip-*.bat`
+- [ANDROID_STUDIO_PLUGINS.md](./ANDROID_STUDIO_PLUGINS.md) — optional IDE plugins
 - [DEV_ANDROID.md](./DEV_ANDROID.md) — Expo Go networking fixes (tunnel, firewall)
 - [CAMERA.md](./CAMERA.md) — CameraX quality settings and S26 Ultra notes
 - [README.md](../README.md) — project overview
@@ -507,3 +510,15 @@ npm start
 ```
 
 Open **Flip** on the S26 Ultra → test **Create** tab camera.
+
+### Sign-in session (dev reload vs reinstall)
+
+Flip keeps your Bluesky **session tokens** (access + refresh JWT) in **MMKV** and **SecureStore** after a successful sign-in. You should stay signed in across:
+
+- Metro **JS reload** (`flip-reload.bat`, shake → Reload)
+- `adb shell am force-stop social.flip.app` and reopening Flip
+- Phone reboot (until the refresh token expires or you tap **Log out**)
+
+**`adb uninstall`** (or clearing app data in Android settings) wipes all local storage — you must sign in again with an app password. That is expected on Android; only a new device or explicit uninstall should require re-entering credentials.
+
+**Remember login** (Settings → Security) controls whether Flip keeps your session on this device. Biometric unlock only gates access to the existing session — Flip does not store your app password.

@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
@@ -15,6 +16,7 @@ export default function PhotoFeedSlide({
     item,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -95,7 +97,7 @@ export default function PhotoFeedSlide({
                         onNavigate?.();
                         router.push(toProfilePath(item.account.id));
                     }}>
-                    <Text style={styles.username}>@{item.account.username}</Text>
+                    <MentionText username={item.account.username} style={styles.username} />
                 </TouchableOpacity>
                 {item.caption ? (
                     <LinkifiedCaption
@@ -104,6 +106,7 @@ export default function PhotoFeedSlide({
                         mentions={item.mentions || []}
                         style={styles.caption}
                         numberOfLines={2}
+                        onCaptionPress={() => onCaptionExpand?.(item)}
                         onHashtagPress={(tag) => {
                             onNavigate?.();
                             router.push(`/private/search?query=${tag}`);
@@ -114,7 +117,7 @@ export default function PhotoFeedSlide({
                             if (!target) return;
                             router.push(toProfilePath(target));
                         }}
-                        onMorePress={() => onComment(item)}
+                        onMorePress={() => onCaptionExpand?.(item)}
                     />
                 ) : null}
             </View>
@@ -144,7 +147,6 @@ const styles = StyleSheet.create({
         right: 80,
     },
     username: {
-        color: 'white',
         fontSize: 16,
         fontWeight: '700',
         marginBottom: 6,

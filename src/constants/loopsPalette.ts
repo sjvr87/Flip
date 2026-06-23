@@ -1,10 +1,15 @@
 /**
  * Loops-inspired design tokens for light and dark mode.
- * Accent pink (#F02C56) is shared across themes.
+ * Accent cyan (#22D3EE) is shared across themes.
  */
 
-export const LOOP_ACCENT = '#F02C56';
-export const LOOP_ACCENT_PRESSED = '#d02647';
+export const LOOP_ACCENT = '#22D3EE';
+export const LOOP_ACCENT_PRESSED = '#06B6D4';
+
+/** `@` symbol in @mentions (light purple). */
+export const MENTION_AT_COLOR = '#C084FC';
+/** Username/handle in @mentions (creamsicle orange). */
+export const MENTION_HANDLE_COLOR = '#FF9F43';
 
 export type LoopsThemeColors = {
     accent: string;
@@ -40,7 +45,7 @@ export const loopsLight: LoopsThemeColors = {
     tabBar: '#ffffff',
     tabBarBorder: '#eeeeee',
     tabIconActive: '#000000',
-    tabIconInactive: '#999999',
+    tabIconInactive: '#777777',
     inputBackground: '#ffffff',
     inputBorder: '#d1d5db',
     placeholder: '#9ca3af',
@@ -61,7 +66,7 @@ export const loopsDark: LoopsThemeColors = {
     tabBar: '#000000',
     tabBarBorder: '#1e2939',
     tabIconActive: '#ffffff',
-    tabIconInactive: '#555555',
+    tabIconInactive: '#666666',
     inputBackground: '#1c1c1e',
     inputBorder: '#3a3a3c',
     placeholder: '#666666',

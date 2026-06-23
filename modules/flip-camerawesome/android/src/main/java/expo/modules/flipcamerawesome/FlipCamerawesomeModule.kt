@@ -38,6 +38,10 @@ class FlipCamerawesomeModule : Module() {
         view.recording = recording
       }
 
+      Prop("captureMode") { view: FlipCamerawesomeView, mode: String ->
+        view.captureMode = mode
+      }
+
       Prop("photoRequestId") { view: FlipCamerawesomeView, id: Int ->
         view.photoRequestId = id
       }
@@ -53,14 +57,7 @@ class FlipCamerawesomeModule : Module() {
     }
 
     AsyncFunction("getCaptureProfile") {
-      mapOf(
-        "platform" to "android",
-        "engine" to "CameraX",
-        "resolution" to "${FlipCameraSession.TARGET_WIDTH}x${FlipCameraSession.TARGET_HEIGHT}",
-        "targetFps" to FlipCameraSession.TARGET_FPS,
-        "videoStabilization" to true,
-        "quality" to "UHD",
-      )
+      FlipCaptureProfile.active.toMap()
     }
 
     AsyncFunction("launchGalleryPickerAsync") Coroutine { ->

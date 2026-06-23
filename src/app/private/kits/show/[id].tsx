@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchStarterKit, fetchStarterKitUsed } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,9 +114,7 @@ function AccountCard({ account, onFollow, isFollowing, isLoading, onPress }: Acc
                         {account.name}
                     </Text>
                 </View>
-                <Text style={tw`text-gray-700 dark:text-gray-400 text-xs mb-1`}>
-                    @{account.username}
-                </Text>
+                <MentionText username={account.username} style={tw`text-xs mb-1`} />
                 {account.bio ? (
                     <Text
                         style={tw`text-gray-600 dark:text-gray-300 text-xs leading-4`}
@@ -154,7 +153,7 @@ export default function StarterKitShow() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const insets = useSafeAreaInsets();
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const {
         data: kit,
@@ -229,7 +228,7 @@ export default function StarterKitShow() {
                         ),
                     }}
                 />
-                <ActivityIndicator size="large" color="#F02C56" />
+                <ActivityIndicator size="large" color="#22D3EE" />
             </View>
         );
     }
@@ -345,9 +344,10 @@ export default function StarterKitShow() {
                         />
                         <Text style={tw`text-gray-600 dark:text-gray-400 text-base`}>
                             Curated by{' '}
-                            <Text style={tw`text-black dark:text-gray-200 font-semibold`}>
-                                @{kit.creator.username}
-                            </Text>
+                            <MentionText
+                                username={kit.creator.username}
+                                style={tw`font-semibold text-base`}
+                            />
                         </Text>
                     </Pressable>
 
@@ -356,7 +356,7 @@ export default function StarterKitShow() {
                             disabled={usingKit == true || kitUsed == true || kit.is_owner === true}
                             style={[
                                 tw`flex-1 rounded-xl py-4 items-center justify-center`,
-                                kitUsed ? tw`bg-[#F02C56]/50` : tw`bg-[#F02C56]`,
+                                kitUsed ? tw`bg-[#22D3EE]/50` : tw`bg-[#22D3EE]`,
                             ]}
                             activeOpacity={0.8}>
                             {usingKit ? (

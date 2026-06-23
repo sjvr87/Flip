@@ -1,11 +1,10 @@
 import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Storage } from '@/utils/cache';
+import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { fetchSelfAccount, getMimeType, updateAccountAvatar } from '@/utils/requests';
 import { truncate } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { router, Stack } from 'expo-router';
 import React, { useState } from 'react';
@@ -71,11 +70,11 @@ export default function EditProfileScreen() {
         refetchOnMount: true,
     });
 
-    const server = Storage.getString('app.instance');
     const [profileImage, setProfileImage] = useState(user?.avatar);
     const name = user?.name;
     const username = user?.username;
     const bio = user?.bio;
+    const profileUrl = getProfileUrl(user);
 
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -164,8 +163,7 @@ export default function EditProfileScreen() {
     };
 
     const copyProfileUrl = async () => {
-        await Clipboard.setStringAsync(`https://${server}/@${username}`);
-        Alert.alert('Copied', 'Profile URL copied to clipboard');
+        await copyProfileLink(user);
     };
 
     return (
@@ -253,10 +251,12 @@ export default function EditProfileScreen() {
                         tw`flex-row items-center justify-between py-4 px-5 bg-white dark:bg-black border-b border-gray-100 dark:border-gray-800`,
                         pressed && tw`bg-gray-50 dark:bg-gray-900`,
                     ]}>
-                    <Text style={tw`text-base text-gray-600 dark:text-white`}>Profile</Text>
-                    <View style={tw`flex flex-row`}>
-                        <Text style={tw`text-sm text-gray-600 dark:text-white mr-2`}>
-                            {server}/@{username}
+                    <Text style={tw`text-base text-gray-600 dark:text-white`}>Profile link</Text>
+                    <View style={tw`flex flex-row items-center`}>
+                        <Text
+                            style={tw`text-sm text-gray-600 dark:text-white mr-2 max-w-[200px]`}
+                            numberOfLines={1}>
+                            {profileUrl?.replace(/^https?:\/\//, '') ?? '—'}
                         </Text>
                         <Ionicons name="copy-outline" size={18} color="#999" />
                     </View>

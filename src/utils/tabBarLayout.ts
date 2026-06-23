@@ -1,10 +1,16 @@
 import { useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/** Uniform semi-transparent scrim on Home feed tab bar (icons + system nav inset). */
+export const TAB_BAR_HOME_OVERLAY_BG = 'rgba(0, 0, 0, 0.5)';
+export const TAB_BAR_SOLID_BG_DARK = 'rgba(0, 0, 0, 0.96)';
+export const TAB_BAR_SOLID_BG_LIGHT = 'rgba(255, 255, 255, 0.98)';
+
 /** Flip tab icon row — layout chrome only; system nav uses `insets.bottom`. */
-export const TAB_BAR_PADDING_TOP = 10;
-export const TAB_BAR_ICON_ROW_HEIGHT = Platform.OS === 'ios' ? 49 : 48;
+export const TAB_BAR_PADDING_TOP = 0;
+/** Matches `TAB_ICON_SLOT_SIZE` in `(tabs)/_layout.tsx`. */
+export const TAB_BAR_ICON_ROW_HEIGHT = 42;
 
 /** @deprecated Prefer `useFlipTabBarMetrics().contentHeight` */
 export const TAB_BAR_CONTENT_HEIGHT = TAB_BAR_ICON_ROW_HEIGHT;
@@ -25,9 +31,7 @@ export type FlipTabBarMetrics = {
 
 export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics {
     const paddingTop = TAB_BAR_PADDING_TOP;
-    // iOS home indicator has a sensible minimum; Android/Samsung — trust SafeAreaProvider only.
-    const paddingBottom =
-        Platform.OS === 'ios' ? Math.max(bottomInset, 21) : bottomInset;
+    const paddingBottom = bottomInset;
     const contentHeight = TAB_BAR_ICON_ROW_HEIGHT;
     const totalHeight = paddingTop + contentHeight + paddingBottom;
 
@@ -48,10 +52,7 @@ export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics
  */
 export function useFlipTabBarMetrics(): FlipTabBarMetrics {
     const insets = useSafeAreaInsets();
-    return useMemo(
-        () => computeFlipTabBarMetrics(insets.bottom),
-        [insets.bottom],
-    );
+    return useMemo(() => computeFlipTabBarMetrics(insets.bottom), [insets.bottom]);
 }
 
 /** Tab bar style for expo-router `Tabs` `tabBarStyle`. */
@@ -60,6 +61,47 @@ export function getTabBarStyleFromMetrics(metrics: FlipTabBarMetrics) {
         paddingTop: metrics.paddingTop,
         paddingBottom: metrics.paddingBottom,
         height: metrics.totalHeight,
+    };
+}
+
+export type FlipTabBarVariant = 'home' | 'solid';
+
+/** Shared tab bar chrome — height, insets, and home vs solid background. */
+export function getFlipTabBarStyle(
+    metrics: FlipTabBarMetrics,
+    variant: FlipTabBarVariant,
+    isDark: boolean,
+    borderColor: string,
+): ViewStyle {
+    const layout = getTabBarStyleFromMetrics(metrics);
+    const sizing =
+        Platform.OS === 'android' ? { minHeight: layout.height } : { height: layout.height };
+
+    const base: ViewStyle = {
+        paddingTop: layout.paddingTop,
+        paddingBottom: layout.paddingBottom,
+        ...sizing,
+        elevation: 0,
+        shadowOpacity: 0,
+    };
+
+    if (variant === 'home') {
+        return {
+            ...base,
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'transparent',
+            borderTopWidth: 0,
+        };
+    }
+
+    return {
+        ...base,
+        backgroundColor: isDark ? TAB_BAR_SOLID_BG_DARK : TAB_BAR_SOLID_BG_LIGHT,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: borderColor,
     };
 }
 

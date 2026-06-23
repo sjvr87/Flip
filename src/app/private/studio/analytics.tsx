@@ -51,7 +51,7 @@ const RANGES: { id: 7 | 30 | 60; label: string }[] = [
     { id: 60, label: '60d' },
 ];
 
-const ACCENT = '#F02C56';
+const ACCENT = '#22D3EE';
 
 const formatCompact = (n: number): string => {
     'worklet';
@@ -98,13 +98,7 @@ interface TabPillProps {
 }
 
 const TabPill = ({ tab, active, onPress, isDark }: TabPillProps) => {
-    const iconColor = active
-        ? isDark
-            ? '#000'
-            : '#FFF'
-        : isDark
-          ? '#9CA3AF'
-          : '#6B7280';
+    const iconColor = active ? (isDark ? '#000' : '#FFF') : isDark ? '#9CA3AF' : '#6B7280';
 
     return (
         <PressableHaptics

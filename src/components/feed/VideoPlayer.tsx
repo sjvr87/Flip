@@ -1,7 +1,28 @@
+import MentionText from '@/components/MentionText';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
-import { ANDROID_VIDEO_SAFE_MODE } from '@/utils/androidVideoSafeMode';
+import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
+import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
+import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
+import {
+    claimFeedAudio,
+    isFeedPlaybackActive,
+    registerFeedPlayer,
+    releaseFeedAudio,
+    subscribeFeedPlaybackActive,
+    subscribePlaybackGeneration,
+} from '@/utils/feedPlaybackGuard';
+import {
+    getFeedNetworkProfile,
+    reportFeedPlaybackStall,
+    subscribeFeedNetworkProfile,
+    type FeedNetworkProfile,
+} from '@/utils/feedNetworkQuality';
+import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
+import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
+import { canUseFlipCamera } from '@/utils/runtime';
+import { buildFeedVideoSource } from '@/utils/feedVideoSource';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,9 +30,12 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Dimensions,
+    InteractionManager,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -25,19 +49,21 @@ function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-const POSTER_BG = '#1a1a1a';
+const POSTER_BG = '#000';
 
 type ExpoVideoPlayer = ReturnType<typeof createVideoPlayer>;
 
-/** Release after VideoView unmounts so native prop updates don't race teardown. */
-function releasePlayerDeferred(player: ExpoVideoPlayer) {
-    queueMicrotask(() => {
-        try {
-            player.release?.();
-        } catch {
-            // already released
-        }
-    });
+function isPlayerUsable(player: ExpoVideoPlayer | null | undefined): player is ExpoVideoPlayer {
+    if (!player) {
+        return false;
+    }
+    try {
+        // Touch native shared object — throws after release.
+        void player.status;
+        return typeof player.addListener === 'function';
+    } catch {
+        return false;
+    }
 }
 
 function VideoPoster({ thumbnail }: { thumbnail?: string }) {
@@ -47,7 +73,7 @@ function VideoPoster({ thumbnail }: { thumbnail?: string }) {
                 <Image
                     source={{ uri: thumbnail }}
                     style={styles.posterImage}
-                    contentFit="contain"
+                    contentFit="cover"
                     cachePolicy="memory-disk"
                     transition={0}
                     placeholder={{ color: POSTER_BG }}
@@ -57,19 +83,26 @@ function VideoPoster({ thumbnail }: { thumbnail?: string }) {
     );
 }
 
-function VideoSlidePlaceholder({ item }: { item: { media?: { thumbnail?: string; src_url?: string } } }) {
+function VideoSlidePlaceholder({
+    item,
+    feedHeight,
+}: {
+    item: { media?: { thumbnail?: string; src_url?: string } };
+    feedHeight?: number;
+}) {
     const thumbnail = item.media?.thumbnail;
+    const slideHeight = feedHeight ?? SCREEN_HEIGHT;
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
-        if (ANDROID_VIDEO_SAFE_MODE) {
+        if (ANDROID_VIDEO_SAFE_MODE || !isFeedPlaybackActive()) {
             return;
         }
         void prefetchVideoUrl(item.media?.src_url);
     }, [item.media?.src_url, thumbnail]);
 
     return (
-        <View style={styles.videoContainer}>
+        <View style={[styles.videoContainer, { height: slideHeight }]}>
             <View style={styles.videoWrapper}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
@@ -81,8 +114,11 @@ function VideoPlayer({
     item,
     isActive,
     shouldPreload = true,
+    standalonePlayback = false,
+    feedHeight,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -99,16 +135,31 @@ function VideoPlayer({
     overlayBottom,
     actionRailBottom,
 }) {
-    if (!isActive && !shouldPreload) {
-        return <VideoSlidePlaceholder item={item} />;
+    const wantsPlayer = isActive || shouldPreload;
+    const [holdPlayer, setHoldPlayer] = useState(wantsPlayer);
+
+    useEffect(() => {
+        if (wantsPlayer) {
+            setHoldPlayer(true);
+            return;
+        }
+        const timer = setTimeout(() => setHoldPlayer(false), feedPlayerReleaseDelayMs);
+        return () => clearTimeout(timer);
+    }, [wantsPlayer]);
+
+    if (!holdPlayer) {
+        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
     return (
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            standalonePlayback={standalonePlayback}
+            feedHeight={feedHeight}
             onLike={onLike}
             onComment={onComment}
+            onCaptionExpand={onCaptionExpand}
             onShare={onShare}
             onBookmark={onBookmark}
             onRepost={onRepost}
@@ -133,8 +184,11 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    standalonePlayback = false,
+    feedHeight,
     onLike,
     onComment,
+    onCaptionExpand,
     onShare,
     onBookmark,
     onRepost,
@@ -154,16 +208,26 @@ function VideoPlayerCore({
     const [isLiked, setIsLiked] = useState(item.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
-    const [showControls, setShowControls] = useState(false);
+    const [showPauseHint, setShowPauseHint] = useState(false);
+    const [pauseHintIcon, setPauseHintIcon] = useState<'play' | 'pause'>('pause');
     const [isPlaying, setIsPlaying] = useState(false);
-    const manualControlRef = useRef(false);
+    const pauseHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isMountedRef = useRef(true);
     const wasActiveRef = useRef(false);
     const everActiveRef = useRef(false);
     const router = useRouter();
+    const feedMuted = useFeedPlaybackStore((s) => s.feedMuted);
+    const toggleFeedMuted = useFeedPlaybackStore((s) => s.toggleFeedMuted);
+    const isManuallyPaused = useFeedPlaybackStore((s) => s.isManuallyPaused(item.id));
+    const setManuallyPaused = useFeedPlaybackStore((s) => s.setManuallyPaused);
+    const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
-    const controlsTimeoutRef = useRef(null);
+    const slideHeight = feedHeight ?? SCREEN_HEIGHT;
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
+    const feedGradientBottom = bottomInset + tabBarHeight;
+    const audioLabel = audioAttributionLabel(item);
+    const showRemixedAudio = !isOriginalAudio(item);
+    const canUseAudio = !!item.permissions?.can_use_audio && !item.is_photo;
 
     const playbackRate = videoPlaybackRates[item.id] || 1.0;
 
@@ -171,77 +235,360 @@ function VideoPlayerCore({
     const thumbnail = item.media?.thumbnail;
     const playerRef = useRef<ExpoVideoPlayer | null>(null);
     const boundSrcRef = useRef<string | undefined>(undefined);
+    const pendingReleaseRef = useRef<ExpoVideoPlayer[]>([]);
+    const playerEpochRef = useRef(0);
     const [player, setPlayer] = useState<ExpoVideoPlayer | null>(null);
+    const [playerEpoch, setPlayerEpoch] = useState(0);
+    const [viewPlayer, setViewPlayer] = useState<ExpoVideoPlayer | null>(null);
+    const [viewEpoch, setViewEpoch] = useState(0);
     const [videoReady, setVideoReady] = useState(false);
+    const [firstFrameRendered, setFirstFrameRendered] = useState(false);
+    const [playerStatus, setPlayerStatus] = useState<string>('idle');
+    const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
+        getFeedNetworkProfile(),
+    );
+    const stallTimestampsRef = useRef<number[]>([]);
+    const [playbackAllowed, setPlaybackAllowed] = useState(
+        () => standalonePlayback || isFeedPlaybackActive(),
+    );
+
+    useEffect(() => {
+        if (standalonePlayback) {
+            return;
+        }
+        return subscribeFeedPlaybackActive(setPlaybackAllowed);
+    }, [standalonePlayback]);
+
+    useEffect(() => subscribeFeedNetworkProfile(setNetworkProfile), []);
+
+    const queuePlayerRelease = useCallback((released: ExpoVideoPlayer) => {
+        try {
+            released.pause?.();
+            released.muted = true;
+        } catch {
+            // player may already be released
+        }
+        pendingReleaseRef.current.push(released);
+    }, []);
+
+    const releasePlayerNow = useCallback((released: ExpoVideoPlayer | null | undefined) => {
+        if (!released) {
+            return;
+        }
+        try {
+            released.pause?.();
+            released.muted = true;
+        } catch {
+            // already released
+        }
+        try {
+            released.release?.();
+        } catch {
+            // already released
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player) || playerEpoch === 0 || playerRef.current !== player) {
+            setViewPlayer(null);
+            setViewEpoch(0);
+            return;
+        }
+        setViewPlayer(player);
+        setViewEpoch(playerEpoch);
+        return () => {
+            setViewPlayer(null);
+            setViewEpoch(0);
+        };
+    }, [player, playerEpoch]);
+
+    useEffect(() => {
+        if (viewPlayer) {
+            return;
+        }
+        const pending = pendingReleaseRef.current.splice(0);
+        if (pending.length === 0) {
+            return;
+        }
+        let cancelled = false;
+        const outer = requestAnimationFrame(() => {
+            const inner = requestAnimationFrame(() => {
+                if (cancelled) {
+                    return;
+                }
+                for (const released of pending) {
+                    try {
+                        released.pause?.();
+                        released.muted = true;
+                    } catch {
+                        // already released
+                    }
+                    try {
+                        released.release?.();
+                    } catch {
+                        // already released
+                    }
+                }
+            });
+            if (cancelled) {
+                cancelAnimationFrame(inner);
+            }
+        });
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(outer);
+            pendingReleaseRef.current.push(...pending);
+        };
+    }, [viewPlayer]);
 
     useEffect(() => {
         if (!srcUrl) {
-            if (playerRef.current) {
-                releasePlayerDeferred(playerRef.current);
-                playerRef.current = null;
-            }
+            const stale = playerRef.current;
+            playerRef.current = null;
             boundSrcRef.current = undefined;
             setPlayer(null);
+            setPlayerEpoch(0);
             setVideoReady(false);
+            setFirstFrameRendered(false);
+            setPlayerStatus('idle');
+            if (stale) {
+                queuePlayerRelease(stale);
+            }
             return;
         }
 
-        if (boundSrcRef.current === srcUrl && playerRef.current) {
-            return;
-        }
-
-        setPlayer(null);
-        setVideoReady(false);
-
-        if (playerRef.current) {
-            releasePlayerDeferred(playerRef.current);
+        if (!standalonePlayback && !playbackAllowed) {
+            const stale = playerRef.current;
+            if (!stale) {
+                return;
+            }
             playerRef.current = null;
+            boundSrcRef.current = undefined;
+            setPlayer(null);
+            setPlayerEpoch(0);
+            setViewPlayer(null);
+            setViewEpoch(0);
+            setVideoReady(false);
+            setFirstFrameRendered(false);
+            setPlayerStatus('idle');
+            setIsPlaying(false);
+            releasePlayerNow(stale);
+            return;
         }
 
-        const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(srcUrl);
+        if (boundSrcRef.current === srcUrl && isPlayerUsable(playerRef.current)) {
+            return;
+        }
+
+        const stale = playerRef.current;
+        playerRef.current = null;
+        boundSrcRef.current = undefined;
+        setPlayer(null);
+        setPlayerEpoch(0);
+        setVideoReady(false);
+        setFirstFrameRendered(false);
+        setPlayerStatus('idle');
+        if (stale) {
+            queuePlayerRelease(stale);
+        }
+
+        const source = buildFeedVideoSource(srcUrl);
+        if (!source) {
+            return;
+        }
+
+        const nextPlayer = takePrefetchedPlayer(srcUrl) ?? createVideoPlayer(source);
+        if (!isPlayerUsable(nextPlayer)) {
+            return;
+        }
+
+        const epoch = playerEpochRef.current + 1;
+        playerEpochRef.current = epoch;
         nextPlayer.loop = true;
+        try {
+            nextPlayer.bufferOptions = networkProfile.bufferOptions;
+        } catch {
+            // non-fatal
+        }
         playerRef.current = nextPlayer;
         boundSrcRef.current = srcUrl;
         setPlayer(nextPlayer);
+        setPlayerEpoch(epoch);
         setVideoReady(nextPlayer.status === 'readyToPlay');
+        setFirstFrameRendered(false);
+        setPlayerStatus(nextPlayer.status);
 
         return () => {
             if (playerRef.current === nextPlayer) {
                 playerRef.current = null;
                 boundSrcRef.current = undefined;
             }
-            releasePlayerDeferred(nextPlayer);
+            if (!standalonePlayback && !isFeedPlaybackActive()) {
+                releasePlayerNow(nextPlayer);
+            } else {
+                queuePlayerRelease(nextPlayer);
+            }
+            if (isMountedRef.current) {
+                setPlayer(null);
+                setPlayerEpoch(0);
+            }
         };
-    }, [srcUrl]);
+    }, [
+        srcUrl,
+        playbackAllowed,
+        standalonePlayback,
+        queuePlayerRelease,
+        releasePlayerNow,
+        networkProfile.bufferOptions,
+    ]);
+
+    const pauseThisPlayer = useCallback(() => {
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer)) {
+            return;
+        }
+        try {
+            activePlayer.pause();
+            activePlayer.muted = true;
+            if (isMountedRef.current) {
+                setIsPlaying(false);
+            }
+        } catch {
+            // player may already be released
+        }
+    }, []);
+
+    const releaseThisPlayer = useCallback(() => {
+        const activePlayer = playerRef.current;
+        playerRef.current = null;
+        boundSrcRef.current = undefined;
+        if (isMountedRef.current) {
+            setPlayer(null);
+            setPlayerEpoch(0);
+            setViewPlayer(null);
+            setViewEpoch(0);
+            setVideoReady(false);
+            setFirstFrameRendered(false);
+            setPlayerStatus('idle');
+            setIsPlaying(false);
+        }
+        if (activePlayer) {
+            try {
+                activePlayer.pause?.();
+                activePlayer.muted = true;
+            } catch {
+                // already released
+            }
+            try {
+                activePlayer.release?.();
+            } catch {
+                // already released
+            }
+        }
+        const pending = pendingReleaseRef.current.splice(0);
+        for (const released of pending) {
+            try {
+                released.pause?.();
+                released.muted = true;
+            } catch {
+                // already released
+            }
+            try {
+                released.release?.();
+            } catch {
+                // already released
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (standalonePlayback) {
+            return;
+        }
+        return registerFeedPlayer(item.id, pauseThisPlayer, releaseThisPlayer);
+    }, [standalonePlayback, item.id, pauseThisPlayer, releaseThisPlayer]);
+
+    useEffect(() => {
+        if (standalonePlayback) {
+            return;
+        }
+        return subscribePlaybackGeneration(() => {
+            pauseThisPlayer();
+            releaseFeedAudio(item.id);
+        });
+    }, [standalonePlayback, item.id, pauseThisPlayer]);
+
+    useEffect(() => {
+        return () => {
+            if (standalonePlayback) {
+                return;
+            }
+            releaseFeedAudio(item.id);
+            releaseThisPlayer();
+        };
+    }, [standalonePlayback, item.id, releaseThisPlayer]);
+
+    useEffect(() => {
+        if (!player) {
+            return;
+        }
+        try {
+            player.bufferOptions = networkProfile.bufferOptions;
+        } catch {
+            // non-fatal
+        }
+    }, [player, networkProfile.bufferOptions]);
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
     }, [thumbnail]);
 
     useEffect(() => {
-        if (!player) {
+        if (!isPlayerUsable(player)) {
             return;
         }
 
         const onStatus = ({ status }: { status: string }) => {
-            if (status === 'readyToPlay' && isMountedRef.current) {
+            if (!isMountedRef.current || playerRef.current !== player) {
+                return;
+            }
+            setPlayerStatus(status);
+            if (status === 'readyToPlay') {
                 setVideoReady(true);
+            }
+            if (status === 'loading' && isActive && isPlaying) {
+                const now = Date.now();
+                const recent = stallTimestampsRef.current.filter((t) => now - t < 20_000);
+                recent.push(now);
+                stallTimestampsRef.current = recent;
+                if (recent.length >= 3) {
+                    stallTimestampsRef.current = [];
+                    reportFeedPlaybackStall();
+                }
             }
         };
         const onPlaying = ({ isPlaying: playing }: { isPlaying: boolean }) => {
-            if (playing && isMountedRef.current) {
-                setVideoReady(true);
+            if (!isMountedRef.current || playerRef.current !== player) {
+                return;
             }
+            setVideoReady(true);
+            setIsPlaying(playing);
         };
 
-        const statusSub = player.addListener('statusChange', onStatus);
-        const playingSub = player.addListener('playingChange', onPlaying);
+        let statusSub: { remove: () => void } | null = null;
+        let playingSub: { remove: () => void } | null = null;
+        try {
+            statusSub = player.addListener('statusChange', onStatus);
+            playingSub = player.addListener('playingChange', onPlaying);
+        } catch {
+            return;
+        }
 
         return () => {
-            statusSub.remove();
-            playingSub.remove();
+            statusSub?.remove();
+            playingSub?.remove();
         };
-    }, [player]);
+    }, [player, playerEpoch, isActive, isPlaying]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -251,23 +598,118 @@ function VideoPlayerCore({
     }, []);
 
     useEffect(() => {
-        if (!player) return;
+        if (!isPlayerUsable(player)) return;
         try {
             player.playbackRate = playbackRate;
         } catch (error) {
             console.log('Playback rate error:', error);
         }
-    }, [playbackRate, player]);
+    }, [playbackRate, player, playerEpoch]);
 
     useEffect(() => {
-        if (!player) return;
-
+        if (!isPlayerUsable(player)) return;
         try {
-            if (manualControlRef.current) {
+            if (standalonePlayback) {
+                player.muted = feedMuted;
                 return;
             }
+            const mayOutputAudio =
+                isActive &&
+                isPlaying &&
+                playbackAllowed &&
+                screenFocused &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive) &&
+                !feedMuted;
+            player.muted = !mayOutputAudio;
+        } catch (error) {
+            console.log('Mute control error:', error);
+        }
+    }, [
+        feedMuted,
+        isActive,
+        isPlaying,
+        playbackAllowed,
+        screenFocused,
+        isManuallyPaused,
+        item.is_sensitive,
+        playSensitive,
+        player,
+        playerEpoch,
+        standalonePlayback,
+    ]);
 
-            const shouldPlay = isActive && screenFocused && !(item.is_sensitive && !playSensitive);
+    const handleFirstFrameRender = useCallback(() => {
+        if (!isMountedRef.current || playerRef.current !== player) {
+            return;
+        }
+        setFirstFrameRendered(true);
+        setVideoReady(true);
+    }, [player]);
+
+    // Android textureView may not fire onFirstFrameRender while the view is opacity:0.
+    useEffect(() => {
+        if (!isActive || firstFrameRendered || !isPlayerUsable(player)) {
+            return;
+        }
+        if (!isPlaying && playerStatus !== 'readyToPlay') {
+            return;
+        }
+        const timer = setTimeout(() => {
+            if (isMountedRef.current && playerRef.current === player && !firstFrameRendered) {
+                setFirstFrameRendered(true);
+            }
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player)) return;
+
+        try {
+            const shouldPlay =
+                playbackAllowed &&
+                isActive &&
+                screenFocused &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive);
+
+            if (shouldPlay && playerStatus === 'readyToPlay') {
+                if (!standalonePlayback && !claimFeedAudio(item.id)) {
+                    return;
+                }
+                player.play();
+                if (isMountedRef.current) {
+                    setIsPlaying(true);
+                }
+            }
+        } catch (error) {
+            console.log('Play on ready error:', error);
+        }
+    }, [
+        player,
+        playerEpoch,
+        playerStatus,
+        isActive,
+        screenFocused,
+        isManuallyPaused,
+        item.is_sensitive,
+        playSensitive,
+        playbackAllowed,
+        item.id,
+        standalonePlayback,
+    ]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player)) return;
+
+        try {
+            const shouldPlay =
+                playbackAllowed &&
+                isActive &&
+                screenFocused &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive);
 
             if (isActive && !wasActiveRef.current && everActiveRef.current) {
                 player.currentTime = 0;
@@ -277,10 +719,16 @@ function VideoPlayerCore({
             }
 
             if (shouldPlay && isMountedRef.current) {
+                if (!standalonePlayback && !claimFeedAudio(item.id)) {
+                    return;
+                }
                 player.play();
                 setIsPlaying(true);
             } else if (isMountedRef.current) {
                 player.pause();
+                if (!standalonePlayback) {
+                    releaseFeedAudio(item.id);
+                }
                 setIsPlaying(false);
             }
 
@@ -297,10 +745,15 @@ function VideoPlayerCore({
         player,
         item.is_sensitive,
         playSensitive,
+        isManuallyPaused,
+        playerEpoch,
+        playbackAllowed,
+        item.id,
+        standalonePlayback,
     ]);
 
     useEffect(() => {
-        if (ANDROID_VIDEO_SAFE_MODE) {
+        if (ANDROID_VIDEO_SAFE_MODE || !isFeedPlaybackActive()) {
             return;
         }
         const url = item.media?.src_url;
@@ -312,7 +765,6 @@ function VideoPlayerCore({
 
     useEffect(() => {
         if (!isActive) {
-            manualControlRef.current = false;
             setPlaySensitive(false);
         }
     }, [isActive]);
@@ -332,53 +784,114 @@ function VideoPlayerCore({
         onRepost(item.id, !isReposted);
     };
 
-    const togglePlayPause = () => {
-        if (!player || !isMountedRef.current) return;
+    const flashPauseHint = useCallback((icon: 'play' | 'pause') => {
+        if (pauseHintTimeoutRef.current) {
+            clearTimeout(pauseHintTimeoutRef.current);
+        }
+        setPauseHintIcon(icon);
+        setShowPauseHint(true);
+        pauseHintTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+                setShowPauseHint(false);
+            }
+        }, 600);
+    }, []);
+
+    const togglePlayPause = useCallback(() => {
+        if (!isPlayerUsable(player) || !isMountedRef.current || !isActive) return;
 
         try {
-            manualControlRef.current = true;
-
-            if (isPlaying) {
+            // player.playing can lag on Android; fall back to synced playingChange state.
+            const currentlyPlaying = player.playing ?? isPlaying;
+            if (currentlyPlaying) {
                 player.pause();
+                if (!standalonePlayback) {
+                    releaseFeedAudio(item.id);
+                }
                 setIsPlaying(false);
+                setManuallyPaused(item.id, true);
+                flashPauseHint('play');
             } else {
                 player.play();
+                if (!standalonePlayback) {
+                    claimFeedAudio(item.id);
+                }
                 setIsPlaying(true);
+                setManuallyPaused(item.id, false);
+                flashPauseHint('pause');
             }
         } catch (error) {
             console.log('Toggle play/pause error:', error);
         }
-    };
+    }, [flashPauseHint, isActive, isPlaying, item.id, player, setManuallyPaused]);
 
-    const handleScreenPress = () => {
-        if (!isMountedRef.current) {
+    const handleTapOverlay = useCallback(() => {
+        togglePlayPause();
+    }, [togglePlayPause]);
+
+    const handleUseAudio = () => {
+        if (!item.permissions?.can_use_audio) {
+            Alert.alert('Not available', 'The creator has not allowed reuse of this audio.');
+            return;
+        }
+        if (!canUseFlipCamera) {
+            Alert.alert(
+                'Camera required',
+                'Open the Create tab to record a new video using this audio.',
+            );
             return;
         }
 
-        const newShowControls = !showControls;
-        setShowControls(newShowControls);
+        const source = item.audioSource ?? {
+            username: item.account.username,
+            profileId: item.account.id,
+            postUri: item.id,
+            isOriginal: true,
+        };
+        const referenceVideoUrl = item.media?.src_url;
+        const remixSource = {
+            ...source,
+            isOriginal: false,
+            referenceVideoUrl,
+        };
 
-        if (controlsTimeoutRef.current) {
-            clearTimeout(controlsTimeoutRef.current);
-            controlsTimeoutRef.current = null;
+        setPendingAudioReuse(remixSource);
+
+        if (__DEV__) {
+            console.log('[Remix] queued', {
+                username: source.username,
+                referenceVideoUrl: referenceVideoUrl?.slice(0, 80),
+            });
         }
 
-        if (newShowControls) {
-            controlsTimeoutRef.current = setTimeout(() => {
-                if (isMountedRef.current) {
-                    setShowControls(false);
-                    manualControlRef.current = false;
-                }
-            }, 3000);
-        } else {
-            manualControlRef.current = false;
-        }
+        Alert.alert(
+            'Remix with this sound',
+            referenceVideoUrl
+                ? `Reference audio from @${source.username} will play while you record. Audio credit is attached to your post when you publish.`
+                : `Audio credit from @${source.username} will be attached to your post. Record your video with this sound in mind.`,
+            [
+                {
+                    text: 'Cancel',
+                    style: 'cancel',
+                    onPress: () => usePendingAudioReuseStore.getState().clearPending(),
+                },
+                {
+                    text: 'Record remix',
+                    onPress: () => {
+                        prepareForCameraCapture();
+                        InteractionManager.runAfterInteractions(() => {
+                            router.push('/create');
+                        });
+                    },
+                },
+            ],
+        );
     };
 
     useEffect(() => {
         return () => {
-            if (controlsTimeoutRef.current) {
-                clearTimeout(controlsTimeoutRef.current);
+            if (pauseHintTimeoutRef.current) {
+                clearTimeout(pauseHintTimeoutRef.current);
             }
         };
     }, []);
@@ -387,8 +900,7 @@ function VideoPlayerCore({
         setPlaySensitive(true);
     };
 
-    const likeCount =
-        safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
+    const likeCount = safeCount(item.likes) + (isLiked && !item.has_liked ? 1 : 0);
     const bookmarkCount =
         safeCount(item.bookmarks) + (isBookmarked && !item.has_bookmarked ? 1 : 0);
     const repostCount =
@@ -396,13 +908,18 @@ function VideoPlayerCore({
         (isReposted && !item.has_reposted ? 1 : 0) -
         (!isReposted && item.has_reposted ? 1 : 0);
 
-    if (!player) {
-        return <VideoSlidePlaceholder item={item} />;
+    const videoViewPlayer =
+        viewPlayer && isPlayerUsable(viewPlayer) && playerRef.current === viewPlayer
+            ? viewPlayer
+            : null;
+
+    if (!srcUrl) {
+        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
     if (item.is_sensitive && !playSensitive) {
         return (
-            <View style={styles.videoContainer}>
+            <View style={[styles.videoContainer, { height: slideHeight }]}>
                 <View
                     style={styles.sensitiveOverlay}
                     accessible={true}
@@ -434,57 +951,60 @@ function VideoPlayerCore({
         );
     }
 
-    const hidePoster = videoReady && isActive;
+    const showVideoSurface =
+        isActive &&
+        (firstFrameRendered || (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
+    const hidePoster = showVideoSurface;
 
-    return (
-        <View style={styles.videoContainer}>
+    const videoBody = (
+        <View style={[styles.videoContainer, { height: slideHeight }]}>
             <View style={styles.videoWrapper}>
                 {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
-                <VideoView
-                    style={[styles.video, !hidePoster && styles.videoHiddenUntilReady]}
-                    player={player}
-                    allowsPictureInPicture={false}
-                    nativeControls={false}
-                    accessible={true}
-                    accessibilityLabel={item.media.alt_text || 'Video content'}
-                    accessibilityHint="Tap to show playback controls"
-                    contentFit="contain"
-                />
-
-                <Pressable
-                    style={StyleSheet.absoluteFill}
-                    onPress={() => handleScreenPress()}
-                    disabled={showControls}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to show playback controls"
-                    accessibilityRole="button"
-                />
-
-                {showControls && (
-                    <View style={styles.controlsOverlay} pointerEvents="box-none">
-                        <TouchableOpacity
-                            onPress={(e) => {
-                                e?.stopPropagation?.();
-                                togglePlayPause();
-                            }}
-                            style={styles.playButton}
-                            activeOpacity={0.7}
-                            accessible={true}
-                            accessibilityLabel={isPlaying ? 'Pause video' : 'Play video'}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: isPlaying }}>
-                            <Ionicons name={isPlaying ? 'pause' : 'play'} size={60} color="white" />
-                        </TouchableOpacity>
-                    </View>
-                )}
+                {videoViewPlayer ? (
+                    <VideoView
+                        key={`${srcUrl}-${viewEpoch}`}
+                        style={styles.video}
+                        player={videoViewPlayer}
+                        allowsPictureInPicture={false}
+                        nativeControls={false}
+                        pointerEvents="none"
+                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        onFirstFrameRender={handleFirstFrameRender}
+                        accessible={true}
+                        accessibilityLabel={item.media.alt_text || 'Video content'}
+                        accessibilityHint="Tap to pause or play"
+                        contentFit="cover"
+                    />
+                ) : null}
             </View>
 
-            <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                style={styles.gradientOverlay}
-                pointerEvents="none"
+            <Pressable
+                style={styles.tapOverlay}
+                onPress={handleTapOverlay}
+                collapsable={false}
+                accessible={true}
+                accessibilityLabel="Video"
+                accessibilityHint="Tap to pause or play"
+                accessibilityRole="button"
             />
+
+            {showPauseHint && (
+                <View style={styles.controlsOverlay} pointerEvents="none">
+                    <View style={styles.playButton}>
+                        <Ionicons name={pauseHintIcon} size={60} color="white" />
+                    </View>
+                </View>
+            )}
+
+            <View
+                pointerEvents="none"
+                style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
+                <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                    style={StyleSheet.absoluteFillObject}
+                    pointerEvents="none"
+                />
+            </View>
 
             <FeedActionRail
                 avatarUrl={item.account?.avatar}
@@ -492,11 +1012,13 @@ function VideoPlayerCore({
                 isLiked={isLiked}
                 isBookmarked={isBookmarked}
                 isReposted={isReposted}
+                isMuted={feedMuted}
                 likeCount={likeCount}
                 commentCount={safeCount(item.comments)}
                 bookmarkCount={bookmarkCount}
                 repostCount={repostCount}
                 canComment={item.permissions?.can_comment}
+                canUseAudio={canUseAudio}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
                 overlayBottom={actionRailBottom ?? overlayBottom}
@@ -506,10 +1028,12 @@ function VideoPlayerCore({
                 onBookmark={handleBookmark}
                 onRepost={handleRepost}
                 onShare={() => onShare(item)}
+                onMuteToggle={toggleFeedMuted}
+                onUseAudio={handleUseAudio}
                 onOther={() => onOther(item)}
             />
 
-            <View style={[styles.bottomInfo, { bottom: captionBottom }]}>
+            <View style={[styles.bottomInfo, { bottom: captionBottom }]} pointerEvents="box-none">
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
@@ -518,7 +1042,7 @@ function VideoPlayerCore({
                     accessible={true}
                     accessibilityLabel={`View @${item.account.username}'s profile`}
                     accessibilityRole="link">
-                    <Text style={styles.username}>@{item.account.username}</Text>
+                    <MentionText username={item.account.username} style={styles.username} />
                 </TouchableOpacity>
                 {item.caption && (
                     <LinkifiedCaption
@@ -527,6 +1051,7 @@ function VideoPlayerCore({
                         mentions={item.mentions || []}
                         style={styles.caption}
                         numberOfLines={1}
+                        onCaptionPress={() => onCaptionExpand?.(item)}
                         onHashtagPress={(tag) => {
                             onNavigate?.();
                             router.push(`/private/search?query=${tag}`);
@@ -537,7 +1062,7 @@ function VideoPlayerCore({
                             if (!target) return;
                             router.push(toProfilePath(target));
                         }}
-                        onMorePress={() => onComment(item)}
+                        onMorePress={() => onCaptionExpand?.(item)}
                     />
                 )}
 
@@ -553,19 +1078,33 @@ function VideoPlayerCore({
                     </View>
                 )}
 
-                <View
+                <TouchableOpacity
                     style={styles.audioInfo}
+                    onPress={() => {
+                        const target = showRemixedAudio
+                            ? (item.audioSource?.profileId ?? item.audioSource?.username)
+                            : item.account.id;
+                        if (!target) return;
+                        onNavigate?.();
+                        router.push(toProfilePath(target));
+                    }}
                     accessible={true}
-                    accessibilityLabel="Original Audio"
-                    accessibilityRole="text">
+                    accessibilityLabel={
+                        showRemixedAudio
+                            ? `Audio from ${audioLabel}`
+                            : 'Original audio from this creator'
+                    }
+                    accessibilityRole="button">
                     <Ionicons
                         name="musical-notes"
                         size={14}
                         color="white"
                         importantForAccessibility="no"
                     />
-                    <Text style={styles.audioText}>Original Audio</Text>
-                </View>
+                    <Text style={styles.audioText}>
+                        {showRemixedAudio ? `♪ ${audioLabel}` : audioLabel}
+                    </Text>
+                </TouchableOpacity>
 
                 {item?.meta?.contains_ad && (
                     <View>
@@ -581,22 +1120,25 @@ function VideoPlayerCore({
             </View>
         </View>
     );
+
+    return videoBody;
 }
 
 const styles = StyleSheet.create({
     videoContainer: {
         width: SCREEN_WIDTH,
-        height: SCREEN_HEIGHT,
         position: 'relative',
+        overflow: 'hidden',
     },
     videoWrapper: {
         flex: 1,
         backgroundColor: POSTER_BG,
+        overflow: 'hidden',
     },
     posterLayer: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: POSTER_BG,
-        zIndex: 0,
+        zIndex: 2,
     },
     posterImage: {
         width: '100%',
@@ -608,16 +1150,20 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
         zIndex: 1,
     },
-    videoHiddenUntilReady: {
-        opacity: 0,
+    tapOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 4,
+        elevation: 4,
+        // Near-transparent fill so Android delivers taps inside FlatList cells.
+        backgroundColor: 'rgba(0,0,0,0.001)',
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.3)',
-        zIndex: 10,
-        elevation: 10,
+        zIndex: 8,
+        elevation: 8,
     },
     playButton: {
         width: 80,
@@ -680,9 +1226,10 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 12,
         right: 80,
+        zIndex: 6,
+        elevation: 6,
     },
     username: {
-        color: 'white',
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 4,
@@ -706,7 +1253,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        opacity: 0.6,
+        opacity: 0.85,
+        alignSelf: 'flex-start',
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 14,
+        marginTop: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
@@ -721,8 +1274,9 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 0,
         height: '20%',
+        zIndex: 3,
+        elevation: 3,
     },
     aiLabelWrapper: {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',

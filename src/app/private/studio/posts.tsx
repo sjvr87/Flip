@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import tw from 'twrnc';
 
-const ACCENT = '#F02C56';
+const ACCENT = '#22D3EE';
 
 type MetricId = 'all' | 'pinned' | 'processing';
 
@@ -99,13 +99,7 @@ interface TabPillProps {
 }
 
 const TabPill = ({ tab, active, onPress, isDark }: TabPillProps) => {
-    const iconColor = active
-        ? isDark
-            ? '#000'
-            : '#FFF'
-        : isDark
-          ? '#9CA3AF'
-          : '#6B7280';
+    const iconColor = active ? (isDark ? '#000' : '#FFF') : isDark ? '#9CA3AF' : '#6B7280';
 
     return (
         <Pressable

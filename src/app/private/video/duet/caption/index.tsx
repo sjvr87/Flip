@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { XStack, YStack } from '@/components/ui/Stack';
 import { composeAutocompleteMentions, composeAutocompleteTags, uploadDuet } from '@/utils/requests';
@@ -481,9 +482,10 @@ export default function DuetCaptionScreen() {
                                                 style={styles.suggestionContent}
                                                 justifyContent="center">
                                                 <XStack flex={1} gap="$1" alignItems="center">
-                                                    <Text style={styles.suggestionName}>
-                                                        @{item.username}
-                                                    </Text>
+                                                    <MentionText
+                                                        username={item.username}
+                                                        style={styles.mentionSuggestionName}
+                                                    />
                                                     <Text>·</Text>
                                                     <Text style={styles.suggestionMetaSmall}>
                                                         {prettyCount(item.follower_count)} Followers
@@ -1032,6 +1034,10 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#000',
     },
+    mentionSuggestionName: {
+        fontSize: 15,
+        fontWeight: '600',
+    },
     suggestionMeta: {
         fontSize: 13,
         color: '#666',
@@ -1253,7 +1259,7 @@ const styles = StyleSheet.create({
         width: 30,
         height: 30,
         borderRadius: 30,
-        backgroundColor: '#F02C56',
+        backgroundColor: '#22D3EE',
         justifyContent: 'center',
         alignItems: 'center',
     },

@@ -1,11 +1,12 @@
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 import { Platform } from 'react-native';
+import { getFeedNetworkProfile } from '@/utils/feedNetworkQuality';
+import { isFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { buildFeedVideoSource } from '@/utils/feedVideoSource';
 
 /** Disabled on Android — prefetch players SIGSEGV Hermes on Samsung / Android 17 beta. */
 const prefetchEnabled = Platform.OS !== 'android';
 
-/** Keep low — each player holds ExoPlayer + Hermes event listeners (OOM/SIGSEGV on Samsung). */
-const MAX_PREFETCH_PLAYERS = 2;
 const prefetched = new Map<string, VideoPlayer>();
 
 function releasePrefetch(url: string) {
@@ -21,13 +22,30 @@ function releasePrefetch(url: string) {
     prefetched.delete(url);
 }
 
+function maxPrefetchPlayers(): number {
+    const { prefetchAhead, tier } = getFeedNetworkProfile();
+    if (tier === 'offline' || tier === 'slow') {
+        return 0;
+    }
+    return prefetchAhead > 0 ? 1 : 0;
+}
+
 function trimPrefetchCache() {
-    while (prefetched.size > MAX_PREFETCH_PLAYERS) {
+    const max = maxPrefetchPlayers();
+    while (prefetched.size > max) {
         const oldest = prefetched.keys().next().value;
         if (!oldest) {
             break;
         }
         releasePrefetch(oldest);
+    }
+}
+
+function applyBufferOptions(player: VideoPlayer) {
+    try {
+        player.bufferOptions = getFeedNetworkProfile().bufferOptions;
+    } catch {
+        // non-fatal
     }
 }
 
@@ -46,28 +64,50 @@ export function takePrefetchedPlayer(url: string | undefined | null): VideoPlaye
 
 /** Warm HLS cache for a URL without mounting a visible VideoPlayer. */
 export async function prefetchVideoUrl(url: string | undefined | null): Promise<void> {
-    if (!prefetchEnabled || !url || prefetched.has(url)) {
+    if (!prefetchEnabled || !url || !isFeedPlaybackActive()) {
+        return;
+    }
+    if (maxPrefetchPlayers() === 0) {
+        return;
+    }
+    if (prefetched.has(url)) {
+        return;
+    }
+
+    const source = buildFeedVideoSource(url);
+    if (!source) {
         return;
     }
 
     try {
-        const player = createVideoPlayer(url);
+        const player = createVideoPlayer(source);
         player.muted = true;
+        applyBufferOptions(player);
         prefetched.set(url, player);
         trimPrefetchCache();
-        // replaceAsync warms the HLS manifest only — play()/pause() races EventEmitter
-        // callbacks and SIGSEGVs Hermes when the player is transferred or released.
-        await player.replaceAsync(url);
+        await player.replaceAsync(source);
     } catch {
         releasePrefetch(url);
     }
 }
 
 export function prefetchVideoUrls(urls: (string | undefined | null)[]): void {
-    if (!prefetchEnabled) {
+    if (!prefetchEnabled || !isFeedPlaybackActive()) {
         return;
     }
+    const max = maxPrefetchPlayers();
+    if (max === 0) {
+        return;
+    }
+    let count = 0;
     for (const url of urls) {
+        if (!url || prefetched.has(url)) {
+            continue;
+        }
+        if (count >= max) {
+            break;
+        }
+        count += 1;
         void prefetchVideoUrl(url);
     }
 }
@@ -75,5 +115,13 @@ export function prefetchVideoUrls(urls: (string | undefined | null)[]): void {
 export function releaseAllVideoPrefetch(): void {
     for (const url of [...prefetched.keys()]) {
         releasePrefetch(url);
+    }
+}
+
+export function cancelOffscreenPrefetch(keepUrls: Set<string>): void {
+    for (const url of [...prefetched.keys()]) {
+        if (!keepUrls.has(url)) {
+            releasePrefetch(url);
+        }
     }
 }

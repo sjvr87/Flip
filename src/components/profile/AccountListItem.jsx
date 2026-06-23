@@ -1,3 +1,4 @@
+import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useAuthStore } from '@/utils/authStore';
@@ -41,12 +42,10 @@ export default function AccountListItem(props) {
                                 {props.item?.name || props.item?.username}
                             </StackText>
                         </XStack>
-                        <StackText
-                            fontSize="$3"
-                            style={tw`text-gray-500 dark:text-gray-400`}
-                            numberOfLines={1}>
-                            {props.item?.username}
-                        </StackText>
+                        <MentionText
+                            username={props.item?.username}
+                            style={{ fontSize: 14, fontWeight: '600' }}
+                        />
                     </YStack>
                 </XStack>
 
@@ -79,7 +78,7 @@ export default function AccountListItem(props) {
                     </Pressable>
                 ) : (
                     <Pressable
-                        style={tw`bg-[#F02C56] px-6 py-2 rounded-lg min-w-[100px] items-center justify-center`}
+                        style={tw`bg-[#22D3EE] px-6 py-2 rounded-lg min-w-[100px] items-center justify-center`}
                         onPress={() => {
                             if (!isLoading) {
                                 props.handleFollow(props.item?.id);

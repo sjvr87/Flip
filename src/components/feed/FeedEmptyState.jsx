@@ -6,8 +6,9 @@ import tw from 'twrnc';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export default function FeedEmptyState({ tab, onRefresh, error }) {
+export default function FeedEmptyState({ tab, onRefresh, error, itemHeight }) {
     const router = useRouter();
+    const slideHeight = itemHeight ?? SCREEN_HEIGHT;
 
     const content = useMemo(() => {
         const sessionExpired =
@@ -54,8 +55,7 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
                 return {
                     icon: 'checkmark-circle-outline',
                     title: "You're all caught up",
-                    subtitle:
-                        'Follow more creators for new Flips, or pull down to refresh.',
+                    subtitle: 'Follow more creators for new Flips, or pull down to refresh.',
                     primary: {
                         label: 'Find creators',
                         onPress: () => router.push('/explore'),
@@ -99,7 +99,7 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
     }, [tab, onRefresh, router, error]);
 
     return (
-        <View style={[tw`items-center justify-center px-10 bg-black`, { height: SCREEN_HEIGHT }]}>
+        <View style={[tw`items-center justify-center px-10 bg-black`, { height: slideHeight }]}>
             <View style={tw`w-20 h-20 rounded-full items-center justify-center mb-5 bg-gray-900`}>
                 <Ionicons name={content.icon} size={36} style={tw`text-gray-200`} />
             </View>
@@ -112,7 +112,7 @@ export default function FeedEmptyState({ tab, onRefresh, error }) {
                     onPress={content.primary.onPress}
                     accessibilityRole="button"
                     accessibilityLabel={content.primary.label}
-                    style={tw`px-6 py-3 rounded-full bg-[#F02C56]`}>
+                    style={tw`px-6 py-3 rounded-full bg-[#22D3EE]`}>
                     <Text style={tw`font-semibold text-base text-white`}>
                         {content.primary.label}
                     </Text>
