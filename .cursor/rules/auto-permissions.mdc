@@ -1,29 +1,76 @@
+# Cursor Auto-Permissions for Flip Dev
+
+## Overview
+This project uses auto-allow permissions for both Copilot and Cursor agents. All development work is pre-authorized to minimize approval delays.
+
+## Setup (One-time)
+
+### 1. Cursor UI Settings
+- Open: **Settings → Cursor Settings → Agents → Approvals & Execution**
+- Set: **Run Mode → Run Everything**
+- Reload: `Ctrl+Shift+P` → **Developer: Reload Window**
+
+This disables approval prompts for all authorized commands.
+
+### 2. Permission Files (Already in Repo)
+- `.cursor/permissions.json` — Flip-specific allowlists + auto-approve rules
+- Global user config: `C:\Users\tomas\.cursor\permissions.json` (if needed for cross-project)
+
+## What's Auto-Allowed
+
+✅ **Git & Version Control**
+- `git pull`, `git push`, `git checkout`, `git merge`
+
+✅ **Package Management**
+- `npm install`, `npm run` (all scripts)
+
+✅ **Android Development**
+- `adb devices`, `adb reverse`, `adb shell`, `adb push`, `adb pull`
+- `gradle build`, `./gradlew`
+- `expo prebuild`, `expo run:android`, `expo start`
+
+✅ **Device Testing**
+- `flip-*.bat` scripts (dev-connect, reset, reload, etc.)
+- Metro bundler operations
+- App launching and debugging
+
+✅ **Workspace Operations**
+- File writes within project directory
+- Network calls (GitHub API, package registries, etc.)
+- Full sandbox disable for builds
+
+## What's Still Blocked
+
+❌ **Secrets & Security**
+- Cannot commit `.env` files or credentials
+- Cannot force push to `main` or `master`
+
+❌ **Destructive Operations**
+- Some delete/reset operations may still prompt for confirmation
+
+## Agent Coordination
+
+Both Copilot and Cursor operate under these rules:
+
+1. **No approval chains** — execute immediately when authorized
+2. **No context switching** — stay on current task/blocker
+3. **Tag & sync only** — communicate on completion or hard blocker
+4. **Auto-merge PRs** — other agent approves if code is sound
+
+See `.github/AGENT_COORDINATION.md` for full workflow.
+
+## Troubleshooting
+
+**Approval prompt still appearing?**
+- Verify Run Mode is set to "Run Everything" (not Smart Mode)
+- Check that `permissions.json` is in `.cursor/` (repo-level, not workspace root)
+- Reload Cursor: `Ctrl+Shift+P` → Developer: Reload Window
+
+**Command not in allowlist?**
+- Edit `.cursor/permissions.json` → `terminalAllowlist` array
+- Add the command prefix (e.g., `my-script`) and reload
+
 ---
-description: User pre-authorizes tool permissions; agents should act without asking for routine approval.
-alwaysApply: true
----
 
-# Auto-permissions (pre-authorized)
-
-The user has **pre-authorized** all standard agent tool permissions for this project:
-
-- `git_write` — stage, commit, branch operations
-- `network` / `full_network` — npm install, gh, adb, API calls, package registries
-- `all` — disable sandbox when a command needs broader filesystem or system access
-
-## How agents should behave
-
-1. **Request permissions proactively** — when a shell command or tool call needs `git_write`, `full_network`, `network`, or `all`, include `required_permissions` on the first attempt. Do not run a doomed sandboxed command first and retry only after failure.
-2. **Dev builds: always `all`** — for `flip-dev.bat`, `android:dev`, Gradle, adb, Metro, and git push/fetch, use `required_permissions: ["all"]` on the first attempt. See [dev-permissions.mdc](dev-permissions.mdc).
-3. **Do not pause for permission** — for routine dev work (build, test, install deps, push, adb, CI checks, gh), proceed without asking "may I run this?" or "should I push?"
-4. **Pair with auto-push** — after meaningful Flip work, follow [auto-push-progress.mdc](auto-push-progress.mdc) unless the user says not to push.
-
-## Still required (non-negotiable)
-
-- **Never commit secrets** — `.env`, credentials, API keys, tokens.
-- **Git safety** — no force push to `main`/`master`; no destructive git unless explicitly requested; follow existing commit/amend/hook rules.
-- **Scope** — only request `all` or elevated permissions when the task actually needs them.
-
-## Cursor UI note
-
-Cursor may still show approval cards for some operations (sandbox, network, git). The user intends to approve those when prompted; agents should not treat UI prompts as a reason to stop and ask in chat first.
+**Last updated:** 2026-06-23
+**Applies to:** All Copilot + Cursor sessions on this repo
