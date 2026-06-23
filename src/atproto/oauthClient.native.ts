@@ -87,9 +87,9 @@ class FlipExpoOAuthClient extends OAuthClient {
         return null;
     }
 
-    /** Await SecureStore writes before browser redirect or token exchange. */
+    /** Await SecureStore writes (state/PKCE) before browser redirect or token exchange. */
     async readyStores(): Promise<void> {
-        await Promise.all([this.#dpopNonceCache.ready(), this.#stateStore.ready()]);
+        await this.#stateStore.ready();
     }
 
     /** Drop stale PKCE/state and DPoP nonces before a new sign-in attempt. */

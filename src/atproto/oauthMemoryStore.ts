@@ -79,4 +79,7 @@ export class MemorySimpleStoreTTL<V extends Value>
             }
         }
     }
+
+    /** No-op — in-memory writes are synchronous (SecureSimpleStoreTTL awaits disk). */
+    async ready(): Promise<void> {}
 }
