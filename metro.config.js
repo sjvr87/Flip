@@ -17,7 +17,9 @@ function warmUpBundle(platform) {
         },
     );
 
-    request.on('error', () => {});
+    request.on('error', (error) => {
+        console.debug(`[metro] bundle warm-up skipped for ${platform}: ${error.message}`);
+    });
 }
 
 config.server.enhanceMiddleware = (middleware, server) => {

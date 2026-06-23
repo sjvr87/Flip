@@ -369,7 +369,7 @@ function Start-FlipApp {
 function Write-NoLanIpHelp {
   Write-Host ""
   Write-Host "============================================================" -ForegroundColor Red
-  Write-Host "  NO DEV-SERVER HOST FOUND - phone cannot reach Metro safely" -ForegroundColor Red
+  Write-Host "  NO DEV SERVER HOST FOUND - phone cannot reach Metro safely" -ForegroundColor Red
   Write-Host "============================================================" -ForegroundColor Red
   Write-Host ""
   Write-Host "Flip dev uses 127.0.0.1 over USB (adb reverse) and your PC LAN address over Wi-Fi." -ForegroundColor Yellow
