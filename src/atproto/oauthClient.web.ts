@@ -13,6 +13,18 @@ WebBrowser.maybeCompleteAuthSession();
 let client: ExpoOAuthClientType | null = null;
 let initError: Error | null = null;
 
+export async function resetOAuthClient(): Promise<void> {
+    if (client) {
+        try {
+            await client[Symbol.asyncDispose]();
+        } catch (error) {
+            console.warn('[auth] OAuth client dispose failed:', error);
+        }
+        client = null;
+    }
+    initError = null;
+}
+
 export function getOAuthClient(): ExpoOAuthClientType {
     if (initError) {
         throw initError;

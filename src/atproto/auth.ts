@@ -20,7 +20,11 @@ import {
     withAuthenticatedFetch,
 } from './agent';
 import { clearCredentials, getSavedCredentials } from './credentialVault';
-import { getOAuthClient } from './oauthClient';
+import { getOAuthClient, resetOAuthClient } from './oauthClient';
+import {
+    oauthMetadataPreflightMessage,
+    preflightOAuthClientMetadata,
+} from './oauthClientMetadata';
 import type { FlipAppConfig, FlipUserProfile } from './types';
 import { Storage } from '@/utils/cache';
 
@@ -71,44 +75,62 @@ function fetchProfileInBackground(): void {
     })();
 }
 
+/** Map Bluesky OAuth / SecureStore failures to actionable sign-in messages. */
+function mapOAuthSignInError(error: unknown): string {
+    const raw =
+        error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
+
+    if (raw.toLowerCase().includes('cancel')) {
+        return 'Sign-in cancelled.';
+    }
+    if (raw.includes('Failed to resolve identity')) {
+        return 'Could not reach Bluesky for sign-in. Check your connection and try again.';
+    }
+    if (
+        raw.includes('Invalid key provided to SecureStore') ||
+        (raw.includes('SecureStore') && raw.includes('Invalid key'))
+    ) {
+        return 'Sign-in storage failed (invalid secure key). Close the app, reopen, and try again.';
+    }
+    if (raw.includes('use_dpop_nonce') || raw.includes('"use_dpop_nonce"')) {
+        return 'Bluesky sign-in security handshake failed. Close the app, reopen, and try again.';
+    }
+    if (raw.includes('invalid_redirect_uri')) {
+        return 'Flip sign-in redirect URI was rejected by Bluesky. Update the app and try again.';
+    }
+    if (raw.includes('Invalid client metadata content type')) {
+        return 'Bluesky could not read Flip sign-in config (wrong content type from flip.app).';
+    }
+    if (
+        raw.includes('client metadata') ||
+        raw.includes('client_id') ||
+        raw.includes('invalid_client')
+    ) {
+        return 'Bluesky could not load Flip sign-in configuration from flip.app. Try again in a minute.';
+    }
+    return raw;
+}
+
 export async function loginWithOAuth(): Promise<FlipSessionUser> {
     clearSession();
     clearFollowingDidsCache();
+
+    await resetOAuthClient();
+
+    const preflight = await preflightOAuthClientMetadata();
+    if (!preflight.ok) {
+        throw new Error(oauthMetadataPreflightMessage(preflight));
+    }
 
     let session;
     try {
         // PDS URL (https://) — not handle "bsky.social" — or OAuth resolver treats it as identity and fails.
         session = await getOAuthClient().signIn('https://bsky.social');
     } catch (error) {
-        const raw =
-            error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
         if (__DEV__) {
             console.warn('[auth] Bluesky OAuth error:', error);
         }
-        if (raw.toLowerCase().includes('cancel')) {
-            throw new Error('Sign-in cancelled.');
-        }
-        if (raw.includes('Failed to resolve identity')) {
-            throw new Error(
-                'Could not reach Bluesky for sign-in. Check your connection and try again.',
-            );
-        }
-        if (
-            raw.includes('client metadata') ||
-            raw.includes('client_id') ||
-            raw.includes('invalid_client') ||
-            raw.includes('Invalid client metadata content type')
-        ) {
-            throw new Error(
-                'Bluesky could not load Flip sign-in configuration. Try again in a minute.',
-            );
-        }
-        if (raw.includes('use_dpop_nonce') || raw.includes('"use_dpop_nonce"')) {
-            throw new Error(
-                'Bluesky sign-in security handshake failed. Close the app, reopen, and try again.',
-            );
-        }
-        throw new Error(raw);
+        throw new Error(mapOAuthSignInError(error));
     }
 
     setOAuthSession(session);

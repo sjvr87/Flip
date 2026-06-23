@@ -113,6 +113,18 @@ export type ExpoOAuthClient = FlipExpoOAuthClient;
 let client: FlipExpoOAuthClient | null = null;
 let initError: Error | null = null;
 
+export async function resetOAuthClient(): Promise<void> {
+    if (client) {
+        try {
+            await client[Symbol.asyncDispose]();
+        } catch (error) {
+            console.warn('[auth] OAuth client dispose failed:', error);
+        }
+        client = null;
+    }
+    initError = null;
+}
+
 export function getOAuthClient(): FlipExpoOAuthClient {
     if (initError) {
         throw initError;

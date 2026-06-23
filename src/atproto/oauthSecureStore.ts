@@ -1,6 +1,8 @@
 import type { SimpleStore, Value } from '@atproto-labs/simple-store';
 import * as SecureStore from 'expo-secure-store';
 
+import { secureStoreKeySegment } from './secureStoreKeySegment';
+
 export type SecureSimpleStoreTTLOptions<V extends Value> = {
     storagePrefix: string;
     expiresAt: (value: V) => null | number;
@@ -53,7 +55,7 @@ export class SecureSimpleStoreTTL<V extends Value>
     }
 
     #storageKey(key: string): string {
-        return `${this.#prefix}.${encodeURIComponent(key)}`;
+        return `${this.#prefix}.${secureStoreKeySegment(key)}`;
     }
 
     get(key: string): V | undefined | Promise<V | undefined> {
