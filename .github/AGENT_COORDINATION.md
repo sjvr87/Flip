@@ -144,3 +144,10 @@ AUTO-EXECUTE (no user approval needed):
 **Work Mode:** Full parallel (simultaneous execution)
 **PR Approval:** Auto-approve each other (no manual review)
 **Sync Frequency:** Real-time status updates as progress happens
+
+
+## Handoff Log
+
+| When (UTC) | Agent | Status | Notes |
+|------------|-------|--------|-------|
+| 2026-06-23 (overnight) | Cursor (overnight subagent) | User sleeping - no device testing | Device sign-in showed **"could not load flip sign in configuration"** (OAuth metadata/config load failure). **Do not merge PRs overnight.** OAuth/auth file changes owned by other agent - Metro/dev PR work only. PR #2 (debug/metro-fix) does **not** rebase cleanly on main (conflicts: package.json, src/app/sign-in.tsx). PR #7 (perf) CI red: Lint/Type Check, Android build, review-and-merge; Dependency Audit pass. |
