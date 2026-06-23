@@ -8,7 +8,7 @@ import metadata from '../../assets/oauth-client-metadata.json';
  * After merging to main, switch HOSTED_METADATA_URL to @main jsDelivr URL or flip.app.
  */
 const HOSTED_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@8739e3b/assets/oauth-client-metadata.json';
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@main/assets/oauth-client-metadata.json';
 
 export function getOAuthClientMetadata() {
     return {
