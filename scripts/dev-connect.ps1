@@ -424,7 +424,11 @@ function Write-DevStatus {
   if ($launchHost) {
     $via = if ($launchHost -eq "127.0.0.1") { " (USB adb reverse)" } else { "" }
     Write-Host "Launch URL: exp://${launchHost}:8081$via (bypasses dev launcher picker; Home via initialRouteName)"
-    Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - run flip-reset-dev.bat" }))
+    if ($launchHost -eq "127.0.0.1") {
+      Write-Host "Device Metro check: adb reverse tcp:8081 -> PC (Wi-Fi/LAN not required)" -ForegroundColor DarkGray
+    } else {
+      Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - use USB or fix firewall on 8081" }))
+    }
   } else {
     Write-Host "Launch URL: (no LAN IP - connect PC and phone to same Wi-Fi)" -ForegroundColor Yellow
   }
@@ -493,7 +497,7 @@ if ($Reset) {
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -555,7 +559,7 @@ if ($ConnectOnly -and -not $Reconnect) {
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
     }
   } else {
     Write-Host "[5/6] Launch/reload - skipped (no device)" -ForegroundColor Yellow
@@ -587,7 +591,7 @@ if ($Reconnect) {
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -625,7 +629,7 @@ if ($serials.Count -gt 0) {
     exit 1
   }
   foreach ($serial in $serials) {
-    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost
+    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $devHost -UsbReverse:($reverseOk)
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
