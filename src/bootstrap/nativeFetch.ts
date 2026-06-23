@@ -1,3 +1,4 @@
+import { installAbortSignalPolyfills } from './abortSignalPolyfill';
 import { Platform } from 'react-native';
 
 /**
@@ -28,6 +29,7 @@ function ensureReactNativeFetchPolyfill(): void {
     } catch {
         // Already initialized or unavailable in test environments.
     }
+    installAbortSignalPolyfills();
 }
 
 /** Touch RN's lazy fetch getter so globalThis.fetch is a real function. */

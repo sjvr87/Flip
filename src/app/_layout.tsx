@@ -218,7 +218,7 @@ function NativeAppContent() {
     return (
         <>
             <ThemedStatusBar />
-            <Stack initialRouteName="sign-in">
+            <Stack initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
                 <Stack.Protected guard={isLoggedIn}>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     <Stack.Screen name="private" options={{ headerShown: false }} />
