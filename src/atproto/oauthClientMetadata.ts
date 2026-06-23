@@ -8,7 +8,7 @@
  * After merging to main, switch HOSTED_METADATA_URL to @main jsDelivr URL or flip.app.
  */
 const HOSTED_METADATA_URL =
-    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/assets/oauth-client-metadata.json';
+    'https://cdn.jsdelivr.net/gh/sjvr87/Flip@bbdb96e/assets/oauth-client-metadata.json';
 
 const HOSTED_CLIENT_URI =
     'https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/';

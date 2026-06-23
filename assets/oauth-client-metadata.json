@@ -1,5 +1,5 @@
 ﻿{
-  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/assets/oauth-client-metadata.json",
+  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@bbdb96e/assets/oauth-client-metadata.json",
   "client_name": "Flip",
   "client_uri": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@perf/feed-swipe-smoothness/",
   "redirect_uris": ["app.flip:/oauth/callback"],
