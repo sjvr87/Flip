@@ -30,7 +30,9 @@
     "dev:connect:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -Reset",
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
-    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1"
+    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
+    "start:localhost": "expo start --dev-client --localhost --port 8081",
+    "start:localhost:clear": "expo start --dev-client --localhost --port 8081 --clear"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
@@ -74,8 +76,7 @@
     "react-native-compressor": "^1.13.0",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-keyboard-controller": "1.21.6",
-    "react-native-mmkv": "4.0.0-beta.12",
-    "react-native-nitro-modules": "^0.30.1",
+    "react-native-mmkv": "2.12.2",
     "react-native-reanimated": "4.3.1",
     "react-native-render-html": "^6.3.4",
     "react-native-safe-area-context": "~5.7.0",
@@ -106,5 +107,11 @@
     "prettier": "^3.6.2",
     "typescript": "~6.0.3"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "react-native-mmkv": "2.12.2",
+    "@atproto/oauth-client-expo": {
+      "react-native-mmkv": "2.12.2"
+    }
+  }
 }
