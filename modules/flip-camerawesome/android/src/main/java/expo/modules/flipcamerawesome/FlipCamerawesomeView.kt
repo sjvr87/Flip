@@ -297,10 +297,8 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
         } else {
           activeSession.stopRecording()
         }
+        activeSession.recoverAfterRecordingFailure()
         onRecordingError(mapOf("message" to msg))
-        post {
-          previewView.post { activeSession.refreshPreviewSurface() }
-        }
       },
     )
   }

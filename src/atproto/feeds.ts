@@ -14,6 +14,7 @@ import {
     postsToMediaPage,
     isMediaPost,
     isPhotoPost,
+    isTextOnlyPost,
     postToFlipItem,
     postToFlipTextPost,
     type MediaPageFilter,
@@ -25,7 +26,7 @@ import {
     SessionExpiredError,
     withAuthenticatedFetch,
 } from './agent';
-import { normalizeToPostUri, resolveMediaPostView } from './postResolve';
+import { normalizeToPostUri, resolveDisplayPostUri, resolveMediaPostView } from './postResolve';
 import type { FlipFeedPage, FlipTextPost, FlipVideo } from './types';
 
 type PageParam = string | false | null | undefined;
@@ -1722,7 +1723,17 @@ export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | Fl
             console.log('[postViewer] fetch', { videoUri, normalizedUri });
         }
 
-        const resolvedPost = await resolveMediaPostForViewer(agent, videoUri);
+        const displayUri = (await resolveDisplayPostUri(agent, videoUri)) ?? normalizedUri;
+        let resolvedPost = await resolveMediaPostForViewer(agent, displayUri);
+        if (!resolvedPost && displayUri !== normalizedUri) {
+            resolvedPost = await resolveMediaPostForViewer(agent, normalizedUri);
+        }
+        if (!resolvedPost) {
+            const mediaView = await resolveMediaPostView(agent, normalizedUri);
+            if (mediaView) {
+                resolvedPost = mediaView;
+            }
+        }
 
         const mediaItem = resolvedPost
             ? postToFlipItem({ post: resolvedPost, reply: undefined })
@@ -1733,6 +1744,7 @@ export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | Fl
                 console.log('[postViewer] result media', {
                     videoUri,
                     normalizedUri,
+                    displayUri,
                     resolvedUri: resolvedPost?.uri,
                     isPhoto: mediaItem.is_photo ?? mediaItem.media_type === 'photo',
                 });
@@ -1743,13 +1755,45 @@ export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | Fl
         let textSource = resolvedPost;
         if (!textSource) {
             try {
-                const postRes = await agent.getPosts({ uris: [normalizedUri] });
+                const postRes = await agent.getPosts({ uris: [displayUri] });
                 const fetched = postRes.data.posts[0];
                 if (fetched && fetched.$type !== 'app.bsky.feed.defs#notFoundPost') {
                     textSource = fetched;
                 }
             } catch {
-                // no text fallback
+                // Fall through to thread walk.
+            }
+        }
+
+        if (!textSource || !isTextOnlyPost(textSource)) {
+            try {
+                const res = await agent.getPostThread({
+                    uri: displayUri,
+                    depth: 0,
+                    parentHeight: 32,
+                });
+                const thread = res.data.thread;
+                if (thread.$type === 'app.bsky.feed.defs#threadViewPost') {
+                    const chain: AppBskyFeedDefs.PostView[] = [];
+                    let node: AppBskyFeedDefs.ThreadViewPost | undefined = thread;
+                    while (node) {
+                        chain.push(node.post);
+                        const parent = node.parent;
+                        if (!parent || parent.$type !== 'app.bsky.feed.defs#threadViewPost') {
+                            break;
+                        }
+                        node = parent;
+                    }
+                    const root = chain[chain.length - 1];
+                    if (root && isTextOnlyPost(root)) {
+                        textSource = root;
+                    } else {
+                        textSource =
+                            chain.find((post) => isTextOnlyPost(post)) ?? textSource;
+                    }
+                }
+            } catch {
+                // no thread fallback
             }
         }
 
@@ -1761,6 +1805,7 @@ export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | Fl
             console.log('[postViewer] result', {
                 videoUri,
                 normalizedUri,
+                displayUri,
                 resolvedUri: resolvedPost?.uri ?? textSource?.uri,
                 playable: !!textItem,
                 kind: textItem ? 'text' : 'none',

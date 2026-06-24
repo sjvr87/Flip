@@ -68,7 +68,7 @@ export default function NotificationsHubScreen() {
         queryFn: ({ pageParam, queryKey }) =>
             fetchActivityNotifications({ pageParam, type: queryKey[1] as string }),
         initialPageParam: undefined,
-        staleTime: 0,
+        staleTime: 60_000,
         refetchOnWindowFocus: true,
         enabled: mainTab === 'activity',
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
@@ -296,23 +296,21 @@ export default function NotificationsHubScreen() {
         useCallback(() => {
             if (mainTab !== 'activity') return;
             clearActivityUnread();
-            void markActivityViewed().then(() => {
-                queryClient.setQueryData(['main-notifications'], (old: any) => {
-                    if (!old?.meta?.unread_counts) return old;
-                    return {
-                        ...old,
-                        meta: {
-                            ...old.meta,
-                            unread_counts: {
-                                ...old.meta.unread_counts,
-                                activity: 0,
-                            },
+            queryClient.setQueryData(['main-notifications'], (old: any) => {
+                if (!old?.meta?.unread_counts) return old;
+                return {
+                    ...old,
+                    meta: {
+                        ...old.meta,
+                        unread_counts: {
+                            ...old.meta.unread_counts,
+                            activity: 0,
                         },
-                    };
-                });
-                void refetchActivity();
+                    },
+                };
             });
-        }, [clearActivityUnread, mainTab, markActivityViewed, queryClient, refetchActivity]),
+            void markActivityViewed();
+        }, [clearActivityUnread, mainTab, markActivityViewed, queryClient]),
     );
 
     const handleActivityPress = async (item: any) => {

@@ -2,7 +2,7 @@ import type { AppBskyNotificationDefs } from '@atproto/api';
 import { AppBskyEmbedVideo, AppBskyFeedLike, AppBskyFeedRepost } from '@atproto/api';
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent';
-import { normalizeToPostUri, resolveMediaPostView } from './postResolve';
+import { resolveDisplayPostUri } from './postResolve';
 import { parseRepoDidFromAtUri } from '@/utils/profileNavigation';
 
 const REPLY_NOTIFICATION_REASONS = new Set(['reply', 'quote', 'mention']);
@@ -164,83 +164,11 @@ function extractVideoMeta(
     };
 }
 
-async function resolveNotificationSubject(
+function mapNotification(
     notification: AppBskyNotificationDefs.Notification,
-): Promise<string | undefined> {
-    const subject = getNotificationSubjectUri(notification);
-    if (!subject) return undefined;
-    if (subject.includes('app.bsky.feed.post')) return subject;
-
-    try {
-        return await normalizeToPostUri(getAgent(), subject);
-    } catch {
-        return subject;
-    }
-}
-
-const MEDIA_NAV_REASONS = new Set([
-    'like',
-    'like-via-repost',
-    'reply',
-    'quote',
-    'mention',
-    'repost',
-    'repost-via-repost',
-]);
-
-async function resolveMediaVideoMeta(
-    notification: AppBskyNotificationDefs.Notification,
-    subjectUri: string,
-): Promise<Pick<FlipNotification, 'video_id' | 'video_pid' | 'video_thumbnail'>> {
-    const fallback = extractVideoMeta(notification, subjectUri);
-
-    if (!MEDIA_NAV_REASONS.has(notification.reason)) {
-        return fallback;
-    }
-
-    try {
-        const mediaPost = await resolveMediaPostView(getAgent(), subjectUri);
-        if (mediaPost) {
-            if (__DEV__) {
-                console.log('[notifications] resolved media post', {
-                    reason: notification.reason,
-                    subjectUri,
-                    mediaUri: mediaPost.uri,
-                    authorDid: mediaPost.author.did,
-                });
-            }
-            return {
-                video_id: mediaPost.uri,
-                video_pid: mediaPost.author.did,
-                video_thumbnail: fallback.video_thumbnail,
-            };
-        }
-        if (__DEV__) {
-            console.warn('[notifications] no media post for subject', {
-                reason: notification.reason,
-                subjectUri,
-            });
-        }
-    } catch (error) {
-        if (__DEV__) {
-            console.warn('[notifications] media resolve failed', {
-                reason: notification.reason,
-                subjectUri,
-                error,
-            });
-        }
-    }
-
-    return fallback;
-}
-
-async function mapNotification(
-    notification: AppBskyNotificationDefs.Notification,
-): Promise<FlipNotification> {
-    const subjectUri = await resolveNotificationSubject(notification);
-    const videoMeta = subjectUri
-        ? await resolveMediaVideoMeta(notification, subjectUri)
-        : extractVideoMeta(notification);
+): FlipNotification {
+    const subjectUri = getNotificationSubjectUri(notification);
+    const videoMeta = extractVideoMeta(notification, subjectUri);
 
     return {
         id: notification.uri,
@@ -302,7 +230,7 @@ function countUnread(notifications: FlipNotification[]): UnreadCounts {
 
 async function listNotificationsPage(cursor?: string, limit = 30) {
     const res = await withAuthenticatedFetch(() => getAgent().listNotifications({ limit, cursor }));
-    const mapped = await Promise.all(res.data.notifications.map(mapNotification));
+    const mapped = res.data.notifications.map(mapNotification);
     return {
         notifications: mapped,
         cursor: res.data.cursor,
@@ -501,17 +429,20 @@ export async function resolveNotificationTapTarget(
         try {
             const raw = await findRawNotification(item.id);
             if (raw) {
-                const mapped = await mapNotification(raw);
-                if (mapped.video_id) {
-                    if (__DEV__) {
-                        console.log('[notifications] tap target from fresh fetch', {
-                            type: item.type,
-                            notificationId: item.id,
-                            cachedVideoId: item.video_id,
-                            resolvedVideoId: mapped.video_id,
-                        });
+                const subjectUri = getNotificationSubjectUri(raw);
+                if (subjectUri) {
+                    const displayUri = await resolveDisplayPostUri(getAgent(), subjectUri);
+                    if (displayUri) {
+                        if (__DEV__) {
+                            console.log('[notifications] tap target from fresh fetch', {
+                                type: item.type,
+                                notificationId: item.id,
+                                subjectUri,
+                                displayUri,
+                            });
+                        }
+                        return { postUri: displayUri, openComments };
                     }
-                    return { postUri: mapped.video_id, openComments };
                 }
             }
         } catch (error) {
@@ -523,26 +454,20 @@ export async function resolveNotificationTapTarget(
 
     if (item.video_id) {
         try {
-            const agent = getAgent();
-            const mediaPost = await resolveMediaPostView(agent, item.video_id);
-            if (mediaPost?.uri) {
+            const displayUri = await resolveDisplayPostUri(getAgent(), item.video_id);
+            if (displayUri) {
                 if (__DEV__) {
-                    console.log('[notifications] tap target from media resolve', {
+                    console.log('[notifications] tap target from display resolve', {
                         type: item.type,
                         input: item.video_id,
-                        resolved: mediaPost.uri,
+                        displayUri,
                     });
                 }
-                return { postUri: mediaPost.uri, openComments };
-            }
-
-            const normalized = await normalizeToPostUri(agent, item.video_id);
-            if (normalized.includes('app.bsky.feed.post')) {
-                return { postUri: normalized, openComments };
+                return { postUri: displayUri, openComments };
             }
         } catch (error) {
             if (__DEV__) {
-                console.warn('[notifications] tap media resolve failed', {
+                console.warn('[notifications] tap display resolve failed', {
                     video_id: item.video_id,
                     error,
                 });

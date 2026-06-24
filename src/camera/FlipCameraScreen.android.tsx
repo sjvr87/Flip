@@ -100,6 +100,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
     const recordingRef = useRef(false);
     const lastNativeZoomRef = useRef(1);
+    const [cameraSessionKey, setCameraSessionKey] = useState(0);
 
     const zoom = useSharedValue(1);
     const zoomOffset = useSharedValue(1);
@@ -117,6 +118,14 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const syncNativeZoom = useCallback((value: number) => {
         lastNativeZoomRef.current = value;
         setZoomLevel(value);
+    }, []);
+
+    const recoverCamera = useCallback(() => {
+        recordingRef.current = false;
+        setIsRecording(false);
+        setRecordingDuration(0);
+        setIsCameraReady(false);
+        setCameraSessionKey((k) => k + 1);
     }, []);
 
     const refreshPermissionState = useCallback(async () => {
@@ -415,6 +424,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             <GestureDetector gesture={cameraGestures}>
                 <View style={StyleSheet.absoluteFill}>
                     <FlipCamerawesomeView
+                        key={cameraSessionKey}
                         style={StyleSheet.absoluteFill}
                         facing={cameraPosition}
                         zoom={zoomLevel}
@@ -446,12 +456,11 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
                             Alert.alert('Photo error', e.nativeEvent.message);
                         }}
                         onRecordingError={(e) => {
-                            recordingRef.current = false;
-                            setIsRecording(false);
-                            setRecordingDuration(0);
+                            recoverCamera();
                             Alert.alert('Recording error', e.nativeEvent.message);
                         }}
                         onCameraError={(e) => {
+                            recoverCamera();
                             Alert.alert('Camera error', e.nativeEvent.message);
                         }}
                     />

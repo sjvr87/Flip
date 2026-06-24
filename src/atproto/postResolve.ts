@@ -1,7 +1,7 @@
 import type { AppBskyFeedDefs } from '@atproto/api';
 import { AppBskyFeedLike, AppBskyFeedRepost, AtUri } from '@atproto/api';
 
-import { isMediaPost } from './adapters';
+import { isMediaPost, isTextOnlyPost } from './adapters';
 import type { getAgent } from './agent';
 
 type Agent = ReturnType<typeof getAgent>;
@@ -59,7 +59,7 @@ async function resolveMediaPostViaThread(
     uri: string,
 ): Promise<AppBskyFeedDefs.PostView | null> {
     try {
-        const res = await agent.getPostThread({ uri, depth: 0, parentHeight: 12 });
+        const res = await agent.getPostThread({ uri, depth: 0, parentHeight: 32 });
         const thread = res.data.thread;
         if (thread.$type !== 'app.bsky.feed.defs#threadViewPost') {
             return null;
@@ -149,4 +149,61 @@ export async function resolveMediaPostView(
     }
 
     return resolveMediaPostViaThread(agent, uri);
+}
+
+/**
+ * Best URI to open from a notification — media post when the thread has video/photo,
+ * otherwise the root (or target) text post for comment/reply taps.
+ */
+export async function resolveDisplayPostUri(agent: Agent, uri: string): Promise<string | null> {
+    const normalized = await normalizeToPostUri(agent, uri);
+
+    const mediaPost = await resolveMediaPostView(agent, normalized);
+    if (mediaPost?.uri) {
+        return mediaPost.uri;
+    }
+
+    try {
+        const res = await agent.getPostThread({ uri: normalized, depth: 0, parentHeight: 32 });
+        const thread = res.data.thread;
+        if (thread.$type !== 'app.bsky.feed.defs#threadViewPost') {
+            return normalized.includes('app.bsky.feed.post') ? normalized : null;
+        }
+
+        const chain: AppBskyFeedDefs.PostView[] = [];
+        let node: AppBskyFeedDefs.ThreadViewPost | undefined = thread;
+        while (node) {
+            chain.push(node.post);
+            const parent = node.parent;
+            if (!parent || parent.$type !== 'app.bsky.feed.defs#threadViewPost') {
+                break;
+            }
+            node = parent;
+        }
+
+        for (const post of chain) {
+            if (isMediaPost(post)) {
+                return post.uri;
+            }
+        }
+
+        const root = chain[chain.length - 1];
+        if (root && isTextOnlyPost(root)) {
+            return root.uri;
+        }
+
+        for (const post of chain) {
+            if (isTextOnlyPost(post)) {
+                return post.uri;
+            }
+        }
+    } catch {
+        // Fall through to direct post fetch.
+    }
+
+    if (normalized.includes('app.bsky.feed.post')) {
+        return normalized;
+    }
+
+    return null;
 }

@@ -203,20 +203,20 @@ export default function InboxScreen({ headerRight }: InboxScreenProps) {
 
     useFocusEffect(
         useCallback(() => {
-            void markInboxViewed().then(() => {
-                queryClient.setQueryData(['main-notifications'], (old: any) => {
-                    if (!old?.meta?.unread_counts) return old;
-                    return {
-                        ...old,
-                        meta: {
-                            ...old.meta,
-                            unread_counts: {
-                                ...old.meta.unread_counts,
-                                activity: 0,
-                            },
+            queryClient.setQueryData(['main-notifications'], (old: any) => {
+                if (!old?.meta?.unread_counts) return old;
+                return {
+                    ...old,
+                    meta: {
+                        ...old.meta,
+                        unread_counts: {
+                            ...old.meta.unread_counts,
+                            activity: 0,
                         },
-                    };
-                });
+                    },
+                };
+            });
+            void markInboxViewed().then(() => {
                 void refetchBadgeCount();
             });
         }, [markInboxViewed, refetchBadgeCount, queryClient]),
