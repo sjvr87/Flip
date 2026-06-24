@@ -981,7 +981,7 @@ function VideoPlayerCore({
                         allowsPictureInPicture={false}
                         nativeControls={false}
                         pointerEvents="none"
-                        surfaceType="surfaceView"
+                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
                         onFirstFrameRender={handleFirstFrameRender}
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}
