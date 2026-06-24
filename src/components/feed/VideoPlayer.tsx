@@ -31,18 +31,19 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
     InteractionManager,
     Platform,
-    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -230,10 +231,7 @@ function VideoPlayerCore({
     const [isLiked, setIsLiked] = useState(item.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(item.has_bookmarked);
     const [isReposted, setIsReposted] = useState(!!item.has_reposted);
-    const [showPauseHint, setShowPauseHint] = useState(false);
-    const [pauseHintIcon, setPauseHintIcon] = useState<'play' | 'pause'>('pause');
     const [isPlaying, setIsPlaying] = useState(false);
-    const pauseHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isMountedRef = useRef(true);
     const wasActiveRef = useRef(false);
     const everActiveRef = useRef(false);
@@ -810,50 +808,48 @@ function VideoPlayerCore({
         onRepost(item.id, !isReposted);
     };
 
-    const flashPauseHint = useCallback((icon: 'play' | 'pause') => {
-        if (pauseHintTimeoutRef.current) {
-            clearTimeout(pauseHintTimeoutRef.current);
-        }
-        setPauseHintIcon(icon);
-        setShowPauseHint(true);
-        pauseHintTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-                setShowPauseHint(false);
-            }
-        }, 600);
-    }, []);
-
     const togglePlayPause = useCallback(() => {
-        if (!isPlayerUsable(player) || !isMountedRef.current || !isActive) return;
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || !isMountedRef.current || !isActive) return;
 
         try {
-            // player.playing can lag on Android; fall back to synced playingChange state.
-            const currentlyPlaying = player.playing ?? isPlaying;
-            if (currentlyPlaying) {
-                player.pause();
-                if (!standalonePlayback) {
-                    releaseFeedAudio(item.id);
-                }
-                setIsPlaying(false);
-                setManuallyPaused(item.id, true);
-                flashPauseHint('play');
-            } else {
-                player.play();
+            // Use manual-pause store as source of truth — player.playing lags on Android.
+            if (isManuallyPaused) {
+                activePlayer.play();
                 if (!standalonePlayback) {
                     claimFeedAudio(item.id);
                 }
                 setIsPlaying(true);
                 setManuallyPaused(item.id, false);
-                flashPauseHint('pause');
+            } else {
+                activePlayer.pause();
+                if (!standalonePlayback) {
+                    releaseFeedAudio(item.id);
+                }
+                setIsPlaying(false);
+                setManuallyPaused(item.id, true);
             }
         } catch (error) {
             console.log('Toggle play/pause error:', error);
         }
-    }, [flashPauseHint, isActive, isPlaying, item.id, player, setManuallyPaused]);
+    }, [isActive, isManuallyPaused, item.id, setManuallyPaused, standalonePlayback]);
 
-    const handleTapOverlay = useCallback(() => {
-        togglePlayPause();
-    }, [togglePlayPause]);
+    const togglePlayPauseRef = useRef(togglePlayPause);
+    togglePlayPauseRef.current = togglePlayPause;
+
+    const onVideoTap = useCallback(() => {
+        togglePlayPauseRef.current();
+    }, []);
+
+    const videoTapGesture = useMemo(
+        () =>
+            Gesture.Tap()
+                .maxDistance(24)
+                .onEnd(() => {
+                    runOnJS(onVideoTap)();
+                }),
+        [onVideoTap],
+    );
 
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
@@ -913,14 +909,6 @@ function VideoPlayerCore({
             ],
         );
     };
-
-    useEffect(() => {
-        return () => {
-            if (pauseHintTimeoutRef.current) {
-                clearTimeout(pauseHintTimeoutRef.current);
-            }
-        };
-    }, []);
 
     const handleViewSensitiveContent = () => {
         setPlaySensitive(true);
@@ -1011,23 +999,16 @@ function VideoPlayerCore({
                 ) : null}
             </View>
 
-            <Pressable
-                style={styles.tapOverlay}
-                onPress={handleTapOverlay}
-                collapsable={false}
-                accessible={true}
-                accessibilityLabel="Video"
-                accessibilityHint="Tap to pause or play"
-                accessibilityRole="button"
-            />
-
-            {showPauseHint && (
-                <View style={styles.controlsOverlay} pointerEvents="none">
-                    <View style={styles.playButton}>
-                        <Ionicons name={pauseHintIcon} size={60} color="white" />
-                    </View>
-                </View>
-            )}
+            <GestureDetector gesture={videoTapGesture}>
+                <View
+                    style={styles.tapOverlay}
+                    collapsable={false}
+                    accessible={true}
+                    accessibilityLabel="Video"
+                    accessibilityHint="Tap to pause or play"
+                    accessibilityRole="button"
+                />
+            </GestureDetector>
 
             <View
                 pointerEvents="none"
@@ -1191,28 +1172,11 @@ const styles = StyleSheet.create({
     },
     tapOverlay: {
         ...StyleSheet.absoluteFillObject,
+        right: 72,
         zIndex: 4,
         elevation: 4,
         // Near-transparent fill so Android delivers taps inside FlatList cells.
         backgroundColor: 'rgba(0,0,0,0.001)',
-    },
-    controlsOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        zIndex: 8,
-        elevation: 8,
-    },
-    playButton: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 11,
-        elevation: 11,
     },
     sensitiveOverlay: {
         ...StyleSheet.absoluteFillObject,
