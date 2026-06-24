@@ -31,7 +31,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -42,9 +42,13 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { TouchableOpacity as GestureTouchableOpacity } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+/** Tap overlay stops here so the right action rail stays visible and tappable. */
+const ACTION_RAIL_WIDTH = 72;
 
 function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -843,6 +847,16 @@ function VideoPlayerCore({
         togglePlayPauseRef.current();
     }, [item.id, isManuallyPaused]);
 
+    const videoTapGesture = useMemo(
+        () =>
+            Gesture.Tap()
+                .maxDistance(24)
+                .onEnd(() => {
+                    runOnJS(handleTapOverlay)();
+                }),
+        [handleTapOverlay],
+    );
+
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
             Alert.alert('Not available', 'The creator has not allowed reuse of this audio.');
@@ -991,16 +1005,16 @@ function VideoPlayerCore({
                 ) : null}
             </View>
 
-            <GestureTouchableOpacity
-                style={styles.tapOverlay}
-                activeOpacity={1}
-                onPress={handleTapOverlay}
-                collapsable={false}
-                accessible={true}
-                accessibilityLabel="Video"
-                accessibilityHint="Tap to pause or play"
-                accessibilityRole="button"
-            />
+            <GestureDetector gesture={videoTapGesture}>
+                <View
+                    style={styles.tapOverlay}
+                    collapsable={false}
+                    accessible={true}
+                    accessibilityLabel="Video"
+                    accessibilityHint="Tap to pause or play"
+                    accessibilityRole="button"
+                />
+            </GestureDetector>
 
             <View
                 pointerEvents="none"
@@ -1012,7 +1026,6 @@ function VideoPlayerCore({
                 />
             </View>
 
-            <View style={styles.interactiveOverlay} pointerEvents="box-none">
             <FeedActionRail
                 avatarUrl={item.account?.avatar}
                 profileLabel={`View ${item.account.username}'s profile`}
@@ -1128,7 +1141,6 @@ function VideoPlayerCore({
                     </View>
                 )}
             </View>
-            </View>
         </View>
     );
 
@@ -1165,17 +1177,15 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     tapOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        right: 72,
-        zIndex: 100,
-        elevation: 100,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: ACTION_RAIL_WIDTH,
+        zIndex: 8,
+        elevation: 8,
         // Near-transparent fill so Android delivers taps inside FlatList cells.
         backgroundColor: 'rgba(0,0,0,0.001)',
-    },
-    interactiveOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 110,
-        elevation: 110,
     },
     sensitiveOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -1228,8 +1238,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 12,
         right: 80,
-        zIndex: 6,
-        elevation: 6,
+        zIndex: 10,
+        elevation: 10,
     },
     username: {
         fontSize: 18,

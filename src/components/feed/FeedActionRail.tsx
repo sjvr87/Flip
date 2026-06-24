@@ -470,8 +470,8 @@ const styles = StyleSheet.create({
         right: 10,
         alignItems: 'center',
         gap: 4,
-        zIndex: 5,
-        elevation: 5,
+        zIndex: 12,
+        elevation: 12,
     },
     actionButton: {
         alignItems: 'center',
