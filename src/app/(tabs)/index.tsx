@@ -1021,7 +1021,7 @@ export default function LoopsFeed({ navigation }) {
                     accessibilityRole="button"
                     style={styles.searchButton}
                     onPress={() => router.push('/private/search')}>
-                    <SearchEyeIcon size={27} color="#FFFFFF" />
+                    <SearchEyeIcon size={31} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
