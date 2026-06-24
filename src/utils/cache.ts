@@ -12,7 +12,12 @@ function isServer(): boolean {
     return typeof window === 'undefined';
 }
 
-/** MMKV needs JSI; remote Chrome debugging disables it. */
+/**
+ * MMKV uses JSI (JavaScript Interface) for synchronous native calls.
+ * `nativeCallSyncHook` is the global marker set by the JSI bridge; it is absent when
+ * remote Chrome debugging is active (Hermes debugger replaces the JSI bridge), causing
+ * MMKV init to crash. Checking for it before loading MMKV prevents that crash.
+ */
 function canUseMmkvJsi(): boolean {
     return (
         typeof (globalThis as { nativeCallSyncHook?: unknown }).nativeCallSyncHook === 'function'
