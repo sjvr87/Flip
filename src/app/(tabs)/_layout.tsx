@@ -22,6 +22,14 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, usePathname } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
+
+function ensureQueueMicrotaskForTabs(): void {
+    try {
+        require('@/bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
+    } catch {
+        // tests / web
+    }
+}
 import { Platform, StyleSheet, View } from 'react-native';
 
 /** Fixed square slot so every tab icon shares the same footprint and center. */
@@ -58,6 +66,10 @@ export default function TabsLayout() {
     const pathname = usePathname();
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+
+    useEffect(() => {
+        ensureQueueMicrotaskForTabs();
+    }, []);
 
     useEffect(() => {
         const onHomeTab =
@@ -130,6 +142,16 @@ export default function TabsLayout() {
                             <HomeTabIcon color={color} focused={focused} size={ICON_SIZE} />
                         </TabIconSlot>
                     ),
+                }}
+                listeners={{
+                    blur: () => {
+                        pauseAllFeedPlayers();
+                        releaseAllFeedPlayers();
+                        setFeedPlaybackActive(false);
+                    },
+                    focus: () => {
+                        setFeedPlaybackActive(true);
+                    },
                 }}
             />
             <Tabs.Screen

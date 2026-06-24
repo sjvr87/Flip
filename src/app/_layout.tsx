@@ -195,20 +195,32 @@ function WebAppContent() {
     );
 }
 
-/** Native: flat Stack; initialRouteName after rehydrate (no router.replace on cold start). */
+/** Native: flat Stack; deferred replace after authReady initializes tab routes. */
 function NativeAppContent() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+    const initialNavRef = useRef(false);
 
     useNotificationObserver();
 
     useEffect(() => {
         if (!hasHydrated || !authReady) return;
         hideSplash();
-    }, [hasHydrated, authReady]);
+        if (initialNavRef.current) return;
+        initialNavRef.current = true;
+        const timer = setTimeout(() => {
+            try {
+                require('@/bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
+            } catch {
+                // ignore
+            }
+            router.replace(isLoggedIn ? '/(tabs)' : '/sign-in');
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [hasHydrated, authReady, isLoggedIn]);
 
-    if (!hasHydrated) {
+    if (!hasHydrated || !authReady) {
         return <View style={{ flex: 1, backgroundColor: '#000' }} />;
     }
 

@@ -3,7 +3,7 @@ import {
     type ActivityHubFilter,
 } from '@/components/notifications/ActivityFilterChips';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
-import { FollowersNotificationsPanel } from '@/app/private/notifications/followers/FollowersNotificationsPanel';
+import { FollowersNotificationsPanel } from '@/components/notifications/FollowersNotificationsPanel';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';

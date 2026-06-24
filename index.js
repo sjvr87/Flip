@@ -8,6 +8,7 @@ ensureQueueMicrotask();
 require('./src/bootstrap/abortSignalPolyfill');
 require('./src/bootstrap/nativeFetch');
 require('@expo/metro-runtime');
+ensureQueueMicrotask();
 
 const { renderRootComponent } = require('expo-router/build/renderRootComponent');
 const { App } = require('./src/bootstrap/rootApp');

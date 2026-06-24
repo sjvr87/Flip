@@ -14,6 +14,14 @@
 
 import { hasOAuthCallbackQueryInPath } from '@/atproto/oauthCallbackUrl';
 
+function ensureQueueMicrotaskForLinking(): void {
+    try {
+        require('../bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
+    } catch {
+        // tests / web
+    }
+}
+
 const OAUTH_CALLBACK_PATHS = new Set(['/oauth/callback', '/oauth-callback']);
 
 /** Tab names that flip:// may use as hostname (flip://explore → path "explore"). */
@@ -27,12 +35,12 @@ const TAB_DEEP_LINK_NAMES = new Set([
 ]);
 
 const TAB_ROUTE_BY_NAME: Record<string, string> = {
-    explore: '/(tabs)/explore',
-    create: '/(tabs)/create',
-    notifications: '/(tabs)/notifications',
-    profile: '/(tabs)/profile',
-    index: '/(tabs)',
-    home: '/(tabs)',
+    explore: '/explore',
+    create: '/create',
+    notifications: '/notifications',
+    profile: '/profile',
+    index: '/',
+    home: '/',
 };
 
 function querySuffix(path: string): string {
@@ -163,6 +171,8 @@ export function redirectSystemPath({
     initial: boolean;
 }): string | null {
     try {
+        ensureQueueMicrotaskForLinking();
+
         if (!path || isMetroOrDevClientUrl(path)) {
             return null;
         }
