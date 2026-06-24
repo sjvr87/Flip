@@ -12,7 +12,7 @@ import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps, memo, ReactNode, useEffect, useState } from 'react';
+import { ComponentProps, memo, ReactNode, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -199,19 +199,6 @@ function FeedActionRail({
     const creatorFollowing = followedLocally || confirmedFollowing;
     const showNotFollowing = showFollowAffordance && !creatorFollowing;
 
-    useEffect(() => {
-        if (!__DEV__ || !showFollowAffordance || !creatorId) {
-            return;
-        }
-        console.log('[FeedActionRail] follow state', {
-            creatorId,
-            creatorUsername,
-            isReady,
-            confirmedFollowing,
-            showNotFollowing,
-        });
-    }, [confirmedFollowing, creatorId, creatorUsername, isReady, showFollowAffordance, showNotFollowing]);
-
     const followMutation = useMutation({
         mutationFn: async () => {
             if (!creatorId) {
@@ -267,28 +254,11 @@ function FeedActionRail({
                                 />
                             </View>
                         </LinearGradient>
-                    ) : showNotFollowing ? (
-                        <LinearGradient
-                            colors={['#22D3EE', '#06B6D4', '#0891B2']}
-                            start={{ x: 0, y: 1 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.avatarRing}>
-                            <View style={styles.avatarInner}>
-                                <Avatar
-                                    url={avatarUrl}
-                                    width={40}
-                                    borderWidth={0}
-                                    placeholder={{ color: '#3a3a3a' }}
-                                    transition={0}
-                                    cachePolicy="memory-disk"
-                                />
-                            </View>
-                        </LinearGradient>
                     ) : (
                         <View
                             style={[
                                 styles.avatarRingPlain,
-                                isReady && creatorFollowing && styles.avatarRingFollowed,
+                                creatorFollowing && styles.avatarRingFollowed,
                             ]}>
                             <View style={styles.avatarInner}>
                                 <Avatar
@@ -312,7 +282,7 @@ function FeedActionRail({
                         accessible
                         accessibilityLabel={`Follow ${creatorUsername ?? 'creator'}`}
                         accessibilityRole="button">
-                        <FollowAddBadgeIcon size={24} />
+                        <FollowAddBadgeIcon size={32} />
                     </PressableHaptics>
                 ) : null}
             </View>
@@ -552,12 +522,7 @@ const styles = StyleSheet.create({
     },
     followBadge: {
         position: 'absolute',
-        bottom: -2,
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: '#000000',
+        bottom: -6,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,
@@ -566,8 +531,8 @@ const styles = StyleSheet.create({
             ios: {
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.45,
-                shadowRadius: 2,
+                shadowOpacity: 0.55,
+                shadowRadius: 3,
             },
             android: {
                 elevation: 10,
