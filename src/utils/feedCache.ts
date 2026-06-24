@@ -276,9 +276,11 @@ export function reconcilePendingProfilePosts(
     }
 
     const merged = [...optimistic];
+    const mergedIds = new Set(optimistic.map((entry) => entry.id));
     for (const entry of serverItems) {
-        if (!merged.some((item) => item.id === entry.id)) {
+        if (!mergedIds.has(entry.id)) {
             merged.push(entry);
+            mergedIds.add(entry.id);
         }
     }
     return merged;
