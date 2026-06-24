@@ -1,17 +1,20 @@
 /**
- * Metro bundle polyfills — run before InitializeCore and expo winter.
- * Hermes lacks AbortSignal.prototype.throwIfAborted (OAuth verifyIssuer, linking).
- *
- * queueMicrotask: install a permanent delegate before InitializeCore; index.js binds
- * RN's real implementation after InitializeCore via __flipBindQueueMicrotask.
- *
- * Plain JS so Metro can prepend without transpiling. Keep in sync with abortSignalPolyfill.ts.
+ * Metro bundle polyfills - run before RN default polyfills and InitializeCore.
  */
 'use strict';
 
 (function installQueueMicrotaskGuard() {
-    /** @type {((callback: () => void) => void) | null} */
     var flipBound = null;
+
+    function promiseFallback(callback) {
+        Promise.resolve()
+            .then(callback)
+            .catch(function (error) {
+                setTimeout(function () {
+                    throw error;
+                });
+            });
+    }
 
     function delegate(callback) {
         if (typeof callback !== 'function') {
@@ -20,47 +23,41 @@
         if (flipBound) {
             return flipBound(callback);
         }
-        if (typeof Promise !== 'undefined') {
-            Promise.resolve()
-                .then(callback)
-                .catch(function (error) {
-                    setTimeout(function () {
-                        throw error;
-                    });
-                });
-            return;
-        }
-        setTimeout(callback, 0);
+        return promiseFallback(callback);
     }
+
+    function installOn(target) {
+        try {
+            Object.defineProperty(target, 'queueMicrotask', {
+                value: delegate,
+                writable: true,
+                enumerable: true,
+                configurable: true,
+            });
+            return true;
+        } catch {
+            try {
+                target.queueMicrotask = delegate;
+                return true;
+            } catch {
+                return false;
+            }
+        }
+    }
+
+    installOn(global);
+    installOn(globalThis);
 
     global.__flipBindQueueMicrotask = function bindQueueMicrotask(fn) {
         if (typeof fn !== 'function') {
             return;
         }
         flipBound = fn;
-        try {
-            Object.defineProperty(global, 'queueMicrotask', {
-                value: delegate,
-                writable: false,
-                enumerable: true,
-                configurable: false,
-            });
-            Object.defineProperty(globalThis, 'queueMicrotask', {
-                value: delegate,
-                writable: false,
-                enumerable: true,
-                configurable: false,
-            });
-        } catch {
-            global.queueMicrotask = delegate;
-            globalThis.queueMicrotask = delegate;
-        }
+        installOn(global);
+        installOn(globalThis);
     };
 
-    if (typeof global.queueMicrotask !== 'function') {
-        global.queueMicrotask = delegate;
-        globalThis.queueMicrotask = delegate;
-    }
+    global.__flipQueueMicrotaskImpl = delegate;
 })();
 
 if (typeof AbortSignal !== 'undefined') {

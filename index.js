@@ -1,8 +1,13 @@
-// Bootstrap before expo-router / expo winter — expo/fetch breaks ATProto DID resolution on Android.
+﻿// Bootstrap before expo-router / expo winter — expo/fetch breaks ATProto DID resolution on Android.
 // Use require() only: ESM `import` hoisting runs modules before InitializeCore.
-require('react-native/Libraries/Core/InitializeCore');
+const {
+    ensureQueueMicrotask,
+    boundQueueMicrotask,
+    patchPolyfillGlobalQueueMicrotask,
+} = require('./src/bootstrap/ensureQueueMicrotask');
+patchPolyfillGlobalQueueMicrotask();
 
-const { ensureQueueMicrotask, boundQueueMicrotask } = require('./src/bootstrap/ensureQueueMicrotask');
+require('react-native/Libraries/Core/InitializeCore');
 ensureQueueMicrotask();
 
 require('./src/bootstrap/abortSignalPolyfill');
@@ -21,6 +26,7 @@ if (typeof setImmediate === 'function') {
 require('./src/bootstrap/patchNavigationEvents').installNavigationEventsPatch();
 
 const { renderRootComponent } = require('expo-router/build/renderRootComponent');
+ensureQueueMicrotask();
 const { App } = require('./src/bootstrap/rootApp');
 
 renderRootComponent(App);

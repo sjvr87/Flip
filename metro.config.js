@@ -8,9 +8,10 @@ process.env.EXPO_PUBLIC_USE_RN_FETCH ||= '1';
 const config = getDefaultConfig(__dirname);
 
 const defaultGetPolyfills = config.serializer.getPolyfills;
+// Flip polyfills must run before RN defaults lock queueMicrotask as non-configurable.
 config.serializer.getPolyfills = (options) => [
-    ...defaultGetPolyfills(options),
     require.resolve('./src/bootstrap/metroPolyfills.js'),
+    ...defaultGetPolyfills(options),
 ];
 
 module.exports = config;
