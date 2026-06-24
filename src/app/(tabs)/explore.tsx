@@ -32,13 +32,14 @@ import {
     writeExploreTextPostsCache,
 } from '@/utils/exploreCache';
 import { postAtUriToBskyUrl, toPostViewPath, toProfilePath } from '@/utils/profileNavigation';
+import { safeQueueMicrotask, ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prettyCount, timeAgo } from '@/utils/ui';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -605,6 +606,10 @@ export default function ExploreScreen() {
     const [showShare, setShowShare] = useState(false);
     const { isDark } = useTheme();
 
+    useLayoutEffect(() => {
+        ensureQueueMicrotask();
+    }, []);
+
     const exploreQueryOptions = {
         staleTime: EXPLORE_STALE_MS,
         gcTime: EXPLORE_GC_MS,
@@ -694,14 +699,14 @@ export default function ExploreScreen() {
         const pages = videosData.pages;
         const pageParams = videosData.pageParams;
         const tag = feedTag;
-        queueMicrotask(() => writeExploreFeedCache(tag, pages, pageParams));
+        safeQueueMicrotask(() => writeExploreFeedCache(tag, pages, pageParams));
     }, [feedTag, videosData]);
 
     React.useEffect(() => {
         if (!textPostsData?.pages?.length) return;
         const pages = textPostsData.pages;
         const pageParams = textPostsData.pageParams;
-        queueMicrotask(() => writeExploreTextPostsCache(pages, pageParams));
+        safeQueueMicrotask(() => writeExploreTextPostsCache(pages, pageParams));
     }, [textPostsData]);
 
     React.useEffect(() => {

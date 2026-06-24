@@ -11,7 +11,9 @@ import {
     pauseAllFeedPlayers,
     releaseAllFeedPlayers,
     setFeedPlaybackActive,
+    stopFeedAudioOnTabLeave,
 } from '@/utils/feedPlaybackGuard';
+import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -24,11 +26,7 @@ import { Tabs, usePathname } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
 
 function ensureQueueMicrotaskForTabs(): void {
-    try {
-        require('@/bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
-    } catch {
-        // tests / web
-    }
+    ensureQueueMicrotask();
 }
 import { Platform, StyleSheet, View } from 'react-native';
 
@@ -103,10 +101,27 @@ export default function TabsLayout() {
 
     useNotificationPolling(900000);
 
+    const tabScreenListeners = useMemo(
+        () =>
+            ({ route }: { route: { name: string } }) => ({
+                tabPress: () => {
+                    ensureQueueMicrotaskForTabs();
+                    if (route.name === 'index') {
+                        setFeedPlaybackActive(true);
+                    } else {
+                        stopFeedAudioOnTabLeave();
+                    }
+                },
+            }),
+        [],
+    );
+
     return (
         <Tabs
             initialRouteName="index"
+            screenListeners={tabScreenListeners}
             screenOptions={{
+                lazy: false,
                 backBehavior: 'order',
                 tabBarActiveTintColor: colors.accent,
                 tabBarInactiveTintColor: colors.tabIconInactive,
@@ -130,6 +145,7 @@ export default function TabsLayout() {
                 name="index"
                 options={{
                     title: 'Home',
+                    href: '/',
                     tabBarAccessibilityLabel: 'Home',
                     tabBarShowLabel: false,
                     headerShown: false,
@@ -156,8 +172,14 @@ export default function TabsLayout() {
             />
             <Tabs.Screen
                 name="explore"
+                listeners={{
+                    focus: () => {
+                        ensureQueueMicrotaskForTabs();
+                    },
+                }}
                 options={{
                     title: 'Explore',
+                    href: '/explore',
                     tabBarAccessibilityLabel: 'Explore',
                     tabBarShowLabel: false,
                     headerShown: false,
@@ -172,6 +194,7 @@ export default function TabsLayout() {
                 name="create"
                 options={{
                     title: 'Create',
+                    href: '/create',
                     tabBarAccessibilityLabel: 'Create',
                     tabBarShowLabel: false,
                     headerShown: false,
@@ -186,6 +209,7 @@ export default function TabsLayout() {
                 name="notifications"
                 options={{
                     title: 'Inbox',
+                    href: '/notifications',
                     tabBarAccessibilityLabel: 'Inbox',
                     tabBarShowLabel: false,
                     ...(Platform.OS !== 'web' && displayBadgeCount
@@ -216,6 +240,7 @@ export default function TabsLayout() {
                 name="profile"
                 options={{
                     title: 'Profile',
+                    href: '/profile',
                     tabBarAccessibilityLabel: 'Profile',
                     tabBarShowLabel: false,
                     headerShown: false,

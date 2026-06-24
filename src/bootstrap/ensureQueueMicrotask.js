@@ -1,24 +1,52 @@
 'use strict';
 
 /**
- * Keep globalThis.queueMicrotask aligned with RN's global.queueMicrotask.
- * Expo winter may leave a broken globalThis shim; navigation.dispatch needs the real one.
+ * Keep global + globalThis.queueMicrotask aligned with RN's implementation.
+ * Expo winter may leave a broken globalThis shim; navigation.dispatch and
+ * explore tab cache writes call queueMicrotask and throw if it is missing.
  */
-function ensureQueueMicrotask() {
+function resolveQueueMicrotaskFn() {
     if (typeof global.queueMicrotask === 'function') {
-        globalThis.queueMicrotask = global.queueMicrotask;
-        return;
+        return global.queueMicrotask;
     }
     try {
         const mod = require('react-native/Libraries/Core/Timers/queueMicrotask.js');
         const rnQueueMicrotask = mod && (mod.default ?? mod);
         if (typeof rnQueueMicrotask === 'function') {
-            globalThis.queueMicrotask = rnQueueMicrotask;
-            global.queueMicrotask = rnQueueMicrotask;
+            return rnQueueMicrotask;
         }
     } catch {
         // RN internal path unavailable in tests
     }
+    if (typeof globalThis.queueMicrotask === 'function') {
+        return globalThis.queueMicrotask;
+    }
+    return null;
 }
 
-module.exports = { ensureQueueMicrotask };
+function ensureQueueMicrotask() {
+    const fn = resolveQueueMicrotaskFn();
+    if (typeof fn !== 'function') {
+        return;
+    }
+    global.queueMicrotask = fn;
+    globalThis.queueMicrotask = fn;
+}
+
+function safeQueueMicrotask(callback) {
+    ensureQueueMicrotask();
+    const fn = global.queueMicrotask ?? globalThis.queueMicrotask;
+    if (typeof fn === 'function') {
+        fn(callback);
+        return;
+    }
+    Promise.resolve()
+        .then(callback)
+        .catch((error) => {
+            setTimeout(() => {
+                throw error;
+            });
+        });
+}
+
+module.exports = { ensureQueueMicrotask, safeQueueMicrotask };

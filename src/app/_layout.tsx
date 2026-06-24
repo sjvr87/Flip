@@ -217,7 +217,7 @@ function NativeAppContent() {
         hideSplash();
     }, [hasHydrated, authReady]);
 
-    if (!hasHydrated) {
+    if (!hasHydrated || !authReady) {
         return <View style={{ flex: 1, backgroundColor: '#000' }} />;
     }
 

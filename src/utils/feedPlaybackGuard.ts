@@ -167,6 +167,14 @@ export function onFeedTabChanged(): void {
     });
 }
 
+/** Tab bar left Home — pause immediately (tabPress runs before blur/pathname). */
+export function stopFeedAudioOnTabLeave(): void {
+    activeFeedPlayerId = null;
+    setFeedPlaybackActive(false);
+    pauseAllFeedPlayers();
+    releaseAllFeedPlayers();
+}
+
 export function setFeedPlaybackActive(active: boolean): void {
     if (feedPlaybackActive === active) {
         if (!active) {

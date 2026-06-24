@@ -2,6 +2,7 @@ import type { FlipFeedPage, FlipTextPost } from '@/atproto/types';
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 import { Storage } from '@/utils/cache';
+import { safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 
 function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -153,7 +154,7 @@ export function patchExploreTextPost(
             };
 
             if (changed) {
-                queueMicrotask(() => writeExploreTextPostsCache(next.pages, next.pageParams));
+                safeQueueMicrotask(() => writeExploreTextPostsCache(next.pages, next.pageParams));
             }
 
             return changed ? next : old;
