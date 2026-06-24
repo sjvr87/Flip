@@ -13,6 +13,7 @@ import {
     Alert,
     Dimensions,
     Platform,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -51,10 +52,11 @@ function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duratio
     const togglePlayPause = () => {
         if (player.playing) {
             player.pause();
+            setIsPlaying(false);
         } else {
             player.play();
+            setIsPlaying(true);
         }
-        setIsPlaying(player.playing);
     };
 
     const handleDownload = async () => {
@@ -93,6 +95,15 @@ function VideoPreviewContent({ mediaUri, duration }: { mediaUri: string; duratio
                     surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
                 />
             )}
+
+            <Pressable
+                style={styles.videoTapOverlay}
+                onPress={togglePlayPause}
+                accessible={true}
+                accessibilityLabel="Video preview"
+                accessibilityHint="Tap to pause or play"
+                accessibilityRole="button"
+            />
 
             <LinearGradient
                 colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.5)']}
@@ -248,6 +259,10 @@ const styles = StyleSheet.create({
         width: width,
         height: height,
         position: 'absolute',
+    },
+    videoTapOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.001)',
     },
     topBar: {
         flexDirection: 'row',

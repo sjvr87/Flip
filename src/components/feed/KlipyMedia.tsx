@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React from 'react';
-import { Image as RNImage, View } from 'react-native';
+import { Image as RNImage, Pressable, View } from 'react-native';
 import tw from 'twrnc';
 
 interface KlipyMediaItem {
@@ -70,12 +70,22 @@ function KlipyVideo({ url }: { url: string }) {
         p.play();
     });
 
+    const handleTogglePlayback = () => {
+        if (player.playing) {
+            player.pause();
+            return;
+        }
+        player.play();
+    };
+
     return (
-        <VideoView
-            player={player}
-            style={tw`w-full h-full`}
-            contentFit="cover"
-            nativeControls={false}
-        />
+        <Pressable style={tw`w-full h-full`} onPress={handleTogglePlayback}>
+            <VideoView
+                player={player}
+                style={tw`w-full h-full`}
+                contentFit="cover"
+                nativeControls={false}
+            />
+        </Pressable>
     );
 }

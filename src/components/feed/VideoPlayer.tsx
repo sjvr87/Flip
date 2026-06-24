@@ -37,12 +37,12 @@ import {
     Dimensions,
     InteractionManager,
     Platform,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { TouchableOpacity as GestureTouchableOpacity } from 'react-native-gesture-handler';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -809,7 +809,12 @@ function VideoPlayerCore({
 
     const togglePlayPause = useCallback(() => {
         const activePlayer = playerRef.current;
-        if (!isPlayerUsable(activePlayer) || !isMountedRef.current || !isActive) return;
+        if (
+            !isPlayerUsable(activePlayer) ||
+            !isMountedRef.current ||
+            (!isActive && !standalonePlayback)
+        )
+            return;
 
         try {
             // Use manual-pause store as source of truth — player.playing lags on Android.
@@ -987,13 +992,13 @@ function VideoPlayerCore({
                         accessibilityLabel={item.media.alt_text || 'Video content'}
                         accessibilityHint="Tap to pause or play"
                         contentFit="cover"
+                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
                     />
                 ) : null}
             </View>
 
-            <GestureTouchableOpacity
-                style={styles.tapOverlay}
-                activeOpacity={1}
+            <Pressable
+                style={styles.centerTapOverlay}
                 onPress={handleTapOverlay}
                 collapsable={false}
                 accessible={true}
@@ -1164,12 +1169,15 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
         zIndex: 1,
     },
-    tapOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        right: 72,
+    centerTapOverlay: {
+        position: 'absolute',
+        left: '20%',
+        right: '20%',
+        top: '18%',
+        bottom: '24%',
         zIndex: 100,
         elevation: 100,
-        // Near-transparent fill so Android delivers taps inside FlatList cells.
+        // Invisible but touchable target for center-screen play/pause.
         backgroundColor: 'rgba(0,0,0,0.001)',
     },
     interactiveOverlay: {
