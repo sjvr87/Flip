@@ -71,22 +71,23 @@ adb devices
 
 ## USB + same Wi-Fi for Metro
 
-Flip dev deep links use your PC **LAN IP** (`exp://192.168.x.x:8081`), not `127.0.0.1`. Phone and PC must be on the **same Wi-Fi** even when USB is connected.
+Flip dev deep links prefer the **USB path** (`exp://127.0.0.1:8081` via `adb reverse`) when a device is connected, and fall back to the **LAN IP** (`exp://192.168.x.x:8081`) when no USB device is present. `metro.config.js` binds Metro to `0.0.0.0` so both paths reach the bundler.
 
 | Layer | What happens |
 |-------|----------------|
-| USB | `adb reverse tcp:8081 tcp:8081` (fallback path) |
-| Wi-Fi | LAN deep link from `flip-dev.bat` / `flip-reset-dev.bat` |
+| USB (primary) | `adb reverse tcp:8081 tcp:8081` + `exp://127.0.0.1:8081` deep link |
+| Wi-Fi (fallback) | LAN deep link from `flip-dev.bat` / `flip-reset-dev.bat` when no USB device |
 | Metro | One window on port **8081** — taskbar title **Flip Metro** |
 
-**`flip-reset-dev.bat`** — nuclear reset when the app won't connect, crashes on launch, or the dev launcher shows broken servers. Kills stale Metro, clears cache, sets adb reverse, launches LAN deep link (bypasses expo-dev-client picker).
+**`flip-reset-dev.bat`** — nuclear reset when the app won't connect, crashes on launch, or the dev launcher shows broken servers. Kills stale Metro, clears cache, sets adb reverse, launches USB deep link (bypasses expo-dev-client picker).
 
-**`flip-dev.bat`** — normal start: git pull, adb prep, reuse healthy Metro or start one window, launch with LAN deep link.
+**`flip-dev.bat`** — normal start: git pull, adb prep, reuse healthy Metro or start one window, launch with USB or LAN deep link.
 
 Deep link format (from `dev-connect.ps1`):
 
 ```text
-flip://expo-development-client/?url=exp%3A%2F%2F192.168.x.x%3A8081
+flip://expo-development-client/?url=exp%3A%2F%2F127.0.0.1%3A8081   (USB — adb reverse active)
+flip://expo-development-client/?url=exp%3A%2F%2F192.168.x.x%3A8081  (LAN — no USB device)
 ```
 
 Metro must say **Using development build** — not Expo Go.
@@ -177,10 +178,11 @@ If preview is still black:
 ### Dev server / Metro won't connect
 
 1. Run `.\flip-check-env.bat` — confirms device, Metro 8081, LAN IP.
-2. Same Wi-Fi on phone and PC; disable VPN/guest network.
-3. `flip-reset-dev.bat` — kills stale Metro, fresh cache, LAN deep link.
-4. Windows firewall: allow inbound TCP **8081** on Private network (see DEV_BUILD_ANDROID.md).
-5. Last resort: `npm run start:tunnel` (slow).
+2. USB connected? `adb reverse tcp:8081 tcp:8081` is set automatically by `flip-*.bat` — device uses `127.0.0.1:8081` (no Wi-Fi needed).
+3. `flip-reset-dev.bat` — kills stale Metro, fresh cache, USB/LAN deep link.
+4. Wi-Fi only? Same network on phone and PC; disable VPN/guest network.
+5. Windows firewall: allow inbound TCP **8081** on Private network (see DEV_BUILD_ANDROID.md).
+6. Last resort: `npm run start:tunnel` (slow).
 
 ### Create tab placeholder
 
