@@ -964,7 +964,6 @@ export default function LoopsFeed({ navigation }) {
     return (
         <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
-                <View style={styles.headerSide} />
                 <View style={styles.tabContainer}>
                     {forYouEnabled && (
                         <TouchableOpacity
@@ -1136,20 +1135,18 @@ const styles = StyleSheet.create({
         zIndex: 10,
         paddingHorizontal: 16,
     },
-    headerSide: {
-        width: 44,
-    },
     tabContainer: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 28,
+        justifyContent: 'space-evenly',
+        marginRight: 4,
+        minWidth: 0,
     },
     tab: {
         paddingVertical: 8,
-        paddingHorizontal: 4,
-        minWidth: 88,
+        paddingHorizontal: 2,
+        flexShrink: 1,
         alignItems: 'center',
     },
     activeTab: {
@@ -1168,6 +1165,7 @@ const styles = StyleSheet.create({
     searchButton: {
         width: 44,
         height: 40,
+        flexShrink: 0,
         alignItems: 'center',
         justifyContent: 'center',
     },
