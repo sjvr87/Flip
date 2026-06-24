@@ -1021,7 +1021,7 @@ export default function LoopsFeed({ navigation }) {
                     accessibilityRole="button"
                     style={styles.searchButton}
                     onPress={() => router.push('/private/search')}>
-                    <SearchEyeIcon size={24} color="#FFFFFF" />
+                    <SearchEyeIcon size={27} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
@@ -1142,11 +1142,13 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-evenly',
+        justifyContent: 'center',
+        gap: 28,
     },
     tab: {
-        flex: 1,
         paddingVertical: 8,
+        paddingHorizontal: 4,
+        minWidth: 88,
         alignItems: 'center',
     },
     activeTab: {
