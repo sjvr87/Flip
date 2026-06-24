@@ -17,6 +17,7 @@ const ICON_SLOT = 30;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 /** Reserved below every icon so counts don't shift icon vertical position. */
+const COUNT_FONT_SIZE = 12;
 const COUNT_LINE_HEIGHT = 16;
 
 /** Optical boost within ICON_SLOT — artwork that under-fills its viewBox. */
@@ -346,6 +347,7 @@ const styles = StyleSheet.create({
         minHeight: MIN_TOUCH,
         paddingTop: 1,
         paddingBottom: 1,
+        overflow: 'visible',
     },
     iconSlot: {
         width: ICON_SLOT,
@@ -359,9 +361,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     countSlot: {
-        height: COUNT_LINE_HEIGHT,
-        justifyContent: 'flex-start',
+        minHeight: COUNT_LINE_HEIGHT,
+        justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'visible',
     },
     iconShadow: {
         ...Platform.select({
@@ -378,9 +381,11 @@ const styles = StyleSheet.create({
     },
     actionText: {
         color: ICON_COLOR,
-        fontSize: 12,
+        fontSize: COUNT_FONT_SIZE,
+        lineHeight: COUNT_LINE_HEIGHT,
         fontWeight: '600',
-        marginTop: 2,
+        textAlign: 'center',
+        includeFontPadding: false,
         ...Platform.select({
             ios: {
                 shadowColor: '#000',
