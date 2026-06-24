@@ -1,6 +1,7 @@
 import Avatar from '@/components/Avatar';
 import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
+import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
 import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
@@ -298,7 +299,7 @@ function FeedActionRail({
                         accessible
                         accessibilityLabel={`Follow ${creatorUsername ?? 'creator'}`}
                         accessibilityRole="button">
-                        <Ionicons name="add" size={16} color="#FFFFFF" />
+                        <FollowAddBadgeIcon size={22} />
                     </PressableHaptics>
                 ) : null}
             </View>
@@ -541,7 +542,7 @@ const styles = StyleSheet.create({
         width: 22,
         height: 22,
         borderRadius: 11,
-        backgroundColor: LOOP_ACCENT,
+        overflow: 'hidden',
         borderWidth: 2,
         borderColor: '#000000',
         alignItems: 'center',
