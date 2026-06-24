@@ -7,6 +7,8 @@ import Svg, { Path } from 'react-native-svg';
 export const REPOST_ARROW_DESIGN_SIZE = 28;
 
 const VIEWBOX = `0 0 ${REPOST_ARROW_DESIGN_SIZE} ${REPOST_ARROW_DESIGN_SIZE}`;
+/** Tighter crop so stroke arrow fills the slot like Ionicons at the same pixel size. */
+const FEED_VIEWBOX = '5 4 19 20';
 
 /** Medium stroke traced from reference (~2.2px at 28×28). */
 const STROKE_WIDTH = 2.2;
@@ -25,12 +27,12 @@ const STROKE_PROPS = {
 const MAIN_PATH = 'M 9 6 H 16 V 17 H 10';
 const ARROWHEAD_PATH = 'M 10 12 L 4 17 L 10 22';
 
-function RepostArrowSvg({ color, strokeWidth }) {
+function RepostArrowSvg({ color, strokeWidth, viewBox = VIEWBOX }) {
     return (
         <Svg
             width={REPOST_ARROW_DESIGN_SIZE}
             height={REPOST_ARROW_DESIGN_SIZE}
-            viewBox={VIEWBOX}
+            viewBox={viewBox}
             fill="none">
             <Path d={MAIN_PATH} stroke={color} strokeWidth={strokeWidth} {...STROKE_PROPS} />
             <Path d={ARROWHEAD_PATH} stroke={color} strokeWidth={strokeWidth} {...STROKE_PROPS} />
@@ -46,12 +48,14 @@ const RepostArrowIcon = memo(function RepostArrowIcon({
     color = '#FFFFFF',
     active = false,
     activeColor = LOOP_ACCENT,
+    feedSlot = false,
 }) {
     const strokeColor = active ? activeColor : color;
     const strokeWidth = active ? ACTIVE_STROKE_WIDTH : STROKE_WIDTH;
+    const viewBox = feedSlot ? FEED_VIEWBOX : VIEWBOX;
 
     if (size === REPOST_ARROW_DESIGN_SIZE) {
-        return <RepostArrowSvg color={strokeColor} strokeWidth={strokeWidth} />;
+        return <RepostArrowSvg color={strokeColor} strokeWidth={strokeWidth} viewBox={viewBox} />;
     }
 
     const scale = size / REPOST_ARROW_DESIGN_SIZE;
@@ -65,7 +69,7 @@ const RepostArrowIcon = memo(function RepostArrowIcon({
                 justifyContent: 'center',
             }}>
             <View style={{ transform: [{ scale }] }}>
-                <RepostArrowSvg color={strokeColor} strokeWidth={strokeWidth} />
+                <RepostArrowSvg color={strokeColor} strokeWidth={strokeWidth} viewBox={viewBox} />
             </View>
         </View>
     );

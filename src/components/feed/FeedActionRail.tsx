@@ -1,21 +1,32 @@
 import Avatar from '@/components/Avatar';
-import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
-import RepostArrowIcon, { REPOST_ARROW_DESIGN_SIZE } from '@/components/icons/RepostArrowIcon';
+import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
+import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
 import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps, memo } from 'react';
+import { ComponentProps, memo, ReactNode } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
-const ICON_SIZE = 30;
-const LIKE_ICON_SIZE = FOLDED_HEART_DESIGN_SIZE;
+/** Uniform slot — Ionicons + custom SVGs share this hit area. */
+const ICON_SLOT = 30;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
+/** Reserved below every icon so counts don't shift icon vertical position. */
+const COUNT_LINE_HEIGHT = 16;
+
+/** Optical boost within ICON_SLOT — artwork that under-fills its viewBox. */
+const OPTICAL = {
+    ionicon: 1,
+    speaker: 1.14,
+    heart: 1,
+    repost: 1,
+    remix: 1,
+} as const;
 
 type FeedActionRailProps = {
     avatarUrl?: string | null;
@@ -47,6 +58,33 @@ type FeedActionRailProps = {
     onOther: () => void;
 };
 
+function ActionIconSlot({
+    children,
+    opticalScale = 1,
+}: {
+    children: ReactNode;
+    opticalScale?: number;
+}) {
+    return (
+        <View style={styles.iconShadow}>
+            <View style={styles.iconSlot}>
+                <View
+                    style={
+                        opticalScale === 1
+                            ? styles.iconSlotInner
+                            : [styles.iconSlotInner, { transform: [{ scale: opticalScale }] }]
+                    }>
+                    {children}
+                </View>
+            </View>
+        </View>
+    );
+}
+
+function ActionCountSlot({ children }: { children?: ReactNode }) {
+    return <View style={styles.countSlot}>{children}</View>;
+}
+
 function FeedActionIcon({
     name,
     activeName,
@@ -64,49 +102,49 @@ function FeedActionIcon({
     const iconColor = active ? activeColor : color;
 
     return (
-        <View style={styles.iconShadow}>
-            <Ionicons name={iconName} size={ICON_SIZE} color={iconColor} />
-        </View>
+        <ActionIconSlot opticalScale={OPTICAL.ionicon}>
+            <Ionicons name={iconName} size={ICON_SLOT} color={iconColor} />
+        </ActionIconSlot>
     );
 }
 
 function LikeActionIcon({ active }: { active: boolean }) {
     return (
-        <View style={styles.iconShadow}>
+        <ActionIconSlot opticalScale={OPTICAL.heart}>
             <FoldedHeartIcon
-                size={LIKE_ICON_SIZE}
+                size={ICON_SLOT}
                 variant={active ? 'filled' : 'outline'}
                 outlineColor={ICON_COLOR}
                 outlineOpacity={1}
             />
-        </View>
+        </ActionIconSlot>
     );
 }
 
 function RepostActionIcon({ active }: { active: boolean }) {
     return (
-        <View style={styles.iconShadow}>
-            <RepostArrowIcon size={REPOST_ARROW_DESIGN_SIZE} active={active} />
-        </View>
+        <ActionIconSlot opticalScale={OPTICAL.repost}>
+            <RepostArrowIcon size={ICON_SLOT} active={active} feedSlot />
+        </ActionIconSlot>
     );
 }
 
 function MuteActionIcon({ muted }: { muted: boolean }) {
     return (
-        <View style={styles.iconShadow}>
+        <ActionIconSlot opticalScale={OPTICAL.speaker}>
             <SpeakerSoundIcon
-                size={ICON_SIZE}
+                size={ICON_SLOT}
                 color={muted ? LOOP_ACCENT : ICON_COLOR}
             />
-        </View>
+        </ActionIconSlot>
     );
 }
 
 function RemixActionIcon() {
     return (
-        <View style={styles.iconShadow}>
-            <RemixVinylIcon size={ICON_SIZE} color={ICON_COLOR} />
-        </View>
+        <ActionIconSlot opticalScale={OPTICAL.remix}>
+            <RemixVinylIcon size={ICON_SLOT} color={ICON_COLOR} />
+        </ActionIconSlot>
     );
 }
 
@@ -175,9 +213,11 @@ function FeedActionRail({
                 accessibilityRole="button"
                 accessibilityState={{ selected: isLiked }}>
                 <LikeActionIcon active={isLiked} />
-                <Text style={styles.actionText} accessibilityElementsHidden>
-                    {likeCount}
-                </Text>
+                <ActionCountSlot>
+                    <Text style={styles.actionText} accessibilityElementsHidden>
+                        {likeCount}
+                    </Text>
+                </ActionCountSlot>
             </PressableHaptics>
 
             <TouchableOpacity
@@ -189,11 +229,13 @@ function FeedActionRail({
                 }
                 accessibilityRole="button">
                 <FeedActionIcon name="chatbubble-ellipses-outline" />
-                {canComment && (
-                    <Text style={styles.actionText} accessibilityElementsHidden>
-                        {commentCount}
-                    </Text>
-                )}
+                <ActionCountSlot>
+                    {canComment ? (
+                        <Text style={styles.actionText} accessibilityElementsHidden>
+                            {commentCount}
+                        </Text>
+                    ) : null}
+                </ActionCountSlot>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -212,9 +254,11 @@ function FeedActionRail({
                     activeName="bookmark"
                     active={isBookmarked}
                 />
-                <Text style={styles.actionText} accessibilityElementsHidden>
-                    {bookmarkCount}
-                </Text>
+                <ActionCountSlot>
+                    <Text style={styles.actionText} accessibilityElementsHidden>
+                        {bookmarkCount}
+                    </Text>
+                </ActionCountSlot>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -229,9 +273,11 @@ function FeedActionRail({
                 accessibilityRole="button"
                 accessibilityState={{ selected: isReposted }}>
                 <RepostActionIcon active={isReposted} />
-                <Text style={styles.actionText} accessibilityElementsHidden>
-                    {repostCount}
-                </Text>
+                <ActionCountSlot>
+                    <Text style={styles.actionText} accessibilityElementsHidden>
+                        {repostCount}
+                    </Text>
+                </ActionCountSlot>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -241,6 +287,7 @@ function FeedActionRail({
                 accessibilityLabel="Share video"
                 accessibilityRole="button">
                 <FeedActionIcon name="arrow-redo-outline" />
+                <ActionCountSlot />
             </TouchableOpacity>
 
             {showMuteControl ? (
@@ -252,6 +299,7 @@ function FeedActionRail({
                     accessibilityRole="button"
                     accessibilityState={{ selected: isMuted }}>
                     <MuteActionIcon muted={isMuted} />
+                    <ActionCountSlot />
                 </TouchableOpacity>
             ) : null}
 
@@ -264,6 +312,7 @@ function FeedActionRail({
                     accessibilityHint="Opens camera to record a remix; audio credit is attached to your post"
                     accessibilityRole="button">
                     <RemixActionIcon />
+                    <ActionCountSlot />
                 </TouchableOpacity>
             ) : null}
 
@@ -274,6 +323,7 @@ function FeedActionRail({
                 accessibilityLabel="More options"
                 accessibilityRole="button">
                 <FeedActionIcon name="ellipsis-horizontal" />
+                <ActionCountSlot />
             </TouchableOpacity>
         </View>
     );
@@ -292,10 +342,26 @@ const styles = StyleSheet.create({
     },
     actionButton: {
         alignItems: 'center',
-        justifyContent: 'center',
         minWidth: MIN_TOUCH,
         minHeight: MIN_TOUCH,
-        paddingVertical: 4,
+        paddingTop: 1,
+        paddingBottom: 1,
+    },
+    iconSlot: {
+        width: ICON_SLOT,
+        height: ICON_SLOT,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    iconSlotInner: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    countSlot: {
+        height: COUNT_LINE_HEIGHT,
+        justifyContent: 'flex-start',
+        alignItems: 'center',
     },
     iconShadow: {
         ...Platform.select({

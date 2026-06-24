@@ -7,6 +7,8 @@ type RemixVinylIconProps = {
 };
 
 const VIEW = 24;
+/** Cropped to record + hand bounds for feed-rail optical parity with Ionicons. */
+const VIEW_BOX = '2 3.5 19 19';
 const RECORD = { cx: 10.2, cy: 12.8, r: 7.2 };
 
 function contrastFill(color: string) {
@@ -43,7 +45,7 @@ const RemixVinylIcon = memo(function RemixVinylIcon({
     ].join(' ');
 
     return (
-        <Svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`} fill="none">
+        <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
             <Path
                 d="M 3.2 8.4 Q 5.4 5.2 8.6 4.1"
                 stroke={color}

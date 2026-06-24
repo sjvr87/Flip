@@ -10,6 +10,8 @@ type SpeakerSoundIconProps = {
 };
 
 const VIEW = 24;
+/** Cropped to artwork bounds so 30px render matches Ionicons optical weight. */
+const VIEW_BOX = '1.25 3.25 21.5 17.5';
 const CABINET = { x: 8.75, y: 4, w: 6.5, h: 16, rx: 1.75 };
 const BAR_WIDTH = 0.9;
 /** Outside → inside: short, medium, tall, medium, short */
@@ -34,7 +36,7 @@ const SpeakerSoundIcon = memo(function SpeakerSoundIcon({
     const barCy = 12;
 
     return (
-        <Svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`} fill="none">
+        <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
             {LEFT_BAR_CENTERS.map((cx, index) => {
                 const h = BAR_HEIGHTS[index];
                 return (
