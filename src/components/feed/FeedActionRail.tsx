@@ -1,6 +1,7 @@
 import Avatar from '@/components/Avatar';
 import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon, { REPOST_ARROW_DESIGN_SIZE } from '@/components/icons/RepostArrowIcon';
+import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
@@ -97,6 +98,14 @@ function MuteActionIcon({ muted }: { muted: boolean }) {
                 size={ICON_SIZE}
                 color={muted ? LOOP_ACCENT : ICON_COLOR}
             />
+        </View>
+    );
+}
+
+function RemixActionIcon() {
+    return (
+        <View style={styles.iconShadow}>
+            <RemixVinylIcon size={ICON_SIZE} color={ICON_COLOR} />
         </View>
     );
 }
@@ -254,7 +263,7 @@ function FeedActionRail({
                     accessibilityLabel="Use audio with credit"
                     accessibilityHint="Opens camera to record a remix; audio credit is attached to your post"
                     accessibilityRole="button">
-                    <FeedActionIcon name="musical-notes-outline" />
+                    <RemixActionIcon />
                 </TouchableOpacity>
             ) : null}
 
