@@ -6,6 +6,7 @@ import {
 import {
     getOAuthSignInOutcome,
     isOAuthSignInInFlight,
+    isStaleOAuthCallbackError,
     resetOAuthClient,
     waitForOAuthSignIn,
     wasOAuthCustomTabExchangeAttempted,
