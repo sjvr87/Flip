@@ -14,9 +14,17 @@ const SPINDLE_R = 0.36;
 const ARC_STROKE = 1.15;
 const HAND_OUTLINE = 1.35;
 
-/** Bottom motion arcs (reference) — keep exactly. */
-const BOTTOM_ARC_INNER = { r: 8.65, start: 64, end: 110 };
-const BOTTOM_ARC_OUTER = { r: 10.45, start: 60, end: 106 };
+/** disc → gap → inner arc → bigger gap → outer arc */
+const ARC_DISC_GAP = 1.9;
+const ARC_PAIR_GAP = 2.6;
+
+/** Bottom motion arcs (reference direction) — radii pushed outward from disc. */
+const BOTTOM_ARC_INNER = { r: DISC.r + ARC_DISC_GAP, start: 64, end: 110 };
+const BOTTOM_ARC_OUTER = {
+    r: DISC.r + ARC_DISC_GAP + ARC_PAIR_GAP,
+    start: 60,
+    end: 106,
+};
 
 /** Top-left arcs — point-mirror of bottom pair (same radii, stroke, spacing). */
 const TOP_ARC_INNER = {
@@ -47,31 +55,25 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
     return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 0 ${sweep} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
 }
 
+/**
+ * DJ scratching hand — palm on right, four finger bumps toward spindle,
+ * thumb below index; wrist exits bottom-right. Simple outline icon style.
+ */
 const HAND_PATH = [
-    'M 22.00 21.50',
-    'C 22.50 19.30 22.00 16.50 20.40 14.40',
-    'L 18.80 12.80',
-    'C 17.60 12.20 16.60 12.40 16.20 13.10',
-    'C 15.90 13.70 16.10 14.30 16.60 14.80',
-    'L 15.20 13.40',
-    'C 14.40 12.70 13.90 12.50 14.00 13.10',
-    'C 14.10 13.70 14.50 14.30 15.00 14.70',
-    'L 13.60 13.00',
-    'C 12.90 12.30 12.50 12.10 12.60 12.70',
-    'C 12.70 13.30 13.10 13.90 13.60 14.30',
-    'L 12.10 12.00',
-    'C 11.50 11.10 11.20 10.40 11.30 9.60',
-    'C 11.40 8.80 11.80 8.30 12.35 8.80',
-    'C 12.80 9.25 13.05 9.95 13.20 10.55',
-    'C 14.00 9.10 15.10 8.30 16.40 8.15',
-    'C 17.70 8.05 18.85 8.70 19.65 9.85',
-    'C 20.35 10.90 20.55 12.30 20.35 13.65',
-    'C 20.10 15.00 19.35 16.30 18.20 17.25',
-    'C 17.35 17.95 16.45 18.40 15.80 18.60',
-    'C 15.25 18.80 15.45 18.30 16.20 17.55',
-    'C 17.15 16.60 18.40 16.00 19.55 16.25',
-    'C 20.70 16.50 21.55 17.55 21.95 19.00',
-    'C 22.25 20.05 22.20 20.95 22.00 21.50',
+    'M 23.00 22.00',
+    'L 21.00 18.50',
+    'C 19.00 15.00 17.50 13.00 16.50 12.00',
+    'C 16.00 11.40 15.40 10.70 15.90 10.30',
+    'C 16.40 9.90 17.00 10.80 17.20 11.40',
+    'C 15.40 9.80 14.60 8.90 15.00 8.50',
+    'C 15.40 8.10 16.10 9.20 16.40 10.00',
+    'C 14.00 8.20 13.00 7.00 13.40 6.60',
+    'C 13.80 6.20 14.60 7.50 15.00 8.80',
+    'C 12.40 7.60 11.70 6.90 12.00 7.30',
+    'C 12.30 7.70 13.00 9.20 13.50 10.60',
+    'C 13.00 11.80 12.80 13.20 14.00 14.50',
+    'C 15.20 15.60 16.80 14.40 17.50 13.20',
+    'C 19.50 15.40 21.50 18.00 23.00 22.00',
     'Z',
 ].join(' ');
 
