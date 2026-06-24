@@ -1,61 +1,84 @@
 import { memo } from 'react';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Path } from 'react-native-svg';
 
 type RemixVinylIconProps = {
     size?: number;
     color?: string;
 };
 
-const VIEW = 24;
-/** Cropped to record + hand bounds for feed-rail optical parity with Ionicons. */
-const VIEW_BOX = '2 3.5 19 19';
-const RECORD = { cx: 10.2, cy: 12.8, r: 7.2 };
+/** Traced from reference vinyl-scratch icon (24×24 artboard). */
+const DISC = { cx: 8.75, cy: 12.1, r: 6.4 };
+const RING_OUTER = 2.85;
+const RING_INNER = 1.05;
+const SPINDLE_R = 0.65;
+const ARC_STROKE = 1.15;
+const HAND_OUTLINE = 1.3;
 
 function contrastFill(color: string) {
     const normalized = color.toLowerCase();
     return normalized === '#ffffff' || normalized === 'white' ? '#000000' : '#FFFFFF';
 }
 
-/** Hand silhouette — flat palm scratching the record from the right. */
+function polarPoint(cx: number, cy: number, r: number, deg: number) {
+    const rad = (deg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number) {
+    const start = polarPoint(cx, cy, r, startDeg);
+    const end = polarPoint(cx, cy, r, endDeg);
+    const sweep = endDeg > startDeg ? 1 : 0;
+    return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 0 ${sweep} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+}
+
+/** Hand silhouette traced from reference — fingers toward spindle, palm off right edge. */
 const HAND_PATH =
-    'M 15.4 11.2 L 17.1 9.1 L 19.4 7.8 L 20.1 9.2 L 19.5 10.4 L 20.2 11.8 L 19.8 13.4 L 20.1 15.1 L 18.6 16.4 L 16.9 16.8 L 15.3 16.1 L 14.1 14.6 L 13.6 13.1 Z';
+    'M 11.53 6.60 C 12.05 6.35 13.35 7.55 14.54 9.53 C 15.45 10.35 16.55 10.45 17.39 10.53 C 18.35 11.55 19.35 13.05 19.67 14.08 C 20.35 15.55 20.55 16.85 20.48 16.40 C 20.15 17.65 19.05 17.85 18.33 17.73 C 16.55 18.45 13.45 19.45 12.22 19.55 C 11.55 19.85 11.40 18.40 11.53 16.73 C 11.48 15.35 11.50 14.05 11.53 13.69 C 11.58 12.05 11.68 10.65 11.75 11.60 C 11.52 9.85 11.45 8.05 11.53 6.60 Z';
 
 /**
  * Vinyl record with scratching hand and motion arcs — feed remix / use-audio button.
- * Transparent background; record + arcs use `color`, hole/wedge/hand outline use contrast cutouts.
+ * Transparent background; record + arcs use `color`, label/wedge/hand gap use contrast cutouts.
  */
 const RemixVinylIcon = memo(function RemixVinylIcon({
     size = 24,
     color = '#FFFFFF',
 }: RemixVinylIconProps) {
     const detail = contrastFill(color);
-    const { cx, cy, r } = RECORD;
+    const { cx, cy, r } = DISC;
 
-    const wedgeOuterR = 5.1;
-    const wedgeInnerR = 2.15;
-    const wedgeStart = (-105 * Math.PI) / 180;
-    const wedgeEnd = (-75 * Math.PI) / 180;
+    const wedgeStart = -58;
+    const wedgeEnd = -12;
+    const wedgeInner = polarPoint(cx, cy, RING_OUTER, wedgeStart);
+    const wedgeOuterStart = polarPoint(cx, cy, r, wedgeStart);
+    const wedgeOuterEnd = polarPoint(cx, cy, r, wedgeEnd);
+    const wedgeInnerEnd = polarPoint(cx, cy, RING_OUTER, wedgeEnd);
     const wedgePath = [
-        `M ${cx + wedgeInnerR * Math.cos(wedgeStart)} ${cy + wedgeInnerR * Math.sin(wedgeStart)}`,
-        `L ${cx + wedgeOuterR * Math.cos(wedgeStart)} ${cy + wedgeOuterR * Math.sin(wedgeStart)}`,
-        `A ${wedgeOuterR} ${wedgeOuterR} 0 0 1 ${cx + wedgeOuterR * Math.cos(wedgeEnd)} ${cy + wedgeOuterR * Math.sin(wedgeEnd)}`,
-        `L ${cx + wedgeInnerR * Math.cos(wedgeEnd)} ${cy + wedgeInnerR * Math.sin(wedgeEnd)}`,
-        `A ${wedgeInnerR} ${wedgeInnerR} 0 0 0 ${cx + wedgeInnerR * Math.cos(wedgeStart)} ${cy + wedgeInnerR * Math.sin(wedgeStart)}`,
+        `M ${wedgeInner.x.toFixed(2)} ${wedgeInner.y.toFixed(2)}`,
+        `L ${wedgeOuterStart.x.toFixed(2)} ${wedgeOuterStart.y.toFixed(2)}`,
+        `A ${r} ${r} 0 0 1 ${wedgeOuterEnd.x.toFixed(2)} ${wedgeOuterEnd.y.toFixed(2)}`,
+        `L ${wedgeInnerEnd.x.toFixed(2)} ${wedgeInnerEnd.y.toFixed(2)}`,
+        `A ${RING_OUTER} ${RING_OUTER} 0 0 0 ${wedgeInner.x.toFixed(2)} ${wedgeInner.y.toFixed(2)}`,
         'Z',
     ].join(' ');
 
     return (
-        <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <Defs>
+                <ClipPath id="remixDiscClip">
+                    <Circle cx={cx} cy={cy} r={r} />
+                </ClipPath>
+            </Defs>
+
             <Path
-                d="M 3.2 8.4 Q 5.4 5.2 8.6 4.1"
+                d={arcPath(cx, cy, 7.25, -125, -108)}
                 stroke={color}
-                strokeWidth={1.15}
+                strokeWidth={ARC_STROKE}
                 strokeLinecap="round"
             />
             <Path
-                d="M 4.3 10.1 Q 6.2 7.6 8.9 6.4"
+                d={arcPath(cx, cy, 8.45, -128, -104)}
                 stroke={color}
-                strokeWidth={1.15}
+                strokeWidth={ARC_STROKE}
                 strokeLinecap="round"
             />
 
@@ -63,28 +86,32 @@ const RemixVinylIcon = memo(function RemixVinylIcon({
 
             <Path d={wedgePath} fill={detail} />
 
-            <Circle cx={cx} cy={cy} r={1.15} fill={detail} />
-            <Circle cx={cx} cy={cy} r={1.15} stroke={color} strokeWidth={0.35} fill={detail} />
+            <Circle cx={cx} cy={cy} r={RING_OUTER} fill={detail} />
+            <Circle cx={cx} cy={cy} r={RING_INNER} fill={color} />
+            <Circle cx={cx} cy={cy} r={SPINDLE_R} fill={color} />
+
+            <G clipPath="url(#remixDiscClip)">
+                <Path
+                    d={HAND_PATH}
+                    stroke={detail}
+                    strokeWidth={HAND_OUTLINE}
+                    strokeLinejoin="round"
+                    fill="none"
+                />
+            </G>
+            <Path d={HAND_PATH} fill={color} />
 
             <Path
-                d="M 8.8 20.2 Q 10.8 22.1 13.4 21.6"
+                d={arcPath(cx, cy, 7.35, 8, 72)}
                 stroke={color}
-                strokeWidth={1.15}
+                strokeWidth={ARC_STROKE}
                 strokeLinecap="round"
             />
             <Path
-                d="M 9.9 21.5 Q 11.8 23.2 14.2 22.7"
+                d={arcPath(cx, cy, 9.2, 5, 68)}
                 stroke={color}
-                strokeWidth={1.15}
+                strokeWidth={ARC_STROKE}
                 strokeLinecap="round"
-            />
-
-            <Path
-                d={HAND_PATH}
-                fill={color}
-                stroke={detail}
-                strokeWidth={1.35}
-                strokeLinejoin="round"
             />
         </Svg>
     );
