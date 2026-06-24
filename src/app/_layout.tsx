@@ -4,9 +4,9 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { isExpoGo, isWeb, useSafeNativeShims } from '@/utils/runtime';
 import { useAuthStore } from '@/utils/authStore';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { router, SplashScreen, Stack } from 'expo-router';
+import { router, SplashScreen, Stack, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { type PropsWithChildren, useEffect, useLayoutEffect, useState } from 'react';
+import React, { type PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppState, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -125,13 +125,20 @@ function ThemedStatusBar() {
 function ExpoGoAppContent() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const [showBanner, setShowBanner] = useState(true);
+    const navigationState = useRootNavigationState();
+    const navigationReady = navigationState?.key != null;
+    const rehydrateStartedRef = useRef(false);
 
     useLayoutEffect(() => {
-        console.log('[startup] Expo Go — rehydrate prefs then restore session');
+        if (!navigationReady || rehydrateStartedRef.current) {
+            return;
+        }
+        rehydrateStartedRef.current = true;
+        console.log('[startup] Expo Go — navigation ready, rehydrate prefs then restore session');
         void useAuthStore.persist.rehydrate().finally(() => {
             useAuthStore.getState().setHasHydrated(true);
         });
-    }, []);
+    }, [navigationReady]);
 
     useEffect(() => {
         const timer = setTimeout(() => setShowBanner(false), EXPO_GO_BANNER_MS);
@@ -188,10 +195,11 @@ function WebAppContent() {
     );
 }
 
-/** Native: flat Stack always mounted; /index Redirect gates auth after rehydrate. */
+/** Native: flat Stack; initialRouteName after rehydrate (no router.replace on cold start). */
 function NativeAppContent() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
+    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
     useNotificationObserver();
 
@@ -200,10 +208,16 @@ function NativeAppContent() {
         hideSplash();
     }, [hasHydrated, authReady]);
 
+    if (!hasHydrated) {
+        return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+    }
+
     return (
         <>
             <ThemedStatusBar />
-            <Stack screenOptions={{ headerShown: false }}>
+            <Stack
+                screenOptions={{ headerShown: false }}
+                initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="private" />
@@ -218,6 +232,28 @@ function NativeAppContent() {
 
 function hideSplash() {
     void SplashScreen.hideAsync().catch(() => {});
+}
+
+/**
+ * Wait for NavigationContainer linking before OAuth/session restore — restore during
+ * linking init races dispatch and throws "undefined is not a function".
+ */
+function useDeferredAuthRehydrate() {
+    const navigationState = useRootNavigationState();
+    const navigationReady = navigationState?.key != null;
+    const startedRef = useRef(false);
+
+    useEffect(() => {
+        if (!navigationReady || startedRef.current) {
+            return;
+        }
+        startedRef.current = true;
+        console.log('[startup] Navigation ready — starting auth rehydrate');
+        void useAuthStore.persist.rehydrate().catch((error) => {
+            console.log('[startup] persist.rehydrate failed:', error);
+            useAuthStore.getState().setHasHydrated(true);
+        });
+    }, [navigationReady]);
 }
 
 function useGlobalStartupErrorHandler() {
@@ -270,6 +306,7 @@ export default function RootLayout() {
 
     useGlobalStartupErrorHandler();
     useAndroidSystemBars();
+    useDeferredAuthRehydrate();
 
     useLayoutEffect(() => {
         if (hasHydrated) {
@@ -289,13 +326,6 @@ export default function RootLayout() {
         if (isExpoGo) {
             return () => clearTimeout(splashFailsafe);
         }
-
-        console.log('[startup] RootLayout mount — starting auth rehydrate');
-
-        void useAuthStore.persist.rehydrate().catch((error) => {
-            console.log('[startup] persist.rehydrate failed:', error);
-            useAuthStore.getState().setHasHydrated(true);
-        });
 
         return () => clearTimeout(splashFailsafe);
     }, []);

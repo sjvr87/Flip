@@ -48,9 +48,16 @@ function bareDeepLinkSegment(path: string): string {
 
 function tabNameFromPath(path: string): string | null {
     const bare = bareDeepLinkSegment(path);
-    const name = bare.split('?')[0];
-    if (TAB_DEEP_LINK_NAMES.has(name)) {
-        return name;
+    const routePart = bare.split('?')[0];
+
+    const firstSegment = routePart.replace(/^\//, '').split('/').filter(Boolean)[0];
+    if (firstSegment && TAB_DEEP_LINK_NAMES.has(firstSegment)) {
+        return firstSegment;
+    }
+
+    const tabRouteMatch = routePart.match(/(?:\(tabs\)\/|^tabs\/)([^/?]+)/);
+    if (tabRouteMatch?.[1] && TAB_DEEP_LINK_NAMES.has(tabRouteMatch[1])) {
+        return tabRouteMatch[1];
     }
 
     try {
@@ -157,26 +164,29 @@ export function redirectSystemPath({
 }): string | null {
     try {
         if (!path || isMetroOrDevClientUrl(path)) {
-            return initial ? '/' : null;
+            return null;
         }
 
         if (isOAuthCallbackUrl(path)) {
             // Cold start can replay a bare callback intent (no ?code=&state=) and trigger a false error.
             if (initial && !hasOAuthCallbackQueryInPath(path)) {
-                return '/';
+                return null;
             }
             return oauthCallbackRoute(path);
         }
 
         if (isStaleAppDeepLink(path)) {
             if (initial) {
-                return '/';
+                if (__DEV__) {
+                    console.log('[linking] ignore stale tab deep link on cold start:', path);
+                }
+                return null;
             }
             return mapTabDeepLink(path);
         }
 
         return path;
     } catch {
-        return initial ? '/' : null;
+        return null;
     }
 }

@@ -1,23 +1,14 @@
 /**
  * Metro bundle polyfills — run before InitializeCore and expo winter.
- * Hermes lacks AbortSignal.prototype.throwIfAborted and sometimes queueMicrotask.
- * @atproto/oauth-client and expo-router linking call these during cold start.
+ * Hermes lacks AbortSignal.prototype.throwIfAborted (OAuth verifyIssuer, linking).
+ *
+ * Do NOT polyfill queueMicrotask here — at bundle start RN has not installed it yet,
+ * so we would shadow the real implementation and navigation.dispatch() throws
+ * "undefined is not a function" (see abortSignalPolyfill.ts).
  *
  * Plain JS so Metro can prepend without transpiling. Keep in sync with abortSignalPolyfill.ts.
  */
 'use strict';
-
-if (typeof globalThis.queueMicrotask !== 'function') {
-    globalThis.queueMicrotask = function queueMicrotask(callback) {
-        Promise.resolve()
-            .then(callback)
-            .catch(function (error) {
-                setTimeout(function () {
-                    throw error;
-                });
-            });
-    };
-}
 
 if (typeof AbortSignal !== 'undefined') {
     var proto = AbortSignal.prototype;
