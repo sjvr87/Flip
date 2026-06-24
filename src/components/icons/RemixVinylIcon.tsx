@@ -18,25 +18,20 @@ const HAND_OUTLINE = 1.35;
 const ARC_DISC_GAP = 1.9;
 const ARC_PAIR_GAP = 2.6;
 
-/** Bottom motion arcs (reference direction) — radii pushed outward from disc. */
-const BOTTOM_ARC_INNER = { r: DISC.r + ARC_DISC_GAP, start: 64, end: 110 };
+/** Bottom motion arcs — radii pushed outward; wider sweep so curves read complete. */
+const BOTTOM_ARC_INNER = { r: DISC.r + ARC_DISC_GAP, start: 58, end: 114 };
 const BOTTOM_ARC_OUTER = {
     r: DISC.r + ARC_DISC_GAP + ARC_PAIR_GAP,
-    start: 60,
-    end: 106,
+    start: 54,
+    end: 110,
 };
 
-/** Top-left arcs — point-mirror of bottom pair (same radii, stroke, spacing). */
-const TOP_ARC_INNER = {
-    r: BOTTOM_ARC_INNER.r,
-    start: BOTTOM_ARC_INNER.start + 180,
-    end: BOTTOM_ARC_INNER.end + 180,
-};
-const TOP_ARC_OUTER = {
-    r: BOTTOM_ARC_OUTER.r,
-    start: BOTTOM_ARC_OUTER.start + 180,
-    end: BOTTOM_ARC_OUTER.end + 180,
-};
+/**
+ * Top-left arcs — same radii/spacing as bottom, shifted left along the disc rim
+ * (not a strict 180° mirror so the pair hugs the upper-left quadrant).
+ */
+const TOP_ARC_INNER = { r: BOTTOM_ARC_INNER.r, start: -142, end: -96 };
+const TOP_ARC_OUTER = { r: BOTTOM_ARC_OUTER.r, start: -148, end: -92 };
 
 function contrastFill(color: string) {
     const normalized = color.toLowerCase();
@@ -52,28 +47,31 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
     const start = polarPoint(cx, cy, r, startDeg);
     const end = polarPoint(cx, cy, r, endDeg);
     const sweep = endDeg > startDeg ? 1 : 0;
-    return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 0 ${sweep} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+    const span = Math.abs(endDeg - startDeg);
+    const largeArc = span > 180 ? 1 : 0;
+    return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} ${sweep} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
 }
 
 /**
- * DJ scratching hand — palm on right, four finger bumps toward spindle,
- * thumb below index; wrist exits bottom-right. Simple outline icon style.
+ * DJ mix grip — four fingers flat on the vinyl toward the spindle, thumb offset
+ * to the right; simple outline with fingertip ridges and inter-finger valleys.
  */
 const HAND_PATH = [
-    'M 23.00 22.00',
-    'L 21.00 18.50',
-    'C 19.00 15.00 17.50 13.00 16.50 12.00',
-    'C 16.00 11.40 15.40 10.70 15.90 10.30',
-    'C 16.40 9.90 17.00 10.80 17.20 11.40',
-    'C 15.40 9.80 14.60 8.90 15.00 8.50',
-    'C 15.40 8.10 16.10 9.20 16.40 10.00',
-    'C 14.00 8.20 13.00 7.00 13.40 6.60',
-    'C 13.80 6.20 14.60 7.50 15.00 8.80',
-    'C 12.40 7.60 11.70 6.90 12.00 7.30',
-    'C 12.30 7.70 13.00 9.20 13.50 10.60',
-    'C 13.00 11.80 12.80 13.20 14.00 14.50',
-    'C 15.20 15.60 16.80 14.40 17.50 13.20',
-    'C 19.50 15.40 21.50 18.00 23.00 22.00',
+    'M 23.10 21.90',
+    'C 22.20 19.50 20.80 17.30 19.50 16.10',
+    'C 21.50 15.20 23.00 14.00 22.80 12.80',
+    'C 22.40 11.90 21.00 12.50 20.10 13.40',
+    'C 19.60 14.00 19.30 14.60 19.10 15.00',
+    'C 17.20 14.50 15.00 14.00 13.80 13.70',
+    'C 14.50 13.30 16.50 13.40 17.80 14.00',
+    'C 15.80 12.80 13.80 12.20 12.60 11.90',
+    'C 13.40 11.40 15.60 11.50 17.00 12.20',
+    'C 14.60 10.90 13.00 10.30 12.10 10.00',
+    'C 13.00 9.50 15.20 9.60 16.60 10.30',
+    'C 14.00 8.80 13.00 8.40 12.40 8.10',
+    'C 13.80 7.80 16.20 8.80 17.60 10.20',
+    'C 19.00 11.80 20.20 14.20 21.20 16.80',
+    'C 22.00 18.80 22.80 20.50 23.10 21.90',
     'Z',
 ].join(' ');
 
@@ -104,7 +102,7 @@ const RemixVinylIcon = memo(function RemixVinylIcon({
     ].join(' ');
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" overflow="visible">
             <Defs>
                 <ClipPath id="remixDiscClip">
                     <Circle cx={cx} cy={cy} r={r} />
