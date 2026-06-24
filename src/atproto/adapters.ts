@@ -51,24 +51,61 @@ function isGalleryViewImage(item: unknown): item is GalleryViewImage {
     );
 }
 
+type RecordVideoEmbed = {
+    $type?: string;
+    video?: RecordBlobRef;
+    aspectRatio?: { width: number; height: number };
+};
+
+function videoCdnUrls(
+    did: string,
+    cid: string,
+): { thumbnail: string; playlist: string } {
+    const encodedDid = encodeURIComponent(did);
+    const base = `https://video.bsky.app/watch/${encodedDid}/${cid}`;
+    return {
+        thumbnail: `${base}/thumbnail.jpg`,
+        playlist: `${base}/manifest.m3u8`,
+    };
+}
+
+function getVideoEmbedFromRecord(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View | null {
+    const record = post.record as { embed?: RecordVideoEmbed };
+    const recordEmbed = record?.embed;
+    if (recordEmbed?.$type !== 'app.bsky.embed.video') return null;
+
+    const cid = blobRefToCid(recordEmbed.video);
+    if (!cid) return null;
+
+    const urls = videoCdnUrls(post.author.did, cid);
+
+    return {
+        $type: 'app.bsky.embed.video#view',
+        cid,
+        playlist: urls.playlist,
+        thumbnail: urls.thumbnail,
+        aspectRatio: recordEmbed.aspectRatio,
+    };
+}
+
 function getVideoEmbed(post: AppBskyFeedDefs.PostView): AppBskyEmbedVideo.View | null {
     const embed = post.embed;
-    if (!embed) return null;
+    if (embed) {
+        if (AppBskyEmbedVideo.isView(embed)) {
+            return embed;
+        }
 
-    if (AppBskyEmbedVideo.isView(embed)) {
-        return embed;
+        if (
+            embed.$type === 'app.bsky.embed.recordWithMedia#view' &&
+            'media' in embed &&
+            embed.media &&
+            AppBskyEmbedVideo.isView(embed.media)
+        ) {
+            return embed.media;
+        }
     }
 
-    if (
-        embed.$type === 'app.bsky.embed.recordWithMedia#view' &&
-        'media' in embed &&
-        embed.media &&
-        AppBskyEmbedVideo.isView(embed.media)
-    ) {
-        return embed.media;
-    }
-
-    return null;
+    return getVideoEmbedFromRecord(post);
 }
 
 function galleryViewToImages(embed: GalleryView): ImageEmbedView | null {
