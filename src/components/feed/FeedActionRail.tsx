@@ -1,7 +1,7 @@
 import Avatar from '@/components/Avatar';
 import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon, { REPOST_ARROW_DESIGN_SIZE } from '@/components/icons/RepostArrowIcon';
-import SpeakerSoundIcon, { SPEAKER_SOUND_DESIGN_SIZE } from '@/components/icons/SpeakerSoundIcon';
+import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,7 +94,7 @@ function MuteActionIcon({ muted }: { muted: boolean }) {
     return (
         <View style={styles.iconShadow}>
             <SpeakerSoundIcon
-                size={SPEAKER_SOUND_DESIGN_SIZE}
+                size={ICON_SIZE}
                 color={muted ? LOOP_ACCENT : ICON_COLOR}
             />
         </View>

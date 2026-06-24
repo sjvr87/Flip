@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import Svg, { Circle, Rect } from 'react-native-svg';
 
-export const SPEAKER_SOUND_DESIGN_SIZE = 34;
+/** Matches feed action rail `ICON_SIZE` (Ionicons, remix, share, comment). */
+export const SPEAKER_SOUND_DESIGN_SIZE = 30;
 
 type SpeakerSoundIconProps = {
     size?: number;
