@@ -71,7 +71,7 @@ adb devices
 
 ## USB + same Wi-Fi for Metro
 
-Flip dev deep links prefer the **USB path** (`exp://127.0.0.1:8081` via `adb reverse`) when a device is connected, and fall back to the **LAN IP** (`exp://192.168.x.x:8081`) when no USB device is present. `metro.config.js` binds Metro to `0.0.0.0` so both paths reach the bundler.
+Flip dev scripts prefer the **USB path** when a device is connected. With `adb reverse tcp:8081 tcp:8081` active, deep links use `exp://127.0.0.1:8081` so the device reaches Metro over USB without requiring Wi-Fi. When no USB device is present, scripts fall back to the **LAN IP** (`exp://192.168.x.x:8081`). `metro.config.js` binds Metro to `0.0.0.0` so both paths can reach the bundler.
 
 | Layer | What happens |
 |-------|----------------|

@@ -268,15 +268,16 @@ function Invoke-BundleWarmup {
   param(
     [string]$MetroHost = "127.0.0.1"  # must match the host the device will use (USB or LAN)
   )
-  # Fire-and-forget request to trigger Metro's JS compilation pipeline before the app launches.
-  # The timeout is intentionally short — we only want to start the compile, not wait for it.
-  # By the time the dev client requests the bundle the cache will already be warm.
+  # Trigger Metro's JS compilation pipeline before the app launches.  Uses a very short
+  # timeout — the goal is to start the compile, not wait for it to finish.  The device
+  # request will arrive after the app cold-starts (~2-5 s), by which point Metro's cache
+  # is already warm.  Do NOT include lazy=true; that would delay compilation.
   try {
-    Invoke-WebRequest -Uri "http://${MetroHost}:8081/index.bundle?platform=android&dev=true&hot=false&lazy=true" `
-      -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue | Out-Null
-    Write-Host "  Bundle warm-up: request sent to ${MetroHost}:8081 (compile may be in progress)." -ForegroundColor DarkGray
+    Invoke-WebRequest -Uri "http://${MetroHost}:8081/index.bundle?platform=android&dev=true&hot=false" `
+      -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue | Out-Null
+    Write-Host "  Bundle warm-up: request sent to ${MetroHost}:8081 (compile triggered)." -ForegroundColor DarkGray
   } catch {
-    Write-Host "  Bundle warm-up request sent to ${MetroHost}:8081 (compile in progress — normal for fresh Metro start)." -ForegroundColor DarkGray
+    Write-Host "  Bundle warm-up request sent to ${MetroHost}:8081 (compile started — timeout expected)." -ForegroundColor DarkGray
   }
 }
 
