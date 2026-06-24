@@ -22,7 +22,7 @@ export const DISCOVERY_MAX_CHAIN_FETCHES = 10;
 /** Minimum non-followed authors per discovery page when possible. */
 export const DISCOVERY_MIN_NON_FOLLOW_VIDEOS = 4;
 
-export const FEED_TABS = ['forYou', 'following', 'trending'] as const;
+export const FEED_TABS = ['following', 'forYou', 'trending'] as const;
 export type FeedTab = (typeof FEED_TABS)[number];
 
 const sessionSeenByTab = new Map<string, Set<string>>();

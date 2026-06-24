@@ -99,6 +99,7 @@ export default function FeedsSettingsScreen() {
     }, [forYouEnabled, defaultFeed, setDefaultFeed]);
 
     const feedOptions = [
+        { value: 'following', label: 'Following', description: 'Posts from accounts you follow' },
         ...(forYouEnabled
             ? [
                   {
@@ -108,7 +109,6 @@ export default function FeedsSettingsScreen() {
                   },
               ]
             : []),
-        { value: 'following', label: 'Following', description: 'Posts from accounts you follow' },
         {
             value: 'trending',
             label: 'Trending',

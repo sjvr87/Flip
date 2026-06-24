@@ -965,6 +965,22 @@ export default function LoopsFeed({ navigation }) {
         <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
                 <View style={styles.tabContainer}>
+                    <TouchableOpacity
+                        accessibilityRole="tab"
+                        accessibilityLabel="Following"
+                        accessibilityState={{
+                            selected: activeTab === 'following',
+                        }}
+                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                        onPress={() => switchFeedTab('following')}>
+                        <Text
+                            style={[
+                                styles.tabText,
+                                activeTab === 'following' && styles.activeTabText,
+                            ]}>
+                            Following
+                        </Text>
+                    </TouchableOpacity>
                     {forYouEnabled && (
                         <TouchableOpacity
                             accessibilityRole="tab"
@@ -983,22 +999,6 @@ export default function LoopsFeed({ navigation }) {
                             </Text>
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Following"
-                        accessibilityState={{
-                            selected: activeTab === 'following',
-                        }}
-                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => switchFeedTab('following')}>
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === 'following' && styles.activeTabText,
-                            ]}>
-                            Following
-                        </Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
                         accessibilityRole="tab"
                         accessibilityLabel="Trending"
