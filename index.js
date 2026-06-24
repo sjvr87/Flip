@@ -2,19 +2,23 @@
 // Use require() only: ESM `import` hoisting runs modules before InitializeCore.
 require('react-native/Libraries/Core/InitializeCore');
 
-const { ensureQueueMicrotask } = require('./src/bootstrap/ensureQueueMicrotask');
+const { ensureQueueMicrotask, boundQueueMicrotask } = require('./src/bootstrap/ensureQueueMicrotask');
 ensureQueueMicrotask();
 
 require('./src/bootstrap/abortSignalPolyfill');
 require('./src/bootstrap/nativeFetch');
 require('@expo/metro-runtime');
+if (typeof global.__flipBindQueueMicrotask === 'function') {
+    global.__flipBindQueueMicrotask(boundQueueMicrotask);
+}
 ensureQueueMicrotask();
 
-// Expo winter / worklets may replace queueMicrotask after metro-runtime loads.
 if (typeof setImmediate === 'function') {
     setImmediate(ensureQueueMicrotask);
     setImmediate(() => setImmediate(ensureQueueMicrotask));
 }
+
+require('./src/bootstrap/patchNavigationEvents').installNavigationEventsPatch();
 
 const { renderRootComponent } = require('expo-router/build/renderRootComponent');
 const { App } = require('./src/bootstrap/rootApp');

@@ -6,10 +6,12 @@ import { StartupErrorBoundary } from '@/components/StartupErrorBoundary';
 import { ExpoRoot } from 'expo-router/build/ExpoRoot';
 import { Head } from 'expo-router/build/head';
 import 'expo-router/build/fast-refresh';
-import 'react';
+import { useEffect } from 'react';
+import { installRoutingQueuePatch } from './patchLinkingTabUrls';
 import { ctx } from 'expo-router/_ctx';
 
 export function App() {
+    useEffect(() => { installRoutingQueuePatch(); }, []);
     return (
         <StartupErrorBoundary label="Flip navigation">
             <Head.Provider>
