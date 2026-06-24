@@ -162,7 +162,6 @@ export default function TabsLayout() {
                 }}
                 options={{
                     title: 'Explore',
-                    href: '/explore',
                     tabBarAccessibilityLabel: 'Explore',
                     tabBarShowLabel: false,
                     headerShown: false,
@@ -177,7 +176,6 @@ export default function TabsLayout() {
                 name="create"
                 options={{
                     title: 'Create',
-                    href: '/create',
                     tabBarAccessibilityLabel: 'Create',
                     tabBarShowLabel: false,
                     headerShown: false,
@@ -192,7 +190,6 @@ export default function TabsLayout() {
                 name="notifications"
                 options={{
                     title: 'Inbox',
-                    href: '/notifications',
                     tabBarAccessibilityLabel: 'Inbox',
                     tabBarShowLabel: false,
                     ...(Platform.OS !== 'web' && displayBadgeCount
@@ -223,7 +220,6 @@ export default function TabsLayout() {
                 name="profile"
                 options={{
                     title: 'Profile',
-                    href: '/profile',
                     tabBarAccessibilityLabel: 'Profile',
                     tabBarShowLabel: false,
                     headerShown: false,
