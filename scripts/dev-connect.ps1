@@ -266,18 +266,24 @@ function Invoke-MetroReload {
 
 function Invoke-BundleWarmup {
   param(
-    [string]$MetroHost = "127.0.0.1"  # must match the host the device will use (USB or LAN)
+    [string]$MetroHost = "127.0.0.1",  # must match the host the device will use (USB or LAN)
+    [int]$TimeoutSec = 3               # short: goal is to start the compile, not wait for it
   )
-  # Trigger Metro's JS compilation pipeline before the app launches.  Uses a very short
-  # timeout — the goal is to start the compile, not wait for it to finish.  The device
-  # request will arrive after the app cold-starts (~2-5 s), by which point Metro's cache
+  # Trigger Metro's JS compilation pipeline before the app launches.  The request is
+  # intentionally short-lived — by the time the app cold-starts (~2-5 s) Metro's cache
   # is already warm.  Do NOT include lazy=true; that would delay compilation.
   try {
-    Invoke-WebRequest -Uri "http://${MetroHost}:8081/index.bundle?platform=android&dev=true&hot=false" `
-      -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue | Out-Null
-    Write-Host "  Bundle warm-up: request sent to ${MetroHost}:8081 (compile triggered)." -ForegroundColor DarkGray
+    $r = Invoke-WebRequest -Uri "http://${MetroHost}:8081/index.bundle?platform=android&dev=true&hot=false" `
+      -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction SilentlyContinue
+    if ($r -and $r.StatusCode -lt 500) {
+      Write-Host "  Bundle warm-up: Metro responded ($($r.StatusCode)) — bundle request queued." -ForegroundColor DarkGray
+    } else {
+      Write-Host "  Bundle warm-up: request sent to ${MetroHost}:8081." -ForegroundColor DarkGray
+    }
   } catch {
-    Write-Host "  Bundle warm-up request sent to ${MetroHost}:8081 (compile started — timeout expected)." -ForegroundColor DarkGray
+    # Timeout and connection errors are expected when Metro is still starting or the bundle
+    # compile takes longer than $TimeoutSec.  The request was still received by Metro.
+    Write-Host "  Bundle warm-up: request to ${MetroHost}:8081 timed out or failed — Metro may still be starting." -ForegroundColor DarkGray
   }
 }
 
