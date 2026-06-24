@@ -96,6 +96,12 @@ AUTO-EXECUTE (no user approval needed):
 ✓ Test runs, device launches, adb commands
 ```
 
+### 8. **Closed beta — age verification reminder**
+
+- **Budget:** $0 pre-launch. Age verification **OFF** until closed beta.
+- **Plan:** Persona first (500 free/mo startup), Veriff sandbox backup. See [docs/AGE_VERIFICATION.md](../docs/AGE_VERIFICATION.md).
+- **Agent duty:** Bring this up with the user when hitting closed beta.
+
 ## Current Workflow (Metro + MMKV + Device Testing)
 
 ### Phase 1: Build & Prep (Parallel)
