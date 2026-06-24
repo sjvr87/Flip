@@ -1,0 +1,4 @@
+﻿# logcat-tab-verify-2026-06-24.txt
+# Device: R3GL10HN64A | After patchNavigationEvents.js + simplified tabs
+# flip-reset-dev.bat + flip-connect; Explore tap + Create/Inbox/Profile/Home coordinate taps
+# Result: NO ReactNativeJS:E TypeError lines in session buffer (post-fix)

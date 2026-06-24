@@ -8,7 +8,6 @@ import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { setHomeTabFocused } from '@/utils/feedPlaybackGuard';
-import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -56,12 +55,8 @@ export default function TabsLayout() {
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
-    useEffect(() => {
-        ensureQueueMicrotask();
-    }, []);
 
     useEffect(() => {
-        ensureQueueMicrotask();
         const onCreateTab =
             pathname === '/create' || pathname === '/(tabs)/create' || pathname.endsWith('/create');
         if (onCreateTab) {
@@ -86,7 +81,6 @@ export default function TabsLayout() {
         () =>
             ({ route }: { route: { name: string } }) => ({
                 tabPress: () => {
-                    ensureQueueMicrotask();
                     if (route.name === 'index') {
                         setHomeTabFocused(true);
                     }
@@ -126,7 +120,6 @@ export default function TabsLayout() {
                 name="index"
                 listeners={{
                     focus: () => {
-                        ensureQueueMicrotask();
                         setHomeTabFocused(true);
                     },
                     blur: () => {
@@ -152,14 +145,6 @@ export default function TabsLayout() {
             />
             <Tabs.Screen
                 name="explore"
-                listeners={{
-                    tabPress: () => {
-                        ensureQueueMicrotask();
-                    },
-                    focus: () => {
-                        ensureQueueMicrotask();
-                    },
-                }}
                 options={{
                     title: 'Explore',
                     href: '/explore',

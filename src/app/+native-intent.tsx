@@ -14,14 +14,6 @@
 
 import { hasOAuthCallbackQueryInPath } from '@/atproto/oauthCallbackUrl';
 
-function ensureQueueMicrotaskForLinking(): void {
-    try {
-        require('../bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
-    } catch {
-        // tests / web
-    }
-}
-
 const OAUTH_CALLBACK_PATHS = new Set(['/oauth/callback', '/oauth-callback']);
 
 /** Tab names that flip:// may use as hostname (flip://explore → path "explore"). */
@@ -171,8 +163,6 @@ export function redirectSystemPath({
     initial: boolean;
 }): string | null {
     try {
-        ensureQueueMicrotaskForLinking();
-
         if (!path || isMetroOrDevClientUrl(path)) {
             return null;
         }
