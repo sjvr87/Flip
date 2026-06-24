@@ -3,6 +3,8 @@ import { useAuthStore } from '@/utils/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
+export const FOLLOWING_DIDS_QUERY_KEY = ['followingDids'] as const;
+
 function normalizeFollowingSet(data: unknown): Set<string> {
     if (data instanceof Set) {
         return data;
@@ -14,7 +16,7 @@ export function useFollowingDids() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
     const { data: followingDids, isSuccess, isError, isFetched } = useQuery({
-        queryKey: ['followingDids'],
+        queryKey: FOLLOWING_DIDS_QUERY_KEY,
         queryFn: fetchFollowingDidsSet,
         enabled: isLoggedIn,
         staleTime: 5 * 60_000,

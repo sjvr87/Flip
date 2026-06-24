@@ -6,13 +6,14 @@ import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
-import { useFollowingDids } from '@/hooks/useFollowingDids';
-import { addAccountToFollowingCache, followAccount } from '@/atproto';
+import { FOLLOWING_DIDS_QUERY_KEY, useFollowingDids } from '@/hooks/useFollowingDids';
+import { addAccountToFollowingCache, appendAccountToFollowingSet, followAccount } from '@/atproto';
 import { useAuthStore } from '@/utils/authStore';
+import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps, memo, ReactNode, useState } from 'react';
+import { ComponentProps, memo, ReactNode } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -189,15 +190,8 @@ function FeedActionRail({
 }: FeedActionRailProps) {
     const railBottom = overlayBottom ?? bottomInset + tabBarHeight + 20;
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
-    const { isFollowing, isReady } = useFollowingDids();
+    const { isFollowing } = useFollowingDids();
     const queryClient = useQueryClient();
-    const [followedLocally, setFollowedLocally] = useState(false);
-
-    const showFollowAffordance = Boolean(isLoggedIn && creatorId && !isOwnPost);
-    const confirmedFollowing =
-        isReady && isFollowing({ id: creatorId, username: creatorUsername });
-    const creatorFollowing = followedLocally || confirmedFollowing;
-    const showNotFollowing = showFollowAffordance && !creatorFollowing;
 
     const followMutation = useMutation({
         mutationFn: async () => {
@@ -207,24 +201,44 @@ function FeedActionRail({
             return followAccount(creatorId);
         },
         onMutate: () => {
-            setFollowedLocally(true);
+            if (!creatorId) {
+                return {};
+            }
+            const account = { id: creatorId, username: creatorUsername };
+            const previousFollowing = queryClient.getQueryData<Set<string>>(FOLLOWING_DIDS_QUERY_KEY);
+            queryClient.setQueryData<Set<string>>(FOLLOWING_DIDS_QUERY_KEY, (prev) =>
+                appendAccountToFollowingSet(prev, account),
+            );
+            addAccountToFollowingCache(account);
+            return { previousFollowing };
+        },
+        onSuccess: () => {
             if (creatorId) {
                 addAccountToFollowingCache({ id: creatorId, username: creatorUsername });
             }
         },
-        onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: ['followingDids'] });
-        },
-        onError: () => {
-            setFollowedLocally(false);
-            Alert.alert('Error', 'Failed to follow. Please try again.');
+        onError: (_error, _variables, context) => {
+            if (context?.previousFollowing !== undefined) {
+                queryClient.setQueryData(FOLLOWING_DIDS_QUERY_KEY, context.previousFollowing);
+            }
+            safeQueueMicrotask(() => {
+                Alert.alert('Error', 'Failed to follow. Please try again.');
+            });
         },
     });
+
+    const showFollowAffordance = Boolean(isLoggedIn && creatorId && !isOwnPost);
+    const alreadyFollowing =
+        followMutation.isPending ||
+        followMutation.isSuccess ||
+        isFollowing({ id: creatorId, username: creatorUsername });
+    const showNotFollowing = showFollowAffordance && !alreadyFollowing;
 
     const handleFollowPress = () => {
         if (!showNotFollowing || followMutation.isPending) {
             return;
         }
+        ensureQueueMicrotask();
         followMutation.mutate();
     };
 
@@ -258,7 +272,7 @@ function FeedActionRail({
                         <View
                             style={[
                                 styles.avatarRingPlain,
-                                creatorFollowing && styles.avatarRingFollowed,
+                                alreadyFollowing && styles.avatarRingFollowed,
                             ]}>
                             <View style={styles.avatarInner}>
                                 <Avatar

@@ -220,10 +220,29 @@ export async function fetchFollowingDidsSet(): Promise<Set<string>> {
     }
 }
 
+/** Clone + append follow identities (did, handle, short handle) for react-query optimistic updates. */
+export function appendAccountToFollowingSet(
+    ids: Set<string> | undefined,
+    account: { id: string; username?: string },
+): Set<string> {
+    const next = new Set(ids ?? []);
+    addFollowIdentity(next, { did: account.id, handle: account.username });
+    return next;
+}
+
 /** Optimistic follow from feed — keeps discovery filter and avatar UI in sync. */
 export function addAccountToFollowingCache(account: { id: string; username?: string }) {
-    if (!followingDidsCache) {
+    const actor = getAgent().session?.did;
+    if (!actor) {
         return;
+    }
+    if (!followingDidsCache || followingDidsCache.actorDid !== actor) {
+        followingDidsCache = {
+            actorDid: actor,
+            dids: new Set<string>(),
+            fetchedAt: Date.now(),
+            stale: false,
+        };
     }
     addFollowIdentity(followingDidsCache.dids, { did: account.id, handle: account.username });
 }

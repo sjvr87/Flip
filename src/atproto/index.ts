@@ -24,6 +24,7 @@ export {
     fetchFollowingDidsSet,
     isAccountFollowed,
     addAccountToFollowingCache,
+    appendAccountToFollowingSet,
 } from './feeds';
 
 export {
