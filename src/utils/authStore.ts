@@ -459,7 +459,12 @@ export const useAuthStore = create(
                                 get().clearUser();
                             }
                         }
-                        set({ authReady: true });
+                        try {
+                            require('../bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
+                        } catch {
+                            // ignore in tests
+                        }
+                        setTimeout(() => set({ authReady: true }), 400);
                         sessionRestorePromise = null;
                     }
                 })();
