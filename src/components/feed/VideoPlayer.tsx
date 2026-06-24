@@ -31,7 +31,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView } from 'expo-video';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -42,8 +42,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import { TouchableOpacity as GestureTouchableOpacity } from 'react-native-gesture-handler';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -837,19 +836,12 @@ function VideoPlayerCore({
     const togglePlayPauseRef = useRef(togglePlayPause);
     togglePlayPauseRef.current = togglePlayPause;
 
-    const onVideoTap = useCallback(() => {
+    const handleTapOverlay = useCallback(() => {
+        if (__DEV__) {
+            console.log('[VideoPlayer] tap', { id: item.id, paused: isManuallyPaused });
+        }
         togglePlayPauseRef.current();
-    }, []);
-
-    const videoTapGesture = useMemo(
-        () =>
-            Gesture.Tap()
-                .maxDistance(24)
-                .onEnd(() => {
-                    runOnJS(onVideoTap)();
-                }),
-        [onVideoTap],
-    );
+    }, [item.id, isManuallyPaused]);
 
     const handleUseAudio = () => {
         if (!item.permissions?.can_use_audio) {
@@ -978,8 +970,8 @@ function VideoPlayerCore({
     const hidePoster = showVideoSurface;
 
     const videoBody = (
-        <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View style={[styles.videoWrapper, videoBandStyle]}>
+        <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
+            <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
                 {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                 {videoViewPlayer ? (
                     <VideoView
@@ -989,7 +981,7 @@ function VideoPlayerCore({
                         allowsPictureInPicture={false}
                         nativeControls={false}
                         pointerEvents="none"
-                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        surfaceType="surfaceView"
                         onFirstFrameRender={handleFirstFrameRender}
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}
@@ -999,16 +991,16 @@ function VideoPlayerCore({
                 ) : null}
             </View>
 
-            <GestureDetector gesture={videoTapGesture}>
-                <View
-                    style={styles.tapOverlay}
-                    collapsable={false}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play"
-                    accessibilityRole="button"
-                />
-            </GestureDetector>
+            <GestureTouchableOpacity
+                style={styles.tapOverlay}
+                activeOpacity={1}
+                onPress={handleTapOverlay}
+                collapsable={false}
+                accessible={true}
+                accessibilityLabel="Video"
+                accessibilityHint="Tap to pause or play"
+                accessibilityRole="button"
+            />
 
             <View
                 pointerEvents="none"
@@ -1020,6 +1012,7 @@ function VideoPlayerCore({
                 />
             </View>
 
+            <View style={styles.interactiveOverlay} pointerEvents="box-none">
             <FeedActionRail
                 avatarUrl={item.account?.avatar}
                 profileLabel={`View ${item.account.username}'s profile`}
@@ -1135,6 +1128,7 @@ function VideoPlayerCore({
                     </View>
                 )}
             </View>
+            </View>
         </View>
     );
 
@@ -1173,10 +1167,15 @@ const styles = StyleSheet.create({
     tapOverlay: {
         ...StyleSheet.absoluteFillObject,
         right: 72,
-        zIndex: 4,
-        elevation: 4,
+        zIndex: 100,
+        elevation: 100,
         // Near-transparent fill so Android delivers taps inside FlatList cells.
         backgroundColor: 'rgba(0,0,0,0.001)',
+    },
+    interactiveOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 110,
+        elevation: 110,
     },
     sensitiveOverlay: {
         ...StyleSheet.absoluteFillObject,

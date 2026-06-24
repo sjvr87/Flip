@@ -44,6 +44,7 @@ import {
     prefetchVideoUrls,
     releaseAllVideoPrefetch,
 } from '@/utils/videoPrefetch';
+import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
@@ -1056,7 +1057,8 @@ export default function LoopsFeed({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            <FlatList
+            <FeedScrollGestureRoot>
+                <FlatList
                 key={activeTab}
                 ref={flatListRef}
                 style={styles.feedList}
@@ -1099,7 +1101,8 @@ export default function LoopsFeed({ navigation }) {
                         </View>
                     ) : null
                 }
-            />
+                />
+            </FeedScrollGestureRoot>
 
             <CommentsModal
                 visible={showComments}
