@@ -103,6 +103,7 @@
         "extra": {
             "router": {},
             "flipForYouFeed": "",
+            "flipTrendingFeed": "",
             "flipLocalFeed": "",
             "eas": {
                 "projectId": ""

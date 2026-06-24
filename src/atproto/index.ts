@@ -5,7 +5,7 @@
 export {
     fetchFollowingFeed,
     fetchForYouFeed,
-    fetchLocalFeed,
+    fetchTrendingFeed,
     fetchSelfAccountVideos,
     fetchSelfAccountPhotos,
     fetchUserVideos,

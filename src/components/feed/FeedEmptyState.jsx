@@ -33,7 +33,7 @@ export default function FeedEmptyState({ tab, onRefresh, error, itemHeight }) {
 
             return {
                 icon: 'alert-circle-outline',
-                title: tab === 'local' ? 'Local feed unavailable' : 'Feed unavailable',
+                title: tab === 'trending' ? 'Trending feed unavailable' : 'Feed unavailable',
                 subtitle: error,
                 primary: { label: 'Try again', onPress: onRefresh },
             };
@@ -45,7 +45,7 @@ export default function FeedEmptyState({ tab, onRefresh, error, itemHeight }) {
                     icon: 'people-outline',
                     title: 'Your following feed is empty',
                     subtitle:
-                        "Follow some creators and their Flips will show up here. Browse the Local or For You feed to find accounts you'll love.",
+                        "Follow some creators and their Flips will show up here. Browse Trending or For You to find accounts you'll love.",
                     primary: {
                         label: 'Find creators',
                         onPress: () => router.push('/explore'),
@@ -61,22 +61,19 @@ export default function FeedEmptyState({ tab, onRefresh, error, itemHeight }) {
                         onPress: () => router.push('/explore'),
                     },
                 };
-            case 'local':
+            case 'trending':
                 return {
-                    icon: 'planet-outline',
-                    title: 'Nothing local just yet',
+                    icon: 'trending-up-outline',
+                    title: 'No trending videos yet',
                     subtitle:
-                        'No public Flips nearby right now. Be the first to share something, or check For You for trending videos.',
-                    primary: {
-                        label: 'Record a Flip',
-                        onPress: () => router.push('/private/camera'),
-                    },
+                        'Pull down to refresh — we load the hottest video Flips from across the network.',
+                    primary: { label: 'Refresh', onPress: onRefresh },
                 };
-            case 'local-end':
+            case 'trending-end':
                 return {
                     icon: 'checkmark-circle-outline',
                     title: "You're all caught up",
-                    subtitle: 'Pull down to refresh for more Flips nearby.',
+                    subtitle: 'Pull down to refresh for more trending Flips.',
                     primary: { label: 'Refresh', onPress: onRefresh },
                 };
             case 'forYou':

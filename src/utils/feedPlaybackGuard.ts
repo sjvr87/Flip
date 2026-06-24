@@ -1,6 +1,6 @@
 /** Tracks whether the home feed should decode video or warm HLS prefetch. */
 let feedPlaybackActive = true;
-/** Briefly false during Following/Local/For You switches so stale cells cannot recreate players. */
+/** Briefly false during FYP/Following/Trending switches so stale cells cannot recreate players. */
 let feedPlaybackSuspended = false;
 /** Home tab visible in tab bar (single source of truth: tabs _layout pathname). */
 let homeTabFocused = true;
@@ -188,7 +188,7 @@ export function releaseAllFeedPlayers(): void {
     }
 }
 
-/** Home feed segment changed (Following / Local / For You) — stop ghost audio immediately. */
+/** Home feed segment changed (FYP / Following / Trending) — stop ghost audio immediately. */
 export function onFeedTabChanged(): void {
     feedPlaybackSuspended = true;
     notifyPlaybackActive();

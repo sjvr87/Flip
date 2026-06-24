@@ -666,7 +666,7 @@ export async function getPreferences(): Promise<any> {
 export async function updatePreferences(preferences: {
     autoplay_videos?: boolean;
     loop_videos?: boolean;
-    default_feed?: 'local' | 'following' | 'forYou';
+    default_feed?: 'trending' | 'following' | 'forYou' | 'local';
     hide_for_you_feed?: boolean;
     mute_on_open?: boolean;
     auto_expand_cw?: boolean;

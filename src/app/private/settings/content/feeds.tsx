@@ -94,13 +94,11 @@ export default function FeedsSettingsScreen() {
 
     useEffect(() => {
         if (!forYouEnabled && defaultFeed === 'forYou') {
-            setDefaultFeed('local');
+            setDefaultFeed('trending');
         }
     }, [forYouEnabled, defaultFeed, setDefaultFeed]);
 
     const feedOptions = [
-        { value: 'following', label: 'Following', description: 'Posts from accounts you follow' },
-        { value: 'local', label: 'Local', description: 'Posts from your instance' },
         ...(forYouEnabled
             ? [
                   {
@@ -110,6 +108,12 @@ export default function FeedsSettingsScreen() {
                   },
               ]
             : []),
+        { value: 'following', label: 'Following', description: 'Posts from accounts you follow' },
+        {
+            value: 'trending',
+            label: 'Trending',
+            description: 'Hottest video Flips across the network',
+        },
     ];
 
     return (
@@ -141,7 +145,7 @@ export default function FeedsSettingsScreen() {
                 <SettingsToggleItemDescription
                     icon="eye-off-outline"
                     label="Hide adult content"
-                    description="Filter posts labeled porn, sexual, nudity, or graphic from Following, Local, For You, and Explore."
+                    description="Filter posts labeled porn, sexual, nudity, or graphic from Following, Trending, For You, and Explore."
                     value={hideAdultContent}
                     onValueChange={(value) => {
                         setHideAdultContent(value);
@@ -198,7 +202,7 @@ export default function FeedsSettingsScreen() {
                             description={option.description}
                             selected={defaultFeed === option.value}
                             onSelect={() =>
-                                setDefaultFeed(option.value as 'following' | 'local' | 'forYou')
+                                setDefaultFeed(option.value as 'following' | 'trending' | 'forYou')
                             }
                         />
                         {index < feedOptions.length - 1 && <Divider />}

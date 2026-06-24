@@ -42,7 +42,7 @@ type UserState = {
     server: string | null;
     hideForYouFeed: boolean;
     hideAdultContent: boolean;
-    defaultFeed: 'following' | 'local' | 'forYou';
+    defaultFeed: 'following' | 'trending' | 'forYou';
     autoplayVideos: boolean;
     loopVideos: boolean;
     muteOnOpen: boolean;
@@ -68,7 +68,7 @@ type UserState = {
     syncPreferencesFromServer: () => Promise<void>;
     setHideForYouFeed: (value: boolean) => Promise<void>;
     setHideAdultContent: (value: boolean) => void;
-    setDefaultFeed: (feed: 'following' | 'local' | 'forYou') => Promise<void>;
+    setDefaultFeed: (feed: 'following' | 'trending' | 'forYou') => Promise<void>;
     updatePreference: (key: string, value: unknown) => Promise<void>;
     setRememberLogin: (value: boolean) => Promise<void>;
     setRequireBiometric: (value: boolean) => void;
@@ -234,7 +234,11 @@ export const useAuthStore = create(
                         set((state) => ({
                             ...state,
                             hideForYouFeed: prefs.settings.hide_for_you_feed as boolean,
-                            defaultFeed: prefs.settings.default_feed as UserState['defaultFeed'],
+                            defaultFeed: (() => {
+                                const feed = prefs.settings.default_feed as string;
+                                if (feed === 'local') return 'trending';
+                                return feed as UserState['defaultFeed'];
+                            })(),
                             autoplayVideos: prefs.settings.autoplay_videos as boolean,
                             loopVideos: prefs.settings.loop_videos as boolean,
                             muteOnOpen: prefs.settings.mute_on_open as boolean,
@@ -506,6 +510,9 @@ export const useAuthStore = create(
                     console.log('[auth] store rehydrate complete');
                 }
                 const store = state ?? useAuthStore.getState();
+                if (store.defaultFeed === 'local') {
+                    store.set({ defaultFeed: 'trending' });
+                }
                 store.setHasHydrated(true);
             },
             skipHydration: true,

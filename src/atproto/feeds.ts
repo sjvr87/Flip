@@ -33,7 +33,18 @@ type PageParam = string | false | null | undefined;
 const PAGE_SRC_PREFIX = 'flip-src:';
 
 type ForYouSourceId = 'thevids' | 'search-latest' | 'search-top' | 'whats-hot' | 'custom';
-type LocalSourceId = 'thevids' | 'search-latest' | 'search-top';
+type TrendingSourceId = 'whats-hot' | 'search-top' | 'custom';
+
+function videoEngagementScore(video: FlipVideo): number {
+    return (video.likes ?? 0) + (video.shares ?? 0) + (video.comments ?? 0);
+}
+
+function sortVideosByEngagement(videos: FlipVideo[]): FlipVideo[] {
+    if (videos.length <= 1) {
+        return videos;
+    }
+    return [...videos].sort((a, b) => videoEngagementScore(b) - videoEngagementScore(a));
+}
 
 type FeedFetchOptions = {
     pageParam?: PageParam;
@@ -471,7 +482,7 @@ async function fetchSearchOnlyDiscovery(
     refreshEpoch: number,
     followingFilter: FollowingFilter,
     pageParam: PageParam,
-    context: 'for you feed' | 'local feed',
+    context: 'for you feed' | 'trending feed',
 ): Promise<{ page: FlipFeedPage; sourceId: 'search-latest' | 'search-top' }> {
     const sort = refreshEpoch % 2 === 0 ? ('latest' as const) : ('top' as const);
     const sourceId = sort === 'latest' ? 'search-latest' : 'search-top';
@@ -681,10 +692,13 @@ function getForYouFeedUri(): string | undefined {
     );
 }
 
-/** Optional custom Local feed generator AT-URI (set in app.json extra.flipLocalFeed). */
-function getLocalFeedUri(): string | undefined {
+/** Optional custom Trending feed generator AT-URI (flipTrendingFeed or legacy flipLocalFeed). */
+function getTrendingFeedUri(): string | undefined {
     return normalizeFeedUri(
-        Constants.expoConfig?.extra?.flipLocalFeed || process.env.EXPO_PUBLIC_FLIP_LOCAL_FEED,
+        Constants.expoConfig?.extra?.flipTrendingFeed ||
+            process.env.EXPO_PUBLIC_FLIP_TRENDING_FEED ||
+            Constants.expoConfig?.extra?.flipLocalFeed ||
+            process.env.EXPO_PUBLIC_FLIP_LOCAL_FEED,
     );
 }
 
@@ -805,10 +819,79 @@ function pickForYouSource(refreshEpoch: number, customUri?: string): ForYouSourc
     return pool[refreshEpoch % pool.length]!;
 }
 
-function pickLocalSource(refreshEpoch: number): LocalSourceId {
-    // Prefer search — thevids overlaps heavily with Following.
-    const pool: LocalSourceId[] = ['search-latest', 'search-top'];
-    return pool[refreshEpoch % pool.length]!;
+async function fetchTrendingBySource(
+    sourceId: TrendingSourceId,
+    cursor: string | undefined,
+    customUri?: string,
+): Promise<FlipFeedPage> {
+    let page: FlipFeedPage;
+    switch (sourceId) {
+        case 'custom':
+            page = await fetchGeneratorFeed(
+                customUri || BLUESKY_WHATS_HOT,
+                cursor ?? false,
+                'trending feed',
+            );
+            break;
+        case 'search-top':
+            page = await fetchSingleVideoSearchPage(cursor ?? false, {
+                sort: 'top',
+                context: 'trending feed',
+                query: 'video',
+            });
+            break;
+        case 'whats-hot':
+        default:
+            page = await fetchGeneratorFeed(BLUESKY_WHATS_HOT, cursor ?? false, 'trending feed');
+            break;
+    }
+    return {
+        ...page,
+        data: sortVideosByEngagement(page.data),
+    };
+}
+
+async function fetchTrendingUntilFilled(
+    fetchPage: (cursor: string | undefined) => Promise<FlipFeedPage>,
+    pageParam: PageParam,
+): Promise<{ videos: FlipVideo[]; nextCursor: string | null }> {
+    const decoded = decodeFeedPageParam(pageParam);
+    let cursor = decoded.cursor;
+    const videos: FlipVideo[] = [];
+    const seenKeys = new Set<string>();
+    let nextCursor: string | null = null;
+
+    for (let attempt = 0; attempt < DISCOVERY_MAX_CHAIN_FETCHES; attempt++) {
+        const page = await fetchPage(cursor);
+        nextCursor = page.meta.next_cursor;
+
+        for (const video of page.data) {
+            const key = videoDedupeKey(video);
+            if (!key || seenKeys.has(key)) {
+                continue;
+            }
+            seenKeys.add(key);
+            videos.push(video);
+        }
+
+        if (videos.length >= MIN_VIDEOS_PER_PAGE || !nextCursor) {
+            break;
+        }
+
+        cursor = nextCursor;
+    }
+
+    return {
+        videos: sortVideosByEngagement(videos),
+        nextCursor,
+    };
+}
+
+function pickTrendingSource(refreshEpoch: number, customUri?: string): TrendingSourceId {
+    if (customUri) {
+        return 'custom';
+    }
+    return refreshEpoch % 2 === 0 ? 'whats-hot' : 'search-top';
 }
 
 async function fetchForYouBySource(
@@ -841,29 +924,100 @@ async function fetchForYouBySource(
     }
 }
 
-async function fetchLocalBySource(
-    sourceId: LocalSourceId,
-    cursor: string | undefined,
-    refreshEpoch: number,
-): Promise<FlipFeedPage> {
-    const query = refreshEpoch % 3 === 2 ? 'flip video' : 'video';
+/**
+ * Trending tab — Bluesky what's-hot + top video search across the network.
+ * Videos only, sorted by likes + reposts + replies. No follow filtering.
+ */
+export async function fetchTrendingFeed({
+    pageParam = false,
+    refreshEpoch = 0,
+}: FeedFetchOptions = {}): Promise<FlipFeedPage> {
+    await restoreSessionFromStorageIfEmpty();
+    const customUri = getTrendingFeedUri();
+    const decoded = decodeFeedPageParam(pageParam);
+    const firstPage = isFirstFeedPage(pageParam);
 
-    switch (sourceId) {
-        case 'search-top':
-            return fetchSingleVideoSearchPage(cursor ?? false, {
-                sort: 'top',
-                context: 'local feed',
-                query,
-            });
-        case 'search-latest':
-            return fetchSingleVideoSearchPage(cursor ?? false, {
-                sort: 'latest',
-                context: 'local feed',
-                query,
-            });
-        case 'thevids':
-        default:
-            return fetchGeneratorFeed(BLUESKY_THE_VIDS, cursor ?? false, 'local feed');
+    let sourceId: TrendingSourceId;
+
+    if (decoded.sourceId) {
+        sourceId = decoded.sourceId as TrendingSourceId;
+    } else if (decoded.cursor) {
+        sourceId = customUri ? 'custom' : 'whats-hot';
+    } else {
+        sourceId = pickTrendingSource(refreshEpoch, customUri);
+    }
+
+    const fetchByCursor = (apiCursor: string | undefined) =>
+        fetchTrendingBySource(sourceId, apiCursor, customUri);
+
+    try {
+        const { videos, nextCursor } = await fetchTrendingUntilFilled(fetchByCursor, pageParam);
+
+        let page: FlipFeedPage = {
+            data: videos,
+            meta: {
+                path: 'atproto',
+                per_page: videos.length,
+                next_cursor: nextCursor,
+            },
+        };
+
+        logFeedFetch('trending', sourceId, page.data, refreshEpoch);
+
+        page = {
+            ...page,
+            meta: {
+                ...page.meta,
+                next_cursor: page.meta.next_cursor
+                    ? encodeFeedPageParam(sourceId, page.meta.next_cursor)
+                    : null,
+            },
+        };
+
+        if (page.data.length === 0 && !page.meta.next_cursor && firstPage) {
+            return {
+                ...page,
+                meta: {
+                    ...page.meta,
+                    error: 'No trending videos found right now. Pull down to refresh.',
+                },
+            };
+        }
+
+        return page;
+    } catch (error) {
+        if (error instanceof SessionExpiredError) {
+            feedLoadError('trending feed', error);
+        }
+        console.warn('[feed] trending source failed, trying search-top fallback:', error);
+        try {
+            const { videos, nextCursor } = await fetchTrendingUntilFilled(
+                (apiCursor) =>
+                    fetchSingleVideoSearchPage(apiCursor ?? false, {
+                        sort: 'top',
+                        context: 'trending feed',
+                        query: 'video',
+                    }).then((p) => ({
+                        ...p,
+                        data: sortVideosByEngagement(p.data),
+                    })),
+                false,
+            );
+            const page: FlipFeedPage = {
+                data: videos,
+                meta: {
+                    path: 'atproto',
+                    per_page: videos.length,
+                    next_cursor: nextCursor
+                        ? encodeFeedPageParam('search-top', nextCursor)
+                        : null,
+                },
+            };
+            logFeedFetch('trending', 'search-top-fallback', page.data, refreshEpoch);
+            return page;
+        } catch (fallbackError) {
+            feedLoadError('trending feed', fallbackError);
+        }
     }
 }
 
@@ -1048,178 +1202,6 @@ export async function fetchForYouFeed({
             };
         }
     }
-}
-
-/**
- * Local tab — optional custom feed generator, else global video discovery.
- * Never uses getTimeline; rotates thevids + video search on refresh.
- */
-export async function fetchLocalFeed({
-    pageParam = false,
-    refreshEpoch = 0,
-}: FeedFetchOptions = {}): Promise<FlipFeedPage> {
-    await restoreSessionFromStorageIfEmpty();
-    const customUri = getLocalFeedUri();
-    const decoded = decodeFeedPageParam(pageParam);
-    const firstPage = isFirstFeedPage(pageParam);
-
-    if (customUri) {
-        try {
-            const followingFilter = await ensureDiscoveryFollowingFilter();
-            const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
-                (apiCursor) => fetchGeneratorFeed(customUri, apiCursor ?? false, 'local feed'),
-                pageParam,
-                followingFilter,
-            );
-            let page: FlipFeedPage = applyDiscoveryFollowingFilter(
-                {
-                    data: videos,
-                    meta: {
-                        path: 'atproto',
-                        per_page: videos.length,
-                        next_cursor: nextCursor,
-                    },
-                },
-                followingFilter,
-            );
-            if (firstPage) {
-                page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch);
-            }
-            logFeedFetch('local', 'custom', page.data, refreshEpoch, followingFilter);
-            return {
-                ...page,
-                meta: {
-                    ...page.meta,
-                    next_cursor: page.meta.next_cursor
-                        ? encodeFeedPageParam('custom', page.meta.next_cursor)
-                        : null,
-                },
-            };
-        } catch (error) {
-            feedLoadError('local feed', error);
-        }
-    }
-
-    let sourceId: LocalSourceId;
-    let cursor: string | undefined;
-
-    if (decoded.sourceId) {
-        sourceId = decoded.sourceId as LocalSourceId;
-        cursor = decoded.cursor;
-    } else if (decoded.cursor) {
-        sourceId = 'search-latest';
-        cursor = decoded.cursor;
-    } else {
-        sourceId = pickLocalSource(refreshEpoch);
-        cursor = undefined;
-    }
-
-    const fetchByCursor = (apiCursor: string | undefined) =>
-        fetchLocalBySource(sourceId, apiCursor, refreshEpoch);
-
-    let page: FlipFeedPage;
-    let followingFilter = await ensureDiscoveryFollowingFilter();
-
-    if (!followingFilter.active && getAgent().session?.did) {
-        const searchOnly = await fetchSearchOnlyDiscovery(
-            refreshEpoch,
-            followingFilter,
-            pageParam,
-            'local feed',
-        );
-        followingFilter = await ensureDiscoveryFollowingFilter();
-        page = searchOnly.page;
-        sourceId = searchOnly.sourceId;
-    } else {
-        try {
-            const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
-                fetchByCursor,
-                pageParam,
-                followingFilter,
-            );
-            page = applyDiscoveryFollowingFilter(
-                {
-                    data: videos,
-                    meta: {
-                        path: 'atproto',
-                        per_page: videos.length,
-                        next_cursor: nextCursor,
-                    },
-                },
-                followingFilter,
-            );
-        } catch (error) {
-            if (error instanceof SessionExpiredError) {
-                feedLoadError('local feed', error);
-            }
-            console.warn('[feed] local discovery failed, trying video search once:', error);
-            try {
-                followingFilter = await ensureDiscoveryFollowingFilter();
-                const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
-                    (apiCursor) =>
-                        fetchSingleVideoSearchPage(apiCursor ?? false, {
-                            sort: 'latest',
-                            context: 'local feed',
-                            query: pickDiscoverySearchQuery(refreshEpoch),
-                        }),
-                    false,
-                    followingFilter,
-                );
-                page = applyDiscoveryFollowingFilter(
-                    {
-                        data: videos,
-                        meta: {
-                            path: 'atproto',
-                            per_page: videos.length,
-                            next_cursor: nextCursor,
-                        },
-                    },
-                    followingFilter,
-                );
-                sourceId = 'search-latest';
-            } catch (fallbackError) {
-                if (fallbackError instanceof SessionExpiredError) {
-                    feedLoadError('local feed', fallbackError);
-                }
-                return {
-                    data: [],
-                    meta: {
-                        path: 'atproto',
-                        per_page: 0,
-                        next_cursor: null,
-                        error: 'Could not load local videos. Configure flipLocalFeed for a geo feed, or try again later.',
-                    },
-                };
-            }
-        }
-    }
-
-    if (firstPage) {
-        page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch);
-    }
-
-    logFeedFetch('local', sourceId, page.data, refreshEpoch, followingFilter);
-
-    const nextCursor = page.meta.next_cursor;
-    page = {
-        ...page,
-        meta: {
-            ...page.meta,
-            next_cursor: nextCursor ? encodeFeedPageParam(sourceId, nextCursor) : null,
-        },
-    };
-
-    if (page.data.length === 0 && !page.meta.next_cursor && firstPage) {
-        return {
-            ...page,
-            meta: {
-                ...page.meta,
-                error: 'No local videos found yet. Nearby feeds need a geo feed generator (flipLocalFeed) or try again later.',
-            },
-        };
-    }
-
-    return page;
 }
 
 /** Bluesky indexes video posts under posts_with_video, not posts_with_media. */

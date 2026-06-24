@@ -45,7 +45,7 @@ import {
 import {
     fetchFollowingFeed,
     fetchForYouFeed,
-    fetchLocalFeed,
+    fetchTrendingFeed,
     getConfiguration,
     invalidateFollowingDidsCache,
     recordImpression,
@@ -177,8 +177,8 @@ const fetchVideos = async ({
     tab: FeedTab;
     refreshEpoch?: number;
 }) => {
-    if (tab === 'local') {
-        return await fetchLocalFeed({ pageParam, refreshEpoch });
+    if (tab === 'trending') {
+        return await fetchTrendingFeed({ pageParam, refreshEpoch });
     }
     if (tab === 'forYou') {
         return await fetchForYouFeed({ pageParam, refreshEpoch });
@@ -220,7 +220,9 @@ export default function LoopsFeed({ navigation }) {
     const viewerDid = useAuthStore((state) => state.user?.id);
     const feedQueryEnabled = hasHydrated && isLoggedIn && authReady;
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
-    const [activeTab, setActiveTab] = useState(defaultFeed);
+    const normalizedDefault =
+        defaultFeed === 'local' ? 'trending' : defaultFeed;
+    const [activeTab, setActiveTab] = useState<FeedTab>(normalizedDefault as FeedTab);
     const feedEpoch = feedEpochs[activeTab] ?? 0;
     const feedEpochRef = useRef(feedEpoch);
     feedEpochRef.current = feedEpoch;
@@ -487,7 +489,7 @@ export default function LoopsFeed({ navigation }) {
     useEffect(() => {
         if (!isConfigLoading && appConfig) {
             if (!forYouEnabled && activeTab === 'forYou') {
-                switchFeedTab('local');
+                switchFeedTab('trending');
             }
         }
     }, [isConfigLoading, appConfig, forYouEnabled, activeTab, switchFeedTab]);
@@ -848,8 +850,8 @@ export default function LoopsFeed({ navigation }) {
                     const endTab =
                         activeTab === 'forYou'
                             ? 'forYou-end'
-                            : activeTab === 'local'
-                              ? 'local-end'
+                            : activeTab === 'trending'
+                              ? 'trending-end'
                               : 'following-end';
                     return (
                         <FeedEmptyState
@@ -961,37 +963,7 @@ export default function LoopsFeed({ navigation }) {
     return (
         <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
-                <View style={styles.headerSide} />
                 <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Following"
-                        accessibilityState={{
-                            selected: activeTab === 'following',
-                        }}
-                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => switchFeedTab('following')}>
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === 'following' && styles.activeTabText,
-                            ]}>
-                            Following
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Local"
-                        accessibilityState={{
-                            selected: activeTab === 'local',
-                        }}
-                        style={[styles.tab, activeTab === 'local' && styles.activeTab]}
-                        onPress={() => switchFeedTab('local')}>
-                        <Text
-                            style={[styles.tabText, activeTab === 'local' && styles.activeTabText]}>
-                            Local
-                        </Text>
-                    </TouchableOpacity>
                     {forYouEnabled && (
                         <TouchableOpacity
                             accessibilityRole="tab"
@@ -1010,16 +982,46 @@ export default function LoopsFeed({ navigation }) {
                             </Text>
                         </TouchableOpacity>
                     )}
-                </View>
-                <View style={styles.headerSide}>
                     <TouchableOpacity
-                        accessibilityLabel="Search"
-                        accessibilityRole="button"
-                        style={styles.searchButton}
-                        onPress={() => router.push('/private/search')}>
-                        <Ionicons name="search" size={24} color="white" />
+                        accessibilityRole="tab"
+                        accessibilityLabel="Following"
+                        accessibilityState={{
+                            selected: activeTab === 'following',
+                        }}
+                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                        onPress={() => switchFeedTab('following')}>
+                        <Text
+                            style={[
+                                styles.tabText,
+                                activeTab === 'following' && styles.activeTabText,
+                            ]}>
+                            Following
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        accessibilityRole="tab"
+                        accessibilityLabel="Trending"
+                        accessibilityState={{
+                            selected: activeTab === 'trending',
+                        }}
+                        style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                        onPress={() => switchFeedTab('trending')}>
+                        <Text
+                            style={[
+                                styles.tabText,
+                                activeTab === 'trending' && styles.activeTabText,
+                            ]}>
+                            Trending
+                        </Text>
                     </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                    accessibilityLabel="Search"
+                    accessibilityRole="button"
+                    style={styles.searchButton}
+                    onPress={() => router.push('/private/search')}>
+                    <Ionicons name="search" size={24} color="white" />
+                </TouchableOpacity>
             </View>
 
             <FlatList
@@ -1129,17 +1131,14 @@ const styles = StyleSheet.create({
         right: 0,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         zIndex: 10,
         paddingHorizontal: 12,
-    },
-    headerSide: {
-        flex: 1,
-        alignItems: 'flex-end',
-        justifyContent: 'center',
     },
     tabContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 20,
     },
     tab: {
@@ -1159,6 +1158,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     searchButton: {
+        position: 'absolute',
+        right: 12,
         padding: 4,
         minWidth: 36,
         alignItems: 'center',

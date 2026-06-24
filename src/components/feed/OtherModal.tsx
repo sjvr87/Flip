@@ -39,7 +39,7 @@ export default function OtherModal({
         onSuccess: async () => {
             queryClient.invalidateQueries({ queryKey: ['videos', 'forYou'] });
             queryClient.invalidateQueries({ queryKey: ['videos', 'following'] });
-            queryClient.invalidateQueries({ queryKey: ['videos', 'local'] });
+            queryClient.invalidateQueries({ queryKey: ['videos', 'trending'] });
             queryClient.invalidateQueries({
                 queryKey: ['profileVideoFeed', item?.account.id, item?.id],
             });

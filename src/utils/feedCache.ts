@@ -9,8 +9,8 @@ import { decodeRouteParam } from '@/utils/profileNavigation';
 export const FEED_FYP_STALE_MS = 6_000;
 /** Following — timeline can stay warm longer; soft refresh is non-destructive. */
 export const FEED_FOLLOWING_STALE_MS = 12_000;
-/** Local / discovery — refetch on tab focus so content rotates. */
-export const FEED_LOCAL_STALE_MS = 12_000;
+/** Trending — refetch on tab focus so content rotates. */
+export const FEED_TRENDING_STALE_MS = 12_000;
 export const FEED_GC_MS = 2 * 60_000;
 
 /** Single-page discovery fetch size (generators + searchPosts). */
@@ -22,7 +22,7 @@ export const DISCOVERY_MAX_CHAIN_FETCHES = 10;
 /** Minimum non-followed authors per discovery page when possible. */
 export const DISCOVERY_MIN_NON_FOLLOW_VIDEOS = 4;
 
-export const FEED_TABS = ['following', 'local', 'forYou'] as const;
+export const FEED_TABS = ['forYou', 'following', 'trending'] as const;
 export type FeedTab = (typeof FEED_TABS)[number];
 
 const sessionSeenByTab = new Map<string, Set<string>>();
@@ -47,8 +47,10 @@ export function getFeedStaleMs(tab: string): number {
             return FEED_FYP_STALE_MS;
         case 'following':
             return FEED_FOLLOWING_STALE_MS;
+        case 'trending':
+            return FEED_TRENDING_STALE_MS;
         default:
-            return FEED_LOCAL_STALE_MS;
+            return FEED_TRENDING_STALE_MS;
     }
 }
 
@@ -461,7 +463,7 @@ export async function invalidateFeedAfterPost(queryClient: QueryClient) {
 
     await Promise.all([
         queryClient.refetchQueries({ queryKey: ['videos', 'following'] }),
-        queryClient.refetchQueries({ queryKey: ['videos', 'local'] }),
+        queryClient.refetchQueries({ queryKey: ['videos', 'trending'] }),
     ]);
 }
 
