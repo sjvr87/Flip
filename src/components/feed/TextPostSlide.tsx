@@ -3,6 +3,7 @@ import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import type { FlipTextPost } from '@/atproto/types';
 import { toProfilePath } from '@/utils/profileNavigation';
+import { safeRouterPush } from '@/utils/safeNavigation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -82,7 +83,7 @@ export default function TextPostSlide({
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
-                        router.push(toProfilePath(item.account.id));
+                        safeRouterPush(toProfilePath(item.account.id));
                     }}>
                     <MentionText username={item.account.username} style={styles.username} />
                 </TouchableOpacity>
@@ -100,7 +101,7 @@ export default function TextPostSlide({
                         onNavigate?.();
                         const target = profileId ?? username;
                         if (!target) return;
-                        router.push(toProfilePath(target));
+                        safeRouterPush(toProfilePath(target));
                     }}
                 />
             </ScrollView>
@@ -131,7 +132,7 @@ export default function TextPostSlide({
                 tabBarHeight={tabBarHeight}
                 onProfilePress={() => {
                     onNavigate?.();
-                    router.push(toProfilePath(item.account.id));
+                    safeRouterPush(toProfilePath(item.account.id));
                 }}
                 onLike={handleLike}
                 onComment={() => onComment(item)}

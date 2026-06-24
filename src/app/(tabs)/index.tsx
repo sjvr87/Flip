@@ -31,11 +31,13 @@ import {
     type FeedNetworkProfile,
 } from '@/utils/feedNetworkQuality';
 import {
+    isFeedPlaybackActive,
     onFeedTabChanged,
     pauseAllFeedPlayers,
     setAppInForeground,
+    subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
-import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
+import { computeFeedVideoViewport, useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
     cancelOffscreenPrefetch,
@@ -60,6 +62,7 @@ import type { FlipVideo } from '@/atproto/types';
 import SearchEyeIcon from '@/components/icons/SearchEyeIcon';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from 'expo-router/react-navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -91,6 +94,8 @@ type FeedVideoCellProps = {
     activeIndex: number;
     shouldPreload: boolean;
     feedHeight: number;
+    videoTopInset: number;
+    videoBottomReserved: number;
     bottomInset: number;
     tabBarHeight: number;
     feedOverlayBottom: number;
@@ -118,6 +123,8 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     activeIndex,
     shouldPreload,
     feedHeight,
+    videoTopInset,
+    videoBottomReserved,
     bottomInset,
     tabBarHeight,
     feedOverlayBottom,
@@ -146,6 +153,8 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
             isActive={isActive}
             shouldPreload={shouldPreload}
             feedHeight={feedHeight}
+            videoTopInset={videoTopInset}
+            videoBottomReserved={videoBottomReserved}
             onLike={onLike}
             onComment={onComment}
             onCaptionExpand={onCaptionExpand}
@@ -212,6 +221,11 @@ export default function LoopsFeed({ navigation }) {
     const feedHeight = Math.round(windowHeight);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
+    const feedVideoViewport = useMemo(
+        () => computeFeedVideoViewport(windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved),
+        [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
+    );
+    const statusBarInset = feedVideoViewport.topInset;
     const authReady = useAuthStore((state) => state.authReady);
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
@@ -240,10 +254,13 @@ export default function LoopsFeed({ navigation }) {
     const [videoPlaybackRates, setVideoPlaybackRates] = useState({});
     const [screenFocused, setScreenFocused] = useState(true);
     const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+    const [guardPlaybackActive, setGuardPlaybackActive] = useState(isFeedPlaybackActive);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
-    const feedPlaybackEnabled = screenFocused && appActive;
+    const feedPlaybackEnabled = screenFocused && appActive && guardPlaybackActive;
+
+    useEffect(() => subscribeFeedPlaybackActive(setGuardPlaybackActive), []);
     const flatListRef = useRef(null);
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -875,6 +892,8 @@ export default function LoopsFeed({ navigation }) {
                         activeIndex={currentIndex}
                         shouldPreload={shouldPreloadPlayer}
                         feedHeight={feedHeight}
+                        videoTopInset={feedVideoViewport.topInset}
+                        videoBottomReserved={feedVideoViewport.bottomReserved}
                         onLike={handleLike}
                         onComment={handleComment}
                         onCaptionExpand={handleCaptionExpand}
@@ -905,6 +924,8 @@ export default function LoopsFeed({ navigation }) {
             currentIndex,
             feedError,
             feedHeight,
+            feedVideoViewport.bottomReserved,
+            feedVideoViewport.topInset,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -954,6 +975,11 @@ export default function LoopsFeed({ navigation }) {
     if (showInitialLoader) {
         return (
             <View style={styles.container}>
+                <StatusBar style="light" backgroundColor="#000" translucent={Platform.OS === 'android'} />
+                <View
+                    pointerEvents="none"
+                    style={[styles.statusBarBand, { height: statusBarInset }]}
+                />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#fff" />
                 </View>
@@ -963,7 +989,12 @@ export default function LoopsFeed({ navigation }) {
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { top: insets.top + 10 }]}>
+            <StatusBar style="light" backgroundColor="#000" translucent={Platform.OS === 'android'} />
+            <View
+                pointerEvents="none"
+                style={[styles.statusBarBand, { height: statusBarInset }]}
+            />
+            <View style={[styles.header, { top: statusBarInset + 2 }]}>
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
                         accessibilityRole="tab"
@@ -1058,7 +1089,7 @@ export default function LoopsFeed({ navigation }) {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        progressViewOffset={insets.top + 60}
+                        progressViewOffset={statusBarInset + 40}
                     />
                 }
                 ListFooterComponent={
@@ -1116,6 +1147,14 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
     },
+    statusBarBand: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#000',
+        zIndex: 20,
+    },
     feedList: {
         flex: 1,
         backgroundColor: '#000',
@@ -1144,7 +1183,7 @@ const styles = StyleSheet.create({
         minWidth: 0,
     },
     tab: {
-        paddingVertical: 8,
+        paddingVertical: 4,
         paddingHorizontal: 2,
         flexShrink: 1,
         alignItems: 'center',
@@ -1155,7 +1194,7 @@ const styles = StyleSheet.create({
     },
     tabText: {
         color: 'rgba(255,255,255,0.6)',
-        fontSize: 18,
+        fontSize: 13,
         fontWeight: '600',
     },
     activeTabText: {

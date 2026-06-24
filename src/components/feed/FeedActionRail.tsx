@@ -2,6 +2,7 @@ import Avatar from '@/components/Avatar';
 import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
 import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
+import MegaphoneCommentIcon from '@/components/icons/MegaphoneCommentIcon';
 import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
@@ -20,6 +21,12 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /** Uniform slot — Ionicons + custom SVGs share this hit area. */
 const ICON_SLOT = 30;
+/** Feed avatar — squircle, slightly larger than prior 40px circle-in-48px ring. */
+const AVATAR_SIZE = 48;
+const AVATAR_RADIUS = 14;
+const AVATAR_INNER = AVATAR_SIZE + 6;
+const AVATAR_RING = AVATAR_INNER + 4;
+const FOLLOW_BADGE_SIZE = 28;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 /** Reserved below every icon so counts don't shift icon vertical position. */
@@ -33,7 +40,10 @@ const OPTICAL = {
     heart: 1,
     repost: 1,
     remix: 1,
+    comment: 1.17,
 } as const;
+/** Megaphone figure + waves read left-heavy in viewBox — nudge to rail centerline. */
+const COMMENT_ICON_OFFSET_X = 5;
 
 type FeedActionRailProps = {
     avatarUrl?: string | null;
@@ -71,18 +81,29 @@ type FeedActionRailProps = {
 function ActionIconSlot({
     children,
     opticalScale = 1,
+    opticalOffsetX = 0,
 }: {
     children: ReactNode;
     opticalScale?: number;
+    opticalOffsetX?: number;
 }) {
+    const hasOptical =
+        opticalScale !== 1 || opticalOffsetX !== 0;
+    const opticalTransform = hasOptical
+        ? [
+              ...(opticalOffsetX !== 0 ? [{ translateX: opticalOffsetX } as const] : []),
+              ...(opticalScale !== 1 ? [{ scale: opticalScale } as const] : []),
+          ]
+        : undefined;
+
     return (
         <View style={styles.iconShadow}>
             <View style={styles.iconSlot}>
                 <View
                     style={
-                        opticalScale === 1
-                            ? styles.iconSlotInner
-                            : [styles.iconSlotInner, { transform: [{ scale: opticalScale }] }]
+                        opticalTransform
+                            ? [styles.iconSlotInner, { transform: opticalTransform }]
+                            : styles.iconSlotInner
                     }>
                     {children}
                 </View>
@@ -154,6 +175,14 @@ function RemixActionIcon() {
     return (
         <ActionIconSlot opticalScale={OPTICAL.remix}>
             <RemixVinylIcon size={ICON_SLOT} color={ICON_COLOR} />
+        </ActionIconSlot>
+    );
+}
+
+function CommentActionIcon() {
+    return (
+        <ActionIconSlot opticalScale={OPTICAL.comment} opticalOffsetX={COMMENT_ICON_OFFSET_X}>
+            <MegaphoneCommentIcon size={ICON_SLOT} color={ICON_COLOR} />
         </ActionIconSlot>
     );
 }
@@ -239,7 +268,9 @@ function FeedActionRail({
             return;
         }
         ensureQueueMicrotask();
-        followMutation.mutate();
+        safeQueueMicrotask(() => {
+            followMutation.mutate();
+        });
     };
 
     return (
@@ -260,7 +291,9 @@ function FeedActionRail({
                             <View style={styles.avatarInner}>
                                 <Avatar
                                     url={avatarUrl}
-                                    width={40}
+                                    width={AVATAR_SIZE}
+                                    rounded={false}
+                                    radius={AVATAR_RADIUS}
                                     borderWidth={0}
                                     placeholder={{ color: '#3a3a3a' }}
                                     transition={0}
@@ -277,7 +310,9 @@ function FeedActionRail({
                             <View style={styles.avatarInner}>
                                 <Avatar
                                     url={avatarUrl}
-                                    width={40}
+                                    width={AVATAR_SIZE}
+                                    rounded={false}
+                                    radius={AVATAR_RADIUS}
                                     borderWidth={0}
                                     placeholder={{ color: '#3a3a3a' }}
                                     transition={0}
@@ -296,7 +331,7 @@ function FeedActionRail({
                         accessible
                         accessibilityLabel={`Follow ${creatorUsername ?? 'creator'}`}
                         accessibilityRole="button">
-                        <FollowAddBadgeIcon size={32} />
+                        <FollowAddBadgeIcon size={FOLLOW_BADGE_SIZE} />
                     </PressableHaptics>
                 ) : null}
             </View>
@@ -326,7 +361,7 @@ function FeedActionRail({
                     canComment ? `Comments. ${commentCount} comments` : 'Comments are disabled'
                 }
                 accessibilityRole="button">
-                <FeedActionIcon name="chatbubble-ellipses-outline" />
+                <CommentActionIcon />
                 <ActionCountSlot>
                     {canComment ? (
                         <Text style={styles.actionText} accessibilityElementsHidden>
@@ -498,9 +533,9 @@ const styles = StyleSheet.create({
         }),
     },
     avatarRing: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: AVATAR_RING,
+        height: AVATAR_RING,
+        borderRadius: AVATAR_RADIUS + 2,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 4,
@@ -517,9 +552,9 @@ const styles = StyleSheet.create({
         }),
     },
     avatarRingPlain: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: AVATAR_RING,
+        height: AVATAR_RING,
+        borderRadius: AVATAR_RADIUS + 2,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 4,
@@ -536,7 +571,8 @@ const styles = StyleSheet.create({
     },
     followBadge: {
         position: 'absolute',
-        bottom: -6,
+        right: -8,
+        bottom: -14,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,
@@ -554,9 +590,9 @@ const styles = StyleSheet.create({
         }),
     },
     avatarInner: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: AVATAR_INNER,
+        height: AVATAR_INNER,
+        borderRadius: AVATAR_RADIUS + 1,
         backgroundColor: '#3a3a3a',
         alignItems: 'center',
         justifyContent: 'center',

@@ -9,6 +9,7 @@ import { StackText, YStack } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { useTheme } from '@/contexts/ThemeContext';
 import { navigateFromNotification } from '@/utils/notificationNavigation';
+import { safeRouterPush } from '@/utils/safeNavigation';
 import { useNotificationStore } from '@/utils/notificationStore';
 import { toProfilePath } from '@/utils/profileNavigation';
 import {
@@ -326,7 +327,7 @@ export default function NotificationsHubScreen() {
             activityReadMutation.mutate(item.id);
         }
         if (account?.id) {
-            router.push(toProfilePath(account.id));
+            safeRouterPush(toProfilePath(account.id));
         }
     };
 
@@ -406,7 +407,7 @@ export default function NotificationsHubScreen() {
                                 if (router.canGoBack()) {
                                     router.back();
                                 } else {
-                                    router.push('/(tabs)');
+                                    safeRouterPush('/(tabs)');
                                 }
                             }}
                             style={tw`px-1`}>
@@ -469,7 +470,7 @@ export default function NotificationsHubScreen() {
                     onPress={handleFollowerPress}
                     onProfilePress={(item) => {
                         if (!item.read_at) followerReadMutation.mutate(item.id);
-                        router.push(toProfilePath(item.actor.id));
+                        safeRouterPush(toProfilePath(item.actor.id));
                     }}
                     onAccept={(item) =>
                         acceptMutation.mutate({

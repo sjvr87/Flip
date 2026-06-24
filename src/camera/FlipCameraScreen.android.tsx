@@ -5,6 +5,7 @@ import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer';
 import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
+import { safeRouterPush } from '@/utils/safeNavigation';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { FlipCamerawesomeView } from 'flip-camerawesome';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,6 +99,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const [photoRequestId, setPhotoRequestId] = useState(0);
     const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
     const recordingRef = useRef(false);
+    const lastNativeZoomRef = useRef(1);
 
     const zoom = useSharedValue(1);
     const zoomOffset = useSharedValue(1);
@@ -111,6 +113,11 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const pendingRemix = usePendingAudioReuseStore((s) => s.pending);
     const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending);
     const remixReferenceUrl = pendingRemix?.referenceVideoUrl;
+
+    const syncNativeZoom = useCallback((value: number) => {
+        lastNativeZoomRef.current = value;
+        setZoomLevel(value);
+    }, []);
 
     const refreshPermissionState = useCallback(async () => {
         setPermissionState(await checkAndroidCameraPermissions());
@@ -144,9 +151,14 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     useEffect(() => {
         const interval = setInterval(() => {
             const value = zoom.value;
-            setZoomLevel(value);
             setZoomText(formatZoomLabel(value));
-        }, 50);
+            // Throttle native CameraX setZoomRatio — 20Hz React updates were freezing preview.
+            const rounded = Math.round(value * 20) / 20;
+            if (Math.abs(rounded - lastNativeZoomRef.current) >= 0.05) {
+                lastNativeZoomRef.current = rounded;
+                setZoomLevel(rounded);
+            }
+        }, 100);
         return () => clearInterval(interval);
     }, [zoom]);
 
@@ -156,13 +168,13 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         mediaType: 'video' | 'photo' = 'video',
     ) => {
         if (mediaType === 'photo') {
-            router.push({
+            safeRouterPush({
                 pathname: '/private/camera/preview',
                 params: { imagePath: mediaPath, mediaType: 'photo' },
             });
             return;
         }
-        router.push({
+        safeRouterPush({
             pathname: '/private/camera/preview',
             params: { videoPath: mediaPath, duration: String(duration) },
         });
@@ -292,6 +304,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         .onEnd(() => {
             'worklet';
             hideZoomIndicatorSoon();
+            runOnJS(syncNativeZoom)(zoom.value);
         });
 
     const doubleTapGesture = Gesture.Tap()
@@ -299,6 +312,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         .onEnd(() => {
             'worklet';
             zoom.value = withSpring(1);
+            runOnJS(syncNativeZoom)(1);
             revealZoomIndicator();
             hideZoomIndicatorSoon();
         });
@@ -322,6 +336,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         .onEnd(() => {
             'worklet';
             hideZoomIndicatorSoon();
+            runOnJS(syncNativeZoom)(zoom.value);
         });
 
     const tapVideoGesture = Gesture.Tap()

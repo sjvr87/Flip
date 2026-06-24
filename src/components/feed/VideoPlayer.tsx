@@ -2,6 +2,7 @@ import MentionText from '@/components/MentionText';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
+import { safeRouterPush } from '@/utils/safeNavigation';
 import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
@@ -86,9 +87,13 @@ function VideoPoster({ thumbnail }: { thumbnail?: string }) {
 function VideoSlidePlaceholder({
     item,
     feedHeight,
+    videoTopInset = 0,
+    videoBottomReserved = 0,
 }: {
     item: { media?: { thumbnail?: string; src_url?: string } };
     feedHeight?: number;
+    videoTopInset?: number;
+    videoBottomReserved?: number;
 }) {
     const thumbnail = item.media?.thumbnail;
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
@@ -103,7 +108,11 @@ function VideoSlidePlaceholder({
 
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View style={styles.videoWrapper}>
+            <View
+                style={[
+                    styles.videoWrapper,
+                    { top: videoTopInset, bottom: videoBottomReserved },
+                ]}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>
@@ -116,6 +125,8 @@ function VideoPlayer({
     shouldPreload = true,
     standalonePlayback = false,
     feedHeight,
+    videoTopInset = 0,
+    videoBottomReserved = 0,
     onLike,
     onComment,
     onCaptionExpand,
@@ -148,7 +159,14 @@ function VideoPlayer({
     }, [wantsPlayer]);
 
     if (!holdPlayer) {
-        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
+        return (
+            <VideoSlidePlaceholder
+                item={item}
+                feedHeight={feedHeight}
+                videoTopInset={videoTopInset}
+                videoBottomReserved={videoBottomReserved}
+            />
+        );
     }
 
     return (
@@ -157,6 +175,8 @@ function VideoPlayer({
             isActive={isActive}
             standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
+            videoTopInset={videoTopInset}
+            videoBottomReserved={videoBottomReserved}
             onLike={onLike}
             onComment={onComment}
             onCaptionExpand={onCaptionExpand}
@@ -186,6 +206,8 @@ function VideoPlayerCore({
     isActive,
     standalonePlayback = false,
     feedHeight,
+    videoTopInset = 0,
+    videoBottomReserved = 0,
     onLike,
     onComment,
     onCaptionExpand,
@@ -223,6 +245,10 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
+    const videoBandStyle = {
+        top: videoTopInset,
+        bottom: videoBottomReserved,
+    };
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
@@ -914,7 +940,14 @@ function VideoPlayerCore({
             : null;
 
     if (!srcUrl) {
-        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
+        return (
+            <VideoSlidePlaceholder
+                item={item}
+                feedHeight={feedHeight}
+                videoTopInset={videoTopInset}
+                videoBottomReserved={videoBottomReserved}
+            />
+        );
     }
 
     if (item.is_sensitive && !playSensitive) {
@@ -958,7 +991,7 @@ function VideoPlayerCore({
 
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View style={styles.videoWrapper}>
+            <View style={[styles.videoWrapper, videoBandStyle]}>
                 {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                 {videoViewPlayer ? (
                     <VideoView
@@ -1025,7 +1058,7 @@ function VideoPlayerCore({
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
                 overlayBottom={actionRailBottom ?? overlayBottom}
-                onProfilePress={() => router.push(toProfilePath(item.account.id))}
+                onProfilePress={() => safeRouterPush(toProfilePath(item.account.id))}
                 onLike={handleLike}
                 onComment={() => onComment(item)}
                 onBookmark={handleBookmark}
@@ -1040,7 +1073,7 @@ function VideoPlayerCore({
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
-                        router.push(toProfilePath(item.account.id));
+                        safeRouterPush(toProfilePath(item.account.id));
                     }}
                     accessible={true}
                     accessibilityLabel={`View @${item.account.username}'s profile`}
@@ -1063,7 +1096,7 @@ function VideoPlayerCore({
                             onNavigate?.();
                             const target = profileId ?? username;
                             if (!target) return;
-                            router.push(toProfilePath(target));
+                            safeRouterPush(toProfilePath(target));
                         }}
                         onMorePress={() => onCaptionExpand?.(item)}
                     />
@@ -1089,7 +1122,7 @@ function VideoPlayerCore({
                             : item.account.id;
                         if (!target) return;
                         onNavigate?.();
-                        router.push(toProfilePath(target));
+                        safeRouterPush(toProfilePath(target));
                     }}
                     accessible={true}
                     accessibilityLabel={
@@ -1132,9 +1165,12 @@ const styles = StyleSheet.create({
         width: SCREEN_WIDTH,
         position: 'relative',
         overflow: 'hidden',
+        backgroundColor: POSTER_BG,
     },
     videoWrapper: {
-        flex: 1,
+        position: 'absolute',
+        left: 0,
+        right: 0,
         backgroundColor: POSTER_BG,
         overflow: 'hidden',
     },

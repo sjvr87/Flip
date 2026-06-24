@@ -2,6 +2,7 @@ import MentionText from '@/components/MentionText';
 import FeedActionRail from '@/components/feed/FeedActionRail';
 import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { toProfilePath } from '@/utils/profileNavigation';
+import { safeRouterPush } from '@/utils/safeNavigation';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -85,7 +86,7 @@ export default function PhotoFeedSlide({
                 canComment={item.permissions?.can_comment !== false}
                 bottomInset={bottomInset}
                 tabBarHeight={tabBarHeight}
-                onProfilePress={() => router.push(toProfilePath(item.account.id))}
+                onProfilePress={() => safeRouterPush(toProfilePath(item.account.id))}
                 onLike={handleLike}
                 onComment={() => onComment(item)}
                 onBookmark={handleBookmark}
@@ -98,7 +99,7 @@ export default function PhotoFeedSlide({
                 <TouchableOpacity
                     onPress={() => {
                         onNavigate?.();
-                        router.push(toProfilePath(item.account.id));
+                        safeRouterPush(toProfilePath(item.account.id));
                     }}>
                     <MentionText username={item.account.username} style={styles.username} />
                 </TouchableOpacity>
@@ -118,7 +119,7 @@ export default function PhotoFeedSlide({
                             onNavigate?.();
                             const target = profileId ?? username;
                             if (!target) return;
-                            router.push(toProfilePath(target));
+                            safeRouterPush(toProfilePath(target));
                         }}
                         onMorePress={() => onCaptionExpand?.(item)}
                     />

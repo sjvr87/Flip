@@ -1,37 +1,138 @@
 import { memo } from 'react';
-import Svg, { Circle, ClipPath, Defs, G, Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 type RemixVinylIconProps = {
     size?: number;
     color?: string;
 };
 
-/** Traced from reference artboard (24×24) — disc slightly left of center. */
-const DISC = { cx: 7.84, cy: 12.16, r: 7.53 };
-const RING_OUTER = 1.55;
-const RING_INNER = 0.58;
-const SPINDLE_R = 0.36;
-const ARC_STROKE = 1.15;
-const HAND_OUTLINE = 1.35;
+/** Matches feed action rail `ICON_SLOT` (30px) — viewBox padded so motion arcs are not clipped. */
+const VIEW_BOX = '-4.5 -0.5 30 27';
 
-/** disc → gap → inner arc → bigger gap → outer arc */
-const ARC_DISC_GAP = 1.9;
-const ARC_PAIR_GAP = 2.6;
+/** Disc slightly left of center so hand + arcs fit the slot. */
+const DISC = { cx: 7.6, cy: 12.2, r: 7.4 };
+const RING_OUTER = 1.5;
+const RING_INNER = 0.55;
+const SPINDLE_R = 0.34;
+const ARC_STROKE = 1.1;
 
-/** Bottom motion arcs — radii pushed outward; wider sweep so curves read complete. */
-const BOTTOM_ARC_INNER = { r: DISC.r + ARC_DISC_GAP, start: 58, end: 114 };
+const ARC_DISC_GAP = 1.85;
+const ARC_PAIR_GAP = 2.45;
+
+const BOTTOM_ARC_INNER = { r: DISC.r + ARC_DISC_GAP, start: 56, end: 118 };
 const BOTTOM_ARC_OUTER = {
     r: DISC.r + ARC_DISC_GAP + ARC_PAIR_GAP,
-    start: 54,
-    end: 110,
+    start: 52,
+    end: 114,
 };
 
+/** Upper-left pair — hug left rim of the disc (shifted further left than prior art). */
+const TOP_ARC_INNER = { r: BOTTOM_ARC_INNER.r, start: -168, end: -122 };
+const TOP_ARC_OUTER = { r: BOTTOM_ARC_OUTER.r, start: -174, end: -116 };
+
+const HAND_OUTLINE = 0.42;
+
 /**
- * Top-left arcs — same radii/spacing as bottom, shifted left along the disc rim
- * (not a strict 180° mirror so the pair hugs the upper-left quadrant).
+ * DJ scratch hand — lower-right of disc, wide palm, thumb hidden.
+ * Curled fingers as two-segment capsules; index extended with parallel sides.
  */
-const TOP_ARC_INNER = { r: BOTTOM_ARC_INNER.r, start: -142, end: -96 };
-const TOP_ARC_OUTER = { r: BOTTOM_ARC_OUTER.r, start: -148, end: -92 };
+const PALM_PATH = [
+    'M 21.6 0.6',
+    'L 25.2 0.8',
+    'L 25.6 4.4',
+    'L 24.8 8.2',
+    'C 23.6 11.4 20.4 13.2 17.0 13.4',
+    'L 15.4 13.0',
+    'L 15.2 11.6',
+    'C 15.6 9.8 16.2 8.0 17.0 6.2',
+    'C 18.2 3.6 20.0 1.6 21.6 0.6',
+    'Z',
+].join(' ');
+
+/** Extended index — parallel sides, rounded tip reaching disc lower-right. */
+const INDEX_FINGER_PATH = [
+    'M 15.4 12.0',
+    'L 13.6 12.6',
+    'L 7.8 17.8',
+    'L 7.2 18.4',
+    'Q 7.0 18.9 7.6 19.0',
+    'Q 8.2 18.6 8.4 18.0',
+    'L 14.2 12.4',
+    'L 15.4 12.0',
+    'Z',
+].join(' ');
+
+/** Curled middle — two visible segments (proximal + distal). */
+const MIDDLE_FINGER_PATH = [
+    'M 21.6 0.8',
+    'L 20.2 1.2',
+    'L 17.0 2.6',
+    'L 15.0 4.8',
+    'L 13.6 7.2',
+    'L 12.8 9.0',
+    'Q 12.4 9.8 13.0 10.0',
+    'L 14.4 9.4',
+    'L 15.8 7.0',
+    'L 17.6 4.6',
+    'L 19.8 2.8',
+    'L 21.6 0.8',
+    'Z',
+].join(' ');
+
+/** Curled ring — offset below middle, full segment length. */
+const RING_FINGER_PATH = [
+    'M 20.2 3.4',
+    'L 18.8 3.8',
+    'L 16.2 5.0',
+    'L 14.4 7.0',
+    'L 13.2 9.2',
+    'L 12.6 10.8',
+    'Q 12.2 11.4 12.8 11.6',
+    'L 14.2 11.0',
+    'L 15.4 8.8',
+    'L 17.2 6.6',
+    'L 19.2 4.8',
+    'L 20.2 3.4',
+    'Z',
+].join(' ');
+
+/** Curled pinky — shortest, lowest on hand. */
+const PINKY_FINGER_PATH = [
+    'M 18.8 5.8',
+    'L 17.4 6.2',
+    'L 15.2 7.4',
+    'L 13.6 9.4',
+    'L 12.6 11.4',
+    'L 12.0 12.8',
+    'Q 11.6 13.4 12.2 13.6',
+    'L 13.6 13.0',
+    'L 14.8 11.0',
+    'L 16.4 9.0',
+    'L 18.0 7.4',
+    'L 18.8 5.8',
+    'Z',
+].join(' ');
+
+const HAND_FILL_PATHS = [
+    PALM_PATH,
+    MIDDLE_FINGER_PATH,
+    RING_FINGER_PATH,
+    PINKY_FINGER_PATH,
+    INDEX_FINGER_PATH,
+].join(' ');
+
+/** Subtle creases — knuckle bends + index joint. */
+const HAND_KNUCKLE_CREASES = [
+    'M 19.0 3.6 L 16.8 4.8',
+    'M 17.8 5.6 L 15.6 6.8',
+    'M 16.6 7.4 L 14.4 8.6',
+    'M 15.2 9.0 L 13.2 10.2',
+    'M 13.8 10.8 L 12.0 12.0',
+    'M 13.4 12.4 L 11.6 13.2',
+    'M 14.2 12.4 L 12.4 13.2',
+].join(' ');
+
+const HAND_INDEX_NAIL = 'M 8.0 18.2 Q 7.6 18.6 7.85 18.85 Q 8.1 18.5 8.0 18.2';
 
 function contrastFill(color: string) {
     const normalized = color.toLowerCase();
@@ -53,34 +154,11 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
 }
 
 /**
- * DJ mix grip — four fingers flat on the vinyl toward the spindle, thumb offset
- * to the right; simple outline with fingertip ridges and inter-finger valleys.
- */
-const HAND_PATH = [
-    'M 23.10 21.90',
-    'C 22.20 19.50 20.80 17.30 19.50 16.10',
-    'C 21.50 15.20 23.00 14.00 22.80 12.80',
-    'C 22.40 11.90 21.00 12.50 20.10 13.40',
-    'C 19.60 14.00 19.30 14.60 19.10 15.00',
-    'C 17.20 14.50 15.00 14.00 13.80 13.70',
-    'C 14.50 13.30 16.50 13.40 17.80 14.00',
-    'C 15.80 12.80 13.80 12.20 12.60 11.90',
-    'C 13.40 11.40 15.60 11.50 17.00 12.20',
-    'C 14.60 10.90 13.00 10.30 12.10 10.00',
-    'C 13.00 9.50 15.20 9.60 16.60 10.30',
-    'C 14.00 8.80 13.00 8.40 12.40 8.10',
-    'C 13.80 7.80 16.20 8.80 17.60 10.20',
-    'C 19.00 11.80 20.20 14.20 21.20 16.80',
-    'C 22.00 18.80 22.80 20.50 23.10 21.90',
-    'Z',
-].join(' ');
-
-/**
- * Vinyl record with scratching hand and motion arcs — feed remix / use-audio button.
+ * Vinyl record with DJ scratching hand and motion arcs — feed remix / use-audio button.
  * Transparent background; record + arcs use `color`, label/wedge/hand gap use contrast cutouts.
  */
 const RemixVinylIcon = memo(function RemixVinylIcon({
-    size = 24,
+    size = 30,
     color = '#FFFFFF',
 }: RemixVinylIconProps) {
     const detail = contrastFill(color);
@@ -102,13 +180,7 @@ const RemixVinylIcon = memo(function RemixVinylIcon({
     ].join(' ');
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" overflow="visible">
-            <Defs>
-                <ClipPath id="remixDiscClip">
-                    <Circle cx={cx} cy={cy} r={r} />
-                </ClipPath>
-            </Defs>
-
+        <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
             <Path
                 d={arcPath(cx, cy, TOP_ARC_INNER.r, TOP_ARC_INNER.start, TOP_ARC_INNER.end)}
                 stroke={color}
@@ -130,25 +202,26 @@ const RemixVinylIcon = memo(function RemixVinylIcon({
             <Circle cx={cx} cy={cy} r={RING_INNER} fill={color} />
             <Circle cx={cx} cy={cy} r={SPINDLE_R} fill={detail} />
 
-            <G clipPath="url(#remixDiscClip)">
-                <Path
-                    d={HAND_PATH}
-                    fill="none"
-                    stroke={detail}
-                    strokeWidth={HAND_OUTLINE}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                />
-            </G>
             <Path
-                d={HAND_PATH}
-                fill="none"
+                d={HAND_FILL_PATHS}
+                fill={color}
                 stroke={detail}
                 strokeWidth={HAND_OUTLINE}
                 strokeLinejoin="round"
+            />
+            <Path
+                d={HAND_KNUCKLE_CREASES}
+                stroke={detail}
+                strokeWidth={0.38}
                 strokeLinecap="round"
             />
-            <Path d={HAND_PATH} fill={color} />
+            <Path
+                d={HAND_INDEX_NAIL}
+                stroke={detail}
+                strokeWidth={0.38}
+                strokeLinecap="round"
+                fill="none"
+            />
 
             <Path
                 d={arcPath(cx, cy, BOTTOM_ARC_INNER.r, BOTTOM_ARC_INNER.start, BOTTOM_ARC_INNER.end)}

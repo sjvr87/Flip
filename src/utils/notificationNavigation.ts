@@ -5,6 +5,7 @@ import {
     toProfileFeedPath,
     toProfilePath,
 } from '@/utils/profileNavigation';
+import { safeRouterPush } from '@/utils/safeNavigation';
 import { usesAtprotoBackend } from '@/utils/requests';
 
 const COMMENT_ACTIVITY_TYPES = new Set([
@@ -81,16 +82,16 @@ export function getNotificationHref(item: NotificationNavItem): NotificationRout
 }
 
 export async function navigateFromNotification(
-    router: { push: (href: NotificationRoute) => void },
+    _router: { push: (href: NotificationRoute) => void },
     item: NotificationNavItem,
 ) {
     if (item.type === 'starterKit.awaitingApproval' && item.kit?.id != null) {
-        router.push(`/private/notifications/starterKits/review/${item.kit.id}`);
+        safeRouterPush(`/private/notifications/starterKits/review/${item.kit.id}`);
         return;
     }
 
     if (item.kit?.path && item.kit?.id != null) {
-        router.push(`/private/kits/show/${item.kit.id}`);
+        safeRouterPush(`/private/kits/show/${item.kit.id}`);
         return;
     }
 
@@ -115,7 +116,20 @@ export async function navigateFromNotification(
                         route,
                     });
                 }
-                router.push(route);
+                safeRouterPush(route);
+                return;
+            }
+
+            const fallbackRoute = getNotificationRoute(item);
+            if (fallbackRoute) {
+                if (__DEV__) {
+                    console.warn('[notification] tap: media resolve missed — using fallback route', {
+                        type: item.type,
+                        video_id: item.video_id,
+                        route: fallbackRoute,
+                    });
+                }
+                safeRouterPush(fallbackRoute);
                 return;
             }
 
@@ -133,7 +147,7 @@ export async function navigateFromNotification(
             const profileId = item.video_pid || parseRepoDidFromAtUri(item.video_id);
             if (profileId) {
                 const openComments = COMMENT_ACTIVITY_TYPES.has(item.type);
-                router.push(toProfileFeedPath(item.video_id, profileId, { openComments }));
+                safeRouterPush(toProfileFeedPath(item.video_id, profileId, { openComments }));
                 return;
             }
         }
@@ -151,6 +165,6 @@ export async function navigateFromNotification(
         });
     }
     if (route) {
-        router.push(route);
+        safeRouterPush(route);
     }
 }

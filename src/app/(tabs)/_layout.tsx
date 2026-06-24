@@ -84,6 +84,9 @@ export default function TabsLayout() {
                     if (route.name === 'index') {
                         setHomeTabFocused(true);
                     }
+                    if (route.name === 'create') {
+                        prepareForCameraCapture();
+                    }
                     // Non-home pause is handled by index blur — do not defer here (rAF/microtask
                     // can fire after the user returns to Home and freeze feed playback).
                 },
