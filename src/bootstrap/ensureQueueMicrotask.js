@@ -1,31 +1,11 @@
 'use strict';
 
 /**
- * Keep global + globalThis.queueMicrotask aligned with RN's implementation.
- * Expo winter / worklets may replace queueMicrotask after bootstrap; we cache RN's
- * impl in module scope and re-bind through the metro guard so navigation.dispatch
- * never sees a broken shim ("undefined is not a function").
+ * Keep global + globalThis.queueMicrotask aligned with a stable Promise-based impl.
+ * Expo winter / worklets may replace queueMicrotask after bootstrap; we never read
+ * global.queueMicrotask (may be a broken shim) and re-bind through the metro guard
+ * so navigation.dispatch never sees "undefined is not a function".
  */
-
-/** @type {((callback: () => void) => void) | null} */
-let cachedRnQueueMicrotask = null;
-
-function resolveRnQueueMicrotask() {
-    if (cachedRnQueueMicrotask) {
-        return cachedRnQueueMicrotask;
-    }
-    try {
-        const mod = require('react-native/Libraries/Core/Timers/queueMicrotask.js');
-        const fn = mod && (mod.default ?? mod);
-        if (typeof fn === 'function') {
-            cachedRnQueueMicrotask = fn;
-            return fn;
-        }
-    } catch {
-        // RN internal path unavailable in tests
-    }
-    return null;
-}
 
 function promiseFallback(callback) {
     Promise.resolve()
@@ -37,19 +17,10 @@ function promiseFallback(callback) {
         });
 }
 
-/** Stable delegate — never reads global.queueMicrotask (may be a broken Expo winter shim). */
+/** Stable delegate — never delegates to global.queueMicrotask or RN deep imports. */
 function boundQueueMicrotask(callback) {
     if (typeof callback !== 'function') {
         throw new TypeError('queueMicrotask must be called with a function');
-    }
-    const fn = resolveRnQueueMicrotask();
-    if (typeof fn === 'function') {
-        try {
-            fn(callback);
-            return;
-        } catch {
-            cachedRnQueueMicrotask = null;
-        }
     }
     promiseFallback(callback);
 }
@@ -79,7 +50,6 @@ function installThroughMetroGuard() {
 }
 
 function ensureQueueMicrotask() {
-    resolveRnQueueMicrotask();
     installThroughMetroGuard();
 }
 

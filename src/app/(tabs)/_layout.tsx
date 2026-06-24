@@ -7,8 +7,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
-import { isHomeTabPath, setHomeTabFocused } from '@/utils/feedPlaybackGuard';
-import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
+import { setHomeTabFocused } from '@/utils/feedPlaybackGuard';
+import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -62,7 +62,6 @@ export default function TabsLayout() {
 
     useEffect(() => {
         ensureQueueMicrotask();
-        setHomeTabFocused(isHomeTabPath(pathname));
         const onCreateTab =
             pathname === '/create' || pathname === '/(tabs)/create' || pathname.endsWith('/create');
         if (onCreateTab) {
@@ -90,10 +89,9 @@ export default function TabsLayout() {
                     ensureQueueMicrotask();
                     if (route.name === 'index') {
                         setHomeTabFocused(true);
-                    } else {
-                        // Defer feed pause so tab navigation.dispatch runs first.
-                        safeQueueMicrotask(() => setHomeTabFocused(false));
                     }
+                    // Non-home pause is handled by index blur — do not defer here (rAF/microtask
+                    // can fire after the user returns to Home and freeze feed playback).
                 },
             }),
         [],

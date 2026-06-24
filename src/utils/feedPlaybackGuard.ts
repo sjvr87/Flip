@@ -94,9 +94,7 @@ export function setHomeTabFocused(focused: boolean): void {
         feedPlaybackSuspended = false;
     }
     applyPlaybackActiveState();
-    if (focused) {
-        notifyPlaybackActive();
-    }
+    notifyPlaybackActive();
 }
 
 /** App foreground — called from feed index AppState only. Release players on background. */
