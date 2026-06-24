@@ -190,6 +190,7 @@ class FlipCameraSession(
     enableAudio: Boolean,
     onFinished: (String) -> Unit,
     onFailed: (String) -> Unit,
+    allowStaleRetry: Boolean = true,
   ) {
     val capture = videoCapture ?: run {
       onFailed("Video capture not ready")
@@ -264,6 +265,7 @@ class FlipCameraSession(
                   return@start
                 }
                 schedulePreviewRefresh()
+                schedulePreviewSurfaceReconnect(150)
                 if (event.hasError()) {
                   notifyRecordingFailed(
                     generation,
@@ -280,6 +282,10 @@ class FlipCameraSession(
               else -> Unit
             }
           }
+
+        if (generation == recordingGeneration) {
+          activeRecording = recording
+        }
 
         mainExecutor.execute {
           previewView.postDelayed(
@@ -318,14 +324,35 @@ class FlipCameraSession(
       } catch (e: Exception) {
         pausePreviewRefresh = false
         recordingStarting = false
+        activeRecording = null
         Log.e(TAG, "startRecording failed", e)
-        if (generation == recordingGeneration) {
-          notifyRecordingFailed(
-            generation,
-            onFailed,
-            e.message ?: "Recording failed to start",
-          )
+        if (generation != recordingGeneration) return@execute
+        val staleRecorder =
+          e is IllegalStateException &&
+            (e.message?.contains("already in progress", ignoreCase = true) == true)
+        if (staleRecorder && allowStaleRetry) {
+          mainExecutor.execute {
+            recoverAfterRecordingFailure()
+            previewView.postDelayed(
+              {
+                startRecording(
+                  outputFile,
+                  enableAudio,
+                  onFinished,
+                  onFailed,
+                  allowStaleRetry = false,
+                )
+              },
+              350,
+            )
+          }
+          return@execute
         }
+        notifyRecordingFailed(
+          generation,
+          onFailed,
+          e.message ?: "Recording failed to start",
+        )
       }
     }
   }
@@ -338,6 +365,9 @@ class FlipCameraSession(
     activeRecording = null
     recording?.stop()
     schedulePreviewRefresh()
+    // Rebind soon — surface-only refresh leaves a dead TextureView / stale Recorder on Samsung.
+    schedulePreviewSurfaceReconnect(150)
+    schedulePostFinalizeRebind()
   }
 
   /**
@@ -369,6 +399,25 @@ class FlipCameraSession(
   private fun schedulePreviewRefresh() {
     mainExecutor.execute {
       previewView.post { refreshPreviewSurface() }
+    }
+  }
+
+  /** One-shot surface reconnect without requiring an active recording (post-stop unfreeze). */
+  private fun schedulePreviewSurfaceReconnect(delayMs: Long = 0) {
+    mainExecutor.execute {
+      previewView.postDelayed(
+        {
+          if (pausePreviewRefresh || cameraProvider == null) return@postDelayed
+          val previewUseCase = preview ?: return@postDelayed
+          if (previewView.width <= 0 || previewView.height <= 0) return@postDelayed
+          previewUseCase.surfaceProvider = previewView.surfaceProvider
+          Log.d(
+            TAG,
+            "preview surface reconnect ${previewView.width}x${previewView.height}",
+          )
+        },
+        delayMs,
+      )
     }
   }
 
