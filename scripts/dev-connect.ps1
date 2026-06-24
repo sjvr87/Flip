@@ -265,15 +265,18 @@ function Invoke-MetroReload {
 }
 
 function Invoke-BundleWarmup {
+  param(
+    [string]$MetroHost = "127.0.0.1"  # must match the host the device will use (USB or LAN)
+  )
   # Fire-and-forget request to trigger Metro's JS compilation pipeline before the app launches.
-  # A short timeout is intentional — we only want to start the compile, not wait for it.
+  # The timeout is intentionally short — we only want to start the compile, not wait for it.
   # By the time the dev client requests the bundle the cache will already be warm.
   try {
-    Invoke-WebRequest -Uri "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&hot=false&lazy=true" `
-      -UseBasicParsing -TimeoutSec 5 -ErrorAction SilentlyContinue | Out-Null
-    Write-Host "  Bundle warm-up: compile triggered (cache primed)." -ForegroundColor DarkGray
+    Invoke-WebRequest -Uri "http://${MetroHost}:8081/index.bundle?platform=android&dev=true&hot=false&lazy=true" `
+      -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue | Out-Null
+    Write-Host "  Bundle warm-up: request sent to ${MetroHost}:8081 (compile may be in progress)." -ForegroundColor DarkGray
   } catch {
-    Write-Host "  Bundle warm-up sent (compile in progress — normal for fresh Metro start)." -ForegroundColor DarkGray
+    Write-Host "  Bundle warm-up request sent to ${MetroHost}:8081 (compile in progress — normal for fresh Metro start)." -ForegroundColor DarkGray
   }
 }
 
@@ -350,7 +353,8 @@ function Start-FlipApp {
   }
 
   # Pre-warm the Metro bundle cache so the device doesn't time-out on first load.
-  Invoke-BundleWarmup
+  # Use the same host the device will connect to (USB or LAN).
+  Invoke-BundleWarmup -MetroHost $effectiveHost
 
   $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "force-stop", "social.flip.app")
   Start-Sleep -Milliseconds 400
