@@ -7,8 +7,8 @@ import Svg, { Path } from 'react-native-svg';
 export const REPOST_ARROW_DESIGN_SIZE = 28;
 
 const VIEWBOX = `0 0 ${REPOST_ARROW_DESIGN_SIZE} ${REPOST_ARROW_DESIGN_SIZE}`;
-/** Tighter crop so stroke arrow fills the slot like Ionicons at the same pixel size. */
-const FEED_VIEWBOX = '5 4 19 20';
+/** Tighter crop so stroke arrow fills the slot like Ionicons — keep tip at x=4 in frame. */
+const FEED_VIEWBOX = '2 4 20 20';
 
 /** Medium stroke traced from reference (~2.2px at 28×28). */
 const STROKE_WIDTH = 2.2;
