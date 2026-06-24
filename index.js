@@ -10,6 +10,12 @@ require('./src/bootstrap/nativeFetch');
 require('@expo/metro-runtime');
 ensureQueueMicrotask();
 
+// Expo winter / worklets may replace queueMicrotask after metro-runtime loads.
+if (typeof setImmediate === 'function') {
+    setImmediate(ensureQueueMicrotask);
+    setImmediate(() => setImmediate(ensureQueueMicrotask));
+}
+
 const { renderRootComponent } = require('expo-router/build/renderRootComponent');
 const { App } = require('./src/bootstrap/rootApp');
 

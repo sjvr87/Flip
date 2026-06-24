@@ -7,12 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
-import {
-    pauseAllFeedPlayers,
-    resumeFeedPlaybackOnTabReturn,
-    setFeedPlaybackActive,
-    stopFeedAudioOnTabLeave,
-} from '@/utils/feedPlaybackGuard';
+import { isHomeTabPath, setHomeTabFocused } from '@/utils/feedPlaybackGuard';
 import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
@@ -24,10 +19,6 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, usePathname } from 'expo-router';
 import { useEffect, useMemo, type ReactNode } from 'react';
-
-function ensureQueueMicrotaskForTabs(): void {
-    ensureQueueMicrotask();
-}
 import { Platform, StyleSheet, View } from 'react-native';
 
 /** Fixed square slot so every tab icon shares the same footprint and center. */
@@ -66,26 +57,16 @@ export default function TabsLayout() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
     useEffect(() => {
-        ensureQueueMicrotaskForTabs();
+        ensureQueueMicrotask();
     }, []);
 
     useEffect(() => {
-        const onHomeTab =
-            pathname === '/' ||
-            pathname === '/index' ||
-            pathname === '/(tabs)' ||
-            pathname === '/(tabs)/index' ||
-            pathname.endsWith('/index');
+        ensureQueueMicrotask();
+        setHomeTabFocused(isHomeTabPath(pathname));
         const onCreateTab =
             pathname === '/create' || pathname === '/(tabs)/create' || pathname.endsWith('/create');
         if (onCreateTab) {
             prepareForCameraCapture();
-        }
-        if (!onHomeTab) {
-            pauseAllFeedPlayers();
-            setFeedPlaybackActive(false);
-        } else {
-            resumeFeedPlaybackOnTabReturn();
         }
     }, [pathname]);
 
@@ -106,12 +87,10 @@ export default function TabsLayout() {
         () =>
             ({ route }: { route: { name: string } }) => ({
                 tabPress: () => {
-                    ensureQueueMicrotaskForTabs();
-                    if (route.name === 'index') {
-                        resumeFeedPlaybackOnTabReturn();
-                    } else {
-                        // Defer feed teardown so tab navigation.dispatch runs first.
-                        safeQueueMicrotask(() => stopFeedAudioOnTabLeave());
+                    ensureQueueMicrotask();
+                    if (route.name !== 'index') {
+                        // Defer feed pause so tab navigation.dispatch runs first.
+                        safeQueueMicrotask(() => setHomeTabFocused(false));
                     }
                 },
             }),
@@ -161,24 +140,15 @@ export default function TabsLayout() {
                         </TabIconSlot>
                     ),
                 }}
-                listeners={{
-                    blur: () => {
-                        pauseAllFeedPlayers();
-                        setFeedPlaybackActive(false);
-                    },
-                    focus: () => {
-                        resumeFeedPlaybackOnTabReturn();
-                    },
-                }}
             />
             <Tabs.Screen
                 name="explore"
                 listeners={{
                     tabPress: () => {
-                        ensureQueueMicrotaskForTabs();
+                        ensureQueueMicrotask();
                     },
                     focus: () => {
-                        ensureQueueMicrotaskForTabs();
+                        ensureQueueMicrotask();
                     },
                 }}
                 options={{

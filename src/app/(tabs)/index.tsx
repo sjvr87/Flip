@@ -33,9 +33,7 @@ import {
 import {
     onFeedTabChanged,
     pauseAllFeedPlayers,
-    releaseAllFeedPlayers,
-    resumeFeedPlaybackOnTabReturn,
-    setFeedPlaybackActive,
+    setAppInForeground,
 } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
@@ -522,7 +520,6 @@ export default function LoopsFeed({ navigation }) {
     }, []);
 
     useEffect(() => {
-        setFeedPlaybackActive(feedPlaybackEnabled);
         if (!feedPlaybackEnabled) {
             releaseAllVideoPrefetch();
         }
@@ -531,13 +528,10 @@ export default function LoopsFeed({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
-            resumeFeedPlaybackOnTabReturn();
             refreshFeedIfStale(activeTabRef.current, feedEpochRef.current);
 
             return () => {
                 setScreenFocused(false);
-                setFeedPlaybackActive(false);
-                pauseAllFeedPlayers();
                 releaseAllVideoPrefetch();
                 if (currentVideoRef.current && watchStartTimeRef.current) {
                     const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
@@ -551,14 +545,9 @@ export default function LoopsFeed({ navigation }) {
         const subscription = AppState.addEventListener('change', (nextState) => {
             const active = nextState === 'active';
             setAppActive(active);
+            setAppInForeground(active);
             if (!active) {
-                setFeedPlaybackActive(false);
-                releaseAllFeedPlayers();
                 releaseAllVideoPrefetch();
-            } else if (screenFocused) {
-                resumeFeedPlaybackOnTabReturn();
-            } else {
-                setFeedPlaybackActive(false);
             }
             if (active) {
                 for (const tab of FEED_TABS) {
@@ -568,7 +557,7 @@ export default function LoopsFeed({ navigation }) {
             }
         });
         return () => subscription.remove();
-    }, [refreshFeedIfStale, screenFocused]);
+    }, [refreshFeedIfStale]);
 
     useEffect(() => {
         if (videos.length > 0) {

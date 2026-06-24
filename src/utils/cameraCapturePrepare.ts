@@ -1,4 +1,4 @@
-import { releaseAllFeedPlayers, setFeedPlaybackActive } from '@/utils/feedPlaybackGuard';
+import { releaseAllFeedPlayers } from '@/utils/feedPlaybackGuard';
 import { releaseAllVideoPrefetch } from '@/utils/videoPrefetch';
 
 /**
@@ -8,5 +8,4 @@ import { releaseAllVideoPrefetch } from '@/utils/videoPrefetch';
 export function prepareForCameraCapture(): void {
     releaseAllFeedPlayers();
     releaseAllVideoPrefetch();
-    setFeedPlaybackActive(false);
 }

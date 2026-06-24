@@ -2,6 +2,10 @@
 let feedPlaybackActive = true;
 /** Briefly false during Following/Local/For You switches so stale cells cannot recreate players. */
 let feedPlaybackSuspended = false;
+/** Home tab visible in tab bar (single source of truth: tabs _layout pathname). */
+let homeTabFocused = true;
+/** App in foreground (single source of truth: feed index AppState). */
+let appInForeground = true;
 let playbackGeneration = 0;
 let activeFeedPlayerId: string | null = null;
 
@@ -52,13 +56,59 @@ function bumpPlaybackGeneration(): void {
 }
 
 export function isFeedPlaybackActive(): boolean {
-    return feedPlaybackActive && !feedPlaybackSuspended;
+    return feedPlaybackActive && !feedPlaybackSuspended && homeTabFocused && appInForeground;
 }
 
 export function subscribeFeedPlaybackActive(listener: (active: boolean) => void): () => void {
     playbackActiveListeners.add(listener);
     listener(isFeedPlaybackActive());
     return () => playbackActiveListeners.delete(listener);
+}
+
+function applyPlaybackActiveState(): void {
+    const shouldBeActive = homeTabFocused && appInForeground && !feedPlaybackSuspended;
+    if (feedPlaybackActive === shouldBeActive) {
+        return;
+    }
+    feedPlaybackActive = shouldBeActive;
+    if (!shouldBeActive) {
+        pauseAllFeedPlayers();
+    }
+    notifyPlaybackActive();
+}
+
+/** Tab bar Home visibility — called from (tabs)/_layout pathname only. */
+export function setHomeTabFocused(focused: boolean): void {
+    if (homeTabFocused === focused) {
+        if (focused) {
+            feedPlaybackSuspended = false;
+            notifyPlaybackActive();
+        }
+        return;
+    }
+    homeTabFocused = focused;
+    if (!focused) {
+        activeFeedPlayerId = null;
+        pauseAllFeedPlayers();
+    } else {
+        feedPlaybackSuspended = false;
+    }
+    applyPlaybackActiveState();
+    if (focused) {
+        notifyPlaybackActive();
+    }
+}
+
+/** App foreground — called from feed index AppState only. Release players on background. */
+export function setAppInForeground(active: boolean): void {
+    if (appInForeground === active) {
+        return;
+    }
+    appInForeground = active;
+    if (!active) {
+        releaseAllFeedPlayers();
+    }
+    applyPlaybackActiveState();
 }
 
 /** Register pause + release handlers for a mounted feed player. */
@@ -123,7 +173,7 @@ export function pauseAllFeedPlayers(): void {
     }
 }
 
-/** Pause and release every registered player — tab blur / background only. */
+/** Pause and release every registered player — app background only. */
 export function releaseAllFeedPlayers(): void {
     bumpPlaybackGeneration();
     for (const { pause, release } of registeredPlayers) {
@@ -161,33 +211,44 @@ export function onFeedTabChanged(): void {
 
     requestAnimationFrame(() => {
         feedPlaybackSuspended = false;
-        if (feedPlaybackActive) {
+        if (homeTabFocused && appInForeground) {
             notifyPlaybackActive();
         }
     });
 }
 
-/** Tab bar left Home — pause immediately (tabPress runs before blur/pathname). */
+/** @deprecated Use setHomeTabFocused(false) from tabs layout. */
 export function stopFeedAudioOnTabLeave(): void {
-    activeFeedPlayerId = null;
-    pauseAllFeedPlayers();
-    setFeedPlaybackActive(false);
+    setHomeTabFocused(false);
 }
 
-/** Home tab focused again — re-enable decode/play without tearing down mounted players. */
+/** @deprecated Use setHomeTabFocused(true) from tabs layout. */
 export function resumeFeedPlaybackOnTabReturn(): void {
-    feedPlaybackSuspended = false;
-    feedPlaybackActive = true;
-    notifyPlaybackActive();
+    setHomeTabFocused(true);
 }
 
+/** @deprecated Prefer setHomeTabFocused / setAppInForeground. */
 export function setFeedPlaybackActive(active: boolean): void {
-    if (feedPlaybackActive === active) {
+    if (active) {
+        homeTabFocused = true;
+        appInForeground = true;
+        feedPlaybackSuspended = false;
+    } else {
+        activeFeedPlayerId = null;
+        pauseAllFeedPlayers();
+        feedPlaybackActive = false;
+        notifyPlaybackActive();
         return;
     }
-    feedPlaybackActive = active;
-    if (!active) {
-        pauseAllFeedPlayers();
-    }
+    applyPlaybackActiveState();
     notifyPlaybackActive();
+}
+
+export function isHomeTabPath(pathname: string): boolean {
+    return (
+        pathname === '/' ||
+        pathname === '/index' ||
+        pathname === '/(tabs)' ||
+        pathname === '/(tabs)/index'
+    );
 }
