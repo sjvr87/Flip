@@ -50,6 +50,9 @@ type UserState = {
     appearance: 'light' | 'dark' | 'system';
     rememberLogin: boolean;
     requireBiometric: boolean;
+    /** Server-backed in production; local cache for POC. See docs/AGE_VERIFICATION.md */
+    ageVerified: boolean;
+    setAgeVerified: (value: boolean) => void;
     loginWithBluesky: (identifier: string, password: string, service?: string) => Promise<boolean>;
     signInWithBlueskyOAuth: () => Promise<boolean>;
     /** @deprecated Loops OAuth — use loginWithBluesky */
@@ -121,6 +124,11 @@ export const useAuthStore = create(
             appearance: 'system',
             rememberLogin: true,
             requireBiometric: false,
+            ageVerified: false,
+
+            setAgeVerified: (value) => {
+                set({ ageVerified: value });
+            },
 
             loginWithBluesky: async (identifier, password, service) => {
                 loginInFlight = true;
@@ -327,7 +335,13 @@ export const useAuthStore = create(
             },
 
             clearUser: () => {
-                set({ user: null, server: null, isLoggedIn: false, authReady: true });
+                set({
+                    user: null,
+                    server: null,
+                    isLoggedIn: false,
+                    authReady: true,
+                    ageVerified: false,
+                });
             },
 
             logOut: () => {
@@ -340,6 +354,7 @@ export const useAuthStore = create(
                     user: null,
                     server: null,
                     requireBiometric: false,
+                    ageVerified: false,
                 });
             },
 
@@ -502,6 +517,7 @@ export const useAuthStore = create(
                     hasCompletedOnboarding: state.hasCompletedOnboarding,
                     rememberLogin: state.rememberLogin,
                     requireBiometric: state.requireBiometric,
+                    ageVerified: state.ageVerified,
                 }) as UserState,
             onRehydrateStorage: () => (state, error) => {
                 if (error) {

@@ -9,6 +9,7 @@ import {
     getBiometricLabel,
 } from '@/utils/biometricAuth';
 import { skipBiometricAutoPromptOnLaunch } from '@/utils/androidVideoSafeMode';
+import { getPostAuthRoute } from '@/utils/ageVerification';
 import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -47,6 +48,7 @@ export default function SignInScreen() {
     const clearSavedLogin = useAuthStore((s) => s.clearSavedLogin);
     const requireBiometric = useAuthStore((s) => s.requireBiometric);
     const rememberLogin = useAuthStore((s) => s.rememberLogin);
+    const ageVerified = useAuthStore((s) => s.ageVerified);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
@@ -80,7 +82,7 @@ export default function SignInScreen() {
             setStatusMessage('Signing you in...');
             const success = await unlockWithSavedCredentials();
             if (success) {
-                router.replace('/(tabs)');
+                router.replace(getPostAuthRoute(ageVerified));
                 return true;
             }
             setLoginError('Could not sign in with saved credentials. Enter your app password.');
@@ -89,7 +91,7 @@ export default function SignInScreen() {
         } finally {
             setIsLoading(false);
         }
-    }, [unlockWithSavedCredentials]);
+    }, [unlockWithSavedCredentials, ageVerified]);
 
     useEffect(() => {
         if (!hasHydrated || !authReady || isLoggedIn) return;
@@ -127,7 +129,7 @@ export default function SignInScreen() {
                     const success = await unlockWithSavedCredentials();
                     if (cancelled) return;
                     if (success) {
-                        router.replace('/(tabs)');
+                        router.replace(getPostAuthRoute(useAuthStore.getState().ageVerified));
                         return;
                     }
                     setLoginError('Could not restore your session. Sign in with Bluesky again.');
@@ -172,7 +174,7 @@ export default function SignInScreen() {
         try {
             const success = await signInWithBlueskyOAuth();
             if (success) {
-                router.replace('/(tabs)');
+                router.replace(getPostAuthRoute(useAuthStore.getState().ageVerified));
             }
         } catch (error) {
             const message =
@@ -203,7 +205,7 @@ export default function SignInScreen() {
                 service.trim() || undefined,
             );
             if (success) {
-                router.replace('/(tabs)');
+                router.replace(getPostAuthRoute(useAuthStore.getState().ageVerified));
             } else {
                 setLoginError('Login failed. Check your handle and app password.');
             }

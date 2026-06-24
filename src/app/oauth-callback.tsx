@@ -12,6 +12,7 @@ import {
 } from '@/atproto/oauthClient';
 import { clearCredentials } from '@/atproto/credentialVault';
 import { resetAuthFailureFlag } from '@/utils/requests';
+import { getPostAuthRoute } from '@/utils/ageVerification';
 import { useAuthStore } from '@/utils/authStore';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useURL } from 'expo-linking';
@@ -61,7 +62,7 @@ export default function OAuthCallbackScreen() {
         }
 
         if (await waitForLoggedIn()) {
-            router.replace('/(tabs)');
+            router.replace(getPostAuthRoute(useAuthStore.getState().ageVerified));
             return;
         }
 
@@ -69,7 +70,7 @@ export default function OAuthCallbackScreen() {
         if (wasOAuthCustomTabExchangeAttempted()) {
             if (getOAuthSignInOutcome() === 'success') {
                 if (await waitForLoggedIn(OAUTH_CUSTOM_TAB_LOGIN_WAIT_MS)) {
-                    router.replace('/(tabs)');
+                    router.replace(getPostAuthRoute(useAuthStore.getState().ageVerified));
                     return;
                 }
             }
@@ -109,7 +110,7 @@ export default function OAuthCallbackScreen() {
                 authReady: true,
             });
             resetAuthFailureFlag();
-            router.replace('/(tabs)');
+            router.replace(getPostAuthRoute(useAuthStore.getState().ageVerified));
         } catch (error) {
             if (__DEV__) {
                 console.warn('[auth] OAuth callback route failed:', error);

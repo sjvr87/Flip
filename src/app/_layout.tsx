@@ -1,6 +1,8 @@
 import { ExpoGoStartupBanner } from '@/components/ExpoGoStartupBanner';
 import { StartupErrorBoundary } from '@/components/StartupErrorBoundary';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { useAgeVerificationGate } from '@/hooks/useAgeVerificationGate';
+import { isAgeVerificationRequired } from '@/utils/ageVerification';
 import { isExpoGo, isWeb, useSafeNativeShims } from '@/utils/runtime';
 import { useAuthStore } from '@/utils/authStore';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -129,6 +131,8 @@ function ExpoGoAppContent() {
     const navigationReady = navigationState?.key != null;
     const rehydrateStartedRef = useRef(false);
 
+    useAgeVerificationGate();
+
     useLayoutEffect(() => {
         if (!navigationReady || rehydrateStartedRef.current) {
             return;
@@ -156,6 +160,7 @@ function ExpoGoAppContent() {
             <ThemedStatusBar />
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
+                <Stack.Screen name="verify-age" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="private" />
                 <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
@@ -174,6 +179,8 @@ function WebAppContent() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
 
+    useAgeVerificationGate();
+
     useEffect(() => {
         if (!hasHydrated || !authReady) return;
         hideSplash();
@@ -184,6 +191,7 @@ function WebAppContent() {
             <ThemedStatusBar />
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
+                <Stack.Screen name="verify-age" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="private" />
                 <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
@@ -200,8 +208,10 @@ function NativeAppContent() {
     const hasHydrated = useAuthStore((s) => s._hasHydrated);
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+    const ageVerified = useAuthStore((s) => s.ageVerified);
 
     useNotificationObserver();
+    useAgeVerificationGate();
 
     useEffect(() => {
         if (!hasHydrated) return;
@@ -221,13 +231,20 @@ function NativeAppContent() {
         return <View style={{ flex: 1, backgroundColor: '#000' }} />;
     }
 
+    const initialRoute = !isLoggedIn
+        ? 'sign-in'
+        : isAgeVerificationRequired(ageVerified)
+          ? 'verify-age'
+          : '(tabs)';
+
     return (
         <>
             <ThemedStatusBar />
             <Stack
                 screenOptions={{ headerShown: false }}
-                initialRouteName={isLoggedIn ? '(tabs)' : 'sign-in'}>
+                initialRouteName={initialRoute}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
+                <Stack.Screen name="verify-age" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="private" />
                 <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
