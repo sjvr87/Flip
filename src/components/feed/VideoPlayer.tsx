@@ -986,7 +986,6 @@ function VideoPlayerCore({
                         allowsPictureInPicture={false}
                         nativeControls={false}
                         pointerEvents="none"
-                        surfaceType="surfaceView"
                         onFirstFrameRender={handleFirstFrameRender}
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}
