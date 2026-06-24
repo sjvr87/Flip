@@ -245,10 +245,15 @@ export function setFeedPlaybackActive(active: boolean): void {
 }
 
 export function isHomeTabPath(pathname: string): boolean {
+    // Linking may briefly report "" before the initial tab route resolves.
+    if (!pathname) {
+        return true;
+    }
     return (
         pathname === '/' ||
         pathname === '/index' ||
         pathname === '/(tabs)' ||
-        pathname === '/(tabs)/index'
+        pathname === '/(tabs)/index' ||
+        pathname.endsWith('/index')
     );
 }

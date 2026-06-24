@@ -43,9 +43,13 @@ function boundQueueMicrotask(callback) {
         throw new TypeError('queueMicrotask must be called with a function');
     }
     const fn = resolveRnQueueMicrotask();
-    if (fn) {
-        fn(callback);
-        return;
+    if (typeof fn === 'function') {
+        try {
+            fn(callback);
+            return;
+        } catch {
+            cachedRnQueueMicrotask = null;
+        }
     }
     promiseFallback(callback);
 }

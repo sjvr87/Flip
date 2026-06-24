@@ -542,6 +542,7 @@ export default function LoopsFeed({ navigation }) {
     );
 
     useEffect(() => {
+        setAppInForeground(AppState.currentState === 'active');
         const subscription = AppState.addEventListener('change', (nextState) => {
             const active = nextState === 'active';
             setAppActive(active);

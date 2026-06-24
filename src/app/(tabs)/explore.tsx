@@ -54,8 +54,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-ensureQueueMicrotask();
-
 const { width } = Dimensions.get('window');
 const TAG_CARD_WIDTH = 120;
 const TEXT_POST_CARD_WIDTH = Math.min(300, width * 0.78);

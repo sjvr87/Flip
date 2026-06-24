@@ -88,7 +88,9 @@ export default function TabsLayout() {
             ({ route }: { route: { name: string } }) => ({
                 tabPress: () => {
                     ensureQueueMicrotask();
-                    if (route.name !== 'index') {
+                    if (route.name === 'index') {
+                        setHomeTabFocused(true);
+                    } else {
                         // Defer feed pause so tab navigation.dispatch runs first.
                         safeQueueMicrotask(() => setHomeTabFocused(false));
                     }
@@ -124,6 +126,15 @@ export default function TabsLayout() {
             }}>
             <Tabs.Screen
                 name="index"
+                listeners={{
+                    focus: () => {
+                        ensureQueueMicrotask();
+                        setHomeTabFocused(true);
+                    },
+                    blur: () => {
+                        setHomeTabFocused(false);
+                    },
+                }}
                 options={{
                     title: 'Home',
                     href: '/',
