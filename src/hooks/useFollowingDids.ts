@@ -3,22 +3,34 @@ import { useAuthStore } from '@/utils/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
+function normalizeFollowingSet(data: unknown): Set<string> {
+    if (data instanceof Set) {
+        return data;
+    }
+    return new Set<string>();
+}
+
 export function useFollowingDids() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
-    const { data: followingDids, isSuccess } = useQuery({
+    const { data: followingDids, isSuccess, isError, isFetched } = useQuery({
         queryKey: ['followingDids'],
         queryFn: fetchFollowingDidsSet,
         enabled: isLoggedIn,
         staleTime: 5 * 60_000,
     });
 
-    const dids = useMemo(() => followingDids ?? new Set<string>(), [followingDids]);
+    const dids = useMemo(() => normalizeFollowingSet(followingDids), [followingDids]);
 
     const isFollowing = useCallback(
         (account: { id?: string; username?: string }) => isAccountFollowed(account, dids),
         [dids],
     );
 
-    return { followingDids: dids, isFollowing, isReady: !isLoggedIn || isSuccess };
+    return {
+        followingDids: dids,
+        isFollowing,
+        /** True once we can decide follow state, or when logged out (no badge). */
+        isReady: !isLoggedIn || isSuccess || isError || isFetched,
+    };
 }

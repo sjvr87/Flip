@@ -209,8 +209,15 @@ function prioritizeDiscoveryVideos(
 
 /** Viewer follow list for UI (avatar rings, etc.). */
 export async function fetchFollowingDidsSet(): Promise<Set<string>> {
-    const filter = await getViewerFollowingFilter();
-    return filter.dids;
+    try {
+        const filter = await getViewerFollowingFilter();
+        return filter.dids;
+    } catch (error) {
+        if (__DEV__) {
+            console.warn('[feed] fetchFollowingDidsSet failed:', error);
+        }
+        return new Set();
+    }
 }
 
 /** Optimistic follow from feed — keeps discovery filter and avatar UI in sync. */

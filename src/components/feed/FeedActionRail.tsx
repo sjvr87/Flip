@@ -12,7 +12,7 @@ import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps, memo, ReactNode, useState } from 'react';
+import { ComponentProps, memo, ReactNode, useEffect, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -194,10 +194,23 @@ function FeedActionRail({
     const [followedLocally, setFollowedLocally] = useState(false);
 
     const showFollowAffordance = Boolean(isLoggedIn && creatorId && !isOwnPost);
-    const creatorFollowing =
-        followedLocally ||
-        (isReady && isFollowing({ id: creatorId, username: creatorUsername }));
-    const showNotFollowing = showFollowAffordance && isReady && !creatorFollowing;
+    const confirmedFollowing =
+        isReady && isFollowing({ id: creatorId, username: creatorUsername });
+    const creatorFollowing = followedLocally || confirmedFollowing;
+    const showNotFollowing = showFollowAffordance && !creatorFollowing;
+
+    useEffect(() => {
+        if (!__DEV__ || !showFollowAffordance || !creatorId) {
+            return;
+        }
+        console.log('[FeedActionRail] follow state', {
+            creatorId,
+            creatorUsername,
+            isReady,
+            confirmedFollowing,
+            showNotFollowing,
+        });
+    }, [confirmedFollowing, creatorId, creatorUsername, isReady, showFollowAffordance, showNotFollowing]);
 
     const followMutation = useMutation({
         mutationFn: async () => {
@@ -299,7 +312,7 @@ function FeedActionRail({
                         accessible
                         accessibilityLabel={`Follow ${creatorUsername ?? 'creator'}`}
                         accessibilityRole="button">
-                        <FollowAddBadgeIcon size={22} />
+                        <FollowAddBadgeIcon size={24} />
                     </PressableHaptics>
                 ) : null}
             </View>
@@ -535,28 +548,29 @@ const styles = StyleSheet.create({
     avatarStack: {
         alignItems: 'center',
         marginBottom: 2,
+        overflow: 'visible',
     },
     followBadge: {
         position: 'absolute',
-        bottom: 0,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        overflow: 'hidden',
+        bottom: -2,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
         borderWidth: 2,
         borderColor: '#000000',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 2,
+        zIndex: 10,
+        elevation: 10,
         ...Platform.select({
             ios: {
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.4,
+                shadowOpacity: 0.45,
                 shadowRadius: 2,
             },
             android: {
-                elevation: 4,
+                elevation: 10,
             },
         }),
     },
