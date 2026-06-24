@@ -57,7 +57,7 @@ import {
     videoUnrepost,
 } from '@/atproto';
 import type { FlipVideo } from '@/atproto/types';
-import { Ionicons } from '@expo/vector-icons';
+import SearchEyeIcon from '@/components/icons/SearchEyeIcon';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
@@ -963,6 +963,7 @@ export default function LoopsFeed({ navigation }) {
     return (
         <View style={styles.container}>
             <View style={[styles.header, { top: insets.top + 10 }]}>
+                <View style={styles.headerSide} />
                 <View style={styles.tabContainer}>
                     {forYouEnabled && (
                         <TouchableOpacity
@@ -1020,7 +1021,7 @@ export default function LoopsFeed({ navigation }) {
                     accessibilityRole="button"
                     style={styles.searchButton}
                     onPress={() => router.push('/private/search')}>
-                    <Ionicons name="search" size={24} color="white" />
+                    <SearchEyeIcon size={24} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
@@ -1131,18 +1132,22 @@ const styles = StyleSheet.create({
         right: 0,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
         zIndex: 10,
-        paddingHorizontal: 12,
+        paddingHorizontal: 16,
+    },
+    headerSide: {
+        width: 44,
     },
     tabContainer: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 20,
+        justifyContent: 'space-evenly',
     },
     tab: {
+        flex: 1,
         paddingVertical: 8,
+        alignItems: 'center',
     },
     activeTab: {
         borderBottomWidth: 2,
@@ -1158,10 +1163,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     searchButton: {
-        position: 'absolute',
-        right: 12,
-        padding: 4,
-        minWidth: 36,
+        width: 44,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
     },
