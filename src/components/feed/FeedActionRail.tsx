@@ -1,6 +1,7 @@
 import Avatar from '@/components/Avatar';
 import FoldedHeartIcon, { FOLDED_HEART_DESIGN_SIZE } from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon, { REPOST_ARROW_DESIGN_SIZE } from '@/components/icons/RepostArrowIcon';
+import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,6 +86,18 @@ function RepostActionIcon({ active }: { active: boolean }) {
     return (
         <View style={styles.iconShadow}>
             <RepostArrowIcon size={REPOST_ARROW_DESIGN_SIZE} active={active} />
+        </View>
+    );
+}
+
+function MuteActionIcon({ muted }: { muted: boolean }) {
+    return (
+        <View style={styles.iconShadow}>
+            <SpeakerSoundIcon
+                size={ICON_SIZE}
+                color={muted ? LOOP_ACCENT : ICON_COLOR}
+                muted={muted}
+            />
         </View>
     );
 }
@@ -230,10 +243,7 @@ function FeedActionRail({
                     accessibilityLabel={isMuted ? 'Unmute feed videos' : 'Mute feed videos'}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isMuted }}>
-                    <FeedActionIcon
-                        name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
-                        active={isMuted}
-                    />
+                    <MuteActionIcon muted={isMuted} />
                 </TouchableOpacity>
             ) : null}
 
