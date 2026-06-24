@@ -179,6 +179,34 @@ function isAuthorFollowed(video: FlipVideo, followingIds: Set<string>): boolean 
     return isAccountFollowed(video.account, followingIds);
 }
 
+/** Following tab — author must be in the viewer's follow list. */
+function filterToFollowedOnly(videos: FlipVideo[], followingFilter: FollowingFilter): FlipVideo[] {
+    if (!followingFilter.active) {
+        return [];
+    }
+    return videos.filter((video) => isAuthorFollowed(video, followingFilter.dids));
+}
+
+function applyFollowingStrictFilter(
+    page: FlipFeedPage,
+    followingFilter: FollowingFilter,
+): FlipFeedPage {
+    const data = filterToFollowedOnly(page.data, followingFilter);
+    return { ...page, data, meta: { ...page.meta, per_page: data.length } };
+}
+
+/** For You — non-followed creators first; followed may appear later in the page. */
+function prioritizeDiscoveryVideos(
+    videos: FlipVideo[],
+    followingFilter: FollowingFilter,
+): FlipVideo[] {
+    if (!followingFilter.active || videos.length <= 1) {
+        return videos;
+    }
+    const { nonFollow, fromFollow } = partitionByFollowing(videos, followingFilter.dids);
+    return [...nonFollow, ...fromFollow];
+}
+
 /** Viewer follow list for UI (avatar rings, etc.). */
 export async function fetchFollowingDidsSet(): Promise<Set<string>> {
     const filter = await getViewerFollowingFilter();
@@ -341,15 +369,18 @@ function countNonFollowVideos(videos: FlipVideo[], followingDids: Set<string>): 
     return videos.filter((video) => !isAuthorFollowed(video, followingDids)).length;
 }
 
+type DiscoveryMixMode = 'exclude' | 'prefer';
+
 /**
- * Chain discovery API pages until we have enough videos from creators the viewer
- * does not follow. Falls back to followed authors only when the network is sparse.
+ * Chain discovery API pages until we have enough videos.
+ * exclude — non-followed only (search-only discovery when follows unavailable).
+ * prefer — prioritize non-followed; followed may fill the page (For You).
  */
 async function fetchDiscoveryUntilNonFollow(
     fetchPage: (cursor: string | undefined) => Promise<FlipFeedPage>,
     pageParam: PageParam,
     followingFilter: FollowingFilter,
-    options?: { allowFollowedFallback?: boolean },
+    options?: { allowFollowedFallback?: boolean; mixMode?: DiscoveryMixMode },
 ): Promise<{ videos: FlipVideo[]; nextCursor: string | null }> {
     const decoded = decodeFeedPageParam(pageParam);
     let apiCursor = decoded.cursor ?? normalizeCursor(pageParam);
@@ -357,10 +388,16 @@ async function fetchDiscoveryUntilNonFollow(
     const seenKeys = new Set<string>();
     let nextCursor: string | null = null;
     const allowFollowedFallback = options?.allowFollowedFallback ?? false;
+    const mixMode = options?.mixMode ?? 'exclude';
+    const preferMixed = mixMode === 'prefer';
 
-    const addVideos = (candidates: FlipVideo[]) => {
+    const addVideos = (candidates: FlipVideo[], skipFollowed = false) => {
         for (const video of candidates) {
-            if (followingFilter.active && isAuthorFollowed(video, followingFilter.dids)) {
+            if (
+                skipFollowed &&
+                followingFilter.active &&
+                isAuthorFollowed(video, followingFilter.dids)
+            ) {
                 continue;
             }
             const key = videoDedupeKey(video);
@@ -377,8 +414,18 @@ async function fetchDiscoveryUntilNonFollow(
         nextCursor = page.meta.next_cursor;
 
         if (followingFilter.active) {
-            const { nonFollow } = partitionByFollowing(page.data, followingFilter.dids);
-            addVideos(nonFollow);
+            const { nonFollow, fromFollow } = partitionByFollowing(
+                page.data,
+                followingFilter.dids,
+            );
+            if (preferMixed) {
+                addVideos(nonFollow);
+                if (videos.length < MIN_VIDEOS_PER_PAGE) {
+                    addVideos(fromFollow);
+                }
+            } else {
+                addVideos(nonFollow);
+            }
         } else {
             addVideos(page.data);
         }
@@ -386,29 +433,21 @@ async function fetchDiscoveryUntilNonFollow(
         const nonFollowCount = followingFilter.active
             ? countNonFollowVideos(videos, followingFilter.dids)
             : videos.length;
-        const hasEnough =
-            videos.length >= MIN_VIDEOS_PER_PAGE &&
-            nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS;
+        const hasEnough = preferMixed
+            ? videos.length >= MIN_VIDEOS_PER_PAGE
+            : videos.length >= MIN_VIDEOS_PER_PAGE &&
+              nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS;
 
         if (hasEnough || !nextCursor) {
             if (
+                !preferMixed &&
                 allowFollowedFallback &&
                 !hasEnough &&
                 videos.length < MIN_VIDEOS_PER_PAGE &&
                 followingFilter.active
             ) {
                 const { fromFollow } = partitionByFollowing(page.data, followingFilter.dids);
-                for (const video of fromFollow) {
-                    const key = videoDedupeKey(video);
-                    if (!key || seenKeys.has(key)) {
-                        continue;
-                    }
-                    seenKeys.add(key);
-                    videos.push(video);
-                    if (videos.length >= MIN_VIDEOS_PER_PAGE) {
-                        break;
-                    }
-                }
+                addVideos(fromFollow);
             }
             break;
         }
@@ -416,7 +455,11 @@ async function fetchDiscoveryUntilNonFollow(
         apiCursor = nextCursor;
     }
 
-    return { videos, nextCursor };
+    const resultVideos = preferMixed
+        ? prioritizeDiscoveryVideos(videos, followingFilter)
+        : videos;
+
+    return { videos: resultVideos, nextCursor };
 }
 
 /** When a discovery source is follow-heavy, top up with global search (never timeline). */
@@ -424,20 +467,35 @@ async function supplementDiscoveryPage(
     page: FlipFeedPage,
     followingFilter: FollowingFilter,
     refreshEpoch: number,
+    options?: { excludeFollowed?: boolean },
 ): Promise<FlipFeedPage> {
+    const excludeFollowed = options?.excludeFollowed ?? true;
     let filter = followingFilter;
     if (!filter.active && getAgent().session?.did) {
         followingDidsCache = null;
         filter = await ensureDiscoveryFollowingFilter();
     }
 
-    if (filter.active) {
+    if (filter.active && excludeFollowed) {
         page = applyDiscoveryFollowingFilter(page, filter);
+    } else if (filter.active) {
+        page = {
+            ...page,
+            data: prioritizeDiscoveryVideos(page.data, filter),
+        };
     }
 
     const nonFollowCount = filter.active ? countNonFollowVideos(page.data, filter.dids) : 0;
 
-    if (filter.active && nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS) {
+    if (
+        filter.active &&
+        excludeFollowed &&
+        nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS
+    ) {
+        return page;
+    }
+
+    if (!excludeFollowed && page.data.length >= MIN_VIDEOS_PER_PAGE) {
         return page;
     }
 
@@ -457,6 +515,7 @@ async function supplementDiscoveryPage(
                 }),
             false,
             filter,
+            { mixMode: excludeFollowed ? 'exclude' : 'prefer' },
         );
 
         const merged = [
@@ -467,13 +526,19 @@ async function supplementDiscoveryPage(
             ...page.data,
         ];
 
-        return applyDiscoveryFollowingFilter(
-            {
-                ...page,
-                data: merged.slice(0, DISCOVERY_SEARCH_LIMIT),
-            },
-            filter,
-        );
+        const mergedPage = {
+            ...page,
+            data: merged.slice(0, DISCOVERY_SEARCH_LIMIT),
+        };
+
+        if (excludeFollowed) {
+            return applyDiscoveryFollowingFilter(mergedPage, filter);
+        }
+
+        return {
+            ...mergedPage,
+            data: prioritizeDiscoveryVideos(mergedPage.data, filter),
+        };
     } catch (error) {
         if (__DEV__) {
             console.warn('[feed] discovery supplement search failed:', error);
@@ -482,17 +547,27 @@ async function supplementDiscoveryPage(
     }
 }
 
-/** First-page discovery: supplement when sparse, strip follows, optional shuffle. */
+/** First-page discovery: supplement when sparse, optional shuffle. */
 async function finalizeDiscoveryFirstPage(
     page: FlipFeedPage,
     followingFilter: FollowingFilter,
     refreshEpoch: number,
-    options?: { mergeSuggestions?: boolean },
+    options?: { mergeSuggestions?: boolean; excludeFollowed?: boolean },
 ): Promise<FlipFeedPage> {
-    let result = await supplementDiscoveryPage(page, followingFilter, refreshEpoch);
+    const excludeFollowed = options?.excludeFollowed ?? true;
+    let result = await supplementDiscoveryPage(page, followingFilter, refreshEpoch, {
+        excludeFollowed,
+    });
     if (options?.mergeSuggestions) {
         result = await mergeForYouSuggestions(result, followingFilter);
-        result = applyDiscoveryFollowingFilter(result, followingFilter);
+        if (excludeFollowed) {
+            result = applyDiscoveryFollowingFilter(result, followingFilter);
+        } else {
+            result = {
+                ...result,
+                data: prioritizeDiscoveryVideos(result.data, followingFilter),
+            };
+        }
     }
     return finalizeFirstPage(result, refreshEpoch);
 }
@@ -692,6 +767,61 @@ async function fetchUntilVideoPage(
     };
 }
 
+/**
+ * Timeline chain for Following — only videos whose author is in the follow list.
+ */
+async function fetchUntilFollowedVideoPage(
+    fetchPage: (cursor: string | undefined) => Promise<{
+        feed: AppBskyFeedDefs.FeedViewPost[];
+        cursor?: string;
+    }>,
+    pageParam: PageParam,
+    followingFilter: FollowingFilter,
+    maxFetches = FOLLOWING_MAX_CHAIN_FETCHES,
+): Promise<FlipFeedPage> {
+    let cursor = normalizeCursor(pageParam);
+    const videos: FlipVideo[] = [];
+    const seenKeys = new Set<string>();
+    let nextCursor: string | null = null;
+
+    for (let attempt = 0; attempt < maxFetches; attempt++) {
+        const res = await fetchPage(cursor);
+        const page = postsToFeedPage(res.feed, res.cursor);
+        nextCursor = page.meta.next_cursor;
+
+        let added = 0;
+        for (const video of filterToFollowedOnly(page.data, followingFilter)) {
+            const key = videoDedupeKey(video);
+            if (!key || seenKeys.has(key)) {
+                continue;
+            }
+            seenKeys.add(key);
+            videos.push(video);
+            added++;
+        }
+
+        const hasEnoughVideos = videos.length >= MIN_VIDEOS_PER_PAGE;
+        if (hasEnoughVideos || !nextCursor) {
+            break;
+        }
+
+        if (added === 0 && res.feed.length === 0) {
+            break;
+        }
+
+        cursor = nextCursor;
+    }
+
+    return {
+        data: videos,
+        meta: {
+            path: 'atproto',
+            per_page: videos.length,
+            next_cursor: nextCursor,
+        },
+    };
+}
+
 /** Bluesky official video feed (same as bsky.social "Videos" / thevids). */
 export const BLUESKY_THE_VIDS =
     'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/thevids';
@@ -779,9 +909,10 @@ export async function fetchFollowingFeed({
 }: FeedFetchOptions = {}): Promise<FlipFeedPage> {
     await restoreSessionFromStorageIfEmpty();
     const firstPage = isFirstFeedPage(pageParam);
+    const followingFilter = await getViewerFollowingFilter();
 
     try {
-        let page = await withAuthenticatedFetch(async () => {
+        const page = await withAuthenticatedFetch(async () => {
             const agent = getAgent();
             const decoded = decodeFeedPageParam(pageParam);
             let apiCursor = decoded.cursor ?? normalizeCursor(pageParam);
@@ -790,40 +921,28 @@ export async function fetchFollowingFeed({
                 apiCursor = await skipTimelineForRefresh(agent, refreshEpoch);
             }
 
-            return await fetchUntilVideoPage(async (cursor) => {
-                const res = await agent.getTimeline({
-                    limit: 50,
-                    cursor,
-                });
-                return { feed: res.data.feed, cursor: res.data.cursor };
-            }, apiCursor);
+            const timelinePage = await fetchUntilFollowedVideoPage(
+                async (cursor) => {
+                    const res = await agent.getTimeline({
+                        limit: 50,
+                        cursor,
+                    });
+                    return { feed: res.data.feed, cursor: res.data.cursor };
+                },
+                apiCursor,
+                followingFilter,
+            );
+
+            return applyFollowingStrictFilter(timelinePage, followingFilter);
         });
 
-        // Only supplement when the timeline is completely empty — never merge discover into thin Following.
-        if (firstPage && page.data.length === 0) {
-            try {
-                const supplement = await fetchSingleVideoSearchPage(false, {
-                    sort: refreshEpoch % 2 === 0 ? 'latest' : 'top',
-                    context: 'following suggestions',
-                    query: 'video',
-                });
-                if (supplement.data.length > 0) {
-                    page = supplement;
-                }
-            } catch (supplementError) {
-                if (supplementError instanceof SessionExpiredError) {
-                    throw supplementError;
-                }
-                console.warn('[feed] following supplement search failed:', supplementError);
-            }
-        }
-
+        let result = page;
         if (firstPage) {
-            page = finalizeFirstPage(page, refreshEpoch);
+            result = finalizeFirstPage(result, refreshEpoch);
         }
 
-        logFeedFetch('following', 'timeline', page.data, refreshEpoch);
-        return page;
+        logFeedFetch('following', 'timeline', result.data, refreshEpoch, followingFilter);
+        return result;
     } catch (error) {
         feedLoadError('following feed', error);
     }
@@ -1070,7 +1189,7 @@ export async function fetchForYouFeed({
     try {
         let followingFilter = await ensureDiscoveryFollowingFilter();
 
-        // Logged in but follows list unavailable — never use follow-heavy generators.
+        // Logged in but follows list unavailable — search-only discovery, exclude followed.
         if (!followingFilter.active && getAgent().session?.did) {
             const { page, sourceId: searchSource } = await fetchSearchOnlyDiscovery(
                 refreshEpoch,
@@ -1083,6 +1202,7 @@ export async function fetchForYouFeed({
             if (firstPage) {
                 result = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
                     mergeSuggestions: true,
+                    excludeFollowed: true,
                 });
             } else {
                 result = applyDiscoveryFollowingFilter(result, followingFilter);
@@ -1099,27 +1219,28 @@ export async function fetchForYouFeed({
             };
         }
 
+        const fypDiscoveryOptions = { mixMode: 'prefer' as const };
+
         const { videos, nextCursor } = await fetchDiscoveryUntilNonFollow(
             fetchByCursor,
             pageParam,
             followingFilter,
+            fypDiscoveryOptions,
         );
 
-        let page: FlipFeedPage = applyDiscoveryFollowingFilter(
-            {
-                data: videos,
-                meta: {
-                    path: 'atproto',
-                    per_page: videos.length,
-                    next_cursor: nextCursor,
-                },
+        let page: FlipFeedPage = {
+            data: prioritizeDiscoveryVideos(videos, followingFilter),
+            meta: {
+                path: 'atproto',
+                per_page: videos.length,
+                next_cursor: nextCursor,
             },
-            followingFilter,
-        );
+        };
 
         if (firstPage) {
             page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
                 mergeSuggestions: true,
+                excludeFollowed: false,
             });
         }
 
@@ -1150,23 +1271,22 @@ export async function fetchForYouFeed({
                     }),
                 false,
                 followingFilter,
+                { mixMode: 'prefer' },
             );
 
-            let page: FlipFeedPage = applyDiscoveryFollowingFilter(
-                {
-                    data: videos,
-                    meta: {
-                        path: 'atproto',
-                        per_page: videos.length,
-                        next_cursor: nextCursor,
-                    },
+            let page: FlipFeedPage = {
+                data: prioritizeDiscoveryVideos(videos, followingFilter),
+                meta: {
+                    path: 'atproto',
+                    per_page: videos.length,
+                    next_cursor: nextCursor,
                 },
-                followingFilter,
-            );
+            };
 
             if (firstPage) {
                 page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
                     mergeSuggestions: true,
+                    excludeFollowed: false,
                 });
             }
 
@@ -1195,20 +1315,20 @@ export async function fetchForYouFeed({
                     fetchGeneratorFeed(BLUESKY_WHATS_HOT, apiCursor ?? false, 'for you feed'),
                 pageParam,
                 followingFilter,
+                { mixMode: 'prefer' },
             );
-            let page: FlipFeedPage = applyDiscoveryFollowingFilter(
-                {
-                    data: videos,
-                    meta: {
-                        path: 'atproto',
-                        per_page: videos.length,
-                        next_cursor: nextCursor,
-                    },
+            let page: FlipFeedPage = {
+                data: prioritizeDiscoveryVideos(videos, followingFilter),
+                meta: {
+                    path: 'atproto',
+                    per_page: videos.length,
+                    next_cursor: nextCursor,
                 },
-                followingFilter,
-            );
+            };
             if (firstPage) {
-                page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch);
+                page = await finalizeDiscoveryFirstPage(page, followingFilter, refreshEpoch, {
+                    excludeFollowed: false,
+                });
             }
             logFeedFetch('forYou', 'whats-hot-fallback', page.data, refreshEpoch, followingFilter);
             return {
