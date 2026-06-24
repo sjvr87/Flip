@@ -304,7 +304,7 @@ export default function SignInScreen() {
                 )}
             </Pressable>
 
-            <Pressable style={styles.textLink} onPress={() => setMode('password')}>
+            <Pressable style={styles.textLink} onPress={() => { setIsLoading(false); setLoginError(null); setMode('password'); }}>
                 <Text style={[styles.textLinkLabel, isDark && styles.textLinkLabelDark]}>
                     Use app password instead
                 </Text>
