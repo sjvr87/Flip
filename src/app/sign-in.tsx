@@ -2,6 +2,7 @@ import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
+import { looksLikePdsHostname, normalizeBlueskyIdentifier } from '@/atproto/identifiers';
 import { hasStoredSession } from '@/atproto/agent';
 import {
     authenticateWithBiometric,
@@ -193,12 +194,22 @@ export default function SignInScreen() {
             return;
         }
 
+        if (looksLikePdsHostname(loginIdentifier)) {
+            Alert.alert(
+                'Use your handle',
+                'Enter your handle (e.g. you.bsky.social), not bsky.social — that is the Bluesky server.',
+            );
+            return;
+        }
+
+        const normalizedIdentifier = normalizeBlueskyIdentifier(loginIdentifier);
+
         setLoginError(null);
         setIsLoading(true);
         setStatusMessage('Signing you in...');
         try {
             const success = await loginWithBluesky(
-                loginIdentifier,
+                normalizedIdentifier,
                 password.trim(),
                 service.trim() || undefined,
             );
@@ -223,7 +234,6 @@ export default function SignInScreen() {
         setSavedHandle(null);
         setIdentifier('');
         setPassword('');
-        setService('bsky.social');
         setService('bsky.social');
         setShowAppPassword(false);
         setMode('oauth');
