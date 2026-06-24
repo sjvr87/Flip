@@ -509,6 +509,7 @@ export default function LoopsFeed({ navigation }) {
         setDedupeExhausted(false);
         bumpFeedEpoch(tab);
         invalidateFollowingDidsCache();
+        queryClient.invalidateQueries({ queryKey: ['followingDids'] });
         hardRefreshFeed(queryClient, tab);
     }, [bumpFeedEpoch, queryClient]);
 

@@ -5,10 +5,14 @@ import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { useFollowingDids } from '@/hooks/useFollowingDids';
+import { addAccountToFollowingCache, followAccount } from '@/atproto';
+import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps, memo, ReactNode } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ComponentProps, memo, ReactNode, useState } from 'react';
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -32,6 +36,9 @@ const OPTICAL = {
 type FeedActionRailProps = {
     avatarUrl?: string | null;
     profileLabel: string;
+    creatorId?: string;
+    creatorUsername?: string;
+    isOwnPost?: boolean;
     isLiked: boolean;
     isBookmarked: boolean;
     isReposted: boolean;
@@ -152,6 +159,9 @@ function RemixActionIcon() {
 function FeedActionRail({
     avatarUrl,
     profileLabel,
+    creatorId,
+    creatorUsername,
+    isOwnPost = false,
     isLiked,
     isBookmarked,
     isReposted,
@@ -177,32 +187,121 @@ function FeedActionRail({
     onOther,
 }: FeedActionRailProps) {
     const railBottom = overlayBottom ?? bottomInset + tabBarHeight + 20;
+    const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+    const { isFollowing, isReady } = useFollowingDids();
+    const queryClient = useQueryClient();
+    const [followedLocally, setFollowedLocally] = useState(false);
+
+    const showFollowAffordance = Boolean(isLoggedIn && creatorId && !isOwnPost);
+    const creatorFollowing =
+        followedLocally ||
+        (isReady && isFollowing({ id: creatorId, username: creatorUsername }));
+    const showNotFollowing = showFollowAffordance && isReady && !creatorFollowing;
+
+    const followMutation = useMutation({
+        mutationFn: async () => {
+            if (!creatorId) {
+                throw new Error('No creator ID');
+            }
+            return followAccount(creatorId);
+        },
+        onMutate: () => {
+            setFollowedLocally(true);
+            if (creatorId) {
+                addAccountToFollowingCache({ id: creatorId, username: creatorUsername });
+            }
+        },
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['followingDids'] });
+        },
+        onError: () => {
+            setFollowedLocally(false);
+            Alert.alert('Error', 'Failed to follow. Please try again.');
+        },
+    });
+
+    const handleFollowPress = () => {
+        if (!showNotFollowing || followMutation.isPending) {
+            return;
+        }
+        followMutation.mutate();
+    };
 
     return (
         <View style={[styles.rightActions, { bottom: railBottom }]}>
-            <PressableHaptics
-                style={styles.actionButton}
-                onPress={onProfilePress}
-                accessible
-                accessibilityLabel={profileLabel}
-                accessibilityRole="button">
-                <LinearGradient
-                    colors={['#22D3EE', '#06B6D4', '#0891B2']}
-                    start={{ x: 0, y: 1 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.avatarRing}>
-                    <View style={styles.avatarInner}>
-                        <Avatar
-                            url={avatarUrl}
-                            width={40}
-                            borderWidth={0}
-                            placeholder={{ color: '#3a3a3a' }}
-                            transition={0}
-                            cachePolicy="memory-disk"
-                        />
-                    </View>
-                </LinearGradient>
-            </PressableHaptics>
+            <View style={styles.avatarStack}>
+                <PressableHaptics
+                    style={styles.actionButton}
+                    onPress={onProfilePress}
+                    accessible
+                    accessibilityLabel={profileLabel}
+                    accessibilityRole="button">
+                    {!showFollowAffordance ? (
+                        <LinearGradient
+                            colors={['#22D3EE', '#06B6D4', '#0891B2']}
+                            start={{ x: 0, y: 1 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.avatarRing}>
+                            <View style={styles.avatarInner}>
+                                <Avatar
+                                    url={avatarUrl}
+                                    width={40}
+                                    borderWidth={0}
+                                    placeholder={{ color: '#3a3a3a' }}
+                                    transition={0}
+                                    cachePolicy="memory-disk"
+                                />
+                            </View>
+                        </LinearGradient>
+                    ) : showNotFollowing ? (
+                        <LinearGradient
+                            colors={['#22D3EE', '#06B6D4', '#0891B2']}
+                            start={{ x: 0, y: 1 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.avatarRing}>
+                            <View style={styles.avatarInner}>
+                                <Avatar
+                                    url={avatarUrl}
+                                    width={40}
+                                    borderWidth={0}
+                                    placeholder={{ color: '#3a3a3a' }}
+                                    transition={0}
+                                    cachePolicy="memory-disk"
+                                />
+                            </View>
+                        </LinearGradient>
+                    ) : (
+                        <View
+                            style={[
+                                styles.avatarRingPlain,
+                                isReady && creatorFollowing && styles.avatarRingFollowed,
+                            ]}>
+                            <View style={styles.avatarInner}>
+                                <Avatar
+                                    url={avatarUrl}
+                                    width={40}
+                                    borderWidth={0}
+                                    placeholder={{ color: '#3a3a3a' }}
+                                    transition={0}
+                                    cachePolicy="memory-disk"
+                                />
+                            </View>
+                        </View>
+                    )}
+                </PressableHaptics>
+
+                {showNotFollowing ? (
+                    <PressableHaptics
+                        style={styles.followBadge}
+                        onPress={handleFollowPress}
+                        disabled={followMutation.isPending}
+                        accessible
+                        accessibilityLabel={`Follow ${creatorUsername ?? 'creator'}`}
+                        accessibilityRole="button">
+                        <Ionicons name="add" size={16} color="#FFFFFF" />
+                    </PressableHaptics>
+                ) : null}
+            </View>
 
             <PressableHaptics
                 style={styles.actionButton}
@@ -416,6 +515,47 @@ const styles = StyleSheet.create({
             },
             android: {
                 elevation: 6,
+            },
+        }),
+    },
+    avatarRingPlain: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.35)',
+    },
+    avatarRingFollowed: {
+        borderColor: 'rgba(255,255,255,0.55)',
+    },
+    avatarStack: {
+        alignItems: 'center',
+        marginBottom: 2,
+    },
+    followBadge: {
+        position: 'absolute',
+        bottom: 0,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: LOOP_ACCENT,
+        borderWidth: 2,
+        borderColor: '#000000',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.4,
+                shadowRadius: 2,
+            },
+            android: {
+                elevation: 4,
             },
         }),
     },

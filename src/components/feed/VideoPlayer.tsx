@@ -1009,6 +1009,9 @@ function VideoPlayerCore({
             <FeedActionRail
                 avatarUrl={item.account?.avatar}
                 profileLabel={`View ${item.account.username}'s profile`}
+                creatorId={item.account?.id}
+                creatorUsername={item.account?.username}
+                isOwnPost={item.is_owner}
                 isLiked={isLiked}
                 isBookmarked={isBookmarked}
                 isReposted={isReposted}

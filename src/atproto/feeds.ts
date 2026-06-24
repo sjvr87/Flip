@@ -159,8 +159,10 @@ function addFollowIdentity(ids: Set<string>, profile: { did: string; handle?: st
     }
 }
 
-function isAuthorFollowed(video: FlipVideo, followingIds: Set<string>): boolean {
-    const account = video.account;
+export function isAccountFollowed(
+    account: { id?: string; username?: string },
+    followingIds: Set<string>,
+): boolean {
     if (!account || followingIds.size === 0) {
         return false;
     }
@@ -171,6 +173,24 @@ function isAuthorFollowed(video: FlipVideo, followingIds: Set<string>): boolean 
         return true;
     }
     return false;
+}
+
+function isAuthorFollowed(video: FlipVideo, followingIds: Set<string>): boolean {
+    return isAccountFollowed(video.account, followingIds);
+}
+
+/** Viewer follow list for UI (avatar rings, etc.). */
+export async function fetchFollowingDidsSet(): Promise<Set<string>> {
+    const filter = await getViewerFollowingFilter();
+    return filter.dids;
+}
+
+/** Optimistic follow from feed — keeps discovery filter and avatar UI in sync. */
+export function addAccountToFollowingCache(account: { id: string; username?: string }) {
+    if (!followingDidsCache) {
+        return;
+    }
+    addFollowIdentity(followingDidsCache.dids, { did: account.id, handle: account.username });
 }
 
 /** Paginated follows list — cached briefly so discovery filters stay fast. */

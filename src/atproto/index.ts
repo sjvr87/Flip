@@ -21,6 +21,9 @@ export {
     invalidateFollowingDidsCache,
     clearFollowingDidsCache,
     warmFollowingDidsCache,
+    fetchFollowingDidsSet,
+    isAccountFollowed,
+    addAccountToFollowingCache,
 } from './feeds';
 
 export {
