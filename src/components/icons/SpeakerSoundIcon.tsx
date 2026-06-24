@@ -1,11 +1,11 @@
 import { memo } from 'react';
 import Svg, { Circle, Rect } from 'react-native-svg';
 
+export const SPEAKER_SOUND_DESIGN_SIZE = 34;
+
 type SpeakerSoundIconProps = {
     size?: number;
     color?: string;
-    /** When true, sound wave bars are hidden (muted feed). */
-    muted?: boolean;
 };
 
 const VIEW = 24;
@@ -26,31 +26,28 @@ function contrastFill(color: string) {
  * Transparent background; cabinet + waves use `color`, driver/screw details use contrast cutouts.
  */
 const SpeakerSoundIcon = memo(function SpeakerSoundIcon({
-    size = 24,
+    size = SPEAKER_SOUND_DESIGN_SIZE,
     color = '#FFFFFF',
-    muted = false,
 }: SpeakerSoundIconProps) {
     const detail = contrastFill(color);
     const barCy = 12;
 
     return (
         <Svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`} fill="none">
-            {!muted
-                ? LEFT_BAR_CENTERS.map((cx, index) => {
-                      const h = BAR_HEIGHTS[index];
-                      return (
-                          <Rect
-                              key={`l-${index}`}
-                              x={cx - BAR_WIDTH / 2}
-                              y={barCy - h / 2}
-                              width={BAR_WIDTH}
-                              height={h}
-                              rx={BAR_WIDTH / 2}
-                              fill={color}
-                          />
-                      );
-                  })
-                : null}
+            {LEFT_BAR_CENTERS.map((cx, index) => {
+                const h = BAR_HEIGHTS[index];
+                return (
+                    <Rect
+                        key={`l-${index}`}
+                        x={cx - BAR_WIDTH / 2}
+                        y={barCy - h / 2}
+                        width={BAR_WIDTH}
+                        height={h}
+                        rx={BAR_WIDTH / 2}
+                        fill={color}
+                    />
+                );
+            })}
 
             <Rect
                 x={CABINET.x}
@@ -77,22 +74,20 @@ const SpeakerSoundIcon = memo(function SpeakerSoundIcon({
             <Circle cx={12} cy={15.5} r={1.85} fill={detail} />
             <Circle cx={12} cy={15.5} r={1.05} fill={color} />
 
-            {!muted
-                ? RIGHT_BAR_CENTERS.map((cx, index) => {
-                      const h = BAR_HEIGHTS[index];
-                      return (
-                          <Rect
-                              key={`r-${index}`}
-                              x={cx - BAR_WIDTH / 2}
-                              y={barCy - h / 2}
-                              width={BAR_WIDTH}
-                              height={h}
-                              rx={BAR_WIDTH / 2}
-                              fill={color}
-                          />
-                      );
-                  })
-                : null}
+            {RIGHT_BAR_CENTERS.map((cx, index) => {
+                const h = BAR_HEIGHTS[index];
+                return (
+                    <Rect
+                        key={`r-${index}`}
+                        x={cx - BAR_WIDTH / 2}
+                        y={barCy - h / 2}
+                        width={BAR_WIDTH}
+                        height={h}
+                        rx={BAR_WIDTH / 2}
+                        fill={color}
+                    />
+                );
+            })}
         </Svg>
     );
 });
