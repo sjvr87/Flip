@@ -13,7 +13,7 @@ import {
     setFeedPlaybackActive,
     stopFeedAudioOnTabLeave,
 } from '@/utils/feedPlaybackGuard';
-import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
+import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -110,7 +110,8 @@ export default function TabsLayout() {
                     if (route.name === 'index') {
                         resumeFeedPlaybackOnTabReturn();
                     } else {
-                        stopFeedAudioOnTabLeave();
+                        // Defer feed teardown so tab navigation.dispatch runs first.
+                        safeQueueMicrotask(() => stopFeedAudioOnTabLeave());
                     }
                 },
             }),
@@ -173,6 +174,9 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="explore"
                 listeners={{
+                    tabPress: () => {
+                        ensureQueueMicrotaskForTabs();
+                    },
                     focus: () => {
                         ensureQueueMicrotaskForTabs();
                     },

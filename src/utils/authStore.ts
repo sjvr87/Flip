@@ -464,7 +464,14 @@ export const useAuthStore = create(
                         } catch {
                             // ignore in tests
                         }
-                        setTimeout(() => set({ authReady: true }), 400);
+                        setTimeout(() => {
+                            try {
+                                require('../bootstrap/ensureQueueMicrotask').ensureQueueMicrotask();
+                            } catch {
+                                // ignore in tests
+                            }
+                            set({ authReady: true });
+                        }, 400);
                         sessionRestorePromise = null;
                     }
                 })();

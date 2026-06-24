@@ -6,9 +6,8 @@
  * explore tab cache writes call queueMicrotask and throw if it is missing.
  */
 function resolveQueueMicrotaskFn() {
-    if (typeof global.queueMicrotask === 'function') {
-        return global.queueMicrotask;
-    }
+    // Prefer RN's implementation — Expo winter may leave a broken global/globalThis shim
+    // that passes typeof checks but breaks navigation.dispatch ("undefined is not a function").
     try {
         const mod = require('react-native/Libraries/Core/Timers/queueMicrotask.js');
         const rnQueueMicrotask = mod && (mod.default ?? mod);
@@ -17,6 +16,9 @@ function resolveQueueMicrotaskFn() {
         }
     } catch {
         // RN internal path unavailable in tests
+    }
+    if (typeof global.queueMicrotask === 'function') {
+        return global.queueMicrotask;
     }
     if (typeof globalThis.queueMicrotask === 'function') {
         return globalThis.queueMicrotask;
