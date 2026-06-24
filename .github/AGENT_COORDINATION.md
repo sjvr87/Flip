@@ -252,6 +252,7 @@ Proceed only if the line contains `social.flip.app`. If not, run `am start -n so
 
 | When (UTC) | Agent | Status | Notes |
 |------------|-------|--------|-------|
+| 2026-06-24 ~09:42 UTC | Cursor (camera+inbox subagent) | Iteration 1: flip-reload; cold lip://create + lip://notifications (force-stop + VIEW intent, no coordinate taps). CameraX bound 1080p60; **0** ReactNativeJS:E/W and **0** FlipCamerawesome/FlipCameraSession E/W in 30s soak. | Committed 18877c on main. **User:** photo capture + video record + tap each inbox activity type. Logs: logcat-iter-camera-final.txt, logcat-iter-inbox-1.txt |
 | 2026-06-24 ~04:43 UTC | Cursor (camera+inbox loop) | **Logcat clean (0 ReactNativeJS:E)** on R3GL10HN64A after flip-reset-dev + reload; flip://create + flip://notifications deep links. | Inbox: safeRouterPush all handlers + notificationNavigation fallback routes; feed pause on tab leave + camera zoom throttle + safeNavigation.ts. **User:** tap Flip It photo/video + each activity type for final sign-off. Log: logcat-camera-inbox-verify.txt |
 | 2026-06-24 ~04:35 UTC | Cursor (camera+inbox subagent) | Inbox: safeRouterPush + media-resolve fallback. Camera: throttle native zoom in FlipCameraScreen.android.tsx. | PARTIAL verify on R3GL10HN64A — user tap Inbox activity + Flip It photo/video. Log: logcat-camera-inbox-verify.txt. Issue #17 commented. |
 | 2026-06-24 ~09:15 UTC | Cursor (tab-nav subagent) | **FIX verified on R3GL10HN64A** — expo-router 
