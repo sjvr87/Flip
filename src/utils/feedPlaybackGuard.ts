@@ -170,21 +170,24 @@ export function onFeedTabChanged(): void {
 /** Tab bar left Home — pause immediately (tabPress runs before blur/pathname). */
 export function stopFeedAudioOnTabLeave(): void {
     activeFeedPlayerId = null;
-    setFeedPlaybackActive(false);
     pauseAllFeedPlayers();
-    releaseAllFeedPlayers();
+    setFeedPlaybackActive(false);
+}
+
+/** Home tab focused again — re-enable decode/play without tearing down mounted players. */
+export function resumeFeedPlaybackOnTabReturn(): void {
+    feedPlaybackSuspended = false;
+    feedPlaybackActive = true;
+    notifyPlaybackActive();
 }
 
 export function setFeedPlaybackActive(active: boolean): void {
     if (feedPlaybackActive === active) {
-        if (!active) {
-            releaseAllFeedPlayers();
-        }
         return;
     }
     feedPlaybackActive = active;
     if (!active) {
-        releaseAllFeedPlayers();
+        pauseAllFeedPlayers();
     }
     notifyPlaybackActive();
 }

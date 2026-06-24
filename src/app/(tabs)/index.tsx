@@ -34,6 +34,7 @@ import {
     onFeedTabChanged,
     pauseAllFeedPlayers,
     releaseAllFeedPlayers,
+    resumeFeedPlaybackOnTabReturn,
     setFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
@@ -530,14 +531,13 @@ export default function LoopsFeed({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             setScreenFocused(true);
-            setFeedPlaybackActive(true);
+            resumeFeedPlaybackOnTabReturn();
             refreshFeedIfStale(activeTabRef.current, feedEpochRef.current);
 
             return () => {
                 setScreenFocused(false);
                 setFeedPlaybackActive(false);
                 pauseAllFeedPlayers();
-                releaseAllFeedPlayers();
                 releaseAllVideoPrefetch();
                 if (currentVideoRef.current && watchStartTimeRef.current) {
                     const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
@@ -553,9 +553,12 @@ export default function LoopsFeed({ navigation }) {
             setAppActive(active);
             if (!active) {
                 setFeedPlaybackActive(false);
+                releaseAllFeedPlayers();
                 releaseAllVideoPrefetch();
+            } else if (screenFocused) {
+                resumeFeedPlaybackOnTabReturn();
             } else {
-                setFeedPlaybackActive(screenFocused);
+                setFeedPlaybackActive(false);
             }
             if (active) {
                 for (const tab of FEED_TABS) {

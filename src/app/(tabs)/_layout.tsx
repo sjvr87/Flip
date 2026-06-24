@@ -9,7 +9,7 @@ import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import {
     pauseAllFeedPlayers,
-    releaseAllFeedPlayers,
+    resumeFeedPlaybackOnTabReturn,
     setFeedPlaybackActive,
     stopFeedAudioOnTabLeave,
 } from '@/utils/feedPlaybackGuard';
@@ -83,9 +83,10 @@ export default function TabsLayout() {
         }
         if (!onHomeTab) {
             pauseAllFeedPlayers();
-            releaseAllFeedPlayers();
+            setFeedPlaybackActive(false);
+        } else {
+            resumeFeedPlaybackOnTabReturn();
         }
-        setFeedPlaybackActive(onHomeTab);
     }, [pathname]);
 
     useEffect(() => {
@@ -107,7 +108,7 @@ export default function TabsLayout() {
                 tabPress: () => {
                     ensureQueueMicrotaskForTabs();
                     if (route.name === 'index') {
-                        setFeedPlaybackActive(true);
+                        resumeFeedPlaybackOnTabReturn();
                     } else {
                         stopFeedAudioOnTabLeave();
                     }
@@ -162,11 +163,10 @@ export default function TabsLayout() {
                 listeners={{
                     blur: () => {
                         pauseAllFeedPlayers();
-                        releaseAllFeedPlayers();
                         setFeedPlaybackActive(false);
                     },
                     focus: () => {
-                        setFeedPlaybackActive(true);
+                        resumeFeedPlaybackOnTabReturn();
                     },
                 }}
             />
