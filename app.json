@@ -102,6 +102,8 @@
         },
         "extra": {
             "router": {},
+            "flipStagingPdsHost": "http://127.0.0.1:2583",
+            "flipStagingHandleDomain": "staging.flip.app",
             "flipForYouFeed": "",
             "flipTrendingFeed": "",
             "flipLocalFeed": "",
