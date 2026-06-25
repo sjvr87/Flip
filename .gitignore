@@ -58,3 +58,30 @@ screen-*.png
 
 # Firebase service account (local + CI ephemeral)
 firebase-credentials.json
+
+# Agent / local dev session artifacts (do not commit)
+.cursor/_write-*.js
+.cursor/_write-*.js
+.cursor/patch-*.js
+.cursor/tab-nav-patch*.js
+.cursor/write-index*.js
+.cursor/organize-patch.js
+.cursor/fix-coord.js
+.cursor/log-verify-entry.js
+.cursor/commit-*.txt
+.cursor/issue-*-comment*.md
+.cursor/issue-*-body.md
+.cursor/issue-*.json
+.cursor/handoff-issue-body.md
+.cursor/gradle-cam-build.txt
+.cursor/native-intent-head.tsx
+.cursor/permissions.json.bak
+.cursor/dev-monitor/*.pid
+logcat-live-session*.txt
+logcat-tab-verify-*.txt
+metro-live-session.txt
+metro-bundle-check.txt
+metro-bundle-expo.txt
+*.log
+scratch/
+dist-test-android/

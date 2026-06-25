@@ -1,4 +1,4 @@
-﻿# Flip storage policy
+# Flip storage policy
 
 ## Goals
 
@@ -11,6 +11,13 @@ Keep **C:** free for Windows, Android Studio, and active Flip development. Large
 | **Drive letter** | `D:` |
 | **Volume label** | FD (2 TB USB, disk *MS YSUYVP-2TSN*) |
 | **Archive root** | `D:\FlipArchive\` |
+
+### USB safety (mandatory)
+
+- **Never delete, overwrite, or modify** files that already exist on the USB drive outside new archive drops.
+- Agents and scripts may **only create** missing `FlipArchive\` subfolders (`backups`, `logs`, `docs-snapshots`) and `README.txt` if absent.
+- When archiving from C:, **copy or move** into `D:\FlipArchive\logs\` (or other FlipArchive subfolders). Unrelated folders on `D:\` (school, media, etc.) are **read-only** for automation.
+- If a filename already exists **inside FlipArchive only**, rename the incoming file with a `yyyyMMdd-HHmmss` suffix — **do not overwrite** existing archive files.
 
 ### Layout
 
@@ -49,4 +56,4 @@ D:\FlipArchive\
 
 ## Last maintenance
 
-- **2026-06-25**: Archive root created on `D:`; `metro-live-session.txt` moved to `D:\FlipArchive\logs\`; `android/app/build` removed (~4.1 GB); npm/pip caches cleaned.
+- **2026-06-25**: USB archive on `D:\FlipArchive\` verified; session log archived as `metro-live-session_20260625-162037.txt` (collision-safe; prior USB copy retained); doc snapshots added; Gradle/npm/pip caches cleaned on C: only. USB root item count unchanged (10).
