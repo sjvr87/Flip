@@ -1,4 +1,4 @@
-import { installAbortSignalPolyfills } from './abortSignalPolyfill';
+import { ensureAbortSignalPolyfills } from './abortSignalPolyfill';
 import { Platform } from 'react-native';
 
 /**
@@ -29,7 +29,9 @@ function ensureReactNativeFetchPolyfill(): void {
     } catch {
         // Already initialized or unavailable in test environments.
     }
-    installAbortSignalPolyfills();
+    // InitializeCore may replace AbortSignal with the abort-controller polyfill.
+    // Re-apply our patches to the (potentially new) prototype.
+    ensureAbortSignalPolyfills();
 }
 
 /** Touch RN's lazy fetch getter so globalThis.fetch is a real function. */
