@@ -6,7 +6,14 @@ import VideoGrid from '@/components/profile/VideoGrid';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { fetchProfilePrefs, fetchSelfAccount, fetchSelfAccountPhotos, fetchSelfAccountVideos } from '@/atproto';
+import {
+    fetchProfilePrefs,
+    fetchProfileTheme,
+    fetchSelfAccount,
+    fetchSelfAccountPhotos,
+    fetchSelfAccountVideos,
+} from '@/atproto';
+import { profileAccentColor, profileBackgroundStyle } from '@/utils/profileThemeStyles';
 import {
     fetchAccountFavorites,
     fetchAccountLikes,
@@ -45,6 +52,15 @@ export default function ProfileScreen() {
         queryFn: () => fetchProfilePrefs(user!.id),
         enabled: !!user?.id && usesAtprotoBackend(),
     });
+
+    const { data: profileTheme } = useQuery({
+        queryKey: ['profileTheme', user?.id],
+        queryFn: () => fetchProfileTheme(user!.id),
+        enabled: !!user?.id && usesAtprotoBackend(),
+    });
+
+    const profileBgStyle = profileBackgroundStyle(profileTheme);
+    const accentColor = profileAccentColor(profileTheme, isDark ? '#fff' : '#22D3EE');
 
     useEffect(() => {
         if (tabParam === 'photos') {
@@ -373,14 +389,18 @@ export default function ProfileScreen() {
 
     if (userLoading || !user) {
         return (
-            <View style={tw`flex-1 bg-white dark:bg-black justify-center items-center`}>
-                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
+            <View
+                style={[
+                    tw`flex-1 bg-white dark:bg-black justify-center items-center`,
+                    profileBgStyle,
+                ]}>
+                <ActivityIndicator size="large" color={accentColor} />
             </View>
         );
     }
 
     return (
-        <View style={tw`flex-1 bg-white dark:bg-black`}>
+        <View style={[tw`flex-1 bg-white dark:bg-black`, profileBgStyle]}>
             <Stack.Screen options={headerOptions} />
 
             <FlatList
@@ -429,7 +449,7 @@ export default function ProfileScreen() {
                 ListEmptyComponent={
                     isLoading || isFetching ? (
                         <YStack style={tw`my-6`} alignItems="center">
-                            <ActivityIndicator size="large" color={isDark ? '#fff' : '#22D3EE'} />
+                            <ActivityIndicator size="large" color={accentColor} />
                         </YStack>
                     ) : (
                         renderEmpty()
@@ -438,7 +458,7 @@ export default function ProfileScreen() {
                 ListFooterComponent={
                     isFetchingNextPage ? (
                         <YStack paddingVertical="$6" alignItems="center">
-                            <ActivityIndicator color={isDark ? '#fff' : '#22D3EE'} />
+                            <ActivityIndicator color={accentColor} />
                         </YStack>
                     ) : null
                 }

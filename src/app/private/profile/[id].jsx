@@ -13,6 +13,7 @@ import {
     fetchAccount as atprotoFetchAccount,
     fetchAccountState as atprotoFetchAccountState,
     fetchProfilePrefs,
+    fetchProfileTheme,
     fetchUserVideos as atprotoFetchUserVideos,
     fetchUserPhotos as atprotoFetchUserPhotos,
     followAccount as atprotoFollowAccount,
@@ -38,6 +39,7 @@ import {
     toProfileFeedPath,
 } from '@/utils/profileNavigation';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
+import { profileAccentColor, profileBackgroundStyle } from '@/utils/profileThemeStyles';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -122,6 +124,15 @@ export default function ProfileScreen() {
         queryFn: () => fetchProfilePrefs(id),
         enabled: !!id && atproto,
     });
+
+    const { data: profileTheme } = useQuery({
+        queryKey: ['profileTheme', id?.toString()],
+        queryFn: () => fetchProfileTheme(id),
+        enabled: !!id && atproto,
+    });
+
+    const profileBgStyle = profileBackgroundStyle(profileTheme);
+    const accentColor = profileAccentColor(profileTheme);
 
     const isProfileOwner = !!user?.is_owner;
     const canViewFollowersList = atproto
@@ -399,7 +410,11 @@ export default function ProfileScreen() {
 
     if (userLoading) {
         return (
-            <View style={tw`flex-1 bg-white dark:bg-black justify-center items-center`}>
+            <View
+                style={[
+                    tw`flex-1 bg-white dark:bg-black justify-center items-center`,
+                    profileBgStyle,
+                ]}>
                 <Stack.Screen
                     options={{
                         title: user?.name || 'Profile',
@@ -426,7 +441,7 @@ export default function ProfileScreen() {
                         ),
                     }}
                 />
-                <ActivityIndicator size="large" color="#22D3EE" />
+                <ActivityIndicator size="large" color={accentColor} />
             </View>
         );
     }
@@ -442,7 +457,7 @@ export default function ProfileScreen() {
     }
 
     return (
-        <View style={tw`flex-1 bg-white dark:bg-black`}>
+        <View style={[tw`flex-1 bg-white dark:bg-black`, profileBgStyle]}>
             <Stack.Screen
                 options={{
                     title: user?.name || 'Profile',
