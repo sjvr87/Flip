@@ -24,7 +24,9 @@ if (-not $env:STAGING_PDS_INVITE) {
 $Handle = if ($env:STAGING_HANDLE) { $env:STAGING_HANDLE } else { "alice" }
 $Email = if ($env:STAGING_EMAIL) { $env:STAGING_EMAIL } else { "${Handle}@test.flip.app" }
 $Password = if ($env:STAGING_PASSWORD) { $env:STAGING_PASSWORD } else {
-    [Convert]::ToBase64String((1..16 | ForEach-Object { Get-Random -Maximum 256 }) -as [byte[]])
+    $bytes = [byte[]]::new(16)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    [Convert]::ToBase64String($bytes)
 }
 
 $Protocol = if ($env:STAGING_PDS_HOST -match '^(localhost|127\.)') { "http" } else { "https" }
