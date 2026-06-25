@@ -52,7 +52,9 @@
     "taskkill",
     "netstat",
     "ipconfig",
-    "ping"
+    "ping",
+    "rtk",
+    "headroom"
   ],
   "autoRun": {
     "allow_instructions": [
