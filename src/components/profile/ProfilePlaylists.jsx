@@ -17,6 +17,7 @@ const PlaylistIcon = memo(({ color, bgColor, size = 19 }) => (
         />
     </Svg>
 ));
+PlaylistIcon.displayName = 'PlaylistIcon';
 
 const ProfilePlaylists = memo(({ playlists, isLoading, onPlaylistPress }) => {
     const { isDark } = useTheme();
@@ -60,5 +61,6 @@ const ProfilePlaylists = memo(({ playlists, isLoading, onPlaylistPress }) => {
         </ScrollView>
     );
 });
+ProfilePlaylists.displayName = 'ProfilePlaylists';
 
 export default ProfilePlaylists;

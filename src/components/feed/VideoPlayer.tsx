@@ -113,10 +113,7 @@ function VideoSlidePlaceholder({
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
             <View
-                style={[
-                    styles.videoWrapper,
-                    { top: videoTopInset, bottom: videoBottomReserved },
-                ]}>
+                style={[styles.videoWrapper, { top: videoTopInset, bottom: videoBottomReserved }]}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>
@@ -155,8 +152,10 @@ function VideoPlayer({
 
     useEffect(() => {
         if (wantsPlayer) {
-            setHoldPlayer(true);
-            return;
+            const frame = requestAnimationFrame(() => {
+                setHoldPlayer(true);
+            });
+            return () => cancelAnimationFrame(frame);
         }
         const timer = setTimeout(() => setHoldPlayer(false), feedPlayerReleaseDelayMs);
         return () => clearTimeout(timer);
@@ -298,6 +297,32 @@ function VideoPlayerCore({
         pendingReleaseRef.current.push(released);
     }, []);
 
+    const resetPlayerState = useCallback(
+        ({
+            resetView = false,
+            resetPlaying = false,
+        }: { resetView?: boolean; resetPlaying?: boolean } = {}) => {
+            requestAnimationFrame(() => {
+                if (!isMountedRef.current) {
+                    return;
+                }
+                setPlayer(null);
+                setPlayerEpoch(0);
+                setVideoReady(false);
+                setFirstFrameRendered(false);
+                setPlayerStatus('idle');
+                if (resetView) {
+                    setViewPlayer(null);
+                    setViewEpoch(0);
+                }
+                if (resetPlaying) {
+                    setIsPlaying(false);
+                }
+            });
+        },
+        [],
+    );
+
     const releasePlayerNow = useCallback((released: ExpoVideoPlayer | null | undefined) => {
         if (!released) {
             return;
@@ -373,11 +398,7 @@ function VideoPlayerCore({
             const stale = playerRef.current;
             playerRef.current = null;
             boundSrcRef.current = undefined;
-            setPlayer(null);
-            setPlayerEpoch(0);
-            setVideoReady(false);
-            setFirstFrameRendered(false);
-            setPlayerStatus('idle');
+            resetPlayerState();
             if (stale) {
                 queuePlayerRelease(stale);
             }
@@ -391,14 +412,7 @@ function VideoPlayerCore({
             }
             playerRef.current = null;
             boundSrcRef.current = undefined;
-            setPlayer(null);
-            setPlayerEpoch(0);
-            setViewPlayer(null);
-            setViewEpoch(0);
-            setVideoReady(false);
-            setFirstFrameRendered(false);
-            setPlayerStatus('idle');
-            setIsPlaying(false);
+            resetPlayerState({ resetView: true, resetPlaying: true });
             releasePlayerNow(stale);
             return;
         }
@@ -410,11 +424,7 @@ function VideoPlayerCore({
         const stale = playerRef.current;
         playerRef.current = null;
         boundSrcRef.current = undefined;
-        setPlayer(null);
-        setPlayerEpoch(0);
-        setVideoReady(false);
-        setFirstFrameRendered(false);
-        setPlayerStatus('idle');
+        resetPlayerState();
         if (stale) {
             queuePlayerRelease(stale);
         }
@@ -439,11 +449,16 @@ function VideoPlayerCore({
         }
         playerRef.current = nextPlayer;
         boundSrcRef.current = srcUrl;
-        setPlayer(nextPlayer);
-        setPlayerEpoch(epoch);
-        setVideoReady(nextPlayer.status === 'readyToPlay');
-        setFirstFrameRendered(false);
-        setPlayerStatus(nextPlayer.status);
+        requestAnimationFrame(() => {
+            if (!isMountedRef.current || playerRef.current !== nextPlayer) {
+                return;
+            }
+            setPlayer(nextPlayer);
+            setPlayerEpoch(epoch);
+            setVideoReady(nextPlayer.status === 'readyToPlay');
+            setFirstFrameRendered(false);
+            setPlayerStatus(nextPlayer.status);
+        });
 
         return () => {
             if (playerRef.current === nextPlayer) {
@@ -465,6 +480,7 @@ function VideoPlayerCore({
         playbackAllowed,
         standalonePlayback,
         queuePlayerRelease,
+        resetPlayerState,
         releasePlayerNow,
         networkProfile.bufferOptions,
     ]);
@@ -556,11 +572,12 @@ function VideoPlayerCore({
     }, [standalonePlayback, item.id, releaseThisPlayer]);
 
     useEffect(() => {
-        if (!player) {
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || activePlayer !== player) {
             return;
         }
         try {
-            player.bufferOptions = networkProfile.bufferOptions;
+            activePlayer.bufferOptions = networkProfile.bufferOptions;
         } catch {
             // non-fatal
         }
@@ -625,19 +642,21 @@ function VideoPlayerCore({
     }, []);
 
     useEffect(() => {
-        if (!isPlayerUsable(player)) return;
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || activePlayer !== player) return;
         try {
-            player.playbackRate = playbackRate;
+            activePlayer.playbackRate = playbackRate;
         } catch (error) {
             console.log('Playback rate error:', error);
         }
     }, [playbackRate, player, playerEpoch]);
 
     useEffect(() => {
-        if (!isPlayerUsable(player)) return;
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || activePlayer !== player) return;
         try {
             if (standalonePlayback) {
-                player.muted = feedMuted;
+                activePlayer.muted = feedMuted;
                 return;
             }
             const mayOutputAudio =
@@ -648,7 +667,7 @@ function VideoPlayerCore({
                 !isManuallyPaused &&
                 !(item.is_sensitive && !playSensitive) &&
                 !feedMuted;
-            player.muted = !mayOutputAudio;
+            activePlayer.muted = !mayOutputAudio;
         } catch (error) {
             console.log('Mute control error:', error);
         }
@@ -691,7 +710,8 @@ function VideoPlayerCore({
     }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
 
     useEffect(() => {
-        if (!isPlayerUsable(player)) return;
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || activePlayer !== player) return;
 
         try {
             const shouldPlay =
@@ -705,10 +725,7 @@ function VideoPlayerCore({
                 if (!standalonePlayback && !claimFeedAudio(item.id)) {
                     return;
                 }
-                player.play();
-                if (isMountedRef.current) {
-                    setIsPlaying(true);
-                }
+                activePlayer.play();
             }
         } catch (error) {
             console.log('Play on ready error:', error);
@@ -728,7 +745,8 @@ function VideoPlayerCore({
     ]);
 
     useEffect(() => {
-        if (!isPlayerUsable(player)) return;
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || activePlayer !== player) return;
 
         try {
             const shouldPlay =
@@ -739,7 +757,7 @@ function VideoPlayerCore({
                 !(item.is_sensitive && !playSensitive);
 
             if (isActive && !wasActiveRef.current && everActiveRef.current) {
-                player.currentTime = 0;
+                activePlayer.currentTime = 0;
             }
             if (isActive) {
                 everActiveRef.current = true;
@@ -749,14 +767,12 @@ function VideoPlayerCore({
                 if (!standalonePlayback && !claimFeedAudio(item.id)) {
                     return;
                 }
-                player.play();
-                setIsPlaying(true);
+                activePlayer.play();
             } else if (isMountedRef.current) {
-                player.pause();
+                activePlayer.pause();
                 if (!standalonePlayback) {
                     releaseFeedAudio(item.id);
                 }
-                setIsPlaying(false);
             }
 
             wasActiveRef.current = isActive;
@@ -792,7 +808,10 @@ function VideoPlayerCore({
 
     useEffect(() => {
         if (!isActive) {
-            setPlaySensitive(false);
+            const timer = setTimeout(() => {
+                setPlaySensitive(false);
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [isActive]);
 
@@ -811,50 +830,32 @@ function VideoPlayerCore({
         onRepost(item.id, !isReposted);
     };
 
-    const togglePlayPause = useCallback(() => {
-        const activePlayer = playerRef.current;
-        if (!isPlayerUsable(activePlayer) || !isMountedRef.current || !isActive) return;
-
-        try {
-            // Use manual-pause store as source of truth — player.playing lags on Android.
-            if (isManuallyPaused) {
-                activePlayer.play();
-                if (!standalonePlayback) {
-                    claimFeedAudio(item.id);
-                }
-                setIsPlaying(true);
-                setManuallyPaused(item.id, false);
-            } else {
-                activePlayer.pause();
-                if (!standalonePlayback) {
-                    releaseFeedAudio(item.id);
-                }
-                setIsPlaying(false);
-                setManuallyPaused(item.id, true);
-            }
-        } catch (error) {
-            console.log('Toggle play/pause error:', error);
+    const triggerTapOverlay = useCallback(() => {
+        if (!isActive) {
+            return;
         }
-    }, [isActive, isManuallyPaused, item.id, setManuallyPaused, standalonePlayback]);
-
-    const togglePlayPauseRef = useRef(togglePlayPause);
-    togglePlayPauseRef.current = togglePlayPause;
-
-    const handleTapOverlay = useCallback(() => {
         if (__DEV__) {
             console.log('[VideoPlayer] tap', { id: item.id, paused: isManuallyPaused });
         }
-        togglePlayPauseRef.current();
-    }, [item.id, isManuallyPaused]);
+        const nextPaused = !isManuallyPaused;
+        if (!standalonePlayback) {
+            if (nextPaused) {
+                releaseFeedAudio(item.id);
+            } else {
+                claimFeedAudio(item.id);
+            }
+        }
+        setManuallyPaused(item.id, nextPaused);
+    }, [isActive, isManuallyPaused, item.id, setManuallyPaused, standalonePlayback]);
 
     const videoTapGesture = useMemo(
         () =>
             Gesture.Tap()
                 .maxDistance(24)
                 .onEnd(() => {
-                    runOnJS(handleTapOverlay)();
+                    runOnJS(triggerTapOverlay)();
                 }),
-        [handleTapOverlay],
+        [triggerTapOverlay],
     );
 
     const handleUseAudio = () => {
@@ -929,9 +930,7 @@ function VideoPlayerCore({
         (!isReposted && item.has_reposted ? 1 : 0);
 
     const videoViewPlayer =
-        viewPlayer && isPlayerUsable(viewPlayer) && playerRef.current === viewPlayer
-            ? viewPlayer
-            : null;
+        viewPlayer && isPlayerUsable(viewPlayer) && player === viewPlayer ? viewPlayer : null;
 
     if (!srcUrl) {
         return (

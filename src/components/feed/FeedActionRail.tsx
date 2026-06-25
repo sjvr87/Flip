@@ -87,8 +87,7 @@ function ActionIconSlot({
     opticalScale?: number;
     opticalOffsetX?: number;
 }) {
-    const hasOptical =
-        opticalScale !== 1 || opticalOffsetX !== 0;
+    const hasOptical = opticalScale !== 1 || opticalOffsetX !== 0;
     const opticalTransform = hasOptical
         ? [
               ...(opticalOffsetX !== 0 ? [{ translateX: opticalOffsetX } as const] : []),
@@ -163,10 +162,7 @@ function RepostActionIcon({ active }: { active: boolean }) {
 function MuteActionIcon({ muted }: { muted: boolean }) {
     return (
         <ActionIconSlot opticalScale={OPTICAL.speaker}>
-            <SpeakerSoundIcon
-                size={ICON_SLOT}
-                color={muted ? LOOP_ACCENT : ICON_COLOR}
-            />
+            <SpeakerSoundIcon size={ICON_SLOT} color={muted ? LOOP_ACCENT : ICON_COLOR} />
         </ActionIconSlot>
     );
 }
@@ -234,7 +230,8 @@ function FeedActionRail({
                 return {};
             }
             const account = { id: creatorId, username: creatorUsername };
-            const previousFollowing = queryClient.getQueryData<Set<string>>(FOLLOWING_DIDS_QUERY_KEY);
+            const previousFollowing =
+                queryClient.getQueryData<Set<string>>(FOLLOWING_DIDS_QUERY_KEY);
             queryClient.setQueryData<Set<string>>(FOLLOWING_DIDS_QUERY_KEY, (prev) =>
                 appendAccountToFollowingSet(prev, account),
             );

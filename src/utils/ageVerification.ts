@@ -11,8 +11,7 @@ function isTruthyEnv(value: string | undefined): boolean {
 export const AGE_VERIFY_ENABLED = isTruthyEnv(process.env.EXPO_PUBLIC_AGE_VERIFY_ENABLED);
 
 /** Dev-only skip. Never enable in production builds. */
-export const AGE_VERIFY_BYPASS =
-    __DEV__ && isTruthyEnv(process.env.EXPO_PUBLIC_AGE_VERIFY_BYPASS);
+export const AGE_VERIFY_BYPASS = __DEV__ && isTruthyEnv(process.env.EXPO_PUBLIC_AGE_VERIFY_BYPASS);
 
 export function isAgeVerificationRequired(ageVerified: boolean): boolean {
     if (!AGE_VERIFY_ENABLED) return false;

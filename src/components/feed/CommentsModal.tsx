@@ -35,7 +35,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeNativeShims } from '@/utils/runtime';
 import { useFlipTabBarMetrics } from '@/utils/tabBarLayout';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -56,17 +56,18 @@ import KlipyMedia from './KlipyMedia';
 import { FEED_OVERLAY_SCRIM } from '@/components/feed/feedOverlayScrim';
 
 function SafeKeyboardAvoidingView(props: React.ComponentProps<typeof RNKeyboardAvoidingView>) {
-    if (useSafeNativeShims) {
-        return <RNKeyboardAvoidingView {...props} />;
+    let KeyboardAvoidingViewImpl = RNKeyboardAvoidingView;
+    if (!useSafeNativeShims) {
+        try {
+            const keyboardController = require('react-native-keyboard-controller');
+            if (keyboardController?.KeyboardAvoidingView) {
+                KeyboardAvoidingViewImpl = keyboardController.KeyboardAvoidingView;
+            }
+        } catch (error) {
+            console.warn('[CommentsModal] KeyboardAvoidingView fallback:', error);
+        }
     }
-
-    try {
-        const { KeyboardAvoidingView } = require('react-native-keyboard-controller');
-        return <KeyboardAvoidingView {...props} />;
-    } catch (error) {
-        console.warn('[CommentsModal] KeyboardAvoidingView fallback:', error);
-        return <RNKeyboardAvoidingView {...props} />;
-    }
+    return <KeyboardAvoidingViewImpl {...props} />;
 }
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -254,7 +255,7 @@ export default function CommentsModal({
     const [comment, setComment] = useState('');
     const [replyingTo, setReplyingTo] = useState(null);
     const [expandedComments, setExpandedComments] = useState(new Set());
-    const [headerCommentCount, setHeaderCommentCount] = useState(item?.comments ?? 0);
+    const [commentCountDeltas, setCommentCountDeltas] = useState<Record<string, number>>({});
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const sheetBottomPad =
@@ -271,13 +272,28 @@ export default function CommentsModal({
     const [showKlipy, setShowKlipy] = useState(false);
     const hasKlipy = useFeatureFlag('hasKlipy');
 
-    useEffect(() => {
-        setHeaderCommentCount(item?.comments ?? 0);
-    }, [item?.id, item?.comments]);
+    const headerCommentCount = useMemo(() => {
+        const baseCount = item?.comments ?? 0;
+        if (!item?.id) {
+            return Math.max(0, baseCount);
+        }
+        return Math.max(0, baseCount + (commentCountDeltas[item.id] ?? 0));
+    }, [item?.id, item?.comments, commentCountDeltas]);
 
     const bumpVideoCommentCount = (delta: number) => {
         if (!item?.id || delta === 0) return;
-        setHeaderCommentCount((count) => Math.max(0, count + delta));
+        setCommentCountDeltas((previous) => {
+            const current = previous[item.id] ?? 0;
+            const next = current + delta;
+            if (next === 0) {
+                if (!(item.id in previous)) {
+                    return previous;
+                }
+                const { [item.id]: _removed, ...rest } = previous;
+                return rest;
+            }
+            return { ...previous, [item.id]: next };
+        });
         patchFeedVideoComments(queryClient, item.id, delta);
         onCommentCountChange?.(delta);
     };

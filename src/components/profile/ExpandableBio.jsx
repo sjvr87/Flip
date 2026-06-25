@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import tw from 'twrnc';
@@ -7,21 +7,20 @@ const COLLAPSED_LINES = 2;
 const MAX_LINES = 15;
 
 export default function ExpandableBio({ bio, textStyle, linkStyle }) {
+    if (!bio) return null;
+
+    return <ExpandableBioContent key={bio} bio={bio} textStyle={textStyle} linkStyle={linkStyle} />;
+}
+
+function ExpandableBioContent({ bio, textStyle, linkStyle }) {
     const [expanded, setExpanded] = useState(false);
     const [overflows, setOverflows] = useState(false);
     const [measured, setMeasured] = useState(false);
-
-    useEffect(() => {
-        setMeasured(false);
-        setExpanded(false);
-    }, [bio]);
 
     const onMeasure = useCallback((e) => {
         setOverflows(e.nativeEvent.lines.length > COLLAPSED_LINES);
         setMeasured(true);
     }, []);
-
-    if (!bio) return null;
 
     const baseText =
         textStyle ??

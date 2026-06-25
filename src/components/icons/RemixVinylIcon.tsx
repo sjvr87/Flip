@@ -224,13 +224,25 @@ const RemixVinylIcon = memo(function RemixVinylIcon({
             />
 
             <Path
-                d={arcPath(cx, cy, BOTTOM_ARC_INNER.r, BOTTOM_ARC_INNER.start, BOTTOM_ARC_INNER.end)}
+                d={arcPath(
+                    cx,
+                    cy,
+                    BOTTOM_ARC_INNER.r,
+                    BOTTOM_ARC_INNER.start,
+                    BOTTOM_ARC_INNER.end,
+                )}
                 stroke={color}
                 strokeWidth={ARC_STROKE}
                 strokeLinecap="round"
             />
             <Path
-                d={arcPath(cx, cy, BOTTOM_ARC_OUTER.r, BOTTOM_ARC_OUTER.start, BOTTOM_ARC_OUTER.end)}
+                d={arcPath(
+                    cx,
+                    cy,
+                    BOTTOM_ARC_OUTER.r,
+                    BOTTOM_ARC_OUTER.start,
+                    BOTTOM_ARC_OUTER.end,
+                )}
                 stroke={color}
                 strokeWidth={ARC_STROKE}
                 strokeLinecap="round"
