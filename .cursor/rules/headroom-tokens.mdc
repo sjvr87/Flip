@@ -1,0 +1,67 @@
+---
+description: Always use headroom-ai MCP tools to compress large context before sending to the LLM, saving 60–95% of tokens.
+alwaysApply: true
+---
+
+# Headroom token compression (always on)
+
+**Prerequisite:** `pip install "headroom-ai[all]"` — install once, then Cursor picks up the MCP server from `.cursor/mcp.json`.
+
+## Always compress before reading into context
+
+Before attaching any of the following to a prompt, call `headroom_compress`:
+
+| Content type | Trigger |
+|--------------|---------|
+| File > 200 lines | any `read_file` / `cat` result |
+| Build / test output | `npm run`, `npx tsc`, `gradlew`, `pytest`, CI logs |
+| JSON tool output | API responses, `adb logcat`, `package-lock.json` |
+| Search results | `grep`, `rg`, `gh issue list`, `gh run list` |
+| Git diffs / logs | `git diff`, `git log --stat` with many files |
+| Android logcat | any `adb logcat` dump |
+
+## MCP tools
+
+| Tool | When to call |
+|------|-------------|
+| `headroom_compress` | Before inserting large content into context |
+| `headroom_retrieve` | When you need the full original of a compressed chunk |
+| `headroom_stats` | To check session token savings |
+
+## RTK — frugal shell commands
+
+For every shell command that produces verbose output, prefix with `rtk`:
+
+```bash
+# Git (59-80% savings)
+rtk git status          rtk git diff            rtk git log
+
+# Build & lint (80-90% savings — errors only)
+rtk npm run <script>    rtk tsc                 rtk lint
+
+# Test (90-99% savings — failures only)
+rtk npm test            rtk npx jest            rtk cargo test
+
+# Files & search (60-75% savings)
+rtk ls <path>           rtk read <file>         rtk grep <pattern>
+
+# Android (85-90% savings)
+rtk adb logcat          rtk docker logs <c>
+
+# GitHub (26-87% savings)
+rtk gh pr view <n>      rtk gh run list         rtk gh issue list
+```
+
+If `rtk` is not installed (`pip install "headroom-ai[all]"` includes it), fall back to raw commands.
+
+## Rules
+
+1. **Never** paste raw `adb logcat`, full `npm install`, or large JSON blobs into the chat uncompressed.
+2. In command chains, prefix each segment: `rtk git add . && rtk git commit -m "msg"`.
+3. Use `headroom_stats` at the end of a long session to report savings.
+4. Compression is reversible — call `headroom_retrieve` with the hash if full content is needed.
+
+## Setup reminder (one-time, already committed)
+
+`.cursor/mcp.json` registers `headroom mcp serve` as a background MCP process.
+Cursor starts it automatically — no manual steps needed after `pip install "headroom-ai[all]"`.
