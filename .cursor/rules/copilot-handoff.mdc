@@ -24,51 +24,18 @@ Post a handoff packet before any of these:
 
 ## How to post a handoff packet
 
-Use `gh` CLI to comment on the **dedicated handoff issue** (`sjvr87/Flip#18`).  
-Create that issue if it doesn't exist yet:
-
-```bash
-# One-time setup — create the handoff issue if needed
-rtk gh issue create \
-  --repo sjvr87/Flip \
-  --title "Agent Handoff Channel — Cursor ↔ Copilot" \
-  --label "agent-handoff" \
-  --body "Persistent thread for Cursor→Copilot validation packets. Do not close."
-```
+Use the handoff automation command for the **dedicated handoff issue** (`sjvr87/Flip#24`).
 
 Then post the packet:
 
 ```bash
-rtk gh issue comment <issue-number> \
-  --repo sjvr87/Flip \
-  --body "$(cat <<'EOF'
-## 🤝 CURSOR HANDOFF PACKET
-
-**Task:** <one-line description>
-
-**Status:** <what is done / what is blocked>
-
-**Proposed change (diff summary):**
-\`\`\`
-<git diff --stat or key lines>
-\`\`\`
-
-**Metro errors/warnings:**
-\`\`\`
-<paste or NONE>
-\`\`\`
-
-**logcat errors:**
-\`\`\`
-<paste or NONE>
-\`\`\`
-
-**Risky next step:**
-<exactly what you want to do that needs validation>
-
-**Waiting for:** Copilot ✅ / ❌ before proceeding.
-EOF
-)"
+npm run handoff:post -- \
+  --task "<one-line description>" \
+  --status "<what is done / blocked>" \
+  --diff "<git diff --stat or key lines>" \
+  --metro "<errors or NONE>" \
+  --logcat "<errors or NONE>" \
+  --next "<exact risky next step>"
 ```
 
 ---
@@ -78,7 +45,7 @@ EOF
 1. **Stop** — do not proceed with the risky step yet.
 2. **Poll** for Copilot's reply (check every ~60 s or on user prompt):
    ```bash
-   rtk gh issue view <issue-number> --repo sjvr87/Flip --comments
+   npm run handoff:view
    ```
 3. If Copilot replies **✅ proceed** → apply the change.
 4. If Copilot replies **❌ blocked** or posts a fix → apply Copilot's diff instead.
@@ -116,6 +83,6 @@ Post any new errors to the handoff issue immediately — do not wait for the nex
 
 | Issue | Purpose |
 |-------|---------|
-| `sjvr87/Flip#18` | Primary agent handoff channel (create if missing) |
+| `sjvr87/Flip#24` | Primary agent handoff channel |
 
 See also: `.github/AGENT_COORDINATION.md` for full multi-agent protocol.
