@@ -9,6 +9,7 @@ import {
     fetchAccountSuggested,
     followAccount,
     unfollowAccount,
+    usesAtprotoBackend,
 } from '@/utils/requests';
 import { prettyCount } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,7 @@ const keyExtractor = (item, index) => `user-${item.id}-${index}`;
 
 export default function Screen() {
     const { id, username, followersCount, followingCount } = useLocalSearchParams();
+    const atproto = usesAtprotoBackend();
     const [activeTab, setActiveTab] = useState('following');
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -206,6 +208,8 @@ export default function Screen() {
         isFetching,
         refetch,
         status,
+        isError,
+        error,
     } = activeQuery;
 
     const handleFollow = useCallback(
@@ -271,8 +275,15 @@ export default function Screen() {
         if (!feed?.pages?.length) {
             return [];
         }
-        return feed.pages.flatMap((p) => p?.data ?? []);
-    }, [feed]);
+        const rows = feed.pages.flatMap((p) => p?.data ?? []);
+        const query = debouncedSearch.trim().toLowerCase();
+        if (!query) return rows;
+        return rows.filter(
+            (item) =>
+                item?.username?.toLowerCase().includes(query) ||
+                item?.name?.toLowerCase().includes(query),
+        );
+    }, [feed, debouncedSearch]);
 
     const handleEndReached = useCallback(() => {
         if (hasNextPage && !isFetchingNextPage) {
@@ -323,10 +334,12 @@ export default function Screen() {
                     contentContainerStyle={tw`${user?.id == id ? 'flex-1' : 'flex'} px-6 pt-2 gap-3`}>
                     <TabButton tab="following" label="Following" count={followingCount} />
                     <TabButton tab="followers" label="Followers" count={followersCount} />
-                    {followingCount > 2 && user?.id != id && (
+                    {!atproto && followingCount > 2 && user?.id != id && (
                         <TabButton tab="friends" label="Friends" count={0} />
                     )}
-                    {user?.id != id && <TabButton tab="suggested" label="Suggested" count={0} />}
+                    {!atproto && user?.id != id && (
+                        <TabButton tab="suggested" label="Suggested" count={0} />
+                    )}
                 </ScrollView>
             </View>
 
@@ -360,7 +373,24 @@ export default function Screen() {
                 </View>
             )}
 
-            <FlatList
+            {isError ? (
+                <YStack paddingY="$8" paddingX="$6" alignItems="center" gap="$3">
+                    <StackText fontSize="$4" style={tw`text-gray-500 text-center`}>
+                        Could not load this list. Check your connection and try again.
+                    </StackText>
+                    {error?.message ? (
+                        <StackText fontSize="$2" style={tw`text-gray-400 text-center`}>
+                            {error.message}
+                        </StackText>
+                    ) : null}
+                    <TouchableOpacity
+                        onPress={() => refetch()}
+                        style={tw`mt-2 px-5 py-2 rounded-lg bg-gray-100 dark:bg-gray-800`}>
+                        <Text style={tw`font-semibold text-black dark:text-white`}>Retry</Text>
+                    </TouchableOpacity>
+                </YStack>
+            ) : (
+                <FlatList
                 data={feedData}
                 keyExtractor={keyExtractor}
                 renderItem={RenderItem}
@@ -391,6 +421,7 @@ export default function Screen() {
                     />
                 }
             />
+            )}
         </View>
     );
 }

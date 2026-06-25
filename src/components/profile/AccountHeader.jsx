@@ -65,7 +65,13 @@ export default function AccountHeader(props) {
                             fontSize="$5"
                             fontWeight="bold"
                             textColor="text-black dark:text-white">
-                            {prettyCount(props.user?.post_count || 0)}
+                            {props.videosResolved === false
+                                ? '—'
+                                : prettyCount(
+                                      props.videoCount !== undefined
+                                          ? props.videoCount
+                                          : props.user?.post_count || 0,
+                                  )}
                         </StackText>
                         <StackText fontSize="$2" textColor="text-gray-500 dark:text-gray-400">
                             Videos

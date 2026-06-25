@@ -136,7 +136,7 @@ export default function ProfileScreen() {
         queryFn: atproto ? atprotoFetchUserVideos : fetchUserVideos,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: !!user && !!id && activeTab === 'videos',
+        enabled: !!user && !!id,
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
     });
@@ -162,6 +162,13 @@ export default function ProfileScreen() {
         if (!videosData?.pages) return [];
         return videosData.pages.flatMap((page) => page?.data ?? []);
     }, [videosData?.pages]);
+
+    const displayVideoCount = useMemo(() => {
+        if (videosLoading || !videosData?.pages) return undefined;
+        return videos.length;
+    }, [videosLoading, videosData?.pages, videos.length]);
+
+    const videosResolved = !videosLoading && !!videosData?.pages;
 
     const photos = useMemo(() => {
         if (!photosData?.pages) return [];
@@ -459,6 +466,8 @@ export default function ProfileScreen() {
                         <AccountHeader
                             user={user}
                             userState={userState}
+                            videoCount={displayVideoCount}
+                            videosResolved={videosResolved}
                             onFollowPress={handleOnFollowPress}
                             onMenuPress={handleOnOpenMenu}
                             onUnblockPress={handleOnUnblockPress}

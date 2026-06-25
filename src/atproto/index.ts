@@ -102,12 +102,22 @@ export type { FlipConvo, FlipChatMessage, FlipConvoMember } from './chat';
 export {
     fetchAccount,
     fetchAccountState,
+    fetchAccountFollowers,
+    fetchAccountFollowing,
     followAccount,
     unfollowAccount,
     cancelFollowRequest,
     blockAccount,
     unblockAccount,
 } from './profile';
+
+export {
+    fetchProfilePrefs,
+    saveProfilePrefs,
+    canViewFollowLists,
+    PROFILE_PREFS_COLLECTION,
+} from './profilePrefs';
+export type { FlipProfilePrefs } from './profilePrefs';
 
 export { fetchReportRules, submitReport } from './moderation';
 

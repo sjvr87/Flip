@@ -63,7 +63,9 @@ export default function ProfileScreen() {
         initialPageParam: undefined,
         refetchOnWindowFocus: true,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: activeTab === 'videos',
+        enabled: !!user,
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
     });
 
     const {
@@ -135,6 +137,13 @@ export default function ProfileScreen() {
         const fromServer = videosData.pages.flatMap((p: any) => p?.data ?? []);
         return reconcilePendingProfilePosts(fromServer, false);
     }, [videosData]);
+
+    const displayVideoCount = useMemo(() => {
+        if (videosLoading || !videosData?.pages) return undefined;
+        return videos.length;
+    }, [videosLoading, videosData?.pages, videos.length]);
+
+    const videosResolved = !videosLoading && !!videosData?.pages;
 
     const photos = useMemo(() => {
         if (!photosData?.pages?.length) {
@@ -382,6 +391,8 @@ export default function ProfileScreen() {
                             isOwner={true}
                             showActions={true}
                             loading={userLoading}
+                            videoCount={displayVideoCount}
+                            videosResolved={videosResolved}
                             onEditBio={handleEditBio}
                         />
                         <AccountTabs
