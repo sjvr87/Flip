@@ -1,4 +1,4 @@
-const BLUESKY_PDS_HOSTS = new Set(['bsky.social', 'staging.bsky.dev']);
+const BLUESKY_PDS_HOSTS = new Set(['bsky.social', 'staging.bsky.dev', 'staging.flip.app']);
 
 /** Normalize handle, email, or DID for ATProto password login. */
 export function normalizeBlueskyIdentifier(raw: string): string {

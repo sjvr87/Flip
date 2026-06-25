@@ -36,6 +36,12 @@ type SignInMode = 'loading' | 'unlock' | 'password' | 'full' | 'oauth';
 
 const APP_PASSWORD_HELP_URL = 'https://bsky.app/settings/app-passwords';
 
+/** In __DEV__ builds, prefill the Server field with the staging PDS host if configured. */
+const DEV_STAGING_PDS_HOST =
+    __DEV__ && process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST
+        ? process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST
+        : '';
+
 function formatHandle(identifier: string): string {
     if (identifier.includes('@')) return identifier;
     return identifier.includes('.') ? `@${identifier}` : identifier;
@@ -61,7 +67,7 @@ export default function SignInScreen() {
     const [biometricsAvailable, setBiometricsAvailable] = useState(false);
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
-    const [service, setService] = useState('bsky.social');
+    const [service, setService] = useState(DEV_STAGING_PDS_HOST || 'bsky.social');
     const [showAppPassword, setShowAppPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
@@ -225,8 +231,7 @@ export default function SignInScreen() {
         setSavedHandle(null);
         setIdentifier('');
         setPassword('');
-        setService('bsky.social');
-        setService('bsky.social');
+        setService(DEV_STAGING_PDS_HOST || 'bsky.social');
         setShowAppPassword(false);
         setMode('oauth');
     };
