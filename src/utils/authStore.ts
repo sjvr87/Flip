@@ -11,6 +11,7 @@ import {
     updatePreferences,
     type FlipSessionUser,
 } from '@/atproto/auth';
+import { createBlueskyAccount as createAccountApi } from '@/atproto/createAccount';
 import {
     clearSession,
     ensureFreshSession,
@@ -77,6 +78,12 @@ type UserState = {
     setRequireBiometric: (value: boolean) => void;
     unlockWithSavedCredentials: () => Promise<boolean>;
     clearSavedLogin: () => Promise<void>;
+    createBlueskyAccount: (
+        email: string,
+        handle: string,
+        password: string,
+        inviteCode?: string,
+    ) => Promise<boolean>;
 };
 
 let sessionRestorePromise: Promise<boolean> | null = null;
@@ -314,6 +321,35 @@ export const useAuthStore = create(
                 clearSession();
                 set({ requireBiometric: false });
                 get().clearUser();
+            },
+
+            createBlueskyAccount: async (email, handle, password, inviteCode) => {
+                loginInFlight = true;
+                try {
+                    const result = await createAccountApi({ email, handle, password, inviteCode });
+                    if (!result.success) {
+                        Alert.alert('Account creation failed', result.error);
+                        return false;
+                    }
+                    set((state) => ({
+                        ...state,
+                        isLoggedIn: true,
+                        user: result.user,
+                        server: 'bsky.social',
+                        authReady: true,
+                        hasCompletedOnboarding: false,
+                        ageVerified: true,
+                    }));
+                    resetAuthFailureFlag();
+                    return true;
+                } catch (error) {
+                    const message =
+                        error instanceof Error ? error.message : 'Account creation failed.';
+                    Alert.alert('Error', message);
+                    return false;
+                } finally {
+                    loginInFlight = false;
+                }
             },
 
             setRememberLogin: async (value) => {

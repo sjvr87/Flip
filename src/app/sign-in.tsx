@@ -359,7 +359,12 @@ export default function SignInScreen() {
 
             <Pressable
                 style={styles.textLink}
-                onPress={() => { setLoginError(null); setIsLoading(false); setShowAppPassword(true); setMode('full'); }}>
+                onPress={() => {
+                    setLoginError(null);
+                    setIsLoading(false);
+                    setShowAppPassword(true);
+                    setMode('full');
+                }}>
                 <Text style={[styles.textLinkLabelMuted, isDark && styles.textLinkLabelMutedDark]}>
                     Use app password instead
                 </Text>
@@ -542,6 +547,21 @@ export default function SignInScreen() {
                             Uses the AT Protocol · Not affiliated with Bluesky PBLLC
                         </Text>
                     </XStack>
+                ) : null}
+
+                {mode === 'oauth' || mode === 'full' ? (
+                    <Pressable
+                        style={{ marginTop: 16, paddingVertical: 8, alignItems: 'center' }}
+                        onPress={() => router.push('/create-account')}>
+                        <Text
+                            style={[
+                                styles.footer,
+                                isDark && styles.footerDark,
+                                { fontSize: 14, textDecorationLine: 'underline' },
+                            ]}>
+                            New to Bluesky? Create an account
+                        </Text>
+                    </Pressable>
                 ) : null}
             </View>
         </KeyboardAvoidingView>
