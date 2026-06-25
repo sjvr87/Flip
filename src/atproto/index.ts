@@ -119,6 +119,30 @@ export {
 } from './profilePrefs';
 export type { FlipProfilePrefs } from './profilePrefs';
 
+export {
+    fetchProfileTheme,
+    saveProfileTheme,
+    PROFILE_THEME_COLLECTION,
+} from './profileTheme';
+export type { FlipProfileTheme } from './profileTheme';
+
+export {
+    fetchProfileDisplayLinks,
+    getProfileLinksForSelf,
+    getProfileLinksForActor,
+    addProfileLink,
+    deleteProfileLink,
+    fetchProfileLinkAnalytics,
+    recordProfileLinkClick,
+    PROFILE_LINKS_COLLECTION,
+} from './profileLinks';
+export type {
+    FlipProfileLinkRow,
+    ProfileDisplayLink,
+    ProfileLinksPayload,
+    StoredProfileLink,
+} from './profileLinks';
+
 export { fetchReportRules, submitReport } from './moderation';
 
 export { uploadMediaPost } from './upload';
