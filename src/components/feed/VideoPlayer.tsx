@@ -37,6 +37,7 @@ import {
     Dimensions,
     InteractionManager,
     Platform,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -813,7 +814,12 @@ function VideoPlayerCore({
 
     const togglePlayPause = useCallback(() => {
         const activePlayer = playerRef.current;
-        if (!isPlayerUsable(activePlayer) || !isMountedRef.current || !isActive) return;
+        if (
+            !isPlayerUsable(activePlayer) ||
+            !isMountedRef.current ||
+            (!isActive && !standalonePlayback)
+        )
+            return;
 
         try {
             // Use manual-pause store as source of truth — player.playing lags on Android.

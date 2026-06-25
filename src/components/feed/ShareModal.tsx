@@ -1,66 +1,30 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import { shareContent } from '@/utils/sharer';
+import {
+    copyLinkToClipboard,
+    shareContent,
+    shareToAppTarget,
+    shareVideoFile,
+    type ShareAppTarget,
+} from '@/utils/sharer';
 import { Ionicons } from '@expo/vector-icons';
-import { Dimensions, Modal, Pressable, Share, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Pressable, Share, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = 60;
-
-type ReportPayload = {
-    id: string;
-    key: string;
-    type: string;
-    comment: string;
-};
-
-type CommentPayload = {
-    id: string;
-    commentText: string;
-    parentId?: string;
-};
-
-type CommentDeletePayload = {
-    videoId: string;
-    commentId: string;
-};
-
-type CommentReplyDeletePayload = {
-    videoId: string;
-    parentId: string;
-    commentId: string;
-};
-
-type CommentLikePayload = {
-    likeState: string;
-    videoId: string;
-    commentId: string;
-};
-
-type CommentReplyLikePayload = {
-    likeState: string;
-    videoId: string;
-    commentId: string;
-    parentId: string;
-};
 
 export default function ShareModal({ visible, item, onClose }) {
     const insets = useSafeAreaInsets();
     const { isDark } = useTheme();
+    const shareMessage = 'Check out this video on Flip!';
+    const postUrl = item?.url;
+    const mediaUrl = item?.media?.src_url;
 
     if (!item) return null;
-
-    const handleRepost = async () => {
-        console.log('Repost video:', item.id);
-        onClose();
-    };
 
     const handleNativeShare = async () => {
         try {
             const result = await shareContent({
-                message: `Check out this video on Flip!`,
-                url: item?.url,
+                message: shareMessage,
+                url: postUrl,
             });
 
             if (result.action === Share.sharedAction) {
@@ -71,12 +35,90 @@ export default function ShareModal({ visible, item, onClose }) {
         }
     };
 
+    const handleAppShare = async (target: ShareAppTarget) => {
+        try {
+            const opened = await shareToAppTarget({
+                target,
+                message: shareMessage,
+                url: postUrl,
+            });
+            if (opened) {
+                onClose();
+                return;
+            }
+            await handleNativeShare();
+        } catch (error) {
+            console.error('App share error:', error);
+            Alert.alert('Share unavailable', 'Could not open that app. Try Other instead.');
+        }
+    };
+
+    const handleCopyLink = async () => {
+        if (!postUrl) {
+            Alert.alert('Missing link', 'No shareable link is available for this post yet.');
+            return;
+        }
+        try {
+            await copyLinkToClipboard(postUrl);
+            Alert.alert('Copied', 'Link copied to clipboard.');
+            onClose();
+        } catch (error) {
+            console.error('Copy link error:', error);
+            Alert.alert('Copy failed', 'Could not copy this link right now.');
+        }
+    };
+
+    const handleShareVideo = async () => {
+        if (!mediaUrl) {
+            Alert.alert('Unavailable', 'No video source found for this post.');
+            return;
+        }
+        try {
+            const result = await shareVideoFile({
+                videoUrl: mediaUrl,
+                message: shareMessage,
+                fallbackUrl: postUrl,
+            });
+            if (result.action === Share.sharedAction) {
+                onClose();
+            }
+        } catch (error) {
+            console.error('Share video error:', error);
+            Alert.alert('Share failed', 'Could not share video file. Try Other instead.');
+        }
+    };
+
     const shareOptions = [
-        // {
-        //   icon: 'repeat',
-        //   label: 'Repost',
-        //   onPress: handleRepost,
-        // },
+        {
+            icon: 'logo-whatsapp',
+            label: 'WhatsApp',
+            onPress: () => handleAppShare('whatsapp'),
+        },
+        {
+            icon: 'paper-plane-outline',
+            label: 'Telegram',
+            onPress: () => handleAppShare('telegram'),
+        },
+        {
+            icon: 'chatbubble-ellipses-outline',
+            label: 'Messages',
+            onPress: () => handleAppShare('sms'),
+        },
+        {
+            icon: 'logo-twitter',
+            label: 'X',
+            onPress: () => handleAppShare('x'),
+        },
+        {
+            icon: 'copy-outline',
+            label: 'Copy link',
+            onPress: handleCopyLink,
+        },
+        {
+            icon: 'videocam-outline',
+            label: 'Share video',
+            onPress: handleShareVideo,
+        },
         {
             icon: 'share-outline',
             label: 'Other',
@@ -101,11 +143,11 @@ export default function ShareModal({ visible, item, onClose }) {
                         Share to
                     </Text>
 
-                    <View style={tw`flex-row justify-around px-4 mb-5`}>
+                    <View style={tw`flex-row flex-wrap justify-center px-4 mb-5`}>
                         {shareOptions.map((option, index) => (
                             <TouchableOpacity
                                 key={index}
-                                style={tw`items-center w-20`}
+                                style={tw`items-center w-20 mb-4`}
                                 onPress={option.onPress}>
                                 <View
                                     style={tw`w-15 h-15 rounded-full bg-gray-100 dark:bg-gray-800 justify-center items-center mb-2`}>
