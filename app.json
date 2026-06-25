@@ -105,6 +105,8 @@
             "flipForYouFeed": "",
             "flipTrendingFeed": "",
             "flipLocalFeed": "",
+            "flipStagingPdsHost": "",
+            "flipStagingHandleDomain": "",
             "eas": {
                 "projectId": ""
             }

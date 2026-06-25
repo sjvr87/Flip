@@ -61,7 +61,11 @@ export default function SignInScreen() {
     const [biometricsAvailable, setBiometricsAvailable] = useState(false);
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
-    const [service, setService] = useState('bsky.social');
+    const [service, setService] = useState(
+        __DEV__ && process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST
+            ? process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST
+            : 'bsky.social',
+    );
     const [showAppPassword, setShowAppPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
