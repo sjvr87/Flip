@@ -1,0 +1,35 @@
+---
+description: Persistent Cursor to Copilot handoff thread for risky changes. Do not close.
+alwaysApply: true
+---
+
+# Copilot handoff thread (persistent)
+
+Use GitHub issue `#24` as the persistent handoff thread.
+
+- Cursor posts handoff packets before risky changes.
+- Copilot replies with exactly one status:
+  - `✅ APPROVED`
+  - `❌ BLOCKED` + required fix
+  - `⚠️ NEEDS INFO`
+- Cursor applies feedback and posts follow-up packet.
+- Do not wait for @sjvr87 to relay messages between agents.
+- Do not close the handoff issue.
+
+## Required packet fields
+
+- `Status`
+- `Branch`
+- `Agent`
+- `Date (UTC)`
+- `Intent`
+- `Scope`
+- `Diff summary`
+- `Risks`
+- `Rollback`
+- `Questions for Copilot`
+
+## Guardrails
+
+- Before touching `auth.ts`, `upload.ts`, or account-creation UI, post a packet and wait for Copilot reply.
+- Keep non-risky updates scoped and post concise status updates in the same issue.
