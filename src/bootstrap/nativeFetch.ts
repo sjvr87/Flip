@@ -36,10 +36,12 @@ function ensureReactNativeFetchPolyfill(): void {
 function readMaterializedFetch(): typeof fetch | null {
     ensureReactNativeFetchPolyfill();
     if (typeof globalThis.fetch === 'function') {
+        installAbortSignalPolyfills();
         return globalThis.fetch.bind(globalThis);
     }
     const original = (globalThis as GlobalWithFetchBackup).originalFetch;
     if (typeof original === 'function') {
+        installAbortSignalPolyfills();
         return original.bind(globalThis);
     }
     return null;
