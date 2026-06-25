@@ -1,7 +1,10 @@
 import { getFeedNetworkProfile } from '@/utils/feedNetworkQuality';
 import { FLIP_ANDROID_CAPTURE } from '@/camera/camerawesome/config';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image as ImageCompressor, Video as VideoCompressor } from 'react-native-compressor';
 import { Platform } from 'react-native';
+
+const VIDEO_COMPRESS_TIMEOUT_MS = 3 * 60 * 1000;
 
 /** Loops studio upload — server accepts large blobs; stay under typical reverse-proxy limits. */
 export const UPLOAD_MAX_VIDEO_BYTES_WIFI = 50 * 1024 * 1024;
@@ -16,6 +19,11 @@ export type UploadCompressionPolicy = {
     imageQuality: number;
     imageMaxWidth: number;
     imageMaxHeight: number;
+};
+
+export type PrepareVideoOptions = {
+    /** Flip camera already encodes 1080p H.264 — skip re-encode when under upload cap. */
+    fromFlipCamera?: boolean;
 };
 
 export function getUploadCompressionPolicy(): UploadCompressionPolicy {
@@ -55,40 +63,116 @@ export function getUploadCompressionPolicy(): UploadCompressionPolicy {
     };
 }
 
+function normalizeFileUri(uri: string): string {
+    return uri.startsWith('file://') ? uri : `file://${uri}`;
+}
+
 async function getFileSizeBytes(uri: string): Promise<number> {
-    const path = uri.startsWith('file://') ? uri : `file://${uri}`;
+    const path = normalizeFileUri(uri);
     if (Platform.OS === 'web') return 0;
+
     try {
         const { File } = await import('expo-file-system');
         const file = new File(path);
-        return file.exists ? (file.size ?? 0) : 0;
+        if (file.exists && (file.size ?? 0) > 0) {
+            return file.size ?? 0;
+        }
     } catch {
-        return 0;
+        // fall through to legacy API
     }
+
+    try {
+        const info = await FileSystem.getInfoAsync(path);
+        if (info.exists && 'size' in info && typeof info.size === 'number' && info.size > 0) {
+            return info.size;
+        }
+    } catch {
+        // unknown size
+    }
+
+    return 0;
+}
+
+function shouldSkipVideoReencode(
+    policy: UploadCompressionPolicy,
+    sizeBytes: number,
+    options?: PrepareVideoOptions,
+): boolean {
+    const withinWifiCap = sizeBytes <= 0 || sizeBytes <= UPLOAD_MAX_VIDEO_BYTES_WIFI;
+
+    if (options?.fromFlipCamera && withinWifiCap) {
+        return true;
+    }
+
+    if (policy.skipVideoReencode && withinWifiCap) {
+        return true;
+    }
+
+    return false;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+        }, ms);
+        promise.then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
 }
 
 /** Returns a file:// URI ready for multipart upload. */
 export async function prepareVideoForUpload(
     originalPath: string,
     onProgress?: (pct: number) => void,
+    options?: PrepareVideoOptions,
 ): Promise<string> {
     const policy = getUploadCompressionPolicy();
     const sizeBytes = await getFileSizeBytes(originalPath);
+    const normalized = normalizeFileUri(originalPath);
 
-    if (policy.skipVideoReencode && sizeBytes > 0 && sizeBytes <= UPLOAD_MAX_VIDEO_BYTES_WIFI) {
-        return originalPath.startsWith('file://') ? originalPath : `file://${originalPath}`;
+    if (shouldSkipVideoReencode(policy, sizeBytes, options)) {
+        if (__DEV__) {
+            console.log(
+                '[upload] skipping video re-encode',
+                options?.fromFlipCamera ? '(flip camera)' : `(tier=${policy.skipVideoReencode ? 'wifi' : 'other'})`,
+                sizeBytes > 0 ? `${Math.round(sizeBytes / 1024 / 1024)}MB` : 'size unknown',
+            );
+        }
+        return normalized;
     }
 
-    const compressedUri = await VideoCompressor.compress(
-        originalPath,
-        {
-            maxSize: policy.videoMaxSize,
-            compressionMethod: policy.videoCompressionMethod,
-        },
-        (progress) => onProgress?.(Math.round(progress * 100)),
-    );
+    onProgress?.(0);
 
-    return compressedUri.startsWith('file://') ? compressedUri : `file://${compressedUri}`;
+    try {
+        const compressedUri = await withTimeout(
+            VideoCompressor.compress(
+                originalPath,
+                {
+                    maxSize: policy.videoMaxSize,
+                    compressionMethod: policy.videoCompressionMethod,
+                },
+                (progress) => onProgress?.(Math.round(progress * 100)),
+            ),
+            VIDEO_COMPRESS_TIMEOUT_MS,
+            'Video compression',
+        );
+
+        return normalizeFileUri(compressedUri);
+    } catch (error) {
+        if (__DEV__) {
+            console.warn('[upload] video compression failed, uploading original:', error);
+        }
+        return normalized;
+    }
 }
 
 export async function prepareImageForUpload(originalPath: string): Promise<string> {
@@ -96,7 +180,7 @@ export async function prepareImageForUpload(originalPath: string): Promise<strin
     const sizeBytes = await getFileSizeBytes(originalPath);
 
     if (policy.imageQuality >= 1 && sizeBytes > 0 && sizeBytes <= UPLOAD_MAX_IMAGE_BYTES_WIFI) {
-        return originalPath.startsWith('file://') ? originalPath : `file://${originalPath}`;
+        return normalizeFileUri(originalPath);
     }
 
     const compressedUri = await ImageCompressor.compress(originalPath, {
@@ -105,5 +189,5 @@ export async function prepareImageForUpload(originalPath: string): Promise<strin
         quality: policy.imageQuality,
     });
 
-    return compressedUri.startsWith('file://') ? compressedUri : `file://${compressedUri}`;
+    return normalizeFileUri(compressedUri);
 }

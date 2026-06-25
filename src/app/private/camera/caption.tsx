@@ -324,11 +324,16 @@ export default function CaptionScreen() {
                 },
             };
         } else {
-            setOverlayMessage('Compressing… 0%');
-            uploadUri = await prepareVideoForUpload(originalPath, (pct) => {
-                setProgressPct(pct);
-                setOverlayMessage(`Compressing… ${pct}%`);
-            });
+            setOverlayMessage('Preparing video…');
+            uploadUri = await prepareVideoForUpload(
+                originalPath,
+                (pct) => {
+                    if (pct <= 0) return;
+                    setProgressPct(pct);
+                    setOverlayMessage(`Compressing… ${pct}%`);
+                },
+                { fromFlipCamera: true },
+            );
             filename = `upload_${Date.now()}.mp4`;
             fileField = {
                 video: {
