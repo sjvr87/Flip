@@ -306,7 +306,6 @@ export default function CaptionScreen() {
         reusedAudioSource,
     }: any) => {
         setOverlayVisible(true);
-        setOverlayMessage('Compressing… 0%');
         setProgressPct(0);
 
         let uploadUri: string;
@@ -314,6 +313,7 @@ export default function CaptionScreen() {
         let fileField: Record<string, { uri: string; name: string; type: string }>;
 
         if (isPhotoPost) {
+            setOverlayMessage('Preparing photo…');
             uploadUri = await prepareImageForUpload(originalPath);
             filename = `upload_${Date.now()}.jpg`;
             fileField = {
@@ -324,6 +324,7 @@ export default function CaptionScreen() {
                 },
             };
         } else {
+            setOverlayMessage('Compressing… 0%');
             uploadUri = await prepareVideoForUpload(originalPath, (pct) => {
                 setProgressPct(pct);
                 setOverlayMessage(`Compressing… ${pct}%`);

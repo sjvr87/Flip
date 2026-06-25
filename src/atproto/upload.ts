@@ -90,12 +90,7 @@ function postRecordBase(
     };
 }
 
-async function uploadVideoViaService(
-    agent: ReturnType<typeof getAgent>,
-    bytes: Uint8Array,
-    fileUri: string,
-    onProgress?: (message: string) => void,
-): Promise<BlobRef> {
+async function getBlobUploadServiceAuth(agent: ReturnType<typeof getAgent>) {
     if (!agent.session) throw new Error('Not authenticated');
 
     const pdsHost = agent.dispatchUrl.host;
@@ -104,6 +99,57 @@ async function uploadVideoViaService(
         lxm: 'com.atproto.repo.uploadBlob',
         exp: Math.floor(Date.now() / 1000) + 60 * 30,
     });
+    return serviceAuth;
+}
+
+function parseUploadError(responseText: string, status: number, label: string): never {
+    let message = responseText.slice(0, 300) || 'invalid response';
+    try {
+        const parsed = JSON.parse(responseText) as { message?: string; error?: string };
+        message = parsed.message || parsed.error || message;
+    } catch {
+        // keep slice
+    }
+    throw new Error(`${label} (${status}): ${message}`);
+}
+
+/** OAuth session tokens lack blob scope; use PDS service-auth like video uploads. */
+async function uploadPhotoBlobViaService(
+    agent: ReturnType<typeof getAgent>,
+    bytes: Uint8Array,
+    onProgress?: (message: string) => void,
+): Promise<BlobRef> {
+    const serviceAuth = await getBlobUploadServiceAuth(agent);
+    const uploadUrl = new URL('/xrpc/com.atproto.repo.uploadBlob', agent.dispatchUrl);
+
+    onProgress?.('Uploading photo…');
+
+    const uploadResponse = await fetch(uploadUrl.toString(), {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${serviceAuth.token}`,
+            'Content-Type': 'image/jpeg',
+            'Content-Length': String(bytes.byteLength),
+        },
+        body: bytes,
+    });
+
+    const responseText = await uploadResponse.text();
+    if (!uploadResponse.ok) {
+        parseUploadError(responseText, uploadResponse.status, 'Photo upload failed');
+    }
+
+    const data = JSON.parse(responseText) as { blob: BlobRef };
+    return data.blob;
+}
+
+async function uploadVideoViaService(
+    agent: ReturnType<typeof getAgent>,
+    bytes: Uint8Array,
+    fileUri: string,
+    onProgress?: (message: string) => void,
+): Promise<BlobRef> {
+    const serviceAuth = await getBlobUploadServiceAuth(agent);
 
     const filename = fileUri.split('/').pop() || `upload_${Date.now()}.mp4`;
     const uploadUrl = new URL('https://video.bsky.app/xrpc/app.bsky.video.uploadVideo');
@@ -186,15 +232,13 @@ export async function uploadMediaPost(options: AtprotoUploadOptions): Promise<At
     const labels = selfLabels(!!options.isSensitive);
 
     if (options.isPhoto) {
-        options.onProgress?.('Uploading photo…');
-        const [uploadResult, aspectRatio] = await Promise.all([
-            agent.uploadBlob(bytes, { encoding: 'image/jpeg' }),
+        const [blob, aspectRatio] = await Promise.all([
+            uploadPhotoBlobViaService(agent, bytes, options.onProgress),
             getImageDimensions(options.fileUri).catch(() => ({
                 width: 1,
                 height: 1,
             })),
         ]);
-        const { data } = uploadResult;
 
         options.onProgress?.('Posting…');
         const result = await agent.post({
@@ -204,7 +248,7 @@ export async function uploadMediaPost(options: AtprotoUploadOptions): Promise<At
                 images: [
                     {
                         alt: options.altText || '',
-                        image: data.blob,
+                        image: blob,
                         aspectRatio,
                     },
                 ],
