@@ -1,6 +1,7 @@
 import AccountListItem from '@/components/profile/AccountListItem';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
+import { canViewFollowLists, fetchProfilePrefs } from '@/atproto';
 import { useAuthStore } from '@/utils/authStore';
 import {
     fetchAccountFollowers,
@@ -13,7 +14,7 @@ import {
 } from '@/utils/requests';
 import { prettyCount } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -40,6 +41,31 @@ export default function Screen() {
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
     const { isDark } = useTheme();
+    const isOwner = user?.id == id;
+
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', id],
+        queryFn: () => fetchProfilePrefs(id),
+        enabled: !!id && atproto,
+    });
+
+    const canViewFollowers = canViewFollowLists(profilePrefs, 'followers', isOwner);
+    const canViewFollowing = canViewFollowLists(profilePrefs, 'following', isOwner);
+    const canViewActiveTab =
+        activeTab === 'followers'
+            ? canViewFollowers
+            : activeTab === 'following'
+              ? canViewFollowing
+              : true;
+
+    useEffect(() => {
+        if (!atproto || isOwner) return;
+        if (activeTab === 'following' && !canViewFollowing && canViewFollowers) {
+            setActiveTab('followers');
+        } else if (activeTab === 'followers' && !canViewFollowers && canViewFollowing) {
+            setActiveTab('following');
+        }
+    }, [atproto, isOwner, activeTab, canViewFollowers, canViewFollowing]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -55,7 +81,7 @@ export default function Screen() {
         initialPageParam: 0,
         refetchOnWindowFocus: false,
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
-        enabled: activeTab === 'followers',
+        enabled: activeTab === 'followers' && canViewFollowers,
     });
 
     const followingQuery = useInfiniteQuery({
@@ -64,7 +90,7 @@ export default function Screen() {
         initialPageParam: 0,
         refetchOnWindowFocus: false,
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
-        enabled: activeTab === 'following',
+        enabled: activeTab === 'following' && canViewFollowing,
     });
 
     const friendsQuery = useInfiniteQuery({
@@ -291,7 +317,8 @@ export default function Screen() {
         }
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    const TabButton = ({ tab, label, count }) => {
+    const TabButton = ({ tab, label, count, hidden = false }) => {
+        if (hidden) return null;
         const isActive = activeTab === tab;
         return (
             <TouchableOpacity
@@ -332,8 +359,18 @@ export default function Screen() {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={tw`${user?.id == id ? 'flex-1' : 'flex'} px-6 pt-2 gap-3`}>
-                    <TabButton tab="following" label="Following" count={followingCount} />
-                    <TabButton tab="followers" label="Followers" count={followersCount} />
+                    <TabButton
+                        tab="following"
+                        label="Following"
+                        count={followingCount}
+                        hidden={atproto && !canViewFollowing}
+                    />
+                    <TabButton
+                        tab="followers"
+                        label="Followers"
+                        count={followersCount}
+                        hidden={atproto && !canViewFollowers}
+                    />
                     {!atproto && followingCount > 2 && user?.id != id && (
                         <TabButton tab="friends" label="Friends" count={0} />
                     )}
@@ -373,7 +410,15 @@ export default function Screen() {
                 </View>
             )}
 
-            {isError ? (
+            {atproto && !canViewActiveTab ? (
+                <YStack paddingY="$10" paddingX="$6" alignItems="center" gap="$3">
+                    <Ionicons name="lock-closed-outline" size={48} style={tw`text-gray-300`} />
+                    <StackText fontSize="$4" style={tw`text-gray-500 text-center`}>
+                        @{username || 'This user'} has hidden their{' '}
+                        {activeTab === 'followers' ? 'followers' : 'following'} list.
+                    </StackText>
+                </YStack>
+            ) : isError ? (
                 <YStack paddingY="$8" paddingX="$6" alignItems="center" gap="$3">
                     <StackText fontSize="$4" style={tw`text-gray-500 text-center`}>
                         Could not load this list. Check your connection and try again.

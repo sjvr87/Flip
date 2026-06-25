@@ -1,7 +1,8 @@
 import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
+import { fetchProfilePrefs, fetchProfileTheme } from '@/atproto';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
-import { fetchSelfAccount, getMimeType, updateAccountAvatar } from '@/utils/requests';
+import { fetchSelfAccount, getMimeType, updateAccountAvatar, usesAtprotoBackend } from '@/utils/requests';
 import { truncate } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -69,6 +70,26 @@ export default function EditProfileScreen() {
         refetchOnWindowFocus: true,
         refetchOnMount: true,
     });
+
+    const atproto = usesAtprotoBackend();
+
+    const { data: profileTheme } = useQuery({
+        queryKey: ['profileTheme', user?.id],
+        queryFn: () => fetchProfileTheme(user!.id),
+        enabled: !!user?.id && atproto,
+    });
+
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', user?.id],
+        queryFn: () => fetchProfilePrefs(user!.id),
+        enabled: !!user?.id && atproto,
+    });
+
+    const themeLabel =
+        profileTheme?.backgroundColor || profileTheme?.accentColor ? 'Custom' : 'Default';
+    const topFriendsCount = profilePrefs?.topFriends?.length ?? 0;
+    const topFriendsLabel =
+        topFriendsCount > 0 ? `${topFriendsCount} featured` : 'Add friends';
 
     const [profileImage, setProfileImage] = useState(user?.avatar);
     const name = user?.name;
@@ -272,6 +293,26 @@ export default function EditProfileScreen() {
                         })
                     }
                 />
+
+                {atproto ? (
+                    <>
+                        <ProfileItem
+                            label="Profile style"
+                            value={themeLabel}
+                            onPress={() =>
+                                router.push('/private/settings/account/edit-profile-style')
+                            }
+                        />
+
+                        <ProfileItem
+                            label="Top 8 friends"
+                            value={topFriendsLabel}
+                            onPress={() =>
+                                router.push('/private/settings/account/edit-top-friends')
+                            }
+                        />
+                    </>
+                ) : null}
 
                 <ProfileItem
                     label="Links"

@@ -1,6 +1,7 @@
 import AccountHeader from '@/components/profile/AccountHeader';
 import AccountTabs from '@/components/profile/AccountTabs';
 import ProfilePlaylists from '@/components/profile/ProfilePlaylists';
+import ProfileTopFriends from '@/components/profile/ProfileTopFriends';
 import VideoGrid from '@/components/profile/VideoGrid';
 import { ReportModal } from '@/components/ReportModal';
 import { StackText, YStack } from '@/components/ui/Stack';
@@ -8,8 +9,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import {
     blockAccount as atprotoBlockAccount,
     cancelFollowRequest as atprotoCancelFollowRequest,
+    canViewFollowLists,
     fetchAccount as atprotoFetchAccount,
     fetchAccountState as atprotoFetchAccountState,
+    fetchProfilePrefs,
     fetchUserVideos as atprotoFetchUserVideos,
     fetchUserPhotos as atprotoFetchUserPhotos,
     followAccount as atprotoFollowAccount,
@@ -113,6 +116,17 @@ export default function ProfileScreen() {
         enabled: !!user && !!id,
         staleTime: 2 * 60 * 1000,
     });
+
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', id?.toString()],
+        queryFn: () => fetchProfilePrefs(id),
+        enabled: !!id && atproto,
+    });
+
+    const isProfileOwner = !!user?.is_owner;
+    const canViewFollowersList = atproto
+        ? canViewFollowLists(profilePrefs, 'followers', isProfileOwner)
+        : true;
 
     const { data: playlists, isLoading: playlistsLoading } = useQuery({
         queryKey: ['accountPlaylists', id?.toString()],
@@ -468,11 +482,18 @@ export default function ProfileScreen() {
                             userState={userState}
                             videoCount={displayVideoCount}
                             videosResolved={videosResolved}
+                            canViewFollowersList={canViewFollowersList}
                             onFollowPress={handleOnFollowPress}
                             onMenuPress={handleOnOpenMenu}
                             onUnblockPress={handleOnUnblockPress}
                             isFollowLoading={followMutation.isPending}
                         />
+                        {atproto ? (
+                            <ProfileTopFriends
+                                topFriendIds={profilePrefs?.topFriends}
+                                isOwner={isProfileOwner}
+                            />
+                        ) : null}
                         <AccountTabs
                             activeTab={activeTab}
                             onTabChange={setActiveTab}

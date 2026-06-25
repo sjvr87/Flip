@@ -1,6 +1,7 @@
 import { SectionHeader, SettingsItem, SettingsToggleItem } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { fetchAccountPrivacy, updateAccountPrivacy } from '@/utils/requests';
+import { fetchProfilePrefs, saveProfilePrefs } from '@/atproto';
+import { fetchAccountPrivacy, updateAccountPrivacy, usesAtprotoBackend } from '@/utils/requests';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -9,9 +10,12 @@ import tw from 'twrnc';
 
 export default function PrivacyScreen() {
     const [suggestAccount, setSuggestAccount] = useState(true);
+    const [hideFollowersList, setHideFollowersList] = useState(false);
+    const [hideFollowingList, setHideFollowingList] = useState(false);
     const queryClient = useQueryClient();
     const router = useRouter();
     const { isDark } = useTheme();
+    const atproto = usesAtprotoBackend();
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['privacySettings'],
@@ -23,6 +27,30 @@ export default function PrivacyScreen() {
             setSuggestAccount(data.data.discoverable);
         }
     }, [data]);
+
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', 'self'],
+        queryFn: async () => {
+            const { fetchSelfAccount } = await import('@/utils/requests');
+            const self = (await fetchSelfAccount()).data;
+            if (!self?.id) return null;
+            return fetchProfilePrefs(self.id);
+        },
+        enabled: atproto,
+    });
+
+    useEffect(() => {
+        if (!profilePrefs) return;
+        setHideFollowersList(profilePrefs.hideFollowersList === true);
+        setHideFollowingList(profilePrefs.hideFollowingList === true);
+    }, [profilePrefs]);
+
+    const profilePrefsMutation = useMutation({
+        mutationFn: saveProfilePrefs,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['profilePrefs'] });
+        },
+    });
 
     const updatePrivacyMutation = useMutation({
         mutationFn: (params) => updateAccountPrivacy(params),
@@ -55,6 +83,16 @@ export default function PrivacyScreen() {
         updatePrivacyMutation.mutate({ discoverable: value });
     };
 
+    const handleToggleHideFollowers = (value: boolean) => {
+        setHideFollowersList(value);
+        profilePrefsMutation.mutate({ hideFollowersList: value });
+    };
+
+    const handleToggleHideFollowing = (value: boolean) => {
+        setHideFollowingList(value);
+        profilePrefsMutation.mutate({ hideFollowingList: value });
+    };
+
     return (
         <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
             <Stack.Screen
@@ -82,6 +120,23 @@ export default function PrivacyScreen() {
                     value={suggestAccount}
                     onValueChange={handleToggleSuggest}
                 />
+                {atproto ? (
+                    <>
+                        <SectionHeader title="Profile lists" />
+                        <SettingsToggleItem
+                            icon="eye-off-outline"
+                            label="Hide followers list"
+                            value={hideFollowersList}
+                            onValueChange={handleToggleHideFollowers}
+                        />
+                        <SettingsToggleItem
+                            icon="eye-off-outline"
+                            label="Hide following list"
+                            value={hideFollowingList}
+                            onValueChange={handleToggleHideFollowing}
+                        />
+                    </>
+                ) : null}
                 <SectionHeader title="Interactions" />
                 <SettingsItem
                     icon="close-circle-outline"

@@ -1,11 +1,12 @@
 import AccountHeader from '@/components/profile/AccountHeader';
 import AccountTabs from '@/components/profile/AccountTabs';
 import ProfilePlaylists from '@/components/profile/ProfilePlaylists';
+import ProfileTopFriends from '@/components/profile/ProfileTopFriends';
 import VideoGrid from '@/components/profile/VideoGrid';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { fetchSelfAccount, fetchSelfAccountPhotos, fetchSelfAccountVideos } from '@/atproto';
+import { fetchProfilePrefs, fetchSelfAccount, fetchSelfAccountPhotos, fetchSelfAccountVideos } from '@/atproto';
 import {
     fetchAccountFavorites,
     fetchAccountLikes,
@@ -37,6 +38,12 @@ export default function ProfileScreen() {
         },
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
+    });
+
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', user?.id],
+        queryFn: () => fetchProfilePrefs(user!.id),
+        enabled: !!user?.id && usesAtprotoBackend(),
     });
 
     useEffect(() => {
@@ -395,6 +402,12 @@ export default function ProfileScreen() {
                             videosResolved={videosResolved}
                             onEditBio={handleEditBio}
                         />
+                        {usesAtprotoBackend() ? (
+                            <ProfileTopFriends
+                                topFriendIds={profilePrefs?.topFriends}
+                                isOwner={true}
+                            />
+                        ) : null}
                         <AccountTabs
                             activeTab={activeTab}
                             isOwner={true}
