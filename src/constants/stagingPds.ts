@@ -11,8 +11,7 @@
  */
 
 /** Hostname of the invite-only staging PDS (no protocol, no trailing slash). */
-export const STAGING_PDS_HOST =
-    process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST ?? 'staging.flip.app';
+export const STAGING_PDS_HOST = process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST ?? '';
 
 /** Full URL origin for direct AT Protocol calls to the staging PDS. */
 export const STAGING_PDS_URL = `https://${STAGING_PDS_HOST}`;
