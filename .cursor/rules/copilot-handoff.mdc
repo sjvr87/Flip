@@ -1,0 +1,121 @@
+---
+description: Before any risky change, Cursor must post a handoff packet to GitHub so Copilot can validate and respond — no user copy/paste needed.
+alwaysApply: true
+---
+
+# Cursor ↔ Copilot GitHub Handoff (no middleman)
+
+All risky-change validation happens **directly on GitHub** — the user (@sjvr87) does **not** copy/paste between agents.
+
+---
+
+## When to trigger a handoff
+
+Post a handoff packet before any of these:
+
+- Deleting or rewriting a file/module
+- Changing native Android files (`android/`, `*.gradle`, `*.xml` manifests)
+- Updating `package.json` dependencies or lock files
+- Modifying auth, camera, or payment flows
+- Any action that could break the running build or wipe local state
+- Starting a new major task after a blockers resolution
+
+---
+
+## How to post a handoff packet
+
+Use `gh` CLI to comment on the **dedicated handoff issue** (`sjvr87/Flip#18`).  
+Create that issue if it doesn't exist yet:
+
+```bash
+# One-time setup — create the handoff issue if needed
+rtk gh issue create \
+  --repo sjvr87/Flip \
+  --title "Agent Handoff Channel — Cursor ↔ Copilot" \
+  --label "agent-handoff" \
+  --body "Persistent thread for Cursor→Copilot validation packets. Do not close."
+```
+
+Then post the packet:
+
+```bash
+rtk gh issue comment <issue-number> \
+  --repo sjvr87/Flip \
+  --body "$(cat <<'EOF'
+## 🤝 CURSOR HANDOFF PACKET
+
+**Task:** <one-line description>
+
+**Status:** <what is done / what is blocked>
+
+**Proposed change (diff summary):**
+\`\`\`
+<git diff --stat or key lines>
+\`\`\`
+
+**Metro errors/warnings:**
+\`\`\`
+<paste or NONE>
+\`\`\`
+
+**logcat errors:**
+\`\`\`
+<paste or NONE>
+\`\`\`
+
+**Risky next step:**
+<exactly what you want to do that needs validation>
+
+**Waiting for:** Copilot ✅ / ❌ before proceeding.
+EOF
+)"
+```
+
+---
+
+## What to do after posting
+
+1. **Stop** — do not proceed with the risky step yet.
+2. **Poll** for Copilot's reply (check every ~60 s or on user prompt):
+   ```bash
+   rtk gh issue view <issue-number> --repo sjvr87/Flip --comments
+   ```
+3. If Copilot replies **✅ proceed** → apply the change.
+4. If Copilot replies **❌ blocked** or posts a fix → apply Copilot's diff instead.
+5. After applying, post a short follow-up comment confirming result.
+
+---
+
+## What Copilot posts back
+
+Copilot will reply with one of:
+
+- `✅ APPROVED — proceed` (with optional notes)
+- `❌ BLOCKED — apply this fix instead:` followed by a diff or file patch
+- `⚠️ NEEDS INFO — <question>`
+
+---
+
+## Real-time log monitoring (always on)
+
+During any active dev task, **both agents** must tail logs in the background:
+
+```bash
+# Metro (leave running in a separate terminal)
+rtk npm run start 2>&1 | tee metro.log
+
+# logcat (Android device connected)
+adb logcat -s ReactNativeJS:E ReactNativeJS:W >> logcat-live.log
+```
+
+Post any new errors to the handoff issue immediately — do not wait for the next risky step.
+
+---
+
+## Issue number reference
+
+| Issue | Purpose |
+|-------|---------|
+| `sjvr87/Flip#18` | Primary agent handoff channel (create if missing) |
+
+See also: `.github/AGENT_COORDINATION.md` for full multi-agent protocol.
