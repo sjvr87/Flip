@@ -1,4 +1,5 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { STAGING_PDS_HOST } from '@/constants/stagingPds';
 import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
@@ -61,7 +62,9 @@ export default function SignInScreen() {
     const [biometricsAvailable, setBiometricsAvailable] = useState(false);
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
-    const [service, setService] = useState('bsky.social');
+    const [service, setService] = useState(
+        __DEV__ && STAGING_PDS_HOST ? STAGING_PDS_HOST : 'bsky.social',
+    );
     const [showAppPassword, setShowAppPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
