@@ -1,79 +1,41 @@
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system/legacy';
-import { Linking, Platform, Share } from 'react-native';
+import { Share } from 'react-native';
+
+import {
+    cacheVideoForShare,
+    executeShareTarget,
+    type ShareTargetId,
+} from '@/utils/shareTargets';
 
 interface ShareParams {
     message: string;
     url?: string;
 }
 
+/** @deprecated Use ShareTargetId from shareTargets instead. */
 export type ShareAppTarget = 'whatsapp' | 'telegram' | 'sms' | 'x';
 
-function formatShareText(message: string, url?: string): string {
-    return url ? `${message}\n\n${url}` : message;
-}
-
-function withFileScheme(pathOrUri: string): string {
-    if (pathOrUri.startsWith('file://') || pathOrUri.startsWith('content://')) {
-        return pathOrUri;
-    }
-    return `file://${pathOrUri}`;
-}
+const LEGACY_TARGET_MAP: Record<ShareAppTarget, ShareTargetId> = {
+    whatsapp: 'whatsapp',
+    telegram: 'telegram',
+    sms: 'messages',
+    x: 'x',
+};
 
 export const shareContent = async ({ message, url }: ShareParams) => {
-    try {
-        const payload = Platform.select({
-            ios: {
-                message,
-                url,
-            },
-            android: {
-                message: formatShareText(message, url),
-                url,
-            },
-            default: {
-                message: formatShareText(message, url),
-                url,
-            },
-        });
-
-        const result = await Share.share(payload);
-        return result;
-    } catch (error) {
-        console.error('Share error:', error);
-        throw error;
-    }
+    const result = await executeShareTarget({
+        targetId: 'other',
+        message,
+        url,
+    });
+    return {
+        action: result ? Share.sharedAction : Share.dismissedAction,
+    };
 };
 
 export const copyLinkToClipboard = async (url: string) => {
     await Clipboard.setStringAsync(url);
 };
-
-function appTargetUrls(target: ShareAppTarget, message: string, url?: string): string[] {
-    const text = encodeURIComponent(formatShareText(message, url));
-
-    switch (target) {
-        case 'whatsapp':
-            return [`whatsapp://send?text=${text}`, `https://wa.me/?text=${text}`];
-        case 'telegram': {
-            const encodedUrl = encodeURIComponent(url ?? '');
-            const encodedMsg = encodeURIComponent(message);
-            return [
-                `tg://msg?text=${text}`,
-                `https://t.me/share/url?url=${encodedUrl}&text=${encodedMsg}`,
-            ];
-        }
-        case 'sms':
-            return [Platform.OS === 'ios' ? `sms:&body=${text}` : `sms:?body=${text}`];
-        case 'x':
-            return [
-                `twitter://post?message=${text}`,
-                `https://twitter.com/intent/tweet?text=${text}`,
-            ];
-        default:
-            return [];
-    }
-}
 
 export const shareToAppTarget = async ({
     target,
@@ -84,14 +46,11 @@ export const shareToAppTarget = async ({
     message: string;
     url?: string;
 }) => {
-    const candidateUrls = appTargetUrls(target, message, url);
-    for (const candidate of candidateUrls) {
-        const supported = await Linking.canOpenURL(candidate);
-        if (!supported) continue;
-        await Linking.openURL(candidate);
-        return true;
-    }
-    return false;
+    return executeShareTarget({
+        targetId: LEGACY_TARGET_MAP[target],
+        message,
+        url,
+    });
 };
 
 export const shareVideoFile = async ({
@@ -103,27 +62,22 @@ export const shareVideoFile = async ({
     message: string;
     fallbackUrl?: string;
 }) => {
-    const extMatch = videoUrl.match(/\.([a-zA-Z0-9]{2,5})(?:\?|$)/);
-    const ext = (extMatch?.[1] ?? 'mp4').toLowerCase();
-    const destination = `${FileSystem.cacheDirectory}flip-share-${Date.now()}.${ext}`;
-    const download = await FileSystem.downloadAsync(videoUrl, destination);
-    const localUri = withFileScheme(download.uri);
-
-    const payload = Platform.select({
-        ios: {
-            message,
-            url: localUri,
-        },
-        android: {
-            message: formatShareText(message, fallbackUrl),
-            title: 'Share video',
-            url: localUri,
-        },
-        default: {
-            message: formatShareText(message, fallbackUrl),
-            url: localUri,
-        },
+    await cacheVideoForShare(videoUrl);
+    const opened = await executeShareTarget({
+        targetId: 'share_video',
+        message,
+        url: fallbackUrl,
+        videoUrl,
     });
-
-    return Share.share(payload);
+    return {
+        action: opened ? Share.sharedAction : Share.dismissedAction,
+    };
 };
+
+export {
+    cacheVideoForShare,
+    executeShareTarget,
+    getAvailableShareTargets,
+    SHARE_TARGET_DEFINITIONS,
+    type ShareTargetId,
+} from '@/utils/shareTargets';
