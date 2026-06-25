@@ -1,0 +1,33 @@
+---
+description: Always reserve context-window headroom so Cursor AI has enough tokens to complete responses without truncation.
+alwaysApply: true
+---
+
+# Token headroom — always active
+
+Cursor AI **must** actively manage context-window usage on every request to prevent token exhaustion and response truncation.
+
+## Hard rules
+
+- **Reserve ≥ 2 000 output tokens** at all times. Never fill the context window so full that the model cannot finish its response.
+- **Trim context before hitting the limit** — drop the oldest or least-relevant conversation turns / file snippets before the window is saturated.
+- **Summarise, don't copy** — when adding large files or long outputs to context, include only the relevant sections or a concise summary unless the full text is strictly required.
+- **Prefer targeted reads** — open specific functions or line ranges instead of entire files wherever possible.
+- **One large attachment at a time** — avoid attaching multiple large files simultaneously; load additional context only if the first set is insufficient.
+
+## Why this matters for Flip
+
+The Flip codebase spans React Native, Expo, ATProto, and Android native code. Full-file reads quickly consume the context window. Keeping headroom ensures:
+
+- Agents can always return a complete, non-truncated response.
+- Parallel subagents (see [auto-parallel-work.mdc](auto-parallel-work.mdc)) don't starve each other of tokens.
+- Token budgets remain predictable across long sessions.
+
+## Behaviour checklist
+
+Before generating a response, the agent should verify:
+
+1. ☑ Total context size < (model limit − 2 000 output tokens)
+2. ☑ No redundant duplicate file contents in context
+3. ☑ Stale turns older than the current task have been pruned or summarised
+4. ☑ Any code snippets included are scoped to the relevant lines/function
