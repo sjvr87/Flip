@@ -41,6 +41,7 @@ The user wants agents on **latest main**, **one Metro window**, and **git commit
 - **[dev-permissions.mdc](dev-permissions.mdc)** — use `required_permissions: ["all"]` for flip-dev, flip-connect, adb, Metro, git remote.
 - **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt when pulling, installing, or connecting; do not stop to ask for routine approval.
 - **[auto-push-progress.mdc](auto-push-progress.mdc)** — after meaningful work, commit and push unless the user says not to; then pull again before the next test cycle if others may have merged.
+- **[headroom-wrap.mdc](headroom-wrap.mdc)** — prefix every CLI command with `rtk`; use `headroom_compress` for large content. Mandatory for all agents.
 
 ## After dependency or native changes
 

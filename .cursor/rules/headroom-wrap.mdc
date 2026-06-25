@@ -1,34 +1,82 @@
 ---
-description: Run headroom wrap cursor in the project directory before starting work to enable the token-compression proxy.
+description: All agents and programs must use Headroom (rtk + MCP) to minimise token usage on every CLI command and large-content operation.
 alwaysApply: true
 ---
 
-# Headroom — token-compression proxy for Cursor
+# Headroom — mandatory token savings (all agents)
 
-At the start of every session, run:
+**Every agent, subagent, and background task in this repo must follow these rules.** Token waste is never acceptable.
+
+---
+
+## 1. Prefix every CLI command with `rtk`
+
+`rtk` (Rust Token Killer) strips noise from command output before it reaches the LLM — **60–90% fewer tokens, zero behaviour change**. If `rtk` has no filter for a command it passes through unchanged, so it is always safe.
+
+```bash
+# Git
+rtk git status          rtk git diff            rtk git log
+
+# Files & search
+rtk ls <path>           rtk read <file>         rtk grep <pattern>
+rtk find <pattern>      rtk diff <file>
+
+# Tests — shows failures only (90–99% savings)
+rtk npm run test        rtk pytest tests/
+
+# Build & lint — shows errors only (80–90% savings)
+rtk npm run lint        rtk tsc                 rtk npx tsc --noEmit
+rtk prettier --check    rtk ruff check
+
+# GitHub
+rtk gh pr view <n>      rtk gh run list         rtk gh issue list
+
+# Package managers
+rtk npm install         rtk npm run <script>    rtk pip list
+```
+
+**Command chains:** prefix each segment — `rtk git add . && rtk git commit -m "msg"`  
+**Debugging only:** omit `rtk` when you need raw unfiltered output.
+
+---
+
+## 2. Use `headroom_compress` MCP tool for large content
+
+Before sending any large block of text to the model (RAG results, log files, long file reads, tool outputs > ~500 lines), call the `headroom_compress` MCP tool:
+
+```
+headroom_compress(content="<large text>")
+```
+
+This compresses the content in-place and caches the original for retrieval on demand — typically **70–95% token reduction**.
+
+---
+
+## 3. Session startup
+
+At the start of every session, run from the **Flip repo root**:
 
 ```bash
 headroom wrap cursor
 ```
 
-from the **Flip repo root** (`/path/to/Flip`). This starts the Headroom proxy on `http://127.0.0.1:8787` and ensures the `.cursorrules` RTK instructions are up-to-date.
+This starts the Headroom proxy on `http://127.0.0.1:8787` and refreshes the `.cursorrules` RTK instructions.
 
-## One-time setup (if not already done)
-
+**One-time setup** (if `rtk` or `headroom` is missing):
 ```bash
 pip install "headroom-ai[proxy,mcp]"
+headroom wrap cursor
 ```
 
-## Configure Cursor
-
-After the proxy is running, set in **Cursor → Settings → Models**:
+**Configure Cursor** — after the proxy is running, set in **Settings → Models**:
 
 | Model family | Base URL override |
 |---|---|
 | OpenAI | `http://127.0.0.1:8787/p/Flip/v1` |
 | Anthropic | `http://127.0.0.1:8787/p/Flip` |
 
-## Why
+---
 
-Headroom compresses tool outputs, logs, RAG chunks, and conversation history before they reach the LLM — typically **60–95% fewer tokens** with identical results.  
-See `.cursorrules` for the `rtk` command-prefix rules that apply inside this repo.
+## 4. Applies to all rules and agents
+
+This rule takes precedence over any other rule that does not mention token savings. All other `.cursor/rules/*.mdc` files inherit this requirement. Parallel subagents launched by `auto-parallel-work.mdc` must each independently apply the `rtk` prefix and `headroom_compress` tool.
