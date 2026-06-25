@@ -1,7 +1,38 @@
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Linking, Platform } from 'react-native';
-import Share, { Social } from 'react-native-share';
+import { Linking, Platform, Share as SystemShare } from 'react-native';
+
+type NativeShareModule = typeof import('react-native-share').default;
+type NativeSocialEnum = typeof import('react-native-share').Social;
+
+let nativeShareModule: NativeShareModule | null | undefined;
+
+/** Lazy-load react-native-share so routes load when RNShare is not in the dev binary yet. */
+function getNativeShare(): NativeShareModule | null {
+    if (nativeShareModule !== undefined) {
+        return nativeShareModule;
+    }
+    try {
+        const mod = require('react-native-share') as { default?: NativeShareModule } & NativeShareModule;
+        nativeShareModule = mod.default ?? mod;
+        return nativeShareModule;
+    } catch (error) {
+        if (__DEV__) {
+            console.warn('[share] react-native-share unavailable, using Linking fallbacks', error);
+        }
+        nativeShareModule = null;
+        return null;
+    }
+}
+
+function getSocial(): NativeSocialEnum | null {
+    if (!getNativeShare()) return null;
+    try {
+        return require('react-native-share').Social as NativeSocialEnum;
+    } catch {
+        return null;
+    }
+}
 
 export type ShareTargetId =
     | 'copy_link'
@@ -187,8 +218,10 @@ function withFileScheme(pathOrUri: string): string {
 }
 
 async function isAndroidPackageInstalled(packageName: string): Promise<boolean> {
+    const share = getNativeShare();
+    if (!share) return false;
     try {
-        const result = await Share.isPackageInstalled(packageName);
+        const result = await share.isPackageInstalled(packageName);
         return result.isInstalled;
     } catch {
         return false;
@@ -287,26 +320,38 @@ async function shareViaLinking(targetId: ShareTargetId, message: string, url?: s
 }
 
 async function shareSingleVideo(
-    social: Social,
+    social: NativeSocialEnum[keyof NativeSocialEnum],
     cached: CachedShareVideo,
     message?: string,
     extras: Record<string, string | undefined> = {},
 ) {
-    await Share.shareSingle({
+    const share = getNativeShare();
+    if (!share) {
+        await SystemShare.share({ message, url: cached.localUri });
+        return;
+    }
+    await share.shareSingle({
         social,
         url: cached.localUri,
         type: cached.mimeType,
         message,
         useInternalStorage: true,
         ...extras,
-    } as Parameters<typeof Share.shareSingle>[0]);
+    } as Parameters<NativeShareModule['shareSingle']>[0]);
 }
 
 async function shareStory(
-    social: Social.InstagramStories | Social.FacebookStories,
+    social:
+        | NativeSocialEnum['InstagramStories']
+        | NativeSocialEnum['FacebookStories'],
     cached: CachedShareVideo,
     url?: string,
 ) {
+    const share = getNativeShare();
+    if (!share) {
+        await SystemShare.share({ message: url, url: cached.localUri });
+        return;
+    }
     const storyOptions = {
         social,
         backgroundVideo: cached.localUri,
@@ -316,7 +361,29 @@ async function shareStory(
         ...(META_APP_ID ? { appId: META_APP_ID } : {}),
     };
 
-    await Share.shareSingle(storyOptions as Parameters<typeof Share.shareSingle>[0]);
+    await share.shareSingle(storyOptions as Parameters<NativeShareModule['shareSingle']>[0]);
+}
+
+async function openNativeShare(options: {
+    url?: string;
+    type?: string;
+    message?: string;
+    title?: string;
+}) {
+    const share = getNativeShare();
+    if (share) {
+        await share.open({
+            ...options,
+            useInternalStorage: true,
+            failOnCancel: false,
+        });
+        return;
+    }
+    await SystemShare.share({
+        message: options.message,
+        url: options.url,
+        title: options.title,
+    });
 }
 
 export interface ShareTargetContext {
@@ -365,6 +432,8 @@ export async function executeShareTarget({
     videoUrl,
 }: ExecuteShareTargetParams): Promise<boolean> {
     const shareText = formatShareText(message, url);
+    const nativeShare = getNativeShare();
+    const Social = getSocial();
     const needsVideo =
         targetId === 'share_video' ||
         targetId === 'whatsapp' ||
@@ -380,72 +449,73 @@ export async function executeShareTarget({
 
     switch (targetId) {
         case 'whatsapp': {
-            if (cached) {
+            if (cached && Social) {
                 await shareSingleVideo(Social.Whatsapp, cached, shareText);
                 return true;
             }
             return shareViaLinking('whatsapp', message, url);
         }
         case 'instagram': {
-            if (cached) {
+            if (cached && Social) {
                 await shareSingleVideo(Social.Instagram, cached, shareText);
                 return true;
             }
             return shareViaLinking('instagram', message, url);
         }
         case 'instagram_stories': {
-            if (!cached) return false;
+            if (!cached || !Social) return false;
             await shareStory(Social.InstagramStories, cached, url);
             return true;
         }
         case 'facebook_messenger': {
-            if (cached) {
+            if (cached && Social) {
                 await shareSingleVideo(Social.Messenger, cached, shareText);
                 return true;
             }
-            try {
-                await Share.shareSingle({
-                    social: Social.Messenger,
-                    message: shareText,
-                });
-                return true;
-            } catch {
-                return shareViaLinking('facebook_messenger', message, url);
+            if (nativeShare && Social) {
+                try {
+                    await nativeShare.shareSingle({
+                        social: Social.Messenger,
+                        message: shareText,
+                    });
+                    return true;
+                } catch {
+                    return shareViaLinking('facebook_messenger', message, url);
+                }
             }
+            return shareViaLinking('facebook_messenger', message, url);
         }
         case 'facebook_stories': {
-            if (!cached) return false;
+            if (!cached || !Social) return false;
             await shareStory(Social.FacebookStories, cached, url);
             return true;
         }
         case 'snapchat':
         case 'snapchat_stories': {
-            if (!cached) return false;
+            if (!cached || !Social) return false;
             await shareSingleVideo(Social.Snapchat, cached, message);
             return true;
         }
         case 'tiktok': {
             if (!cached) return false;
-            await Share.open({
+            await openNativeShare({
                 url: cached.localUri,
                 type: cached.mimeType,
                 message,
                 title: 'Share to TikTok',
-                useInternalStorage: true,
-                failOnCancel: false,
             });
             return true;
         }
         case 'telegram': {
-            if (cached) {
+            if (cached && Social) {
                 await shareSingleVideo(Social.Telegram, cached, shareText);
                 return true;
             }
             return shareViaLinking('telegram', message, url);
         }
         case 'messages': {
-            if (cached && Platform.OS === 'ios') {
-                await Share.shareSingle({
+            if (cached && Platform.OS === 'ios' && nativeShare && Social) {
+                await nativeShare.shareSingle({
                     social: Social.Sms,
                     url: cached.localUri,
                     type: cached.mimeType,
@@ -456,8 +526,8 @@ export async function executeShareTarget({
             return shareViaLinking('messages', message, url);
         }
         case 'x': {
-            if (Platform.OS === 'ios') {
-                await Share.shareSingle({
+            if (Platform.OS === 'ios' && nativeShare && Social) {
+                await nativeShare.shareSingle({
                     social: Social.Twitter,
                     message: shareText,
                     url,
@@ -468,31 +538,26 @@ export async function executeShareTarget({
         }
         case 'share_video': {
             if (!cached) return false;
-            await Share.open({
+            await openNativeShare({
                 url: cached.localUri,
                 type: cached.mimeType,
                 message: shareText,
                 title: 'Share video',
-                useInternalStorage: true,
-                failOnCancel: false,
             });
             return true;
         }
         case 'other': {
             if (cached) {
-                await Share.open({
+                await openNativeShare({
                     url: cached.localUri,
                     type: cached.mimeType,
                     message: shareText,
                     title: 'Share',
-                    useInternalStorage: true,
-                    failOnCancel: false,
                 });
             } else {
-                await Share.open({
+                await openNativeShare({
                     message: shareText,
                     url,
-                    failOnCancel: false,
                 });
             }
             return true;
