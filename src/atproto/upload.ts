@@ -1,5 +1,5 @@
 import { AppBskyEmbedVideo, AtpAgent, type BlobRef } from '@atproto/api';
-import { File } from 'expo-file-system';
+import { File, UploadType } from 'expo-file-system';
 import { Image } from 'react-native';
 
 import { getAgent } from './agent';
@@ -25,13 +25,38 @@ export type AtprotoUploadResult = {
 const VIDEO_PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
 const VIDEO_POLL_INTERVAL_MS = 1000;
 
-async function readFileBytes(uri: string): Promise<Uint8Array> {
+function getMediaFile(uri: string): File {
     const fileUri = uri.startsWith('file://') ? uri : `file://${uri}`;
     const file = new File(fileUri);
     if (!file.exists) {
         throw new Error('Media file not found. Try capturing again.');
     }
-    return file.bytes();
+    return file;
+}
+
+/** Native binary upload — streams from disk without loading the file into JS heap. */
+async function uploadFileBinary(
+    file: File,
+    url: string,
+    contentType: string,
+    authToken: string,
+    onProgress?: (message: string) => void,
+): Promise<{ status: number; body: string }> {
+    return file.upload(url, {
+        httpMethod: 'POST',
+        uploadType: UploadType.BINARY_CONTENT,
+        mimeType: contentType,
+        headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': contentType,
+        },
+        onProgress: ({ bytesSent, totalBytes }) => {
+            if (totalBytes > 0 && onProgress) {
+                const pct = Math.round((bytesSent / totalBytes) * 100);
+                onProgress(`Uploading… ${pct}%`);
+            }
+        },
+    });
 }
 
 async function getImageDimensions(uri: string): Promise<{ width: number; height: number }> {
@@ -116,7 +141,7 @@ function parseUploadError(responseText: string, status: number, label: string): 
 /** OAuth session tokens lack blob scope; use PDS service-auth like video uploads. */
 async function uploadPhotoBlobViaService(
     agent: ReturnType<typeof getAgent>,
-    bytes: Uint8Array,
+    file: File,
     onProgress?: (message: string) => void,
 ): Promise<BlobRef> {
     const serviceAuth = await getBlobUploadServiceAuth(agent);
@@ -124,19 +149,16 @@ async function uploadPhotoBlobViaService(
 
     onProgress?.('Uploading photo…');
 
-    const uploadResponse = await fetch(uploadUrl.toString(), {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${serviceAuth.token}`,
-            'Content-Type': 'image/jpeg',
-            'Content-Length': String(bytes.byteLength),
-        },
-        body: bytes,
-    });
+    const { status, body: responseText } = await uploadFileBinary(
+        file,
+        uploadUrl.toString(),
+        'image/jpeg',
+        serviceAuth.token,
+        onProgress,
+    );
 
-    const responseText = await uploadResponse.text();
-    if (!uploadResponse.ok) {
-        parseUploadError(responseText, uploadResponse.status, 'Photo upload failed');
+    if (status < 200 || status >= 300) {
+        parseUploadError(responseText, status, 'Photo upload failed');
     }
 
     const data = JSON.parse(responseText) as { blob: BlobRef };
@@ -145,30 +167,26 @@ async function uploadPhotoBlobViaService(
 
 async function uploadVideoViaService(
     agent: ReturnType<typeof getAgent>,
-    bytes: Uint8Array,
-    fileUri: string,
+    file: File,
     onProgress?: (message: string) => void,
 ): Promise<BlobRef> {
     const serviceAuth = await getBlobUploadServiceAuth(agent);
 
-    const filename = fileUri.split('/').pop() || `upload_${Date.now()}.mp4`;
+    const filename = file.name || `upload_${Date.now()}.mp4`;
     const uploadUrl = new URL('https://video.bsky.app/xrpc/app.bsky.video.uploadVideo');
-    uploadUrl.searchParams.set('did', agent.session.did);
+    uploadUrl.searchParams.set('did', agent.session!.did);
     uploadUrl.searchParams.set('name', filename);
 
     onProgress?.('Uploading video…');
 
-    const uploadResponse = await fetch(uploadUrl.toString(), {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${serviceAuth.token}`,
-            'Content-Type': 'video/mp4',
-            'Content-Length': String(bytes.byteLength),
-        },
-        body: bytes,
-    });
+    const { status, body: responseText } = await uploadFileBinary(
+        file,
+        uploadUrl.toString(),
+        'video/mp4',
+        serviceAuth.token,
+        onProgress,
+    );
 
-    const responseText = await uploadResponse.text();
     let jobStatus: {
         jobId?: string;
         blob?: BlobRef;
@@ -179,11 +197,11 @@ async function uploadVideoViaService(
         jobStatus = JSON.parse(responseText) as typeof jobStatus;
     } catch {
         throw new Error(
-            `Video upload failed (${uploadResponse.status}): ${responseText.slice(0, 200) || 'invalid response'}`,
+            `Video upload failed (${status}): ${responseText.slice(0, 200) || 'invalid response'}`,
         );
     }
 
-    if (!uploadResponse.ok && !jobStatus.blob) {
+    if ((status < 200 || status >= 300) && !jobStatus.blob) {
         throw new Error(jobStatus.message || jobStatus.error || 'Video upload failed');
     }
 
@@ -226,14 +244,13 @@ export async function uploadMediaPost(options: AtprotoUploadOptions): Promise<At
         throw new Error('Not authenticated');
     }
 
-    options.onProgress?.('Reading media…');
-    const bytes = await readFileBytes(options.fileUri);
+    const file = getMediaFile(options.fileUri);
     const langs = options.lang ? [options.lang] : ['en'];
     const labels = selfLabels(!!options.isSensitive);
 
     if (options.isPhoto) {
         const [blob, aspectRatio] = await Promise.all([
-            uploadPhotoBlobViaService(agent, bytes, options.onProgress),
+            uploadPhotoBlobViaService(agent, file, options.onProgress),
             getImageDimensions(options.fileUri).catch(() => ({
                 width: 1,
                 height: 1,
@@ -258,7 +275,7 @@ export async function uploadMediaPost(options: AtprotoUploadOptions): Promise<At
         return { uri: result.uri, cid: result.cid };
     }
 
-    const blob = await uploadVideoViaService(agent, bytes, options.fileUri, options.onProgress);
+    const blob = await uploadVideoViaService(agent, file, options.onProgress);
 
     options.onProgress?.('Posting…');
     const result = await agent.post({
