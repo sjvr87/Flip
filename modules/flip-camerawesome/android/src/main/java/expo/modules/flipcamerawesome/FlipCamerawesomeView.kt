@@ -13,6 +13,7 @@ import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
 import java.io.File
+import java.util.concurrent.Executors
 
 class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   ExpoView(context, appContext) {
@@ -36,6 +37,9 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
   private var isSyncingLayout = false
   private var lastSyncedWidth = 0
   private var lastSyncedHeight = 0
+  private val recordingSegments = mutableListOf<File>()
+  private var pendingLensSwitch = false
+  private val mergeExecutor = Executors.newSingleThreadExecutor()
 
   val onCameraReady by EventDispatcher()
   val onRecordingFinished by EventDispatcher()
@@ -46,8 +50,17 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
 
   var facing: String = "back"
     set(value) {
+      if (field == value) return
+      val activeSession = session
+      if (recording && activeSession?.isRecording() == true) {
+        field = value
+        pendingLensSwitch = true
+        activeSession.beginSegmentTransition()
+        activeSession.stopRecording()
+        return
+      }
       field = value
-      session?.setLensFacing(value)
+      activeSession?.setLensFacing(value)
     }
 
   var zoom: Float = 1f
@@ -85,9 +98,12 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       if (field == value) return
       field = value
       if (value) {
+        recordingSegments.clear()
+        pendingLensSwitch = false
         startRecordingInternal()
       } else {
         pendingStartRecording = false
+        pendingLensSwitch = false
         session?.stopRecording()
       }
     }
@@ -274,6 +290,15 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
     )
   }
 
+  /** CameraX StatFs needs a real file on disk — a bare File(path) throws ENOENT at record start. */
+  private fun createCacheOutputFile(suffix: String): File {
+    val cacheDir = context.cacheDir
+    if (!cacheDir.exists()) {
+      cacheDir.mkdirs()
+    }
+    return File.createTempFile("flip_", suffix, cacheDir)
+  }
+
   private fun startRecordingInternal() {
     val activeSession = session
     if (activeSession == null) {
@@ -281,17 +306,16 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
       return
     }
 
-    val cacheDir = context.cacheDir
-    val outputFile = File(cacheDir, "flip_${System.currentTimeMillis()}.mp4")
+    val outputFile = createCacheOutputFile(".mp4")
 
     activeSession.startRecording(
       outputFile = outputFile,
       enableAudio = true,
-      onFinished = { path ->
-        onRecordingFinished(mapOf("path" to path, "uri" to "file://$path"))
-      },
+      onFinished = { path -> dispatchRecordingFinished(path) },
       onFailed = { msg ->
         pendingStartRecording = false
+        pendingLensSwitch = false
+        recordingSegments.clear()
         if (recording) {
           recording = false
         } else {
@@ -303,13 +327,53 @@ class FlipCamerawesomeView(context: Context, appContext: AppContext) :
     )
   }
 
+  private fun dispatchRecordingFinished(path: String) {
+    if (pendingLensSwitch) {
+      recordingSegments.add(File(path))
+      pendingLensSwitch = false
+      session?.setLensFacing(facing)
+      if (recording) {
+        post { startRecordingInternal() }
+      }
+      return
+    }
+
+    val segments =
+      if (recordingSegments.isEmpty()) {
+        listOf(File(path))
+      } else {
+        recordingSegments.toMutableList().apply { add(File(path)) }.also { recordingSegments.clear() }
+      }
+
+    if (segments.size == 1) {
+      val single = segments[0].absolutePath
+      onRecordingFinished(mapOf("path" to single, "uri" to "file://$single"))
+      return
+    }
+
+    val merged = createCacheOutputFile(".mp4")
+    mergeExecutor.execute {
+      val ok = FlipVideoMerger.mergeMp4Segments(segments, merged)
+      post {
+        if (ok) {
+          segments.forEach { runCatching { it.delete() } }
+          val mergedPath = merged.absolutePath
+          onRecordingFinished(mapOf("path" to mergedPath, "uri" to "file://$mergedPath"))
+        } else {
+          val fallback = segments.last().absolutePath
+          onRecordingFinished(mapOf("path" to fallback, "uri" to "file://$fallback"))
+        }
+      }
+    }
+  }
+
   private fun takePhotoInternal() {
     val activeSession = session ?: run {
       onPhotoCaptureError(mapOf("message" to "Camera not ready"))
       return
     }
 
-    val outputFile = File(context.cacheDir, "flip_${System.currentTimeMillis()}.jpg")
+    val outputFile = createCacheOutputFile(".jpg")
     activeSession.takePicture(
       outputFile = outputFile,
       onFinished = { path ->

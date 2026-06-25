@@ -56,6 +56,8 @@ class FlipCameraSession(
   @Volatile private var recordingStarting = false
   /** Set only while start() runs — blocks preview surface rebind during the race window. */
   @Volatile private var pausePreviewRefresh = false
+  /** Lens-flip segment handoff — skip post-finalize rebind until the next segment starts. */
+  @Volatile private var segmentTransition = false
   private var recordingGeneration = 0
   private var profile: ResolvedCaptureProfile = FlipCaptureProfile.defaultStandardProfile()
   private var lensFacing: Int =
@@ -64,6 +66,11 @@ class FlipCameraSession(
   private var torchEnabled: Boolean = initialTorch
 
   fun isRecording(): Boolean = activeRecording != null || recordingStarting
+
+  /** Call before stopRecording when flipping lenses mid-clip (segment finalize, not final stop). */
+  fun beginSegmentTransition() {
+    segmentTransition = true
+  }
 
   fun currentProfile(): ResolvedCaptureProfile = profile
 
@@ -261,22 +268,30 @@ class FlipCameraSession(
                   activeRecording = null
                 }
                 if (generation != recordingGeneration) {
+                  segmentTransition = false
                   schedulePreviewRefresh()
                   return@start
                 }
                 schedulePreviewRefresh()
                 schedulePreviewSurfaceReconnect(150)
                 if (event.hasError()) {
+                  segmentTransition = false
                   notifyRecordingFailed(
                     generation,
                     onFailed,
                     "Recording error: ${event.error}",
                   )
                 } else {
+                  val keepRecorderForNextSegment = segmentTransition
+                  if (segmentTransition) {
+                    segmentTransition = false
+                  }
                   mainExecutor.execute {
                     onFinished(outputFile.absolutePath)
                   }
-                  schedulePostFinalizeRebind()
+                  if (!keepRecorderForNextSegment) {
+                    schedulePostFinalizeRebind()
+                  }
                 }
               }
               else -> Unit
@@ -358,7 +373,7 @@ class FlipCameraSession(
   }
 
   fun stopRecording() {
-    ++recordingGeneration
+    // Do not bump recordingGeneration — intentional stop must still deliver Finalize → onFinished.
     recordingStarting = false
     pausePreviewRefresh = false
     val recording = activeRecording
@@ -367,7 +382,9 @@ class FlipCameraSession(
     schedulePreviewRefresh()
     // Rebind soon — surface-only refresh leaves a dead TextureView / stale Recorder on Samsung.
     schedulePreviewSurfaceReconnect(150)
-    schedulePostFinalizeRebind()
+    if (!segmentTransition) {
+      schedulePostFinalizeRebind()
+    }
   }
 
   /**

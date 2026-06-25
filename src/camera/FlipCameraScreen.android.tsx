@@ -99,6 +99,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const [photoRequestId, setPhotoRequestId] = useState(0);
     const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
     const recordingRef = useRef(false);
+    const recordingDurationRef = useRef(0);
     const lastNativeZoomRef = useRef(1);
     const [cameraSessionKey, setCameraSessionKey] = useState(0);
 
@@ -122,6 +123,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
     const recoverCamera = useCallback(() => {
         recordingRef.current = false;
+        recordingDurationRef.current = 0;
         setIsRecording(false);
         setRecordingDuration(0);
         setIsCameraReady(false);
@@ -227,6 +229,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         const startTime = Date.now();
         recordingTimer.current = setInterval(() => {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            recordingDurationRef.current = elapsed;
             setRecordingDuration(elapsed);
             if (elapsed >= MAX_RECORDING_SECONDS) {
                 stopRecording();
@@ -446,7 +449,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
                             recordingRef.current = false;
                             setIsRecording(false);
                             const path = e.nativeEvent.uri || e.nativeEvent.path;
-                            navigateToPreview(path, recordingDuration, 'video');
+                            navigateToPreview(path, recordingDurationRef.current, 'video');
                         }}
                         onPhotoCaptured={(e) => {
                             const path = e.nativeEvent.uri || e.nativeEvent.path;
@@ -515,7 +518,6 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             <View style={styles.rightControls}>
                 <PressableHaptics
                     onPress={() => {
-                        if (isRecording) stopRecording();
                         setCameraPosition((p) => (p === 'back' ? 'front' : 'back'));
                     }}
                     style={styles.controlButton}>
