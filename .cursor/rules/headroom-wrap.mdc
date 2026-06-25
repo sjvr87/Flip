@@ -1,0 +1,34 @@
+---
+description: Run headroom wrap cursor in the project directory before starting work to enable the token-compression proxy.
+alwaysApply: true
+---
+
+# Headroom — token-compression proxy for Cursor
+
+At the start of every session, run:
+
+```bash
+headroom wrap cursor
+```
+
+from the **Flip repo root** (`/path/to/Flip`). This starts the Headroom proxy on `http://127.0.0.1:8787` and ensures the `.cursorrules` RTK instructions are up-to-date.
+
+## One-time setup (if not already done)
+
+```bash
+pip install "headroom-ai[proxy,mcp]"
+```
+
+## Configure Cursor
+
+After the proxy is running, set in **Cursor → Settings → Models**:
+
+| Model family | Base URL override |
+|---|---|
+| OpenAI | `http://127.0.0.1:8787/p/Flip/v1` |
+| Anthropic | `http://127.0.0.1:8787/p/Flip` |
+
+## Why
+
+Headroom compresses tool outputs, logs, RAG chunks, and conversation history before they reach the LLM — typically **60–95% fewer tokens** with identical results.  
+See `.cursorrules` for the `rtk` command-prefix rules that apply inside this repo.
