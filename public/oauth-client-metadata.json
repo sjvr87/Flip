@@ -1,10 +1,10 @@
 {
-  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-pin-3/assets/oauth-client-metadata.json",
+  "client_id": "https://cdn.jsdelivr.net/gh/sjvr87/Flip@oauth-pin-4/assets/oauth-client-metadata.json",
   "client_name": "Flip",
   "client_uri": "https://cdn.jsdelivr.net/",
   "logo_uri": "https://flip.app/icon.png",
   "redirect_uris": ["net.jsdelivr.cdn:/oauth/callback"],
-  "scope": "atproto repo:* blob:*/* rpc:*?aud=did:web:api.bsky.app#bsky_appview",
+  "scope": "atproto repo:* blob:*/* rpc:*?aud=did:web:api.bsky.app#bsky_appview rpc:com.atproto.repo.uploadBlob?aud=*",
   "token_endpoint_auth_method": "none",
   "response_types": ["code"],
   "grant_types": ["authorization_code", "refresh_token"],

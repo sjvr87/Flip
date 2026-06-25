@@ -2,7 +2,7 @@ import { AppBskyEmbedVideo, AtpAgent, type BlobRef } from '@atproto/api';
 import { File, UploadType } from 'expo-file-system';
 import { Image } from 'react-native';
 
-import { getAgent, getPdsDispatchUrl } from './agent';
+import { getAgent, getPdsDispatchUrl, isOAuthAuthenticated } from './agent';
 import type { FlipAudioSource, FlipPermissions } from './types';
 
 export type AtprotoUploadOptions = {
@@ -115,6 +115,21 @@ function postRecordBase(
     };
 }
 
+function isOAuthScopeError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('Missing required scope') || message.includes('ScopeMissing');
+}
+
+function reauthRequiredForUpload(error: unknown): never {
+    if (isOAuthScopeError(error) && isOAuthAuthenticated()) {
+        throw new Error(
+            'Upload needs updated Bluesky permissions. Sign out and sign in again, then retry.',
+        );
+    }
+    throw error;
+}
+
+/** PDS service-auth for uploadBlob — required for video and OAuth fallback for photos. */
 async function getBlobUploadServiceAuth(
     agent: ReturnType<typeof getAgent>,
     pdsUrl: URL,
@@ -122,12 +137,16 @@ async function getBlobUploadServiceAuth(
     if (!agent.session) throw new Error('Not authenticated');
 
     const pdsHost = pdsUrl.host;
-    const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
-        aud: `did:web:${pdsHost}`,
-        lxm: 'com.atproto.repo.uploadBlob',
-        exp: Math.floor(Date.now() / 1000) + 60 * 30,
-    });
-    return serviceAuth;
+    try {
+        const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
+            aud: `did:web:${pdsHost}`,
+            lxm: 'com.atproto.repo.uploadBlob',
+            exp: Math.floor(Date.now() / 1000) + 60 * 30,
+        });
+        return serviceAuth;
+    } catch (error) {
+        reauthRequiredForUpload(error);
+    }
 }
 
 function parseUploadError(responseText: string, status: number, label: string): never {
@@ -141,7 +160,18 @@ function parseUploadError(responseText: string, status: number, label: string): 
     throw new Error(`${label} (${status}): ${message}`);
 }
 
-/** OAuth session tokens lack blob scope; use PDS service-auth like video uploads. */
+/** OAuth with blob:*/* can upload directly; smaller photos only (loads into heap). */
+async function uploadPhotoBlobViaOAuth(
+    agent: ReturnType<typeof getAgent>,
+    file: File,
+    onProgress?: (message: string) => void,
+): Promise<BlobRef> {
+    onProgress?.('Uploading photo…');
+    const bytes = await file.bytes();
+    const { data } = await agent.uploadBlob(bytes, { encoding: 'image/jpeg' });
+    return data.blob;
+}
+
 async function uploadPhotoBlobViaService(
     agent: ReturnType<typeof getAgent>,
     file: File,
@@ -167,6 +197,21 @@ async function uploadPhotoBlobViaService(
 
     const data = JSON.parse(responseText) as { blob: BlobRef };
     return data.blob;
+}
+
+async function uploadPhotoBlob(
+    agent: ReturnType<typeof getAgent>,
+    file: File,
+    onProgress?: (message: string) => void,
+): Promise<BlobRef> {
+    if (isOAuthAuthenticated()) {
+        try {
+            return await uploadPhotoBlobViaOAuth(agent, file, onProgress);
+        } catch (error) {
+            if (!isOAuthScopeError(error)) throw error;
+        }
+    }
+    return uploadPhotoBlobViaService(agent, file, onProgress);
 }
 
 async function uploadVideoViaService(
@@ -255,7 +300,7 @@ export async function uploadMediaPost(options: AtprotoUploadOptions): Promise<At
 
     if (options.isPhoto) {
         const [blob, aspectRatio] = await Promise.all([
-            uploadPhotoBlobViaService(agent, file, options.onProgress),
+            uploadPhotoBlob(agent, file, options.onProgress),
             getImageDimensions(options.fileUri).catch(() => ({
                 width: 1,
                 height: 1,
