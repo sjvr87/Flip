@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
     },
     videoTapOverlay: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         backgroundColor: 'rgba(0,0,0,0.001)',
     },
     topBar: {

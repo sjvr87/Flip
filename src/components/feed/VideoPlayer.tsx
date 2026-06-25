@@ -37,7 +37,6 @@ import {
     Dimensions,
     InteractionManager,
     Platform,
-    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,

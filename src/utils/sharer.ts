@@ -29,11 +29,9 @@ export const shareContent = async ({ message, url }: ShareParams) => {
             },
             android: {
                 message: formatShareText(message, url),
-                url,
             },
             default: {
                 message: formatShareText(message, url),
-                url,
             },
         });
 
