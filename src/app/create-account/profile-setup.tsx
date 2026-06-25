@@ -1,5 +1,6 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
+import { Storage } from '@/utils/cache';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -64,7 +65,19 @@ export default function ProfileSetupScreen() {
     };
 
     const handleFinish = () => {
-        // Save profile customizations (stored locally for now; server sync in later phase)
+        // Persist profile customizations locally (server sync in later phase)
+        Storage.set(
+            'flip.profile.setup',
+            JSON.stringify({
+                displayName,
+                bio,
+                theme: selectedTheme,
+                font: selectedFont,
+                profileSong,
+                songArtist,
+                top8,
+            }),
+        );
         completeOnboarding();
         router.replace('/(tabs)');
     };

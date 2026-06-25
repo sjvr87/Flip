@@ -46,7 +46,7 @@ function isValidPhone(phone: string): boolean {
 
 function isValidHandle(handle: string): boolean {
     const cleaned = handle.replace(/^@/, '').split('.')[0];
-    return /^[a-zA-Z0-9]([a-zA-Z0-9-]{1,18}[a-zA-Z0-9])?$/.test(cleaned);
+    return /^[a-zA-Z0-9][a-zA-Z0-9-]{1,18}[a-zA-Z0-9]$/.test(cleaned);
 }
 
 export default function CreateAccountScreen() {
@@ -158,7 +158,11 @@ export default function CreateAccountScreen() {
                     return false;
                 }
                 const birthDate = new Date(year, month - 1, day);
-                if (isNaN(birthDate.getTime())) {
+                if (
+                    isNaN(birthDate.getTime()) ||
+                    birthDate.getMonth() !== month - 1 ||
+                    birthDate.getDate() !== day
+                ) {
                     setError('Enter a valid date of birth.');
                     return false;
                 }
@@ -334,6 +338,8 @@ export default function CreateAccountScreen() {
                                     value={phoneCode}
                                     onChangeText={(text) => {
                                         setPhoneCode(text);
+                                        // TODO: Wire to real SMS verification API (e.g. Twilio).
+                                        // Currently auto-verifies for development/beta testing.
                                         if (text.length >= 6) {
                                             setPhoneVerified(true);
                                         }
