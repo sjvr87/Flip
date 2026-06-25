@@ -2,7 +2,7 @@ import { AppBskyEmbedVideo, AtpAgent, type BlobRef } from '@atproto/api';
 import { File, UploadType } from 'expo-file-system';
 import { Image } from 'react-native';
 
-import { getAgent } from './agent';
+import { getAgent, getPdsDispatchUrl } from './agent';
 import type { FlipAudioSource, FlipPermissions } from './types';
 
 export type AtprotoUploadOptions = {
@@ -115,10 +115,13 @@ function postRecordBase(
     };
 }
 
-async function getBlobUploadServiceAuth(agent: ReturnType<typeof getAgent>) {
+async function getBlobUploadServiceAuth(
+    agent: ReturnType<typeof getAgent>,
+    pdsUrl: URL,
+) {
     if (!agent.session) throw new Error('Not authenticated');
 
-    const pdsHost = agent.dispatchUrl.host;
+    const pdsHost = pdsUrl.host;
     const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
         aud: `did:web:${pdsHost}`,
         lxm: 'com.atproto.repo.uploadBlob',
@@ -144,8 +147,9 @@ async function uploadPhotoBlobViaService(
     file: File,
     onProgress?: (message: string) => void,
 ): Promise<BlobRef> {
-    const serviceAuth = await getBlobUploadServiceAuth(agent);
-    const uploadUrl = new URL('/xrpc/com.atproto.repo.uploadBlob', agent.dispatchUrl);
+    const pdsUrl = await getPdsDispatchUrl(agent);
+    const serviceAuth = await getBlobUploadServiceAuth(agent, pdsUrl);
+    const uploadUrl = new URL('/xrpc/com.atproto.repo.uploadBlob', pdsUrl);
 
     onProgress?.('Uploading photo…');
 
@@ -170,7 +174,8 @@ async function uploadVideoViaService(
     file: File,
     onProgress?: (message: string) => void,
 ): Promise<BlobRef> {
-    const serviceAuth = await getBlobUploadServiceAuth(agent);
+    const pdsUrl = await getPdsDispatchUrl(agent);
+    const serviceAuth = await getBlobUploadServiceAuth(agent, pdsUrl);
 
     const filename = file.name || `upload_${Date.now()}.mp4`;
     const uploadUrl = new URL('https://video.bsky.app/xrpc/app.bsky.video.uploadVideo');

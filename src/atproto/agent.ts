@@ -298,6 +298,25 @@ export function getServiceUrl(): string {
     return Storage.getString(SERVICE_KEY) || DEFAULT_SERVICE;
 }
 
+/** PDS base URL for blob uploads — OAuth agents lack BskyAgent.dispatchUrl. */
+export async function getPdsDispatchUrl(
+    agent: BskyAgent | OAuthBackedAgent = getAgent(),
+): Promise<URL> {
+    const credentialDispatch = (agent as BskyAgent).dispatchUrl;
+    if (credentialDispatch) {
+        return credentialDispatch;
+    }
+
+    if (activeOAuthSession) {
+        const { aud } = await activeOAuthSession.getTokenInfo();
+        if (aud) {
+            return new URL(aud);
+        }
+    }
+
+    return new URL(getServiceUrl());
+}
+
 export function getCredentialAgent(): BskyAgent {
     if (!agent) {
         agent = createAgent(getServiceUrl());
