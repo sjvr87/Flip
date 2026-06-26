@@ -198,6 +198,11 @@ export function computeFeedVideoViewport(
     return { topInset, bottomReserved, viewportHeight };
 }
 
+/** Full-screen video band — tab/status chrome are overlays, not letterbox gaps. */
+export function getFeedVideoBandInsets(): { top: number; bottom: number } {
+    return { top: 0, bottom: 0 };
+}
+
 /** @deprecated Use `useFlipTabBarMetrics` or `computeFlipTabBarMetrics` */
 export function getTabBarHeight(bottomInset: number): number {
     return computeFlipTabBarMetrics(bottomInset).totalHeight;

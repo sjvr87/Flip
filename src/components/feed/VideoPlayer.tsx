@@ -101,10 +101,10 @@ function VideoSlidePlaceholder({
 }) {
     const thumbnail = item.media?.thumbnail;
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle = {
-        top: videoTopInset,
-        bottom: videoBottomReserved,
-    };
+    const videoBandStyle =
+        videoTopInset === 0 && videoBottomReserved === 0
+            ? { top: 0, left: 0, right: 0, height: slideHeight }
+            : { top: videoTopInset, bottom: videoBottomReserved };
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
@@ -246,10 +246,10 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle = {
-        top: videoTopInset,
-        bottom: videoBottomReserved,
-    };
+    const videoBandStyle =
+        videoTopInset === 0 && videoBottomReserved === 0
+            ? { top: 0, left: 0, right: 0, height: slideHeight }
+            : { top: videoTopInset, bottom: videoBottomReserved };
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
@@ -995,7 +995,7 @@ function VideoPlayerCore({
                         allowsPictureInPicture={false}
                         nativeControls={false}
                         pointerEvents="none"
-                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        surfaceType="surfaceView"
                         onFirstFrameRender={handleFirstFrameRender}
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}

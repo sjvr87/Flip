@@ -39,7 +39,7 @@ import {
     setAppInForeground,
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
-import { computeFeedVideoViewport, useFlipTabBarMetrics } from '@/utils/tabBarLayout';
+import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets } from '@/utils/tabBarLayout';
 import { resolveFeedSnapIndex } from '@/utils/feedScrollSnap';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -230,6 +230,7 @@ export default function LoopsFeed({ navigation }) {
     const feedHeight = PixelRatio.roundToNearestPixel(windowHeight);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
+    const feedVideoBand = useMemo(() => getFeedVideoBandInsets(), []);
     const feedVideoViewport = useMemo(
         () => computeFeedVideoViewport(windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved),
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
@@ -274,6 +275,7 @@ export default function LoopsFeed({ navigation }) {
     useEffect(() => subscribeFeedPlaybackActive(setGuardPlaybackActive), []);
     const flatListRef = useRef(null);
     const isSnappingRef = useRef(false);
+    const scrollStartIndexRef = useRef(0);
     const router = useRouter();
     const queryClient = useQueryClient();
     const currentVideoRef = useRef(null);
@@ -978,8 +980,8 @@ export default function LoopsFeed({ navigation }) {
                         activeIndex={currentIndex}
                         shouldPreload={shouldPreloadPlayer}
                         feedHeight={feedHeight}
-                        videoTopInset={feedVideoViewport.topInset}
-                        videoBottomReserved={feedVideoViewport.bottomReserved}
+                        videoTopInset={feedVideoBand.top}
+                        videoBottomReserved={feedVideoBand.bottom}
                         onLike={handleLike}
                         onComment={handleComment}
                         onCaptionExpand={handleCaptionExpand}
@@ -1010,8 +1012,8 @@ export default function LoopsFeed({ navigation }) {
             currentIndex,
             feedError,
             feedHeight,
-            feedVideoViewport.bottomReserved,
-            feedVideoViewport.topInset,
+            feedVideoBand.bottom,
+            feedVideoBand.top,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -1065,20 +1067,7 @@ export default function LoopsFeed({ navigation }) {
         maybeLoadMoreVideos(videosRef.current.length - 1);
     }, [maybeLoadMoreVideos]);
 
-    const snapFeedToIndex = useCallback(
-        (targetIndex: number, animated = true) => {
-            const maxIndex = Math.max(0, videosWithEnd.length - 1);
-            const clamped = Math.min(maxIndex, Math.max(0, targetIndex));
-            isSnappingRef.current = true;
-            flatListRef.current?.scrollToOffset({
-                offset: clamped * feedHeight,
-                animated,
-            });
-        },
-        [feedHeight, videosWithEnd.length],
-    );
-
-    const handleFeedScrollEnd = useCallback(
+    const snapFeedFromScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
             if (isSnappingRef.current) {
                 isSnappingRef.current = false;
@@ -1091,24 +1080,40 @@ export default function LoopsFeed({ navigation }) {
                 feedHeight,
                 velocity?.y,
                 videosWithEnd.length,
+                scrollStartIndexRef.current,
             );
             const targetOffset = target * feedHeight;
 
             if (Math.abs(contentOffset.y - targetOffset) > 2) {
-                snapFeedToIndex(target);
+                isSnappingRef.current = true;
+                flatListRef.current?.scrollToOffset({
+                    offset: targetOffset,
+                    animated: true,
+                });
             }
         },
-        [feedHeight, snapFeedToIndex, videosWithEnd.length],
+        [feedHeight, videosWithEnd.length],
     );
+
+    const handleScrollBeginDrag = useCallback(() => {
+        scrollStartIndexRef.current = currentIndexRef.current;
+    }, []);
 
     const handleScrollEndDrag = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
             const velocityY = event.nativeEvent.velocity?.y ?? 0;
-            if (Math.abs(velocityY) < 0.08) {
-                handleFeedScrollEnd(event);
+            if (Math.abs(velocityY) < 0.4) {
+                snapFeedFromScroll(event);
             }
         },
-        [handleFeedScrollEnd],
+        [snapFeedFromScroll],
+    );
+
+    const handleMomentumScrollEnd = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            snapFeedFromScroll(event);
+        },
+        [snapFeedFromScroll],
     );
 
     const getItemLayout = useCallback(
@@ -1238,9 +1243,10 @@ export default function LoopsFeed({ navigation }) {
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                     pagingEnabled={false}
                     showsVerticalScrollIndicator={false}
-                    decelerationRate={Platform.OS === 'ios' ? 0.99 : 0.985}
+                    decelerationRate={0.92}
+                    onScrollBeginDrag={handleScrollBeginDrag}
                     onScrollEndDrag={handleScrollEndDrag}
-                    onMomentumScrollEnd={handleFeedScrollEnd}
+                    onMomentumScrollEnd={handleMomentumScrollEnd}
                     scrollEventThrottle={16}
                     overScrollMode="never"
                     viewabilityConfig={viewabilityConfig.current}
@@ -1248,7 +1254,7 @@ export default function LoopsFeed({ navigation }) {
                     onEndReached={handleEndReached}
                     onEndReachedThreshold={0.5}
                     getItemLayout={getItemLayout}
-                    removeClippedSubviews={Platform.OS !== 'android'}
+                    removeClippedSubviews={false}
                     maxToRenderPerBatch={feedMaxToRenderPerBatch}
                     windowSize={feedFlatListWindowSize}
                     initialNumToRender={feedInitialNumToRender}
