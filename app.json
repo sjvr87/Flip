@@ -107,6 +107,8 @@
             "flipForYouFeed": "",
             "flipTrendingFeed": "",
             "flipLocalFeed": "",
+            "flipMultiverseEnabled": true,
+            "flipMultiverseApiUrl": "http://127.0.0.1:8788",
             "eas": {
                 "projectId": ""
             }

@@ -123,6 +123,12 @@ export default function SettingsScreen() {
                     onPress={() => handleCopyProfileLink()}
                 />
                 <Divider />
+                <SettingsItem
+                    icon="git-network-outline"
+                    label="Connected accounts"
+                    onPress={() => router.push('/private/settings/multiverse/connected-accounts')}
+                />
+                <Divider />
                 <SectionHeader title="Content & Display" />
                 <SettingsItem
                     icon={isDark ? 'sunny-outline' : 'moon-outline'}

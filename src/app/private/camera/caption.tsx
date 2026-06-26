@@ -40,10 +40,23 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { prepareImageForUpload, prepareVideoForUpload } from '@/utils/uploadCompression';
 import type { FlipAudioSource } from '@/atproto/types';
+import DestinationSelector from '@/multiverse/components/DestinationSelector';
+import PostDeliveryPanel from '@/multiverse/components/PostDeliveryPanel';
+import { createMultiversePost } from '@/multiverse/api';
+import { useConnectedAccounts } from '@/multiverse/hooks/useConnectedAccounts';
+import { usePostDeliveries } from '@/multiverse/hooks/usePostDeliveries';
+import { isMultiverseEnabled } from '@/multiverse/config';
+import { ensureMultiverseSession } from '@/multiverse/session';
+import type { PostDestination } from '@/multiverse/types';
+import { useAuthStore } from '@/utils/authStore';
 import tw from 'twrnc';
 
 const MAX_CAPTION_LENGTH = 200;
 const MAX_ALT_TEXT_LENGTH = 2000;
+
+function hasExternalDestinations(destinations: PostDestination[]): boolean {
+    return destinations.some((d) => d.enabled && d.provider !== 'flip');
+}
 
 function CaptionVideoThumb({ uri }: { uri: string }) {
     const player = useVideoPlayer(uri, () => {});
@@ -241,6 +254,13 @@ export default function CaptionScreen() {
     const isFocused = useIsFocused();
     const queryClient = useQueryClient();
     const atprotoUpload = usesAtprotoBackend();
+    const user = useAuthStore((s) => s.user);
+    const multiverseOn = isMultiverseEnabled();
+    const { data: connectedAccounts = [] } = useConnectedAccounts();
+    const [postDestinations, setPostDestinations] = useState<PostDestination[]>([]);
+    const [multiversePostId, setMultiversePostId] = useState<string | null>(null);
+    const { data: postDeliveries = [], isLoading: deliveriesLoading } =
+        usePostDeliveries(multiversePostId);
     const takePendingAudioReuse = usePendingAudioReuseStore((s) => s.takePending);
     const visibilityOptions = VISIBILITY.map((item) => ({
         ...item,
@@ -410,6 +430,28 @@ export default function CaptionScreen() {
             setOverlayMessage('Done!');
             const postUri = result?.json?.uri;
             const postCid = result?.json?.cid;
+
+            if (
+                multiverseOn &&
+                user?.id &&
+                hasExternalDestinations(variables.postDestinations ?? [])
+            ) {
+                try {
+                    setOverlayMessage('Cross-posting…');
+                    const token = await ensureMultiverseSession(user.id, user.username);
+                    const mv = await createMultiversePost(token, {
+                        text: variables?.caption ?? '',
+                        destinations: variables.postDestinations ?? [],
+                        flipPostUri: postUri ?? null,
+                        mediaType: variables?.isPhotoPost ? 'image' : 'video',
+                        mediaUri: result.uploadUri ?? null,
+                    });
+                    setMultiversePostId(mv.postId);
+                } catch (error) {
+                    console.warn('[multiverse] cross-post failed:', error);
+                }
+            }
+
             if (postUri && postCid) {
                 await prependPostedMediaToProfile(queryClient, {
                     uri: postUri,
@@ -452,6 +494,7 @@ export default function CaptionScreen() {
             selectedSound,
             isPhotoPost: isPhoto,
             reusedAudioSource,
+            postDestinations,
         });
     };
 
@@ -824,6 +867,21 @@ export default function CaptionScreen() {
                             color={isDark ? '#999' : '#999'}
                         />
                     </TouchableOpacity>
+
+                    {multiverseOn ? (
+                        <DestinationSelector
+                            accounts={connectedAccounts}
+                            value={postDestinations}
+                            onChange={setPostDestinations}
+                        />
+                    ) : null}
+
+                    {multiversePostId ? (
+                        <PostDeliveryPanel
+                            deliveries={postDeliveries}
+                            isLoading={deliveriesLoading}
+                        />
+                    ) : null}
                 </View>
             </ScrollView>
 
