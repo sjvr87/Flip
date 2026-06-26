@@ -115,6 +115,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
     };
 
+    const badgeIcon = getBadgeIcon();
+
     const showActionButtons = false;
 
     return (
@@ -126,14 +128,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
             <Pressable onPress={() => onProfilePress(item.actor, item)} style={tw`relative mr-3`}>
                 <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
-                {getBadgeIcon() && (
-                    <View
-                        style={[
-                            tw`absolute -bottom-1 -right-1 rounded-full p-1 bg-white dark:bg-gray-900`,
-                        ]}>
-                        {getBadgeIcon()}
-                    </View>
-                )}
+                {badgeIcon ? (
+                    <View style={tw`absolute -bottom-0.5 -right-0.5`}>{badgeIcon}</View>
+                ) : null}
             </Pressable>
 
             <Pressable onPress={() => onPress(item)} style={tw`flex-1 flex-row items-center`}>

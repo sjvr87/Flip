@@ -49,9 +49,8 @@ export function FollowerNotificationRow({
 
             <Pressable onPress={onProfilePress} style={tw`relative mr-3`}>
                 <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
-                <View
-                    style={tw`absolute -bottom-1 -right-1 rounded-full p-1 bg-white dark:bg-gray-900`}>
-                    <Ionicons name="person-add" size={14} color="#007AFF" />
+                <View style={tw`absolute -bottom-0.5 -right-0.5`}>
+                    <Ionicons name="person-add" size={16} color="#007AFF" />
                 </View>
             </Pressable>
 
