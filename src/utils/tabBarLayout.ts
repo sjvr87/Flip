@@ -13,6 +13,26 @@ export const TAB_BAR_SOLID_BG_LIGHT = 'rgba(255, 255, 255, 0.98)';
 export const TAB_BAR_PADDING_TOP = 0;
 /** Matches `TAB_ICON_SLOT_SIZE` in `(tabs)/_layout.tsx`. */
 export const TAB_BAR_ICON_ROW_HEIGHT = 42;
+/** Lift icons above the system nav / gesture bar (Samsung edge-to-edge). */
+const TAB_BAR_ICON_LIFT_DP = Platform.OS === 'android' ? 8 : 4;
+/** When SafeAreaProvider reports 0, gesture nav still needs clearance. */
+const ANDROID_MIN_NAV_INSET_DP = 28;
+
+function resolveTabBarBottomInset(rawBottomInset: number): number {
+    if (Platform.OS !== 'android') {
+        return rawBottomInset;
+    }
+    const minPx = PixelRatio.roundToNearestPixel(ANDROID_MIN_NAV_INSET_DP);
+    const tiny = PixelRatio.roundToNearestPixel(8);
+    if (rawBottomInset < tiny) {
+        return minPx;
+    }
+    return rawBottomInset;
+}
+
+function resolveTabBarIconLift(): number {
+    return PixelRatio.roundToNearestPixel(TAB_BAR_ICON_LIFT_DP);
+}
 
 /** @deprecated Prefer `useFlipTabBarMetrics().contentHeight` */
 export const TAB_BAR_CONTENT_HEIGHT = TAB_BAR_ICON_ROW_HEIGHT;
@@ -22,6 +42,8 @@ export type FlipTabBarMetrics = {
     bottomInset: number;
     paddingTop: number;
     paddingBottom: number;
+    /** Extra gap between icon row and system nav (tab item margin). */
+    iconLift: number;
     contentHeight: number;
     /** Icon row only — feed video `bottom` inset (excludes system nav padding). */
     feedVideoBottomReserved: number;
@@ -35,14 +57,16 @@ export type FlipTabBarMetrics = {
 
 export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics {
     const paddingTop = TAB_BAR_PADDING_TOP;
-    const paddingBottom = bottomInset;
+    const iconLift = resolveTabBarIconLift();
+    const paddingBottom = resolveTabBarBottomInset(bottomInset);
     const contentHeight = TAB_BAR_ICON_ROW_HEIGHT;
-    const totalHeight = paddingTop + contentHeight + paddingBottom;
+    const totalHeight = paddingTop + contentHeight + iconLift + paddingBottom;
 
     return {
         bottomInset,
         paddingTop,
         paddingBottom,
+        iconLift,
         contentHeight,
         feedVideoBottomReserved: contentHeight,
         totalHeight,

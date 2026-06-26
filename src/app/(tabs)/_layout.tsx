@@ -37,7 +37,7 @@ function TabIconSlot({ children }: { children: ReactNode }) {
 /** Scrim on icon row only; solid black under system nav inset (same footprint as other tabs). */
 function HomeTabBarBackground() {
     const tabBarMetrics = useFlipTabBarMetrics();
-    const iconBandHeight = tabBarMetrics.paddingTop + tabBarMetrics.contentHeight;
+    const iconBandHeight = tabBarMetrics.paddingTop + tabBarMetrics.contentHeight + tabBarMetrics.iconLift;
 
     return (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -131,7 +131,7 @@ export default function TabsLayout() {
                     paddingBottom: 0,
                     paddingHorizontal: 0,
                     marginTop: 0,
-                    marginBottom: 0,
+                    marginBottom: tabBarMetrics.iconLift,
                 },
                 tabBarIconStyle: {
                     width: TAB_ICON_SLOT_SIZE,

@@ -113,7 +113,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             <Text
                 x={CX}
-                y={25.0}
+                y={24.1}
                 fill={color}
                 opacity={strokeOpacity}
                 fontSize={LABEL_FONT_SIZE}
