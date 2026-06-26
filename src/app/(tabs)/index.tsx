@@ -1032,7 +1032,6 @@ export default function LoopsFeed({ navigation }) {
     );
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
-    const feedListEmpty = videosWithEnd.length === 0;
     const showInitialLoader = !feedQueryEnabled || (isLoading && !hasFeedData);
 
     useEffect(() => {
