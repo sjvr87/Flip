@@ -1,4 +1,5 @@
 import { getAgent, getServiceUrl, SessionExpiredError, withAuthenticatedFetch } from './agent';
+import { handleToUsername } from './identifiers';
 
 const CHAT_PROXY = 'did:web:api.bsky.chat#bsky_chat';
 
@@ -49,7 +50,7 @@ type MessageView = {
 
 function mapMember(member: ChatMember): FlipConvoMember {
     const handle = member.handle || member.did;
-    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const username = handleToUsername(handle);
     return {
         did: member.did,
         handle,

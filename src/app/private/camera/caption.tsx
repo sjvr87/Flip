@@ -46,6 +46,7 @@ import { createMultiversePost } from '@/multiverse/api';
 import { useConnectedAccounts } from '@/multiverse/hooks/useConnectedAccounts';
 import { usePostDeliveries } from '@/multiverse/hooks/usePostDeliveries';
 import { isMultiverseEnabled } from '@/multiverse/config';
+import { buildDefaultPostDestinations } from '@/multiverse/destinations';
 import { ensureMultiverseSession } from '@/multiverse/session';
 import type { PostDestination } from '@/multiverse/types';
 import { MultiverseProviderIds } from '@/multiverse/types';
@@ -57,7 +58,8 @@ const MAX_ALT_TEXT_LENGTH = 2000;
 
 function hasExternalDestinations(destinations: PostDestination[]): boolean {
     return destinations.some(
-        (d) => d.enabled && d.provider !== MultiverseProviderIds.FLIP_LOCAL && d.provider !== 'flip',
+        (d) =>
+            d.enabled && d.provider !== MultiverseProviderIds.FLIP_LOCAL && d.provider !== 'flip',
     );
 }
 
@@ -480,6 +482,10 @@ export default function CaptionScreen() {
     });
 
     const handlePost = () => {
+        const resolvedDestinations =
+            postDestinations.length > 0
+                ? postDestinations
+                : buildDefaultPostDestinations(connectedAccounts);
         postMutation.mutate({
             originalPath: mediaSourcePath,
             caption,
@@ -497,7 +503,7 @@ export default function CaptionScreen() {
             selectedSound,
             isPhotoPost: isPhoto,
             reusedAudioSource,
-            postDestinations,
+            postDestinations: resolvedDestinations,
         });
     };
 

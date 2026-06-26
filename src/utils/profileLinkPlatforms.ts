@@ -174,7 +174,10 @@ type HostRule = { hosts: string[]; platform: ProfileLinkPlatformId };
 
 const HOST_RULES: HostRule[] = [
     { hosts: ['instagram.com', 'instagr.am'], platform: 'instagram' },
-    { hosts: ['wa.me', 'whatsapp.com', 'api.whatsapp.com', 'chat.whatsapp.com'], platform: 'whatsapp' },
+    {
+        hosts: ['wa.me', 'whatsapp.com', 'api.whatsapp.com', 'chat.whatsapp.com'],
+        platform: 'whatsapp',
+    },
     { hosts: ['tiktok.com', 'vm.tiktok.com'], platform: 'tiktok' },
     { hosts: ['twitter.com', 'x.com'], platform: 'x' },
     { hosts: ['youtube.com', 'youtu.be', 'music.youtube.com'], platform: 'youtube' },

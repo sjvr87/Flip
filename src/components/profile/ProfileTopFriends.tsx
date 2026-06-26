@@ -26,7 +26,8 @@ export default function ProfileTopFriends({ topFriendIds, isOwner }: ProfileTopF
         if (!isOwner) return null;
         return (
             <Link href="/private/settings/account/edit-top-friends" asChild>
-                <Pressable style={tw`mx-5 mb-2 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 items-center`}>
+                <Pressable
+                    style={tw`mx-5 mb-2 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 items-center`}>
                     <StackText fontSize="$3" textColor="text-gray-600 dark:text-gray-300">
                         Add your Top 8
                     </StackText>

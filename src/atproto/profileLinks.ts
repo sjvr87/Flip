@@ -222,7 +222,9 @@ export async function deleteProfileLink(linkId: string): Promise<ProfileLinksPay
     return buildMeta(meta.data.id, next, profile.data.followersCount ?? 0);
 }
 
-export async function fetchProfileLinkAnalytics(): Promise<{ data: { url: string; clicks: number }[] }> {
+export async function fetchProfileLinkAnalytics(): Promise<{
+    data: { url: string; clicks: number }[];
+}> {
     const meta = await getProfileLinksForSelf();
     const clickMap = readClickMap();
     return {

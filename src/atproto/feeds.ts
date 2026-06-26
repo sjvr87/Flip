@@ -26,6 +26,7 @@ import {
     SessionExpiredError,
     withAuthenticatedFetch,
 } from './agent';
+import { handleShortAlias } from './identifiers';
 import { normalizeToPostUri, resolveDisplayPostUri, resolveMediaPostView } from './postResolve';
 import type { FlipFeedPage, FlipTextPost, FlipVideo } from './types';
 
@@ -154,7 +155,7 @@ function addFollowIdentity(ids: Set<string>, profile: { did: string; handle?: st
         return;
     }
     ids.add(handle);
-    const short = handle.includes('.') ? handle.split('.')[0]! : handle;
+    const short = handleShortAlias(handle);
     if (short) {
         ids.add(short);
     }
@@ -441,10 +442,7 @@ async function fetchDiscoveryUntilNonFollow(
         nextCursor = page.meta.next_cursor;
 
         if (followingFilter.active) {
-            const { nonFollow, fromFollow } = partitionByFollowing(
-                page.data,
-                followingFilter.dids,
-            );
+            const { nonFollow, fromFollow } = partitionByFollowing(page.data, followingFilter.dids);
             if (preferMixed) {
                 addVideos(nonFollow);
                 if (videos.length < MIN_VIDEOS_PER_PAGE) {
@@ -482,9 +480,7 @@ async function fetchDiscoveryUntilNonFollow(
         apiCursor = nextCursor;
     }
 
-    const resultVideos = preferMixed
-        ? prioritizeDiscoveryVideos(videos, followingFilter)
-        : videos;
+    const resultVideos = preferMixed ? prioritizeDiscoveryVideos(videos, followingFilter) : videos;
 
     return { videos: resultVideos, nextCursor };
 }
@@ -514,11 +510,7 @@ async function supplementDiscoveryPage(
 
     const nonFollowCount = filter.active ? countNonFollowVideos(page.data, filter.dids) : 0;
 
-    if (
-        filter.active &&
-        excludeFollowed &&
-        nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS
-    ) {
+    if (filter.active && excludeFollowed && nonFollowCount >= DISCOVERY_MIN_NON_FOLLOW_VIDEOS) {
         return page;
     }
 
@@ -1174,9 +1166,7 @@ export async function fetchTrendingFeed({
                 meta: {
                     path: 'atproto',
                     per_page: videos.length,
-                    next_cursor: nextCursor
-                        ? encodeFeedPageParam('search-top', nextCursor)
-                        : null,
+                    next_cursor: nextCursor ? encodeFeedPageParam('search-top', nextCursor) : null,
                 },
             };
             logFeedFetch('trending', 'search-top-fallback', page.data, refreshEpoch);
@@ -1788,8 +1778,7 @@ export async function fetchPostForViewer(rawUri: string): Promise<FlipVideo | Fl
                     if (root && isTextOnlyPost(root)) {
                         textSource = root;
                     } else {
-                        textSource =
-                            chain.find((post) => isTextOnlyPost(post)) ?? textSource;
+                        textSource = chain.find((post) => isTextOnlyPost(post)) ?? textSource;
                     }
                 }
             } catch {

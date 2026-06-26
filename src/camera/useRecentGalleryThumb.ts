@@ -96,7 +96,7 @@ async function loadLatestResolvableThumb(): Promise<string | null> {
             const { assets } = await MediaLibrary.getAssetsAsync({
                 first: 12,
                 mediaType,
-                sortBy: [[MediaLibrary.SortBy.modificationTime, false]],
+                sortBy: [['modificationTime', false]],
             });
             return assets;
         } catch {

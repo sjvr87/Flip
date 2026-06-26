@@ -94,7 +94,6 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'starterKit.newMember':
             case 'starterKit.removedFromKit':
             case 'starterKit.awaitingApproval':
-            case 'starterKit.accountApproved':
             case 'starterKit.accountRejected':
                 return <Ionicons name="sparkles" size={16} color="#8B5CF6" />;
             default:

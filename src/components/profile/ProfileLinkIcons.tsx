@@ -39,7 +39,8 @@ export default function ProfileLinkIcons({ links, accentColor }: ProfileLinkIcon
                 if (!href) return null;
 
                 const platform = detectProfileLinkPlatform(href);
-                const bg = platform.id === 'website' && accentColor ? accentColor : platform.brandColor;
+                const bg =
+                    platform.id === 'website' && accentColor ? accentColor : platform.brandColor;
 
                 return (
                     <Pressable

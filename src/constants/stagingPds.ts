@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Phase 0 ΓÇö invite-only Flip-native staging PDS spike.
  *
  * These constants keep staging config out of production paths.

@@ -19,13 +19,7 @@ const HEAD = { cx: 13.6, cy: 3.25, r: 2.28 };
 /**
  * Thick torso leaning toward megaphone side — wider shoulders, tapered waist.
  */
-const TORSO_PATH = [
-    'M 11.0 7.45',
-    'L 15.9 6.75',
-    'L 14.6 14.4',
-    'L 10.2 15.0',
-    'Z',
-].join(' ');
+const TORSO_PATH = ['M 11.0 7.45', 'L 15.9 6.75', 'L 14.6 14.4', 'L 10.2 15.0', 'Z'].join(' ');
 
 /**
  * Raised arm — limb weight matches holding arm (~leg thickness minus a hair), modest hand taper.
@@ -67,13 +61,7 @@ const HOLDING_FOREARM_PATH = [
  * Megaphone — exaggerated cone: narrow mouthpiece at cheek (gap from head), wide bell to the right
  * (renders on the left after horizontal mirror). Deliberately larger than the head.
  */
-const MEGAPHONE_PATH = [
-    'M 16.8 1.8',
-    'L 29.0 -3.0',
-    'L 27.5 4.8',
-    'L 16.8 4.2',
-    'Z',
-].join(' ');
+const MEGAPHONE_PATH = ['M 16.8 1.8', 'L 29.0 -3.0', 'L 27.5 4.8', 'L 16.8 4.2', 'Z'].join(' ');
 
 /**
  * Viewer's right leg (figure left) — hip overlaps torso edge so thigh reads attached.

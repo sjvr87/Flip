@@ -1,4 +1,4 @@
-﻿import type { SimpleStore, Value } from '@atproto-labs/simple-store';
+import type { SimpleStore, Value } from '@atproto-labs/simple-store';
 
 export type MemorySimpleStoreTTLOptions<V extends Value> = {
     expiresAt: (value: V) => null | number;
@@ -10,9 +10,7 @@ export type MemorySimpleStoreTTLOptions<V extends Value> = {
 /**
  * In-memory TTL store matching @atproto/oauth-client-expo MMKV behavior without JSI/MMKV.
  */
-export class MemorySimpleStoreTTL<V extends Value>
-    implements SimpleStore<string, V>, Disposable
-{
+export class MemorySimpleStoreTTL<V extends Value> implements SimpleStore<string, V>, Disposable {
     readonly #data = new Map<string, string>();
     readonly #exp = new Map<string, number>();
     readonly #expiresAt: (value: V) => null | number;

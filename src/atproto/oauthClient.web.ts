@@ -25,9 +25,7 @@ export async function resetOAuthClient(): Promise<void> {
     initError = null;
 }
 
-export async function completeOAuthCallback(
-    _params: URLSearchParams,
-): Promise<never> {
+export async function completeOAuthCallback(_params: URLSearchParams): Promise<never> {
     throw new Error('OAuth deep-link callback is only supported on native.');
 }
 
@@ -51,10 +49,7 @@ export function isStaleOAuthCallbackError(_error: unknown): boolean {
     return false;
 }
 
-export async function runOAuthSignIn(
-    _input: string,
-    _options?: unknown,
-): Promise<never> {
+export async function runOAuthSignIn(_input: string, _options?: unknown): Promise<never> {
     throw new Error('OAuth sign-in is only supported on native.');
 }
 

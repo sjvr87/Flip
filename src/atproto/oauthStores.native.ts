@@ -7,12 +7,12 @@ import type {
     ResolvedHandle,
     Session,
 } from '@atproto/oauth-client';
-const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 import * as SecureStore from 'expo-secure-store';
 
 import { MemorySimpleStoreTTL } from './oauthMemoryStore';
 import { SecureSimpleStoreTTL } from './oauthSecureStore';
 import { secureStoreKeySegment } from './secureStoreKeySegment';
+const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
 const SESSION_INDEX_KEY = 'flip.oauth.expo.sessions';
 const DPOP_NONCE_PREFIX = 'flip.oauth.expo.dpopNonce';

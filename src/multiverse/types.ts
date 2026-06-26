@@ -80,5 +80,8 @@ export function normalizeClientProvider(raw: string): MultiverseProvider | null 
 
 export function isBetaProvider(provider: string): boolean {
     const normalized = normalizeClientProvider(provider);
-    return normalized === MultiverseProviderIds.NOSTR || normalized === MultiverseProviderIds.ACTIVITYPUB;
+    return (
+        normalized === MultiverseProviderIds.NOSTR ||
+        normalized === MultiverseProviderIds.ACTIVITYPUB
+    );
 }

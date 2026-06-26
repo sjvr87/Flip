@@ -13,6 +13,7 @@ import type {
     FlipVideo,
     FlipVideoMeta,
 } from './types';
+import { handleToUsername } from './identifiers';
 import { getAgent } from './agent';
 import { hasAdultLabels, isSensitivePost, shouldHideAdultContent } from './contentLabels';
 import { extractMentionsFromRecord, extractTagsFromRecord } from './mentions';
@@ -57,10 +58,7 @@ type RecordVideoEmbed = {
     aspectRatio?: { width: number; height: number };
 };
 
-function videoCdnUrls(
-    did: string,
-    cid: string,
-): { thumbnail: string; playlist: string } {
+function videoCdnUrls(did: string, cid: string): { thumbnail: string; playlist: string } {
     const encodedDid = encodeURIComponent(did);
     const base = `https://video.bsky.app/watch/${encodedDid}/${cid}`;
     return {
@@ -369,7 +367,7 @@ function extractFlipExtensions(
 
 function toAccount(author: AppBskyFeedDefs.PostView['author']): FlipAccount {
     const handle = author.handle || author.did;
-    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const username = handleToUsername(handle);
 
     return {
         id: author.did,
@@ -541,7 +539,7 @@ export function profileToFlipUser(
     },
     isOwner = false,
 ): FlipUserProfile {
-    const username = profile.handle.includes('.') ? profile.handle.split('.')[0] : profile.handle;
+    const username = handleToUsername(profile.handle);
 
     return {
         id: profile.did,

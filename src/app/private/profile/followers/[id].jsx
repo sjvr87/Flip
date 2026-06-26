@@ -436,36 +436,36 @@ export default function Screen() {
                 </YStack>
             ) : (
                 <FlatList
-                data={feedData}
-                keyExtractor={keyExtractor}
-                renderItem={RenderItem}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={EmptyList}
-                ListHeaderComponent={
-                    isFetching && !isFetchingNextPage && feedData.length === 0 ? (
-                        <YStack paddingY="$6" alignItems="center">
-                            <ActivityIndicator color="#22D3EE" size="large" />
-                        </YStack>
-                    ) : null
-                }
-                ListFooterComponent={
-                    isFetchingNextPage ? (
-                        <YStack paddingY="$6" alignItems="center">
-                            <ActivityIndicator color="#22D3EE" />
-                        </YStack>
-                    ) : null
-                }
-                onEndReachedThreshold={0.4}
-                onEndReached={handleEndReached}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={isFetching && !isFetchingNextPage && feedData.length > 0}
-                        onRefresh={refetch}
-                        colors={['#22D3EE']}
-                        tintColor="#22D3EE"
-                    />
-                }
-            />
+                    data={feedData}
+                    keyExtractor={keyExtractor}
+                    renderItem={RenderItem}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={EmptyList}
+                    ListHeaderComponent={
+                        isFetching && !isFetchingNextPage && feedData.length === 0 ? (
+                            <YStack paddingY="$6" alignItems="center">
+                                <ActivityIndicator color="#22D3EE" size="large" />
+                            </YStack>
+                        ) : null
+                    }
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <YStack paddingY="$6" alignItems="center">
+                                <ActivityIndicator color="#22D3EE" />
+                            </YStack>
+                        ) : null
+                    }
+                    onEndReachedThreshold={0.4}
+                    onEndReached={handleEndReached}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isFetching && !isFetchingNextPage && feedData.length > 0}
+                            onRefresh={refetch}
+                            colors={['#22D3EE']}
+                            tintColor="#22D3EE"
+                        />
+                    }
+                />
             )}
         </View>
     );

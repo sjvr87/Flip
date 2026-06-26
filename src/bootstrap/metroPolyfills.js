@@ -4,7 +4,7 @@
 'use strict';
 
 (function installQueueMicrotaskGuard() {
-    var flipBound = null;
+    let flipBound = null;
 
     function promiseFallback(callback) {
         Promise.resolve()
@@ -61,7 +61,7 @@
 })();
 
 if (typeof AbortSignal !== 'undefined') {
-    var proto = AbortSignal.prototype;
+    let proto = AbortSignal.prototype;
     if (typeof proto.throwIfAborted !== 'function') {
         Object.defineProperty(proto, 'throwIfAborted', {
             value: function throwIfAborted() {
@@ -77,10 +77,10 @@ if (typeof AbortSignal !== 'undefined') {
     if (typeof AbortSignal.timeout !== 'function') {
         Object.defineProperty(AbortSignal, 'timeout', {
             value: function timeout(ms) {
-                var controller = new AbortController();
+                let controller = new AbortController();
                 setTimeout(function () {
-                    var message = 'The operation timed out after ' + ms + ' ms';
-                    var reason =
+                    let message = 'The operation timed out after ' + ms + ' ms';
+                    let reason =
                         typeof DOMException === 'function'
                             ? new DOMException(message, 'TimeoutError')
                             : new Error(message);

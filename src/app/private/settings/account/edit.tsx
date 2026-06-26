@@ -2,7 +2,12 @@ import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchProfilePrefs, fetchProfileTheme } from '@/atproto';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
-import { fetchSelfAccount, getMimeType, updateAccountAvatar, usesAtprotoBackend } from '@/utils/requests';
+import {
+    fetchSelfAccount,
+    getMimeType,
+    updateAccountAvatar,
+    usesAtprotoBackend,
+} from '@/utils/requests';
 import { truncate } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -88,8 +93,7 @@ export default function EditProfileScreen() {
     const themeLabel =
         profileTheme?.backgroundColor || profileTheme?.accentColor ? 'Custom' : 'Default';
     const topFriendsCount = profilePrefs?.topFriends?.length ?? 0;
-    const topFriendsLabel =
-        topFriendsCount > 0 ? `${topFriendsCount} featured` : 'Add friends';
+    const topFriendsLabel = topFriendsCount > 0 ? `${topFriendsCount} featured` : 'Add friends';
 
     const [profileImage, setProfileImage] = useState(user?.avatar);
     const name = user?.name;

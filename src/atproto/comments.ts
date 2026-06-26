@@ -1,5 +1,6 @@
 import type { AppBskyFeedDefs } from '@atproto/api';
 import { getAgent } from './agent';
+import { handleToUsername } from './identifiers';
 import type { FlipAccount } from './types';
 import { extractMentionsFromRecord, extractTagsFromRecord } from './mentions';
 
@@ -36,7 +37,7 @@ function isThreadViewPost(
 
 function toAccount(author: AppBskyFeedDefs.PostView['author']): FlipAccount {
     const handle = author.handle || author.did;
-    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const username = handleToUsername(handle);
 
     return {
         id: author.did,

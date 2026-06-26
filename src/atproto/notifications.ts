@@ -2,6 +2,7 @@ import type { AppBskyNotificationDefs } from '@atproto/api';
 import { AppBskyEmbedVideo, AppBskyFeedLike, AppBskyFeedRepost } from '@atproto/api';
 
 import { getAgent, SessionExpiredError, withAuthenticatedFetch } from './agent';
+import { handleToUsername } from './identifiers';
 import { resolveDisplayPostUri } from './postResolve';
 import { parseRepoDidFromAtUri } from '@/utils/profileNavigation';
 
@@ -37,7 +38,7 @@ function actorFromNotification(
     author: AppBskyNotificationDefs.Notification['author'],
 ): FlipNotification['actor'] {
     const handle = author.handle || author.did;
-    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const username = handleToUsername(handle);
 
     return {
         id: author.did,
@@ -164,9 +165,7 @@ function extractVideoMeta(
     };
 }
 
-function mapNotification(
-    notification: AppBskyNotificationDefs.Notification,
-): FlipNotification {
+function mapNotification(notification: AppBskyNotificationDefs.Notification): FlipNotification {
     const subjectUri = getNotificationSubjectUri(notification);
     const videoMeta = extractVideoMeta(notification, subjectUri);
 

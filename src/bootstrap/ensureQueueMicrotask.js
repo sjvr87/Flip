@@ -91,7 +91,9 @@ function patchPolyfillGlobalQueueMicrotask() {
                     };
                 }
                 if (typeof __DEV__ !== 'undefined' && __DEV__) {
-                    console.warn('[bootstrap] Native queueMicrotask missing - using Promise fallback');
+                    console.warn(
+                        '[bootstrap] Native queueMicrotask missing - using Promise fallback',
+                    );
                 }
                 return fallbackQueueMicrotask;
             });

@@ -1,14 +1,9 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import type { ConnectedAccount, NostrAccountMetadata, PostDestination } from '@/multiverse/types';
-import { MultiverseProviderIds } from '@/multiverse/types';
-import {
-    isProviderEnabled,
-    providerIconName,
-    providerLabel,
-} from '@/multiverse/config';
-import { isBetaProvider, normalizeClientProvider } from '@/multiverse/types';
+import { providerIconName } from '@/multiverse/config';
+import { buildDefaultPostDestinations } from '@/multiverse/destinations';
+import type { ConnectedAccount, PostDestination } from '@/multiverse/types';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Switch, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
@@ -18,68 +13,17 @@ type Props = {
     onChange: (next: PostDestination[]) => void;
 };
 
-function isDestinationAvailable(account: ConnectedAccount): boolean {
-    const provider = normalizeClientProvider(account.provider);
-    if (!provider) return false;
-    if (provider === MultiverseProviderIds.ATPROTO) {
-        return isProviderEnabled('ATPROTO');
-    }
-    if (provider === MultiverseProviderIds.NOSTR) {
-        return isProviderEnabled('NOSTR');
-    }
-    if (provider === MultiverseProviderIds.ACTIVITYPUB) {
-        return isProviderEnabled('ACTIVITYPUB');
-    }
-    return false;
-}
-
 export default function DestinationSelector({ accounts, value, onChange }: Props) {
     const { isDark } = useTheme();
-    const [destinations, setDestinations] = useState<PostDestination[]>(value);
-
-    const defaults = useMemo<PostDestination[]>(() => {
-        const flip: PostDestination = {
-            provider: MultiverseProviderIds.FLIP_LOCAL,
-            label: 'Flip',
-            enabled: true,
-        };
-        const linked = accounts
-            .filter((a) => a.status === 'active' && isDestinationAvailable(a))
-            .map((a) => {
-                const provider = normalizeClientProvider(a.provider) ?? a.provider;
-                const nostrMeta = a.metadata as NostrAccountMetadata | undefined;
-                const destination =
-                    provider === MultiverseProviderIds.NOSTR && nostrMeta?.relays?.length
-                        ? { relays: nostrMeta.relays, pubkey: nostrMeta.pubkey }
-                        : null;
-                return {
-                    provider,
-                    accountId: a.id,
-                    label: `${providerLabel(String(provider))} · @${a.handle.replace(/^@/, '')}`,
-                    enabled: provider === MultiverseProviderIds.ATPROTO,
-                    beta: isBetaProvider(String(provider)),
-                    destination,
-                } satisfies PostDestination;
-            });
-        return [flip, ...linked];
-    }, [accounts]);
-
-    useEffect(() => {
-        if (value.length === 0) {
-            setDestinations(defaults);
-            onChange(defaults);
-        }
-    }, [defaults, onChange, value.length]);
+    const defaults = useMemo(() => buildDefaultPostDestinations(accounts), [accounts]);
+    const [edited, setEdited] = useState<PostDestination[] | null>(null);
+    const items = edited ?? (value.length > 0 ? value : defaults);
 
     const toggle = (index: number) => {
-        const next = destinations.map((d, i) =>
-            i === index ? { ...d, enabled: !d.enabled } : d,
-        );
-        setDestinations(next);
+        const next = items.map((d, i) => (i === index ? { ...d, enabled: !d.enabled } : d));
+        setEdited(next);
         onChange(next);
     };
-
-    const items = destinations.length ? destinations : defaults;
 
     return (
         <View style={tw`px-4 py-3`}>
@@ -102,8 +46,10 @@ export default function DestinationSelector({ accounts, value, onChange }: Props
                         {dest.label}
                     </Text>
                     {dest.beta ? (
-                        <View style={tw`mr-2 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900`}>
-                            <Text style={tw`text-xs font-semibold text-amber-800 dark:text-amber-200`}>
+                        <View
+                            style={tw`mr-2 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900`}>
+                            <Text
+                                style={tw`text-xs font-semibold text-amber-800 dark:text-amber-200`}>
                                 beta
                             </Text>
                         </View>

@@ -23,15 +23,8 @@ import {
 } from './agent';
 import { clearCredentials, getSavedCredentials } from './credentialVault';
 import { resolveOAuthCallbackSearchParams } from './oauthCallbackUrl';
-import {
-    completeOAuthCallback,
-    resetOAuthClient,
-    runOAuthSignIn,
-} from './oauthClient';
-import {
-    oauthMetadataPreflightMessage,
-    preflightOAuthClientMetadata,
-} from './oauthClientMetadata';
+import { completeOAuthCallback, resetOAuthClient, runOAuthSignIn } from './oauthClient';
+import { oauthMetadataPreflightMessage, preflightOAuthClientMetadata } from './oauthClientMetadata';
 import type { FlipAppConfig, FlipUserProfile } from './types';
 import { Storage } from '@/utils/cache';
 
@@ -95,8 +88,7 @@ function fetchProfileInBackground(): void {
 
 /** Map Bluesky OAuth / SecureStore failures to actionable sign-in messages. */
 function mapOAuthSignInError(error: unknown): string {
-    const raw =
-        error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
+    const raw = error instanceof Error ? error.message : 'Bluesky sign-in was cancelled or failed.';
     const detail = extractOAuthDetail(raw);
 
     if (raw.toLowerCase().includes('cancel')) {
@@ -104,9 +96,7 @@ function mapOAuthSignInError(error: unknown): string {
     }
     if (raw.includes('Failed to resolve identity')) {
         const cause =
-            error instanceof Error && error.cause instanceof Error
-                ? error.cause.message
-                : null;
+            error instanceof Error && error.cause instanceof Error ? error.cause.message : null;
         if (__DEV__ && cause) {
             console.warn('[auth] identity resolution cause:', cause);
         }
@@ -146,10 +136,7 @@ function mapOAuthSignInError(error: unknown): string {
             ? `Bluesky could not read OAuth metadata (wrong content type): ${detail}`
             : 'Bluesky could not read OAuth metadata (host returned HTML instead of JSON).';
     }
-    if (
-        raw.includes('client metadata') ||
-        raw.includes('invalid_client')
-    ) {
+    if (raw.includes('client metadata') || raw.includes('invalid_client')) {
         return detail
             ? `Bluesky OAuth client error: ${detail}`
             : `Bluesky OAuth client error: ${raw}`;
@@ -188,8 +175,8 @@ export async function loginWithOAuth(): Promise<FlipSessionUser> {
     const agent = getAgent();
     const profile = await agent.getProfile({ actor: session.did });
     const user = profileToFlipUser(profile.data, true);
-    await saveOAuthDid(session.did, user.username);
-    setOAuthSession(session, user.username);
+    await saveOAuthDid(session.did, user.acct);
+    setOAuthSession(session, user.acct);
 
     Storage.delete('app.token');
     Storage.delete('app.instance');
@@ -227,8 +214,8 @@ export async function completeOAuthRedirect(
         const agent = getAgent();
         const profile = await agent.getProfile({ actor: session.did });
         const user = profileToFlipUser(profile.data, true);
-        await saveOAuthDid(session.did, user.username);
-        setOAuthSession(session, user.username);
+        await saveOAuthDid(session.did, user.acct);
+        setOAuthSession(session, user.acct);
 
         Storage.delete('app.token');
         Storage.delete('app.instance');

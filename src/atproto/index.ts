@@ -119,11 +119,7 @@ export {
 } from './profilePrefs';
 export type { FlipProfilePrefs } from './profilePrefs';
 
-export {
-    fetchProfileTheme,
-    saveProfileTheme,
-    PROFILE_THEME_COLLECTION,
-} from './profileTheme';
+export { fetchProfileTheme, saveProfileTheme, PROFILE_THEME_COLLECTION } from './profileTheme';
 export type { FlipProfileTheme } from './profileTheme';
 
 export {

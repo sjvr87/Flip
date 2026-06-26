@@ -1,11 +1,10 @@
 import { Divider, SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
+import { beginConnect, completeConnect, unlinkAccount } from '@/multiverse/api';
 import {
-    beginConnect,
-    completeConnect,
-    unlinkAccount,
-} from '@/multiverse/api';
-import { connectedAccountsQueryKey, useConnectedAccounts } from '@/multiverse/hooks/useConnectedAccounts';
+    connectedAccountsQueryKey,
+    useConnectedAccounts,
+} from '@/multiverse/hooks/useConnectedAccounts';
 import { ensureMultiverseSession } from '@/multiverse/session';
 import { isMultiverseEnabled, isProviderEnabled, providerIconName } from '@/multiverse/config';
 import { MultiverseProviderIds } from '@/multiverse/types';
@@ -37,7 +36,11 @@ function AccountRow({
 }) {
     const { isDark } = useTheme();
     const statusColor =
-        account.status === 'active' ? '#22c55e' : account.status === 'error' ? '#ef4444' : '#9ca3af';
+        account.status === 'active'
+            ? '#22c55e'
+            : account.status === 'error'
+              ? '#ef4444'
+              : '#9ca3af';
 
     return (
         <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
@@ -158,7 +161,9 @@ export default function ConnectedAccountsScreen() {
                 {isLoading ? (
                     <ActivityIndicator style={tw`my-6`} />
                 ) : accounts.length === 0 ? (
-                    <Text style={tw`px-5 py-4 text-gray-500`}>No external accounts linked yet.</Text>
+                    <Text style={tw`px-5 py-4 text-gray-500`}>
+                        No external accounts linked yet.
+                    </Text>
                 ) : (
                     accounts.map((account, i) => (
                         <View key={account.id}>
@@ -196,7 +201,8 @@ export default function ConnectedAccountsScreen() {
                         </TouchableOpacity>
                     ) : null}
                     <Text style={tw`text-xs text-gray-500 mt-2 mb-3`}>
-                        Nostr and ActivityPub linking are scaffolded — enable feature flags when ready.
+                        Nostr and ActivityPub linking are scaffolded — enable feature flags when
+                        ready.
                     </Text>
 
                     {connectState ? (

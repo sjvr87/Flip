@@ -123,11 +123,14 @@ export async function navigateFromNotification(
             const fallbackRoute = getNotificationRoute(item);
             if (fallbackRoute) {
                 if (__DEV__) {
-                    console.warn('[notification] tap: media resolve missed — using fallback route', {
-                        type: item.type,
-                        video_id: item.video_id,
-                        route: fallbackRoute,
-                    });
+                    console.warn(
+                        '[notification] tap: media resolve missed — using fallback route',
+                        {
+                            type: item.type,
+                            video_id: item.video_id,
+                            route: fallbackRoute,
+                        },
+                    );
                 }
                 safeRouterPush(fallbackRoute);
                 return;

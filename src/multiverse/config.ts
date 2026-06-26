@@ -21,14 +21,33 @@ export function isMultiverseEnabled(): boolean {
     return true;
 }
 
-function readBoolFlag(envKey: string, extraKey: string, defaultValue: boolean): boolean {
-    const fromEnv = process.env[envKey];
-    if (fromEnv !== undefined) {
-        return fromEnv === '1' || fromEnv.toLowerCase() === 'true';
-    }
-    const fromExtra = extra[extraKey];
+function parseEnvBool(raw: string | undefined): boolean | undefined {
+    if (raw === undefined) return undefined;
+    return raw === '1' || raw.toLowerCase() === 'true';
+}
+
+function readAtprotoFlag(): boolean {
+    const fromEnv = parseEnvBool(process.env.EXPO_PUBLIC_FF_PROVIDER_ATPROTO);
+    if (fromEnv !== undefined) return fromEnv;
+    const fromExtra = extra.ffProviderAtproto;
     if (typeof fromExtra === 'boolean') return fromExtra;
-    return defaultValue;
+    return true;
+}
+
+function readNostrFlag(): boolean {
+    const fromEnv = parseEnvBool(process.env.EXPO_PUBLIC_FF_PROVIDER_NOSTR);
+    if (fromEnv !== undefined) return fromEnv;
+    const fromExtra = extra.ffProviderNostr;
+    if (typeof fromExtra === 'boolean') return fromExtra;
+    return false;
+}
+
+function readActivitypubFlag(): boolean {
+    const fromEnv = parseEnvBool(process.env.EXPO_PUBLIC_FF_PROVIDER_ACTIVITYPUB);
+    if (fromEnv !== undefined) return fromEnv;
+    const fromExtra = extra.ffProviderActivitypub;
+    if (typeof fromExtra === 'boolean') return fromExtra;
+    return false;
 }
 
 export function isProviderEnabled(provider: keyof typeof MultiverseProviderIds): boolean {
@@ -36,11 +55,11 @@ export function isProviderEnabled(provider: keyof typeof MultiverseProviderIds):
         case 'FLIP_LOCAL':
             return true;
         case 'ATPROTO':
-            return readBoolFlag('EXPO_PUBLIC_FF_PROVIDER_ATPROTO', 'ffProviderAtproto', true);
+            return readAtprotoFlag();
         case 'NOSTR':
-            return readBoolFlag('EXPO_PUBLIC_FF_PROVIDER_NOSTR', 'ffProviderNostr', false);
+            return readNostrFlag();
         case 'ACTIVITYPUB':
-            return readBoolFlag('EXPO_PUBLIC_FF_PROVIDER_ACTIVITYPUB', 'ffProviderActivitypub', false);
+            return readActivitypubFlag();
         default:
             return false;
     }
@@ -56,7 +75,8 @@ export function providerLabel(provider: string): string {
 export function providerIconName(
     provider: string,
 ): 'videocam-outline' | 'cloud-outline' | 'flash-outline' | 'globe-outline' {
-    if (provider === MultiverseProviderIds.ATPROTO || provider === 'bluesky') return 'cloud-outline';
+    if (provider === MultiverseProviderIds.ATPROTO || provider === 'bluesky')
+        return 'cloud-outline';
     if (provider === MultiverseProviderIds.NOSTR) return 'flash-outline';
     if (provider === MultiverseProviderIds.ACTIVITYPUB) return 'globe-outline';
     return 'videocam-outline';

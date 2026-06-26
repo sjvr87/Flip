@@ -63,9 +63,7 @@ export async function saveProfileTheme(
 
     const existing = (await fetchProfileTheme(repo)) ?? {};
 
-    const resolveColor = (
-        key: 'backgroundColor' | 'accentColor',
-    ): string | undefined => {
+    const resolveColor = (key: 'backgroundColor' | 'accentColor'): string | undefined => {
         if (key in patch) {
             const raw = patch[key];
             if (raw === '' || raw === undefined) return undefined;
@@ -91,8 +89,7 @@ export async function saveProfileTheme(
         updatedAt: new Date().toISOString(),
     };
 
-    const hasContent =
-        !!record.backgroundColor || !!record.accentColor || !!record.backgroundImage;
+    const hasContent = !!record.backgroundColor || !!record.accentColor || !!record.backgroundImage;
 
     await withAuthenticatedFetch(() => {
         if (!hasContent) {

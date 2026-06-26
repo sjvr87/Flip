@@ -36,7 +36,10 @@ function SwatchRow({
                             onPress={() => onSelect(color)}
                             style={[
                                 tw`w-12 h-12 rounded-full border-2`,
-                                { backgroundColor: color, borderColor: active ? '#22d3ee' : '#d1d5db' },
+                                {
+                                    backgroundColor: color,
+                                    borderColor: active ? '#22d3ee' : '#d1d5db',
+                                },
                             ]}
                             accessibilityLabel={`${label} ${color}`}>
                             {active ? (
@@ -154,7 +157,8 @@ export default function EditProfileStyleScreen() {
                         {saveMutation.isPending ? (
                             <ActivityIndicator size="small" />
                         ) : (
-                            <Text style={tw`text-base font-semibold text-gray-700 dark:text-gray-200`}>
+                            <Text
+                                style={tw`text-base font-semibold text-gray-700 dark:text-gray-200`}>
                                 Reset to default
                             </Text>
                         )}

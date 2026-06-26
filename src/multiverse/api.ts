@@ -85,10 +85,7 @@ export async function createMultiversePost(
     return parseJson(resp);
 }
 
-export async function fetchPostDeliveries(
-    token: string,
-    postId: string,
-): Promise<PostDelivery[]> {
+export async function fetchPostDeliveries(token: string, postId: string): Promise<PostDelivery[]> {
     const resp = await authedMultiverseFetch(`/api/posts/${postId}/deliveries`, token);
     const data = await parseJson<{ deliveries: PostDelivery[] }>(resp);
     return data.deliveries ?? [];
