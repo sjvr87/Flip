@@ -40,9 +40,9 @@ export const AVATAR_SIZE = {
 export const AVATAR_CORNER_BADGE_SIZE = 28;
 export const AVATAR_CORNER_BADGE_OFFSET = { bottom: -14, right: -8 } as const;
 
-/** New follower rows — same follow/add icon as video feed. */
+/** New follower rows — same follow/add icon as video feed, nudged lower for visibility on avatars. */
 export const ACTIVITY_FOLLOW_BADGE_SIZE = AVATAR_CORNER_BADGE_SIZE;
-export const ACTIVITY_FOLLOW_BADGE_OFFSET = AVATAR_CORNER_BADGE_OFFSET;
+export const ACTIVITY_FOLLOW_BADGE_OFFSET = { bottom: -18, right: -8 } as const;
 
 /** Activity comment badge — smaller, hangs off bottom-right so it covers less of the photo. */
 export const ACTIVITY_COMMENT_BADGE_SIZE = 24;
