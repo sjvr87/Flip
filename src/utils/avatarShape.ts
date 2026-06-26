@@ -44,6 +44,9 @@ export const AVATAR_CORNER_BADGE_OFFSET = { bottom: -14, right: -8 } as const;
 export const ACTIVITY_COMMENT_BADGE_SIZE = 24;
 export const ACTIVITY_COMMENT_BADGE_OFFSET = { bottom: -19, right: -13 } as const;
 
+/** Activity like heart — lower/right of default, but above the comment badge. */
+export const ACTIVITY_LIKE_BADGE_OFFSET = { bottom: -11, right: -9 } as const;
+
 export function squircleStyle(size: number) {
     const radius = squircleRadius(size);
     return {

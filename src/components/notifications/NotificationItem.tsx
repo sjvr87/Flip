@@ -6,7 +6,11 @@ import {
 import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ACTIVITY_COMMENT_BADGE_OFFSET, AVATAR_SIZE } from '@/utils/avatarShape';
+import {
+    ACTIVITY_COMMENT_BADGE_OFFSET,
+    ACTIVITY_LIKE_BADGE_OFFSET,
+    AVATAR_SIZE,
+} from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -37,11 +41,25 @@ interface NotificationItemProps {
 }
 
 const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
-/** Off the avatar corner — full icon visible without covering the profile photo. */
 const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_COMMENT_BADGE_OFFSET };
+const LIKE_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_LIKE_BADGE_OFFSET };
 
 function isCommentActivityType(type: string): boolean {
     return type === 'video.comment' || type === 'video.commentReply';
+}
+
+function isLikeActivityType(type: string): boolean {
+    return type === 'video.like' || type === 'comment.like' || type === 'commentReply.like';
+}
+
+function getActivityBadgeOffset(type: string): ViewStyle {
+    if (isCommentActivityType(type)) {
+        return COMMENT_ACTIVITY_BADGE_OFFSET;
+    }
+    if (isLikeActivityType(type)) {
+        return LIKE_ACTIVITY_BADGE_OFFSET;
+    }
+    return DEFAULT_ACTIVITY_BADGE_OFFSET;
 }
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({
@@ -125,9 +143,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     };
 
     const badgeIcon = getBadgeIcon();
-    const badgeOffset = isCommentActivityType(item.type)
-        ? COMMENT_ACTIVITY_BADGE_OFFSET
-        : DEFAULT_ACTIVITY_BADGE_OFFSET;
+    const badgeOffset = getActivityBadgeOffset(item.type);
 
     const showActionButtons = false;
 
@@ -147,7 +163,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         style={[
                             tw`absolute items-center justify-center`,
                             badgeOffset,
-                            isCommentActivityType(item.type) && { zIndex: 10 },
+                            (isCommentActivityType(item.type) || isLikeActivityType(item.type)) && {
+                                zIndex: 10,
+                            },
                         ]}>
                         {badgeIcon}
                     </View>
