@@ -17,6 +17,7 @@ import {
     TAB_BAR_HOME_NAV_BG,
     TAB_BAR_HOME_OVERLAY_BG,
     getFlipTabBarStyle,
+    getTabBarIconOpticalHeight,
     useFlipTabBarMetrics,
 } from '@/utils/tabBarLayout';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,8 +29,9 @@ import { Platform, StyleSheet, View } from 'react-native';
 const TAB_ICON_SLOT_SIZE = 42;
 const ICON_SIZE = 42;
 
-/** Lift inbox icon to align visually with 26×26 tab icons (mailbox SVG sits lower in viewBox). */
-const INBOX_TAB_ICON_LIFT = -3;
+/** Lift inbox icon vertically; nudge right toward Profile (other tab slots unchanged). */
+const INBOX_TAB_ICON_LIFT = -5;
+const INBOX_TAB_ICON_SHIFT_X = 4;
 
 function TabIconSlot({ children }: { children: ReactNode }) {
     return <View style={styles.tabIconSlot}>{children}</View>;
@@ -37,7 +39,16 @@ function TabIconSlot({ children }: { children: ReactNode }) {
 
 function InboxTabIconSlot({ children }: { children: ReactNode }) {
     return (
-        <View style={[styles.tabIconSlot, { transform: [{ translateY: INBOX_TAB_ICON_LIFT }] }]}>
+        <View
+            style={[
+                styles.tabIconSlot,
+                {
+                    transform: [
+                        { translateY: INBOX_TAB_ICON_LIFT },
+                        { translateX: INBOX_TAB_ICON_SHIFT_X },
+                    ],
+                },
+            ]}>
             {children}
         </View>
     );
@@ -46,7 +57,9 @@ function InboxTabIconSlot({ children }: { children: ReactNode }) {
 /** Scrim on icon row only; solid black under system nav inset (same footprint as other tabs). */
 function HomeTabBarBackground() {
     const tabBarMetrics = useFlipTabBarMetrics();
-    const iconBandHeight = tabBarMetrics.paddingTop + tabBarMetrics.contentHeight + tabBarMetrics.iconLift;
+    /** Scrim spans FLIP top → IT bottom only; nav inset stays solid black below. */
+    const iconBandHeight =
+        tabBarMetrics.paddingTop + getTabBarIconOpticalHeight(tabBarMetrics.contentHeight);
 
     return (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -213,6 +226,17 @@ export default function TabsLayout() {
                     href: '/notifications',
                     tabBarAccessibilityLabel: 'Inbox',
                     tabBarShowLabel: false,
+                    tabBarItemStyle: {
+                        flex: 1,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingTop: 0,
+                        paddingBottom: 0,
+                        paddingHorizontal: 0,
+                        marginTop: 0,
+                        marginBottom: tabBarMetrics.iconLift,
+                        marginLeft: 2,
+                    },
                     ...(Platform.OS !== 'web' && displayBadgeCount
                         ? {
                               tabBarBadge: displayBadgeCount,
