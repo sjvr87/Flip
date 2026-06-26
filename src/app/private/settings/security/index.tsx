@@ -20,7 +20,7 @@ import tw from 'twrnc';
 export default function SecurityScreen() {
     const router = useRouter();
     const [twoFactor, setTwoFactor] = useState(false);
-    const { isDark } = useTheme();
+    const { colors } = useTheme();
     const rememberLogin = useAuthStore((s) => s.rememberLogin);
     const requireBiometric = useAuthStore((s) => s.requireBiometric);
     const setRememberLogin = useAuthStore((s) => s.setRememberLogin);
@@ -198,12 +198,12 @@ export default function SecurityScreen() {
     };
 
     return (
-        <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
+        <View style={{ flex: 1, backgroundColor: colors.surfaceElevated }}>
             <Stack.Screen
                 options={{
                     title: 'Security & permissions',
-                    headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: isDark ? '#fff' : '#000',
+                    headerStyle: { backgroundColor: colors.background },
+                    headerTintColor: colors.text,
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}

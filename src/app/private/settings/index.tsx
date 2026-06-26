@@ -14,7 +14,7 @@ export default function SettingsScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const notificationStore = useNotificationStore();
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const performLogOut = async () => {
         queryClient.clear();
@@ -42,12 +42,12 @@ export default function SettingsScreen() {
     };
 
     return (
-        <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
+        <View style={{ flex: 1, backgroundColor: colors.surfaceElevated }}>
             <Stack.Screen
                 options={{
                     title: 'Settings and privacy',
-                    headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: isDark ? '#fff' : '#000',
+                    headerStyle: { backgroundColor: colors.background },
+                    headerTintColor: colors.text,
                     headerBackVisible: false,
                     headerShown: true,
                     headerLeft: () => (
@@ -63,7 +63,7 @@ export default function SettingsScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={isDark ? '#fff' : '#000'}
+                                color={colors.text}
                             />
                         </TouchableOpacity>
                     ),
@@ -147,7 +147,7 @@ export default function SettingsScreen() {
                     onPress={() => handleSignOut()}
                 />
                 <View style={tw`flex justify-center items-center mt-5 mb-20`}>
-                    <Text style={tw`text-gray-500`}>Flip v1.0.2.4</Text>
+                    <Text style={{ color: colors.textMuted }}>Flip v1.0.2.4</Text>
                 </View>
             </ScrollView>
         </View>

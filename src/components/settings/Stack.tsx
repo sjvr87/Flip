@@ -2,13 +2,12 @@ import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Switch, Text, View } from 'react-native';
-import tw from 'twrnc';
 import { XStack, YStack } from '../ui/Stack';
 
 export const SettingsItem = ({ icon, label, onPress, showChevron = true }) => {
-    const { isDark } = useTheme();
-    const iconColor = isDark ? '#fff' : '#6b7280';
-    const chevronColor = isDark ? '#9ca3af' : '#999';
+    const { colors } = useTheme();
+    const iconColor = colors.textSecondary;
+    const chevronColor = colors.textMuted;
 
     return (
         <PressableHaptics
@@ -16,11 +15,17 @@ export const SettingsItem = ({ icon, label, onPress, showChevron = true }) => {
             accessibilityLabel={label}
             accessibilityRole="button"
             style={({ pressed }) => [
-                tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`,
-                pressed && tw`bg-gray-50 dark:bg-gray-800`,
+                {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 16,
+                    paddingHorizontal: 20,
+                    backgroundColor: colors.background,
+                },
+                pressed && { backgroundColor: colors.surfaceElevated },
             ]}>
-            <Ionicons name={icon} size={24} color={iconColor} style={tw`mr-4`} />
-            <Text style={tw`flex-1 text-base font-medium text-gray-900 dark:text-white`}>
+            <Ionicons name={icon} size={24} color={iconColor} style={{ marginRight: 16 }} />
+            <Text style={{ flex: 1, fontSize: 16, fontWeight: '500', color: colors.text }}>
                 {label}
             </Text>
             {showChevron && <Ionicons name="chevron-forward" size={20} color={chevronColor} />}
@@ -28,24 +33,43 @@ export const SettingsItem = ({ icon, label, onPress, showChevron = true }) => {
     );
 };
 
-export const SectionHeader = ({ title }) => (
-    <View style={tw`px-5 py-2 bg-gray-50 dark:bg-black`}>
-        <Text style={tw`text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase`}>
-            {title}
-        </Text>
-    </View>
-);
-
-export const Divider = () => <View style={tw`h-px bg-gray-200 dark:bg-gray-800`} />;
-
-export const SettingsToggleItem = ({ icon, label, value, onValueChange }) => {
-    const { isDark } = useTheme();
-    const iconColor = isDark ? '#fff' : '#000';
+export const SectionHeader = ({ title }) => {
+    const { colors } = useTheme();
 
     return (
-        <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
-            <Ionicons name={icon} size={24} color={iconColor} style={tw`mr-4`} />
-            <Text style={tw`flex-1 text-base font-medium text-gray-900 dark:text-white`}>
+        <View style={{ paddingHorizontal: 20, paddingVertical: 8, backgroundColor: colors.surface }}>
+            <Text
+                style={{
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: colors.textMuted,
+                    textTransform: 'uppercase',
+                }}>
+                {title}
+            </Text>
+        </View>
+    );
+};
+
+export const Divider = () => {
+    const { colors } = useTheme();
+    return <View style={{ height: 1, backgroundColor: colors.border }} />;
+};
+
+export const SettingsToggleItem = ({ icon, label, value, onValueChange }) => {
+    const { colors } = useTheme();
+
+    return (
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 16,
+                paddingHorizontal: 20,
+                backgroundColor: colors.background,
+            }}>
+            <Ionicons name={icon} size={24} color={colors.text} style={{ marginRight: 16 }} />
+            <Text style={{ flex: 1, fontSize: 16, fontWeight: '500', color: colors.text }}>
                 {label}
             </Text>
             <Switch value={value} onValueChange={onValueChange} ios_backgroundColor="#ccc" />
@@ -60,19 +84,27 @@ export const SettingsToggleItemDescription = ({
     value,
     onValueChange,
 }) => {
-    const { isDark } = useTheme();
-    const iconColor = isDark ? '#fff' : '#000';
+    const { colors } = useTheme();
 
     return (
-        <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
-            <XStack flex={1} style={tw`items-center`}>
-                <XStack style={tw`flex-1 items-center mt-1`}>
-                    {icon && <Ionicons name={icon} size={24} color={iconColor} style={tw`mr-4`} />}
-                    <YStack style={tw`flex-1`}>
-                        <Text style={tw`text-base font-medium text-gray-900 dark:text-white`}>
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 16,
+                paddingHorizontal: 20,
+                backgroundColor: colors.background,
+            }}>
+            <XStack flex={1} style={{ alignItems: 'center' }}>
+                <XStack style={{ flex: 1, alignItems: 'center', marginTop: 4 }}>
+                    {icon && (
+                        <Ionicons name={icon} size={24} color={colors.text} style={{ marginRight: 16 }} />
+                    )}
+                    <YStack style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '500', color: colors.text }}>
                             {label}
                         </Text>
-                        <Text style={tw`mt-3 text-sm text-gray-500 dark:text-gray-400`}>
+                        <Text style={{ marginTop: 12, fontSize: 14, color: colors.textSecondary }}>
                             {description}
                         </Text>
                     </YStack>
@@ -93,23 +125,28 @@ export const SettingsStatusItem = ({
     inactiveText = 'Setup',
     showChevronWhenInactive = true,
 }) => {
-    const { isDark } = useTheme();
-    const iconColor = isDark ? '#fff' : '#333';
-    const chevronColor = isDark ? '#9ca3af' : '#999';
-    const inactiveTextColor = isDark ? '#9ca3af' : '#4b5563';
+    const { colors } = useTheme();
+    const chevronColor = colors.textMuted;
 
     const content = (
-        <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
-            <Ionicons name={icon} size={24} color={iconColor} style={tw`mr-4`} />
-            <Text style={tw`flex-1 text-base font-medium text-gray-900 dark:text-white`}>
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 16,
+                paddingHorizontal: 20,
+                backgroundColor: colors.background,
+            }}>
+            <Ionicons name={icon} size={24} color={colors.text} style={{ marginRight: 16 }} />
+            <Text style={{ flex: 1, fontSize: 16, fontWeight: '500', color: colors.text }}>
                 {label}
             </Text>
 
             {isActive ? (
                 <Ionicons name={activeIcon} size={24} color={activeIconColor} />
             ) : (
-                <View style={tw`flex-row items-center`}>
-                    <Text style={[tw`text-base mr-1`, { color: inactiveTextColor }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, marginRight: 4, color: colors.textSecondary }}>
                         {inactiveText}
                     </Text>
                     {showChevronWhenInactive && (
@@ -124,7 +161,9 @@ export const SettingsStatusItem = ({
         return (
             <PressableHaptics
                 onPress={onPress}
-                style={({ pressed }) => [pressed && tw`bg-gray-50 dark:bg-gray-800`]}>
+                style={({ pressed }) => [
+                    pressed && { backgroundColor: colors.surfaceElevated },
+                ]}>
                 {content}
             </PressableHaptics>
         );

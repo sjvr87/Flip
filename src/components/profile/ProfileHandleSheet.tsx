@@ -1,6 +1,6 @@
 import { ProfileQrCode } from '@/components/profile/ProfileQrCode';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getProfileHandle, getProfileUrl } from '@/utils/profileUrl';
+import { getProfileHandle, getProfileUrl, getProfileShareMessage } from '@/utils/profileUrl';
 import { shareContent } from '@/utils/sharer';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, Text, TouchableOpacity, View } from 'react-native';
@@ -95,7 +95,7 @@ export function ProfileHandleSheet({
                             onClose();
                             try {
                                 await shareContent({
-                                    message: 'Check out my account on Flip!',
+                                    message: getProfileShareMessage(user, { isOwner: true }),
                                     url,
                                 });
                             } catch (error) {

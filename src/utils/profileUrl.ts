@@ -28,6 +28,18 @@ export function getProfileHandle(profile: ProfileLike | null | undefined): strin
     return normalized ? `@${normalized}` : '';
 }
 
+/** Share sheet message when sending a profile link. */
+export function getProfileShareMessage(
+    profile: ProfileLike | null | undefined,
+    options?: { isOwner?: boolean },
+): string {
+    const handle = getProfileHandle(profile);
+    if (options?.isOwner || !handle) {
+        return 'See you on the flip side — check out my Flip account.';
+    }
+    return `See you on the flip side — check out ${handle} on Flip.`;
+}
+
 export async function copyText(
     text: string,
     options?: { showAlert?: boolean; alertTitle?: string; alertMessage?: string },

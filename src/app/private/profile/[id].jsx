@@ -34,7 +34,7 @@ import {
     toPostViewPath,
     toProfileFeedPath,
 } from '@/utils/profileNavigation';
-import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
+import { copyProfileLink, getProfileShareMessage, getProfileUrl } from '@/utils/profileUrl';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -299,7 +299,7 @@ export default function ProfileScreen() {
 
         try {
             await shareContent({
-                message: `Check out @${user.username}'s account on Flip!`,
+                message: getProfileShareMessage(user),
                 url: getProfileUrl(user),
             });
         } catch (error) {

@@ -11,7 +11,7 @@ export default function PrivacyScreen() {
     const [suggestAccount, setSuggestAccount] = useState(true);
     const queryClient = useQueryClient();
     const router = useRouter();
-    const { isDark } = useTheme();
+    const { colors } = useTheme();
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['privacySettings'],
@@ -56,12 +56,12 @@ export default function PrivacyScreen() {
     };
 
     return (
-        <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
+        <View style={{ flex: 1, backgroundColor: colors.surfaceElevated }}>
             <Stack.Screen
                 options={{
                     title: 'Privacy',
-                    headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: isDark ? '#fff' : '#000',
+                    headerStyle: { backgroundColor: colors.background },
+                    headerTintColor: colors.text,
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}
