@@ -14,6 +14,7 @@ import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
+    TAB_BAR_HOME_NAV_BG,
     TAB_BAR_HOME_OVERLAY_BG,
     getFlipTabBarStyle,
     useFlipTabBarMetrics,
@@ -114,7 +115,6 @@ export default function TabsLayout() {
             initialRouteName="index"
             screenListeners={tabScreenListeners}
             screenOptions={{
-                lazy: false,
                 backBehavior: 'order',
                 /** Cyan when idle; orange when this tab is selected (Cursor-style). */
                 tabBarActiveTintColor: MENTION_HANDLE_COLOR,
@@ -183,6 +183,8 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="create"
                 options={{
+                    /** CameraX must not mount at cold start — Samsung SIGSEGV risk. */
+                    lazy: true,
                     title: 'Create',
                     href: '/create',
                     tabBarAccessibilityLabel: 'Create',
