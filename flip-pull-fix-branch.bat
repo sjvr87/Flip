@@ -24,5 +24,9 @@ echo.
 echo Latest commit:
 git log -1 --oneline
 echo.
+echo NOTE: Fixes are on THIS branch, not main. Do not git checkout main until PR #64 merges.
+echo.
+echo == Reload JS on phone (Metro must already be healthy) ==
+echo    If still stale after reload: run flip-pull-fix-branch-reset.bat instead.
 call flip-reload.bat
 exit /b %ERRORLEVEL%
