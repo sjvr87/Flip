@@ -117,7 +117,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const remixReferenceUrl = pendingRemix?.referenceVideoUrl;
 
     const { opacity: screenFlashOpacity, fireFlash, startFlash, stopFlash } = useScreenFlash();
-    const useScreenFlashForFront = cameraPosition === 'front' && flash;
+    const shouldScreenFlash = cameraPosition === 'front' && flash;
 
     const syncNativeZoom = useCallback((value: number) => {
         lastNativeZoomRef.current = value;
@@ -203,8 +203,8 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         if (isRecording || !isCameraReady || captureMode !== 'video') return;
         recordingRef.current = true;
         setIsRecording(true);
-        if (useScreenFlashForFront) startFlash();
-    }, [isRecording, isCameraReady, captureMode, useScreenFlashForFront, startFlash]);
+        if (shouldScreenFlash) startFlash();
+    }, [isRecording, isCameraReady, captureMode, shouldScreenFlash, startFlash]);
 
     const stopRecording = useCallback(() => {
         if (!recordingRef.current) return;
@@ -258,9 +258,9 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
     const takePhoto = useCallback(() => {
         if (!isCameraReady || isRecording || captureMode !== 'photo') return;
-        if (useScreenFlashForFront) fireFlash(400);
+        if (shouldScreenFlash) fireFlash(400);
         setPhotoRequestId((id) => id + 1);
-    }, [isCameraReady, isRecording, captureMode, useScreenFlashForFront, fireFlash]);
+    }, [isCameraReady, isRecording, captureMode, shouldScreenFlash, fireFlash]);
 
     const handleClose = () => {
         if (isRecording) stopRecording();

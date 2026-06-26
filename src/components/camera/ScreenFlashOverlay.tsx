@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { NativeModules, StyleSheet } from 'react-native';
 import Animated, {
     SharedValue,
@@ -77,6 +77,22 @@ export function useScreenFlash() {
     const opacity = useSharedValue(0);
     const opacityRef = useRef(opacity);
     const activeRef = useRef(false);
+    const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+    // Cleanup on unmount: cancel pending timers and restore brightness.
+    useEffect(() => {
+        const sv = opacityRef.current;
+        const timers = timersRef.current;
+        return () => {
+            for (const t of timers) clearTimeout(t);
+            timersRef.current = [];
+            if (activeRef.current) {
+                activeRef.current = false;
+                sv.value = 0;
+                void restoreBrightness();
+            }
+        };
+    }, []);
 
     /** One-shot flash for photo capture. */
     const fireFlash = useCallback((durationMs = 500) => {
@@ -87,13 +103,15 @@ export function useScreenFlash() {
         sv.value = withTiming(1, { duration: FADE_IN_MS });
 
         // Hold at full brightness, then fade out.
-        setTimeout(() => {
+        const t1 = setTimeout(() => {
             sv.value = withTiming(0, { duration: FADE_OUT_MS });
-            setTimeout(() => {
+            const t2 = setTimeout(() => {
                 activeRef.current = false;
                 void restoreBrightness();
             }, FADE_OUT_MS);
+            timersRef.current.push(t2);
         }, FADE_IN_MS + durationMs);
+        timersRef.current.push(t1);
     }, []);
 
     /** Hold flash on (for video recording). Call `stopFlash` to release. */
