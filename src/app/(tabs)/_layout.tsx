@@ -1,3 +1,4 @@
+import { LOOP_ACCENT, MENTION_HANDLE_COLOR } from '@/constants/loopsPalette';
 import CreateCameraTabIcon from '@/components/icons/CreateCameraTabIcon';
 import ExploreTabIcon from '@/components/icons/ExploreTabIcon';
 import HomeTabIcon from '@/components/icons/HomeTabIcon';
@@ -32,10 +33,21 @@ function TabIconSlot({ children }: { children: ReactNode }) {
     return <View style={styles.tabIconSlot}>{children}</View>;
 }
 
-/** Single uniform scrim behind Home tab icons (including safe-area inset). */
+/** Scrim on icon row only; solid black under system nav inset (same footprint as other tabs). */
 function HomeTabBarBackground() {
+    const tabBarMetrics = useFlipTabBarMetrics();
+    const iconBandHeight = tabBarMetrics.paddingTop + tabBarMetrics.contentHeight;
+
     return (
-        <View style={[StyleSheet.absoluteFill, styles.homeTabBarOverlay]} pointerEvents="none" />
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View
+                style={{
+                    height: iconBandHeight,
+                    backgroundColor: TAB_BAR_HOME_OVERLAY_BG,
+                }}
+            />
+            <View style={{ flex: 1, backgroundColor: TAB_BAR_HOME_NAV_BG }} />
+        </View>
     );
 }
 
@@ -104,9 +116,12 @@ export default function TabsLayout() {
             screenOptions={{
                 lazy: false,
                 backBehavior: 'order',
-                tabBarActiveTintColor: colors.accent,
-                tabBarInactiveTintColor: colors.tabIconInactive,
+                /** Cyan when idle; orange when this tab is selected (Cursor-style). */
+                tabBarActiveTintColor: MENTION_HANDLE_COLOR,
+                tabBarInactiveTintColor: LOOP_ACCENT,
                 tabBarButton: (props) => <FlipTabBarButton {...props} />,
+                /** We apply bottom inset in `getFlipTabBarStyle` — avoid double-padding on Home. */
+                safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
                 tabBarStyle: solidTabBarStyle,
                 tabBarItemStyle: {
                     flex: 1,
@@ -142,7 +157,6 @@ export default function TabsLayout() {
                     headerShown: false,
                     tabBarStyle: homeTabBarStyle,
                     tabBarBackground: () => <HomeTabBarBackground />,
-                    safeAreaInsets: { bottom: 0 },
                     sceneStyle: { flex: 1, backgroundColor: 'transparent' },
                     tabBarIcon: ({ color, focused }) => (
                         <TabIconSlot>
@@ -237,8 +251,5 @@ const styles = StyleSheet.create({
         height: TAB_ICON_SLOT_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    homeTabBarOverlay: {
-        backgroundColor: TAB_BAR_HOME_OVERLAY_BG,
     },
 });

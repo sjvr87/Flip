@@ -102,15 +102,11 @@ export function getFlipTabBarStyle(
     borderColor: string,
 ): ViewStyle {
     const layout = getTabBarStyleFromMetrics(metrics);
-    const sizing =
-        variant === 'home' || Platform.OS !== 'android'
-            ? { height: layout.height }
-            : { minHeight: layout.height };
 
     const base: ViewStyle = {
         paddingTop: layout.paddingTop,
         paddingBottom: layout.paddingBottom,
-        ...sizing,
+        height: layout.height,
         elevation: 0,
         shadowOpacity: 0,
     };
