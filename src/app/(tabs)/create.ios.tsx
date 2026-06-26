@@ -106,7 +106,7 @@ export default function CameraScreen() {
     const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending);
 
     const { opacity: screenFlashOpacity, startFlash, stopFlash } = useScreenFlash();
-    const useScreenFlashForFront = cameraPosition === 'front' && flash === 'on';
+    const shouldScreenFlash = cameraPosition === 'front' && flash === 'on';
 
     const handleRequestPermission = useCallback(async () => {
         setIsRequestingPermission(true);
@@ -273,7 +273,7 @@ export default function CameraScreen() {
         try {
             setIsRecording(true);
 
-            if (useScreenFlashForFront) startFlash();
+            if (shouldScreenFlash) startFlash();
 
             cancelAnimation(zoomIndicatorOpacity);
             zoomIndicatorOpacity.value = withTiming(1, { duration: 200 });
@@ -303,7 +303,7 @@ export default function CameraScreen() {
         recordingDuration,
         hasCameraPermission,
         hasMicrophonePermission,
-        useScreenFlashForFront,
+        shouldScreenFlash,
         startFlash,
         stopFlash,
     ]);
@@ -335,7 +335,7 @@ export default function CameraScreen() {
         isRecordingRef.current = true;
         setIsRecording(true);
 
-        if (useScreenFlashForFront) startFlash();
+        if (shouldScreenFlash) startFlash();
 
         cancelAnimation(zoomIndicatorOpacity);
         zoomIndicatorOpacity.value = withTiming(1, { duration: 200 });

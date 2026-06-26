@@ -71,7 +71,7 @@ export default function DuetCameraScreen() {
     const lastPauseTime = useRef<number>(0);
 
     const { opacity: screenFlashOpacity, startFlash, stopFlash } = useScreenFlash();
-    const useScreenFlashForFront = cameraPosition === 'front' && flash === 'on';
+    const shouldScreenFlash = cameraPosition === 'front' && flash === 'on';
 
     const player = useVideoPlayer(duetVideoUri, (player) => {
         player.loop = false;
@@ -176,7 +176,7 @@ export default function DuetCameraScreen() {
                 setIsPaused(false);
                 isHoldingRecord.value = true;
 
-                if (useScreenFlashForFront) startFlash();
+                if (shouldScreenFlash) startFlash();
 
                 if (lastPauseTime.current > 0) {
                     pausedDuration.current += Date.now() - lastPauseTime.current;
@@ -205,7 +205,7 @@ export default function DuetCameraScreen() {
             setHasRecordedContent(true);
             isHoldingRecord.value = true;
 
-            if (useScreenFlashForFront) startFlash();
+            if (shouldScreenFlash) startFlash();
 
             cancelAnimation(zoomIndicatorOpacity);
             zoomIndicatorOpacity.value = withTiming(1, { duration: 200 });
@@ -278,7 +278,7 @@ export default function DuetCameraScreen() {
         layout,
         isVideoReady,
         player,
-        useScreenFlashForFront,
+        shouldScreenFlash,
         startFlash,
         stopFlash,
     ]);
