@@ -86,6 +86,64 @@ type FeedInfiniteData = {
     pageParams: unknown[];
 };
 
+export type FeedInfiniteCache = FeedInfiniteData;
+
+/** Read cached feed videos for a tab (deduped) — used for tab-switch media warmup. */
+export function getCachedFeedVideos(
+    queryClient: QueryClient,
+    tab: FeedTab,
+    epoch: number,
+    viewerDid?: string | null,
+): FlipVideo[] {
+    const cached = queryClient.getQueryData<FeedInfiniteData>([
+        'videos',
+        tab,
+        epoch,
+        viewerDid ?? 'anon',
+    ]);
+    if (!cached?.pages?.length) {
+        return [];
+    }
+    return dedupeFeedVideos(
+        cached.pages.flatMap((page) => page.data),
+        tab,
+    );
+}
+
+/** Warm thumbnails (and first video on iOS) before switching to a tab. */
+export function warmFeedTabMedia(
+    queryClient: QueryClient,
+    tab: FeedTab,
+    epoch: number,
+    viewerDid: string | null | undefined,
+    options: {
+        prefetchThumbnails: (urls: (string | undefined | null)[]) => void;
+        prefetchVideoUrls: (urls: string[]) => void;
+        videoCount?: number;
+        thumbCount?: number;
+    },
+): void {
+    const videos = getCachedFeedVideos(queryClient, tab, epoch, viewerDid);
+    if (videos.length === 0) {
+        return;
+    }
+
+    const thumbCount = options.thumbCount ?? 3;
+    const videoCount = options.videoCount ?? 1;
+    const thumbSlice = videos.slice(0, thumbCount);
+    options.prefetchThumbnails(
+        thumbSlice.flatMap((video) => [video.media?.thumbnail, video.account?.avatar]),
+    );
+
+    const videoUrls = videos
+        .slice(0, videoCount)
+        .map((video) => video.media?.src_url)
+        .filter((url): url is string => typeof url === 'string' && url.length > 0);
+    if (videoUrls.length > 0) {
+        options.prefetchVideoUrls(videoUrls);
+    }
+}
+
 /** Optimistically sync comment count on main-feed and profile-reel cards. */
 export function patchFeedVideoComments(
     queryClient: QueryClient,

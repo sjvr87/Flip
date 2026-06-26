@@ -16,6 +16,7 @@ import {
     FEED_GC_MS,
     FEED_TABS,
     dedupeFeedVideos,
+    type FeedInfiniteCache,
     type FeedTab,
     getFeedSoftRefreshMs,
     getFeedStaleMs,
@@ -23,6 +24,7 @@ import {
     markVideoSeenInSession,
     resetSessionSeen,
     softRefreshFeed,
+    warmFeedTabMedia,
 } from '@/utils/feedCache';
 import {
     getFeedNetworkProfile,
@@ -259,6 +261,7 @@ export default function LoopsFeed({ navigation }) {
     const [appActive, setAppActive] = useState(AppState.currentState === 'active');
     const [guardPlaybackActive, setGuardPlaybackActive] = useState(isFeedPlaybackActive);
     const [loaderTimedOut, setLoaderTimedOut] = useState(false);
+    const [manualRefreshing, setManualRefreshing] = useState(false);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -293,12 +296,23 @@ export default function LoopsFeed({ navigation }) {
                 return;
             }
             const epoch = epochs[tab] ?? 0;
-            void queryClient.prefetchInfiniteQuery({
-                queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
-                queryFn: feedQueryFn,
-                initialPageParam: null,
-                staleTime: getFeedStaleMs(tab),
+            warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                prefetchThumbnails,
+                prefetchVideoUrls,
             });
+            void queryClient
+                .prefetchInfiniteQuery({
+                    queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
+                    queryFn: feedQueryFn,
+                    initialPageParam: null,
+                    staleTime: getFeedStaleMs(tab),
+                })
+                .then(() => {
+                    warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                        prefetchThumbnails,
+                        prefetchVideoUrls,
+                    });
+                });
         };
 
         for (const tab of FEED_TABS) {
@@ -346,8 +360,12 @@ export default function LoopsFeed({ navigation }) {
         initialPageParam: null,
         staleTime: getFeedStaleMs(activeTab),
         gcTime: FEED_GC_MS,
-        refetchOnMount: true,
+        refetchOnMount: false,
         refetchOnWindowFocus: false,
+        placeholderData: () =>
+            queryClient.getQueryData<FeedInfiniteCache>(
+                feedVideosQueryKey(activeTab, feedEpoch, viewerDid),
+            ),
         maxPages: 25,
         enabled: feedQueryEnabled,
     });
@@ -487,25 +505,67 @@ export default function LoopsFeed({ navigation }) {
         [queryClient, viewerDid],
     );
 
-    const switchFeedTab = useCallback((tab: FeedTab) => {
-        if (tab === activeTabRef.current) {
-            return;
-        }
+    const warmFeedTab = useCallback(
+        (tab: FeedTab) => {
+            if (tab === activeTabRef.current) {
+                return;
+            }
+            if (tab === 'forYou' && !forYouEnabled) {
+                return;
+            }
+            const epoch = feedEpochsRef.current[tab] ?? 0;
+            warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                prefetchThumbnails,
+                prefetchVideoUrls,
+            });
+            void queryClient
+                .prefetchInfiniteQuery({
+                    queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
+                    queryFn: feedQueryFn,
+                    initialPageParam: null,
+                    staleTime: getFeedStaleMs(tab),
+                })
+                .then(() => {
+                    warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                        prefetchThumbnails,
+                        prefetchVideoUrls,
+                    });
+                });
+        },
+        [forYouEnabled, queryClient, viewerDid],
+    );
 
-        onFeedTabChanged();
-        releaseAllVideoPrefetch();
+    const switchFeedTab = useCallback(
+        (tab: FeedTab) => {
+            if (tab === activeTabRef.current) {
+                return;
+            }
 
-        if (currentVideoRef.current && watchStartTimeRef.current) {
-            const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
-            recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
-        }
-        currentVideoRef.current = null;
-        watchStartTimeRef.current = null;
+            warmFeedTabMedia(queryClient, tab, feedEpochsRef.current[tab] ?? 0, viewerDid, {
+                prefetchThumbnails,
+                prefetchVideoUrls,
+            });
 
-        setActiveTab(tab);
-        setCurrentIndex(0);
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-    }, []);
+            onFeedTabChanged();
+            releaseAllVideoPrefetch();
+
+            if (currentVideoRef.current && watchStartTimeRef.current) {
+                const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
+                recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
+            }
+            currentVideoRef.current = null;
+            watchStartTimeRef.current = null;
+
+            setActiveTab(tab);
+            setCurrentIndex(0);
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+
+            requestAnimationFrame(() => {
+                refreshFeedIfStale(tab, feedEpochsRef.current[tab] ?? 0);
+            });
+        },
+        [queryClient, refreshFeedIfStale, viewerDid],
+    );
 
     useEffect(() => {
         if (!isConfigLoading && appConfig) {
@@ -517,6 +577,7 @@ export default function LoopsFeed({ navigation }) {
 
     const onRefresh = useCallback(() => {
         const tab = activeTabRef.current;
+        setManualRefreshing(true);
         onFeedTabChanged();
         releaseAllVideoPrefetch();
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -533,6 +594,15 @@ export default function LoopsFeed({ navigation }) {
         queryClient.invalidateQueries({ queryKey: ['followingDids'] });
         hardRefreshFeed(queryClient, tab);
     }, [bumpFeedEpoch, queryClient]);
+
+    useEffect(() => {
+        if (!manualRefreshing) {
+            return;
+        }
+        if (!isFetching && !isRefetching) {
+            setManualRefreshing(false);
+        }
+    }, [manualRefreshing, isFetching, isRefetching]);
 
     useEffect(() => {
         const stopNetwork = startFeedNetworkMonitoring();
@@ -779,15 +849,22 @@ export default function LoopsFeed({ navigation }) {
         if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
             return;
         }
-        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
-        if (prefetchAhead <= 0) {
-            return;
+        const first = videos[0];
+        if (first?.media?.thumbnail) {
+            prefetchThumbnails([first.media.thumbnail, first.account?.avatar]);
         }
-        const nextUrl = videos[1]?.media?.src_url;
-        prefetchVideoUrls(nextUrl ? [nextUrl] : []);
+        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
+        const urls: string[] = [];
+        if (first?.media?.src_url) {
+            urls.push(first.media.src_url);
+        }
+        if (prefetchAhead > 0 && videos[1]?.media?.src_url) {
+            urls.push(videos[1].media.src_url);
+        }
+        prefetchVideoUrls(urls);
     }, [
         activeTab,
-        videos.length,
+        videos,
         feedPlaybackEnabled,
         networkProfile.tier,
         networkProfile.prefetchAhead,
@@ -956,10 +1033,7 @@ export default function LoopsFeed({ navigation }) {
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
     const feedListEmpty = videosWithEnd.length === 0;
-    const showInitialLoader =
-        !feedQueryEnabled ||
-        (isLoading && !hasFeedData) ||
-        (feedListEmpty && !feedTrulyEmpty && !feedCaughtUp && (isFetching || isFetchingNextPage));
+    const showInitialLoader = !feedQueryEnabled || (isLoading && !hasFeedData);
 
     useEffect(() => {
         if (!showInitialLoader) {
@@ -996,7 +1070,7 @@ export default function LoopsFeed({ navigation }) {
         [feedHeight],
     );
 
-    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showBlockingLoader;
+    const refreshing = manualRefreshing && (isRefetching || isFetching) && !isFetchingNextPage;
 
     const feedHeader = (
         <View style={[styles.header, { top: statusBarInset + 2 }]}>
@@ -1008,6 +1082,7 @@ export default function LoopsFeed({ navigation }) {
                         selected: activeTab === 'following',
                     }}
                     style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                    onPressIn={() => warmFeedTab('following')}
                     onPress={() => switchFeedTab('following')}>
                     <Text
                         style={[
@@ -1025,6 +1100,7 @@ export default function LoopsFeed({ navigation }) {
                             selected: activeTab === 'forYou',
                         }}
                         style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
+                        onPressIn={() => warmFeedTab('forYou')}
                         onPress={() => switchFeedTab('forYou')}>
                         <Text
                             style={[
@@ -1042,6 +1118,7 @@ export default function LoopsFeed({ navigation }) {
                         selected: activeTab === 'trending',
                     }}
                     style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                    onPressIn={() => warmFeedTab('trending')}
                     onPress={() => switchFeedTab('trending')}>
                     <Text
                         style={[
@@ -1116,8 +1193,13 @@ export default function LoopsFeed({ navigation }) {
                               snapToInterval: feedHeight,
                               snapToAlignment: 'start' as const,
                               decelerationRate: 'fast' as const,
+                              disableIntervalMomentum: true,
                           }
-                        : {})}
+                        : {
+                              snapToInterval: feedHeight,
+                              snapToAlignment: 'start' as const,
+                              decelerationRate: 0.98,
+                          })}
                     scrollEventThrottle={16}
                     overScrollMode="never"
                     viewabilityConfig={viewabilityConfig.current}
@@ -1129,7 +1211,7 @@ export default function LoopsFeed({ navigation }) {
                     maxToRenderPerBatch={feedMaxToRenderPerBatch}
                     windowSize={feedFlatListWindowSize}
                     initialNumToRender={feedInitialNumToRender}
-                    updateCellsBatchingPeriod={50}
+                    updateCellsBatchingPeriod={16}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
