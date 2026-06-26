@@ -1,4 +1,5 @@
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
+import { ScreenFlashOverlay, useScreenFlash } from '@/components/camera/ScreenFlashOverlay';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -68,6 +69,9 @@ export default function DuetCameraScreen() {
     const recordingStartTime = useRef<number>(0);
     const pausedDuration = useRef<number>(0);
     const lastPauseTime = useRef<number>(0);
+
+    const { opacity: screenFlashOpacity, startFlash, stopFlash } = useScreenFlash();
+    const useScreenFlashForFront = cameraPosition === 'front' && flash === 'on';
 
     const player = useVideoPlayer(duetVideoUri, (player) => {
         player.loop = false;
@@ -172,6 +176,8 @@ export default function DuetCameraScreen() {
                 setIsPaused(false);
                 isHoldingRecord.value = true;
 
+                if (useScreenFlashForFront) startFlash();
+
                 if (lastPauseTime.current > 0) {
                     pausedDuration.current += Date.now() - lastPauseTime.current;
                     lastPauseTime.current = 0;
@@ -199,6 +205,8 @@ export default function DuetCameraScreen() {
             setHasRecordedContent(true);
             isHoldingRecord.value = true;
 
+            if (useScreenFlashForFront) startFlash();
+
             cancelAnimation(zoomIndicatorOpacity);
             zoomIndicatorOpacity.value = withTiming(1, { duration: 200 });
 
@@ -225,7 +233,7 @@ export default function DuetCameraScreen() {
             }, 100);
 
             camera.current.startRecording({
-                flash: flash,
+                flash: cameraPosition === 'back' ? flash : 'off',
                 onRecordingFinished: (video) => {
                     console.log('Recording finished:', video);
                     router.push({
@@ -246,6 +254,7 @@ export default function DuetCameraScreen() {
                     setIsRecording(false);
                     setIsPaused(false);
                     isHoldingRecord.value = false;
+                    stopFlash();
 
                     player.pause();
                 },
@@ -256,17 +265,22 @@ export default function DuetCameraScreen() {
             setIsRecording(false);
             setIsPaused(false);
             isHoldingRecord.value = false;
+            stopFlash();
         }
     }, [
         isRecording,
         isPaused,
         flash,
+        cameraPosition,
         recordingDuration,
         router,
         duetVideoUri,
         layout,
         isVideoReady,
         player,
+        useScreenFlashForFront,
+        startFlash,
+        stopFlash,
     ]);
 
     const pauseRecording = useCallback(async () => {
@@ -279,6 +293,7 @@ export default function DuetCameraScreen() {
             setIsRecording(false);
             setIsPaused(true);
             isHoldingRecord.value = false;
+            stopFlash();
 
             lastPauseTime.current = Date.now();
 
@@ -294,7 +309,7 @@ export default function DuetCameraScreen() {
         } catch (error) {
             console.error('Failed to pause recording:', error);
         }
-    }, [isRecording, player]);
+    }, [isRecording, player, stopFlash]);
 
     const finishRecording = useCallback(async () => {
         if (!camera.current) return;
@@ -304,6 +319,7 @@ export default function DuetCameraScreen() {
             setIsRecording(false);
             setIsPaused(false);
             isHoldingRecord.value = false;
+            stopFlash();
 
             player.pause();
 
@@ -321,7 +337,7 @@ export default function DuetCameraScreen() {
         } catch (error) {
             console.error('Failed to stop recording:', error);
         }
-    }, [player]);
+    }, [player, stopFlash]);
 
     const handleNextButton = useCallback(() => {
         finishRecording();
@@ -500,6 +516,7 @@ export default function DuetCameraScreen() {
 
     return (
         <GestureHandlerRootView style={styles.container}>
+            <ScreenFlashOverlay opacity={screenFlashOpacity} />
             <StatusBar style="light" />
             <Stack.Screen options={{ headerShown: false }} />
             <View

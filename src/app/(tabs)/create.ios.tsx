@@ -1,4 +1,5 @@
 import { LoopsFilterPreview } from '@/components/camera/LoopsFilterPreview';
+import { ScreenFlashOverlay, useScreenFlash } from '@/components/camera/ScreenFlashOverlay';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { loopsFilter, type FilterName } from '@/plugins/loopsFilter';
@@ -103,6 +104,9 @@ export default function CameraScreen() {
     const recordingProgress = useRef(new Animated.Value(0)).current;
     const recordingTimer = useRef<NodeJS.Timeout | null>(null);
     const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending);
+
+    const { opacity: screenFlashOpacity, startFlash, stopFlash } = useScreenFlash();
+    const useScreenFlashForFront = cameraPosition === 'front' && flash === 'on';
 
     const handleRequestPermission = useCallback(async () => {
         setIsRequestingPermission(true);
@@ -269,11 +273,13 @@ export default function CameraScreen() {
         try {
             setIsRecording(true);
 
+            if (useScreenFlashForFront) startFlash();
+
             cancelAnimation(zoomIndicatorOpacity);
             zoomIndicatorOpacity.value = withTiming(1, { duration: 200 });
 
             camera.current.startRecording({
-                flash,
+                flash: cameraPosition === 'back' ? flash : 'off',
                 onRecordingFinished: (video) => {
                     navigateToPreview(video.path, recordingDuration);
                 },
@@ -281,20 +287,33 @@ export default function CameraScreen() {
                     console.error('Recording error:', error);
                     Alert.alert('Recording Error', error.message);
                     setIsRecording(false);
+                    stopFlash();
                 },
             });
         } catch (error: any) {
             console.error('Failed to start recording:', error);
             Alert.alert('Error', 'Failed to start recording');
             setIsRecording(false);
+            stopFlash();
         }
-    }, [isRecording, flash, recordingDuration, hasCameraPermission, hasMicrophonePermission]);
+    }, [
+        isRecording,
+        flash,
+        cameraPosition,
+        recordingDuration,
+        hasCameraPermission,
+        hasMicrophonePermission,
+        useScreenFlashForFront,
+        startFlash,
+        stopFlash,
+    ]);
 
     const stopStandardRecording = useCallback(async () => {
         if (!camera.current || !isRecording) return;
         try {
             await camera.current.stopRecording();
             setIsRecording(false);
+            stopFlash();
 
             cancelAnimation(zoomIndicatorOpacity);
             zoomIndicatorOpacity.value = withDelay(2000, withTiming(0, { duration: 200 }));
@@ -304,7 +323,7 @@ export default function CameraScreen() {
         } catch (error) {
             console.error('Failed to stop recording:', error);
         }
-    }, [isRecording]);
+    }, [isRecording, stopFlash]);
 
     const startFilterRecording = () => {
         const baseDir = FileSystem.cacheDirectory;
@@ -316,6 +335,8 @@ export default function CameraScreen() {
         isRecordingRef.current = true;
         setIsRecording(true);
 
+        if (useScreenFlashForFront) startFlash();
+
         cancelAnimation(zoomIndicatorOpacity);
         zoomIndicatorOpacity.value = withTiming(1, { duration: 200 });
     };
@@ -323,6 +344,7 @@ export default function CameraScreen() {
     const stopFilterRecording = () => {
         if (!isRecordingRef.current) return;
         pendingAction.value = 'stop';
+        stopFlash();
 
         cancelAnimation(zoomIndicatorOpacity);
         zoomIndicatorOpacity.value = withDelay(2000, withTiming(0, { duration: 200 }));
@@ -352,8 +374,7 @@ export default function CameraScreen() {
     };
 
     const toggleCamera = () => setCameraPosition((p) => (p === 'back' ? 'front' : 'back'));
-    const toggleFlash = () =>
-        setFlash((p) => (cameraPosition === 'back' && p === 'off' ? 'on' : 'off'));
+    const toggleFlash = () => setFlash((p) => (p === 'off' ? 'on' : 'off'));
     const toggleFilters = () => {
         if (filterShared.value != 'none' && showFilters) {
             return;
@@ -584,6 +605,7 @@ export default function CameraScreen() {
 
     return (
         <GestureHandlerRootView style={styles.container}>
+            <ScreenFlashOverlay opacity={screenFlashOpacity} />
             <GestureDetector gesture={cameraGestures}>
                 <View style={StyleSheet.absoluteFill}>
                     {isFocused && device && hasCameraPermission && hasMicrophonePermission && (
