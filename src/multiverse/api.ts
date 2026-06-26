@@ -69,6 +69,7 @@ export async function createMultiversePost(
         .map((d) => ({
             provider: d.provider,
             accountId: d.accountId,
+            destination: d.destination ?? null,
         }));
 
     const resp = await authedMultiverseFetch('/api/posts', token, {

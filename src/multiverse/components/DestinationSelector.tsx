@@ -1,5 +1,5 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import type { ConnectedAccount, PostDestination } from '@/multiverse/types';
+import type { ConnectedAccount, NostrAccountMetadata, PostDestination } from '@/multiverse/types';
 import { MultiverseProviderIds } from '@/multiverse/types';
 import {
     isProviderEnabled,
@@ -47,12 +47,18 @@ export default function DestinationSelector({ accounts, value, onChange }: Props
             .filter((a) => a.status === 'active' && isDestinationAvailable(a))
             .map((a) => {
                 const provider = normalizeClientProvider(a.provider) ?? a.provider;
+                const nostrMeta = a.metadata as NostrAccountMetadata | undefined;
+                const destination =
+                    provider === MultiverseProviderIds.NOSTR && nostrMeta?.relays?.length
+                        ? { relays: nostrMeta.relays, pubkey: nostrMeta.pubkey }
+                        : null;
                 return {
                     provider,
                     accountId: a.id,
                     label: `${providerLabel(String(provider))} · @${a.handle.replace(/^@/, '')}`,
                     enabled: provider === MultiverseProviderIds.ATPROTO,
                     beta: isBetaProvider(String(provider)),
+                    destination,
                 } satisfies PostDestination;
             });
         return [flip, ...linked];
