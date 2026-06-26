@@ -3,11 +3,13 @@ import ExploreTabIcon from '@/components/icons/ExploreTabIcon';
 import HomeTabIcon from '@/components/icons/HomeTabIcon';
 import MailboxTabIcon from '@/components/icons/MailboxTabIcon';
 import ProfileTabIcon from '@/components/icons/ProfileTabIcon';
+import { FlipTabBarButton } from '@/components/navigation/FlipTabBarButton';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 import { prefetchExploreQueries } from '@/utils/explorePrefetch';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
 import { setHomeTabFocused } from '@/utils/feedPlaybackGuard';
+import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
@@ -81,6 +83,7 @@ export default function TabsLayout() {
         () =>
             ({ route }: { route: { name: string } }) => ({
                 tabPress: () => {
+                    ensureQueueMicrotask();
                     if (route.name === 'index') {
                         setHomeTabFocused(true);
                     }
@@ -103,6 +106,7 @@ export default function TabsLayout() {
                 backBehavior: 'order',
                 tabBarActiveTintColor: colors.accent,
                 tabBarInactiveTintColor: colors.tabIconInactive,
+                tabBarButton: (props) => <FlipTabBarButton {...props} />,
                 tabBarStyle: solidTabBarStyle,
                 tabBarItemStyle: {
                     flex: 1,
@@ -123,6 +127,7 @@ export default function TabsLayout() {
                 name="index"
                 listeners={{
                     focus: () => {
+                        ensureQueueMicrotask();
                         setHomeTabFocused(true);
                     },
                     blur: () => {

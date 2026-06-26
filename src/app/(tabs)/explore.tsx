@@ -151,6 +151,8 @@ function NetworkPostsSkeleton() {
     return (
         <ScrollView
             horizontal
+            nestedScrollEnabled
+            directionalLockEnabled
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={tw`px-4`}>
             {Array.from({ length: 3 }, (_, index) => (
@@ -535,6 +537,8 @@ const ExploreListHeader = memo(function ExploreListHeader({
                 ) : textPosts.length > 0 ? (
                     <ScrollView
                         horizontal
+                        nestedScrollEnabled
+                        directionalLockEnabled
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={tw`px-4`}>
                         {textPosts.map((item) => (
@@ -569,6 +573,8 @@ const ExploreListHeader = memo(function ExploreListHeader({
                 ) : validTags.length > 0 ? (
                     <ScrollView
                         horizontal
+                        nestedScrollEnabled
+                        directionalLockEnabled
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={tw`px-4`}>
                         {validTags.map((item) => (

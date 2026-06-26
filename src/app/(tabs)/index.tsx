@@ -86,6 +86,8 @@ const LOAD_MORE_THRESHOLD = 4;
 const PREFETCH_AHEAD = feedPrefetchAhead;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
 const MAX_EMPTY_DEDUPE_FETCHES = 8;
+/** Exit infinite home spinner and show retry UI after this long. */
+const FEED_LOADER_TIMEOUT_MS = 18_000;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = feedPlayerPreloadDistance;
 
@@ -256,6 +258,7 @@ export default function LoopsFeed({ navigation }) {
     const [screenFocused, setScreenFocused] = useState(true);
     const [appActive, setAppActive] = useState(AppState.currentState === 'active');
     const [guardPlaybackActive, setGuardPlaybackActive] = useState(isFeedPlaybackActive);
+    const [loaderTimedOut, setLoaderTimedOut] = useState(false);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -958,6 +961,28 @@ export default function LoopsFeed({ navigation }) {
         (isLoading && !hasFeedData) ||
         (feedListEmpty && !feedTrulyEmpty && !feedCaughtUp && (isFetching || isFetchingNextPage));
 
+    useEffect(() => {
+        if (!showInitialLoader) {
+            setLoaderTimedOut(false);
+            return;
+        }
+        const timer = setTimeout(() => {
+            console.warn('[feed] initial loader timed out — showing retry UI');
+            setLoaderTimedOut(true);
+        }, FEED_LOADER_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [showInitialLoader, activeTab, feedEpoch]);
+
+    const showBlockingLoader = showInitialLoader && !loaderTimedOut && !feedError;
+
+    const loaderHint = !hasHydrated
+        ? 'Starting Flip…'
+        : !authReady
+          ? 'Restoring your session…'
+          : !isLoggedIn
+            ? 'Sign in to load your feed'
+            : 'Loading videos…';
+
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
     }, [maybeLoadMoreVideos]);
@@ -971,22 +996,71 @@ export default function LoopsFeed({ navigation }) {
         [feedHeight],
     );
 
-    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
+    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showBlockingLoader;
 
-    if (showInitialLoader) {
-        return (
-            <View style={styles.container}>
-                <StatusBar style="light" backgroundColor="#000" translucent={Platform.OS === 'android'} />
-                <View
-                    pointerEvents="none"
-                    style={[styles.statusBarBand, { height: statusBarInset }]}
-                />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#fff" />
-                </View>
+    const feedHeader = (
+        <View style={[styles.header, { top: statusBarInset + 2 }]}>
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    accessibilityRole="tab"
+                    accessibilityLabel="Following"
+                    accessibilityState={{
+                        selected: activeTab === 'following',
+                    }}
+                    style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                    onPress={() => switchFeedTab('following')}>
+                    <Text
+                        style={[
+                            styles.tabText,
+                            activeTab === 'following' && styles.activeTabText,
+                        ]}>
+                        Following
+                    </Text>
+                </TouchableOpacity>
+                {forYouEnabled && (
+                    <TouchableOpacity
+                        accessibilityRole="tab"
+                        accessibilityLabel="FYP"
+                        accessibilityState={{
+                            selected: activeTab === 'forYou',
+                        }}
+                        style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
+                        onPress={() => switchFeedTab('forYou')}>
+                        <Text
+                            style={[
+                                styles.tabText,
+                                activeTab === 'forYou' && styles.activeTabText,
+                            ]}>
+                            FYP
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                    accessibilityRole="tab"
+                    accessibilityLabel="Trending"
+                    accessibilityState={{
+                        selected: activeTab === 'trending',
+                    }}
+                    style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                    onPress={() => switchFeedTab('trending')}>
+                    <Text
+                        style={[
+                            styles.tabText,
+                            activeTab === 'trending' && styles.activeTabText,
+                        ]}>
+                        Trending
+                    </Text>
+                </TouchableOpacity>
             </View>
-        );
-    }
+            <TouchableOpacity
+                accessibilityLabel="Search"
+                accessibilityRole="button"
+                style={styles.searchButton}
+                onPress={() => router.push('/private/search')}>
+                <SearchEyeIcon size={31} color="#FFFFFF" />
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         <View style={styles.container}>
@@ -995,114 +1069,84 @@ export default function LoopsFeed({ navigation }) {
                 pointerEvents="none"
                 style={[styles.statusBarBand, { height: statusBarInset }]}
             />
-            <View style={[styles.header, { top: statusBarInset + 2 }]}>
-                <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Following"
-                        accessibilityState={{
-                            selected: activeTab === 'following',
-                        }}
-                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => switchFeedTab('following')}>
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === 'following' && styles.activeTabText,
-                            ]}>
-                            Following
-                        </Text>
-                    </TouchableOpacity>
-                    {forYouEnabled && (
+            {feedHeader}
+
+            {showBlockingLoader ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#fff" />
+                    <Text style={styles.loaderHint}>{loaderHint}</Text>
+                    {!feedQueryEnabled && !isLoggedIn && authReady ? (
                         <TouchableOpacity
-                            accessibilityRole="tab"
-                            accessibilityLabel="FYP"
-                            accessibilityState={{
-                                selected: activeTab === 'forYou',
-                            }}
-                            style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
-                            onPress={() => switchFeedTab('forYou')}>
-                            <Text
-                                style={[
-                                    styles.tabText,
-                                    activeTab === 'forYou' && styles.activeTabText,
-                                ]}>
-                                FYP
-                            </Text>
+                            style={styles.loaderRetryButton}
+                            onPress={() => router.push('/sign-in')}>
+                            <Text style={styles.loaderRetryText}>Sign in</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity style={styles.loaderRetryButton} onPress={onRefresh}>
+                            <Text style={styles.loaderRetryText}>Retry</Text>
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Trending"
-                        accessibilityState={{
-                            selected: activeTab === 'trending',
-                        }}
-                        style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
-                        onPress={() => switchFeedTab('trending')}>
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === 'trending' && styles.activeTabText,
-                            ]}>
-                            Trending
-                        </Text>
-                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                    accessibilityLabel="Search"
-                    accessibilityRole="button"
-                    style={styles.searchButton}
-                    onPress={() => router.push('/private/search')}>
-                    <SearchEyeIcon size={31} color="#FFFFFF" />
-                </TouchableOpacity>
-            </View>
-
-            <FeedScrollGestureRoot>
-                <FlatList
-                key={activeTab}
-                ref={flatListRef}
-                style={styles.feedList}
-                data={videosWithEnd}
-                extraData={currentIndex}
-                renderItem={renderItem}
-                keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                pagingEnabled
-                showsVerticalScrollIndicator={false}
-                {...(Platform.OS === 'ios'
-                    ? {
-                          snapToInterval: feedHeight,
-                          snapToAlignment: 'start' as const,
-                          decelerationRate: 'fast' as const,
-                      }
-                    : {})}
-                scrollEventThrottle={16}
-                overScrollMode="never"
-                viewabilityConfig={viewabilityConfig.current}
-                onViewableItemsChanged={onViewableItemsChanged}
-                onEndReached={handleEndReached}
-                onEndReachedThreshold={0.5}
-                getItemLayout={getItemLayout}
-                removeClippedSubviews={Platform.OS !== 'android'}
-                maxToRenderPerBatch={feedMaxToRenderPerBatch}
-                windowSize={feedFlatListWindowSize}
-                initialNumToRender={feedInitialNumToRender}
-                updateCellsBatchingPeriod={50}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        progressViewOffset={statusBarInset + 40}
-                    />
-                }
-                ListFooterComponent={
-                    isFetchingNextPage ? (
-                        <View style={[styles.footer, { height: feedHeight }]}>
-                            <ActivityIndicator size="large" color="#fff" />
-                        </View>
-                    ) : null
-                }
+            ) : loaderTimedOut || feedError ? (
+                <FeedEmptyState
+                    tab={activeTab}
+                    onRefresh={onRefresh}
+                    error={
+                        feedError ||
+                        (loaderTimedOut
+                            ? 'Feed is taking too long. Tap retry or pull down.'
+                            : null)
+                    }
+                    itemHeight={feedHeight}
                 />
-            </FeedScrollGestureRoot>
+            ) : (
+                <FeedScrollGestureRoot>
+                    <FlatList
+                    key={activeTab}
+                    ref={flatListRef}
+                    style={styles.feedList}
+                    data={videosWithEnd}
+                    extraData={currentIndex}
+                    renderItem={renderItem}
+                    keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
+                    pagingEnabled
+                    showsVerticalScrollIndicator={false}
+                    {...(Platform.OS === 'ios'
+                        ? {
+                              snapToInterval: feedHeight,
+                              snapToAlignment: 'start' as const,
+                              decelerationRate: 'fast' as const,
+                          }
+                        : {})}
+                    scrollEventThrottle={16}
+                    overScrollMode="never"
+                    viewabilityConfig={viewabilityConfig.current}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.5}
+                    getItemLayout={getItemLayout}
+                    removeClippedSubviews={Platform.OS !== 'android'}
+                    maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                    windowSize={feedFlatListWindowSize}
+                    initialNumToRender={feedInitialNumToRender}
+                    updateCellsBatchingPeriod={50}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            progressViewOffset={statusBarInset + 40}
+                        />
+                    }
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <View style={[styles.footer, { height: feedHeight }]}>
+                                <ActivityIndicator size="large" color="#fff" />
+                            </View>
+                        ) : null
+                    }
+                    />
+                </FeedScrollGestureRoot>
+            )}
 
             <CommentsModal
                 visible={showComments}
@@ -1167,6 +1211,27 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#000',
+        gap: 12,
+    },
+    loaderHint: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 14,
+        marginTop: 8,
+        textAlign: 'center',
+        paddingHorizontal: 24,
+    },
+    loaderRetryButton: {
+        marginTop: 8,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#22D3EE',
+    },
+    loaderRetryText: {
+        color: '#22D3EE',
+        fontSize: 15,
+        fontWeight: '600',
     },
     header: {
         position: 'absolute',
