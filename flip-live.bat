@@ -9,8 +9,8 @@ if not exist "package.json" (
 )
 echo.
 echo ============================================================
-echo   FLIP LIVE — app updates on your phone automatically
-echo   - Keep USB plugged in (S25/S26 Ultra)
+echo   FLIP LIVE - app updates on your phone automatically
+echo   - USB: plug in phone for best auto-reload (or same Wi-Fi + Flip open)
 echo   - Leave this PC awake; Metro stays running
 echo   - Agents push to GitHub -^> auto-sync pulls + reloads (~5s)
 echo   Log: logs\auto-sync.log

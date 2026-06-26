@@ -53,25 +53,39 @@ function Test-MetroHealthy {
     }
 }
 
+function Invoke-MetroReloadDirect {
+    try {
+        Invoke-WebRequest -Uri 'http://127.0.0.1:8081/reload' -Method POST -UseBasicParsing -TimeoutSec 5 | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 function Invoke-PhoneReload {
     if ($NoReload) {
         return $true
     }
 
     $devConnect = Join-Path $PSScriptRoot 'dev-connect.ps1'
-    if (-not (Test-Path $devConnect)) {
-        Write-Log 'dev-connect.ps1 missing — cannot reload phone.' 'Yellow'
-        return $false
+    if (Test-Path $devConnect) {
+        Write-Log 'Reloading phone (adb + Metro)...' 'Cyan'
+        & $devConnect -ConnectOnly -Reload 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log 'Phone reload OK.' 'Green'
+            return $true
+        }
     }
 
-    Write-Log 'Reloading phone (adb reverse + Metro /reload)...' 'Cyan'
-    & $devConnect -ConnectOnly -Reload 2>&1 | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -eq 0) {
-        Write-Log 'Phone reload OK.' 'Green'
-        return $true
+    if (Test-MetroHealthy) {
+        Write-Log 'USB reload failed - trying Metro /reload (Wi-Fi; keep Flip open on phone)...' 'Yellow'
+        if (Invoke-MetroReloadDirect) {
+            Write-Log 'Metro reload sent (Wi-Fi path).' 'Green'
+            return $true
+        }
     }
 
-    Write-Log "Phone reload FAILED (exit $LASTEXITCODE). Plug in phone + USB debugging." 'Red'
+    Write-Log 'Phone reload FAILED. Plug in USB + USB debugging, then run flip-connect.bat' 'Red'
     return $false
 }
 
@@ -160,7 +174,7 @@ try {
     Write-Log "Branch: $watchBranch"
     Write-Log "Poll:   every ${IntervalSec}s (Ctrl+C to stop)"
     Write-Log "Log:    $LogFile"
-    Write-Log 'Phone must stay on USB. Metro must be running (flip-dev.bat).'
+    Write-Log 'Phone: USB (best) or same Wi-Fi with Flip open. Metro must be running.'
     Write-Host ''
 
     $null = Sync-Branch -TargetBranch $watchBranch

@@ -406,7 +406,8 @@ function Write-UsbDeviceHelp {
   Write-Host "  3. When plugged in, tap Allow on the USB debugging prompt"
   Write-Host "  4. USB mode: File transfer / MTP (not Charging only)"
   Write-Host ""
-  Write-Host "Then unplug, replug, and run flip-reset-dev.bat or flip-reconnect.bat." -ForegroundColor Yellow
+  Write-Host "Then unplug, replug, and run flip-usb-connect.bat or flip-reconnect.bat." -ForegroundColor Yellow
+  Write-Host "Wi-Fi only: keep Flip open on same network as PC; auto-sync can still POST Metro /reload." -ForegroundColor DarkGray
   Write-Host ""
 }
 
@@ -542,15 +543,16 @@ if ($ConnectOnly -and -not $Reconnect) {
     Write-Host "  Metro /status: running (localhost + LAN)" -ForegroundColor Green
   }
 
-  if ($Reload -and $metroHealthy -and $serials.Count -gt 0) {
-    Write-Host '[5/6] Reload JS via Metro'
+  if ($Reload -and $metroHealthy) {
+    if ($serials.Count -gt 0) {
+      Write-Host '[5/6] Reload JS via Metro (USB + adb reverse)'
+    } else {
+      Write-Host '[5/6] Reload JS via Metro only (no USB - phone must be on same Wi-Fi with Flip open)' -ForegroundColor Yellow
+    }
     $reloaded = Invoke-MetroReload
     if (-not $reloaded) {
       exit 1
     }
-  } elseif ($Reload -and $serials.Count -eq 0) {
-    Write-Host '[5/6] Reload FAILED - no phone on USB (plug in phone, enable USB debugging)' -ForegroundColor Red
-    exit 1
   } elseif ($serials.Count -gt 0) {
     Write-Host '[5/6] Launch Flip on device'
     if (-not $script:LanIp) {
@@ -562,6 +564,9 @@ if ($ConnectOnly -and -not $Reconnect) {
     }
   } else {
     Write-Host '[5/6] Launch/reload - skipped (no device)' -ForegroundColor Yellow
+    if (-not $Reload) {
+      Write-Host '  Plug USB + run flip-usb-connect.bat — or open Flip on Wi-Fi for Metro-only reload.' -ForegroundColor DarkGray
+    }
   }
 
   Write-Host ""
