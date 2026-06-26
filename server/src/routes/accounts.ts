@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { requireAuth, type AuthedRequest } from '../auth/sessions.js';
-import { dbGet, dbRun } from '../db/client.js';
-import { getProvider } from '../providers/registry.js';
+import { dbAll, dbGet, dbRun } from '../db/client.js';
+import { isProviderFeatureEnabled } from '../config/providers.js';
+import { getProvider, normalizeProviderId } from '../providers/registry.js';
 import { redactSecrets } from '../crypto/tokens.js';
 import type { ExternalAccountRow } from '../types.js';
 
@@ -11,7 +12,15 @@ accountsRouter.use(requireAuth);
 
 accountsRouter.post('/connect/:provider', async (req: AuthedRequest, res) => {
     try {
-        const providerId = req.params.provider;
+        const providerId = normalizeProviderId(req.params.provider);
+        if (!providerId) {
+            res.status(400).json({ error: `Unsupported provider: ${req.params.provider}` });
+            return;
+        }
+        if (!isProviderFeatureEnabled(providerId)) {
+            res.status(503).json({ error: `Provider ${providerId} is disabled by feature flag` });
+            return;
+        }
         const provider = getProvider(providerId);
         if (!provider) {
             res.status(400).json({ error: `Unsupported provider: ${providerId}` });
@@ -27,7 +36,15 @@ accountsRouter.post('/connect/:provider', async (req: AuthedRequest, res) => {
 
 accountsRouter.post('/callback/:provider', async (req: AuthedRequest, res) => {
     try {
-        const providerId = req.params.provider;
+        const providerId = normalizeProviderId(req.params.provider);
+        if (!providerId) {
+            res.status(400).json({ error: `Unsupported provider: ${req.params.provider}` });
+            return;
+        }
+        if (!isProviderFeatureEnabled(providerId)) {
+            res.status(503).json({ error: `Provider ${providerId} is disabled by feature flag` });
+            return;
+        }
         const provider = getProvider(providerId);
         if (!provider) {
             res.status(400).json({ error: `Unsupported provider: ${providerId}` });

@@ -48,6 +48,7 @@ import { usePostDeliveries } from '@/multiverse/hooks/usePostDeliveries';
 import { isMultiverseEnabled } from '@/multiverse/config';
 import { ensureMultiverseSession } from '@/multiverse/session';
 import type { PostDestination } from '@/multiverse/types';
+import { MultiverseProviderIds } from '@/multiverse/types';
 import { useAuthStore } from '@/utils/authStore';
 import tw from 'twrnc';
 
@@ -55,7 +56,9 @@ const MAX_CAPTION_LENGTH = 200;
 const MAX_ALT_TEXT_LENGTH = 2000;
 
 function hasExternalDestinations(destinations: PostDestination[]): boolean {
-    return destinations.some((d) => d.enabled && d.provider !== 'flip');
+    return destinations.some(
+        (d) => d.enabled && d.provider !== MultiverseProviderIds.FLIP_LOCAL && d.provider !== 'flip',
+    );
 }
 
 function CaptionVideoThumb({ uri }: { uri: string }) {

@@ -1,5 +1,7 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import type { PostDelivery } from '@/multiverse/types';
+import { isBetaProvider } from '@/multiverse/types';
+import { providerLabel } from '@/multiverse/config';
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Text, View } from 'react-native';
 import tw from 'twrnc';
@@ -12,19 +14,20 @@ type Props = {
 function statusColor(status: PostDelivery['status'], isDark: boolean): string {
     if (status === 'sent') return '#22c55e';
     if (status === 'failed') return '#ef4444';
+    if (status === 'not_implemented') return isDark ? '#94a3b8' : '#64748b';
     return isDark ? '#fbbf24' : '#d97706';
 }
 
 function statusIcon(status: PostDelivery['status']): keyof typeof Ionicons.glyphMap {
     if (status === 'sent') return 'checkmark-circle';
     if (status === 'failed') return 'close-circle';
+    if (status === 'not_implemented') return 'construct-outline';
     return 'time-outline';
 }
 
-function providerLabel(provider: string): string {
-    if (provider === 'bluesky') return 'Bluesky';
-    if (provider === 'activitypub') return 'ActivityPub';
-    return 'Flip';
+function statusLabel(status: PostDelivery['status']): string {
+    if (status === 'not_implemented') return 'not implemented';
+    return status;
 }
 
 export default function PostDeliveryPanel({ deliveries, isLoading }: Props) {
@@ -55,9 +58,20 @@ export default function PostDeliveryPanel({ deliveries, isLoading }: Props) {
                         style={tw`mr-2 mt-0.5`}
                     />
                     <View style={tw`flex-1`}>
-                        <Text style={tw`text-sm text-gray-900 dark:text-white`}>
-                            {providerLabel(d.provider)} — {d.status}
-                        </Text>
+                        <View style={tw`flex-row items-center flex-wrap`}>
+                            <Text style={tw`text-sm text-gray-900 dark:text-white`}>
+                                {providerLabel(d.provider)} — {statusLabel(d.status)}
+                            </Text>
+                            {isBetaProvider(d.provider) ? (
+                                <View
+                                    style={tw`ml-2 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900`}>
+                                    <Text
+                                        style={tw`text-[10px] font-semibold text-amber-800 dark:text-amber-200`}>
+                                        beta
+                                    </Text>
+                                </View>
+                            ) : null}
+                        </View>
                         {d.errorMessage ? (
                             <Text style={tw`text-xs text-red-500 mt-1`}>{d.errorMessage}</Text>
                         ) : null}

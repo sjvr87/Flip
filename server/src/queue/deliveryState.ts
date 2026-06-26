@@ -1,11 +1,12 @@
-export type DeliveryStatus = 'pending' | 'sent' | 'failed';
+export type DeliveryStatus = 'pending' | 'sent' | 'failed' | 'not_implemented';
 
-const TERMINAL: ReadonlySet<DeliveryStatus> = new Set(['sent', 'failed']);
+const TERMINAL: ReadonlySet<DeliveryStatus> = new Set(['sent', 'failed', 'not_implemented']);
 
 const ALLOWED: Record<DeliveryStatus, ReadonlySet<DeliveryStatus>> = {
-    pending: new Set(['sent', 'failed', 'pending']),
+    pending: new Set(['sent', 'failed', 'pending', 'not_implemented']),
     sent: new Set(['sent']),
     failed: new Set(['failed', 'pending']),
+    not_implemented: new Set(['not_implemented']),
 };
 
 export function canTransition(from: DeliveryStatus, to: DeliveryStatus): boolean {
@@ -25,6 +26,7 @@ export function nextStatusAfterAttempt(
     if (success) return 'sent';
     if (attemptCount >= maxAttempts) return 'failed';
     if (current === 'sent') return 'sent';
+    if (current === 'not_implemented') return 'not_implemented';
     return 'pending';
 }
 

@@ -37,7 +37,7 @@ describe('posts API', () => {
             .set('Authorization', `Bearer ${token}`)
             .send({
                 text: 'Hello multiverse',
-                destinations: [{ provider: 'flip' }],
+                destinations: [{ provider: 'flip_local' }],
                 flipPostUri: 'at://did:plc:test/app.bsky.feed.post/abc',
             });
 
@@ -53,7 +53,7 @@ describe('posts API', () => {
             .set('Authorization', `Bearer ${token}`)
             .send({
                 text: 'Status check',
-                destinations: [{ provider: 'flip' }],
+                destinations: [{ provider: 'flip_local' }],
             });
 
         const postId = created.body.postId;
@@ -63,7 +63,7 @@ describe('posts API', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.deliveries).toHaveLength(1);
-        expect(res.body.deliveries[0].provider).toBe('flip');
+        expect(res.body.deliveries[0].provider).toBe('flip_local');
     });
 
     it('rejects unauthenticated requests', async () => {

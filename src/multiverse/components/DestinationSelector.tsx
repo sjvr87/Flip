@@ -1,5 +1,12 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ConnectedAccount, PostDestination } from '@/multiverse/types';
+import { MultiverseProviderIds } from '@/multiverse/types';
+import {
+    isProviderEnabled,
+    providerIconName,
+    providerLabel,
+} from '@/multiverse/config';
+import { isBetaProvider, normalizeClientProvider } from '@/multiverse/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Switch, Text, TouchableOpacity, View } from 'react-native';
@@ -11,16 +18,19 @@ type Props = {
     onChange: (next: PostDestination[]) => void;
 };
 
-function providerLabel(provider: string): string {
-    if (provider === 'bluesky') return 'Bluesky';
-    if (provider === 'activitypub') return 'ActivityPub';
-    return 'Flip';
-}
-
-function providerIcon(provider: string): keyof typeof Ionicons.glyphMap {
-    if (provider === 'bluesky') return 'cloud-outline';
-    if (provider === 'activitypub') return 'globe-outline';
-    return 'videocam-outline';
+function isDestinationAvailable(account: ConnectedAccount): boolean {
+    const provider = normalizeClientProvider(account.provider);
+    if (!provider) return false;
+    if (provider === MultiverseProviderIds.ATPROTO) {
+        return isProviderEnabled('ATPROTO');
+    }
+    if (provider === MultiverseProviderIds.NOSTR) {
+        return isProviderEnabled('NOSTR');
+    }
+    if (provider === MultiverseProviderIds.ACTIVITYPUB) {
+        return isProviderEnabled('ACTIVITYPUB');
+    }
+    return false;
 }
 
 export default function DestinationSelector({ accounts, value, onChange }: Props) {
@@ -29,18 +39,22 @@ export default function DestinationSelector({ accounts, value, onChange }: Props
 
     const defaults = useMemo<PostDestination[]>(() => {
         const flip: PostDestination = {
-            provider: 'flip',
+            provider: MultiverseProviderIds.FLIP_LOCAL,
             label: 'Flip',
             enabled: true,
         };
         const linked = accounts
-            .filter((a) => a.status === 'active')
-            .map((a) => ({
-                provider: a.provider,
-                accountId: a.id,
-                label: `${providerLabel(a.provider)} · @${a.handle.replace(/^@/, '')}`,
-                enabled: a.provider === 'bluesky',
-            }));
+            .filter((a) => a.status === 'active' && isDestinationAvailable(a))
+            .map((a) => {
+                const provider = normalizeClientProvider(a.provider) ?? a.provider;
+                return {
+                    provider,
+                    accountId: a.id,
+                    label: `${providerLabel(String(provider))} · @${a.handle.replace(/^@/, '')}`,
+                    enabled: provider === MultiverseProviderIds.ATPROTO,
+                    beta: isBetaProvider(String(provider)),
+                } satisfies PostDestination;
+            });
         return [flip, ...linked];
     }, [accounts]);
 
@@ -73,7 +87,7 @@ export default function DestinationSelector({ accounts, value, onChange }: Props
                     activeOpacity={0.7}
                     style={tw`flex-row items-center py-3 border-b border-gray-200 dark:border-gray-800`}>
                     <Ionicons
-                        name={providerIcon(dest.provider)}
+                        name={providerIconName(String(dest.provider))}
                         size={20}
                         color={isDark ? '#fff' : '#374151'}
                         style={tw`mr-3`}
@@ -81,6 +95,13 @@ export default function DestinationSelector({ accounts, value, onChange }: Props
                     <Text style={tw`flex-1 text-base text-gray-900 dark:text-white`}>
                         {dest.label}
                     </Text>
+                    {dest.beta ? (
+                        <View style={tw`mr-2 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900`}>
+                            <Text style={tw`text-xs font-semibold text-amber-800 dark:text-amber-200`}>
+                                beta
+                            </Text>
+                        </View>
+                    ) : null}
                     <Switch
                         value={dest.enabled}
                         onValueChange={() => toggle(index)}

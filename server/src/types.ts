@@ -1,8 +1,21 @@
-export type ProviderId = 'flip' | 'bluesky' | 'activitypub';
+import { ProviderIds } from '../config/providers.js';
+
+export type ProviderId =
+    | typeof ProviderIds.FLIP_LOCAL
+    | typeof ProviderIds.ATPROTO
+    | typeof ProviderIds.NOSTR
+    | typeof ProviderIds.ACTIVITYPUB;
 
 export type ExternalAccountStatus = 'active' | 'revoked' | 'error';
 
-export type DeliveryStatus = 'pending' | 'sent' | 'failed';
+export type DeliveryStatus = 'pending' | 'sent' | 'failed' | 'not_implemented';
+
+/** Nostr-specific fields stored in external_accounts.metadata_json */
+export type NostrAccountMetadata = {
+    pubkey?: string;
+    relays?: string[];
+    nipCapabilities?: string[];
+};
 
 export type UserRow = {
     id: string;
@@ -40,6 +53,7 @@ export type PostDeliveryRow = {
     post_id: string;
     provider: string;
     destination_account_id: string | null;
+    destination: string | null;
     status: DeliveryStatus;
     remote_post_id: string | null;
     error_message: string | null;
@@ -52,6 +66,8 @@ export type PostDeliveryRow = {
 };
 
 export type PostDestinationInput = {
-    provider: ProviderId;
+    provider: ProviderId | 'flip' | 'bluesky';
     accountId?: string;
+    /** Relay list, actor URI, or other provider-specific target JSON. */
+    destination?: string | Record<string, unknown> | null;
 };

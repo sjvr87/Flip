@@ -1,7 +1,9 @@
 import express from 'express';
 import { initDb, runMigrations } from './db/client.js';
-import { blueskyProvider } from './providers/bluesky.js';
+import { atprotoProvider } from './providers/atproto.js';
 import { activityPubProvider } from './providers/activitypub.js';
+import { nostrProvider } from './providers/nostr.js';
+import { isProviderFeatureEnabled, ProviderIds } from './config/providers.js';
 import { registerProvider } from './providers/registry.js';
 import { accountsRouter } from './routes/accounts.js';
 import { postsRouter } from './routes/posts.js';
@@ -12,8 +14,9 @@ let initialized = false;
 export async function createApp(): Promise<express.Application> {
     await initDb();
     if (!initialized) {
-        registerProvider('bluesky', blueskyProvider);
-        registerProvider('activitypub', activityPubProvider);
+        registerProvider(ProviderIds.ATPROTO, atprotoProvider);
+        registerProvider(ProviderIds.NOSTR, nostrProvider);
+        registerProvider(ProviderIds.ACTIVITYPUB, activityPubProvider);
         runMigrations();
         initialized = true;
     }
@@ -22,7 +25,14 @@ export async function createApp(): Promise<express.Application> {
     app.use(express.json({ limit: '1mb' }));
 
     app.get('/health', (_req, res) => {
-        res.json({ ok: true });
+        res.json({
+            ok: true,
+            providers: {
+                atproto: isProviderFeatureEnabled(ProviderIds.ATPROTO),
+                nostr: isProviderFeatureEnabled(ProviderIds.NOSTR),
+                activitypub: isProviderFeatureEnabled(ProviderIds.ACTIVITYPUB),
+            },
+        });
     });
 
     app.use('/api/session', sessionRouter);

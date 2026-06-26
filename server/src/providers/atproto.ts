@@ -1,11 +1,13 @@
 import { AtpAgent } from '@atproto/api';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { ProviderIds } from '../config/providers.js';
 import { dbGet, dbRun } from '../db/client.js';
 import { decryptToken, encryptToken, redactSecrets } from '../crypto/tokens.js';
 import type {
     CreatePostInput,
     CreatePostResult,
     ProviderConnectResult,
+    ProviderHealthResult,
     ProviderProfile,
     ProviderTokens,
     SocialProvider,
@@ -35,10 +37,10 @@ function consumeConnectState(state: string, userId: string, provider: string): b
 function loadAccount(accountId: string): ExternalAccountRow {
     const row = dbGet<ExternalAccountRow>(
         'SELECT * FROM external_accounts WHERE id = ? AND provider = ?',
-        [accountId, 'bluesky'],
+        [accountId, ProviderIds.ATPROTO],
     );
-    if (!row) throw new Error('Bluesky account not found');
-    if (row.status !== 'active') throw new Error('Bluesky account is not active');
+    if (!row) throw new Error('ATProto account not found');
+    if (row.status !== 'active') throw new Error('ATProto account is not active');
     return row;
 }
 
@@ -48,7 +50,7 @@ function parseSession(row: ExternalAccountRow): { accessJwt: string; refreshJwt:
         service?: string;
     };
     if (!row.access_token_encrypted || !metadata.did) {
-        throw new Error('Bluesky session is incomplete');
+        throw new Error('ATProto session is incomplete');
     }
     return {
         accessJwt: decryptToken(row.access_token_encrypted),
@@ -75,8 +77,8 @@ async function agentForAccount(accountId: string): Promise<AtpAgent> {
     return agent;
 }
 
-export class BlueskyProvider implements SocialProvider {
-    readonly id = 'bluesky';
+export class AtprotoProvider implements SocialProvider {
+    readonly id = ProviderIds.ATPROTO;
 
     async connect(userId: string): Promise<ProviderConnectResult> {
         const state = storeConnectState(userId, this.id);
@@ -107,7 +109,7 @@ export class BlueskyProvider implements SocialProvider {
         const agent = new AtpAgent({ service });
         await agent.login({ identifier: handle, password: appPassword });
         const session = agent.session;
-        if (!session) throw new Error('Bluesky login failed');
+        if (!session) throw new Error('ATProto login failed');
 
         const tokens: ProviderTokens = {
             accessToken: session.accessJwt,
@@ -145,9 +147,16 @@ export class BlueskyProvider implements SocialProvider {
         return { accountId, handle: session.handle, tokens };
     }
 
-    async refreshToken(accountId: string): Promise<ProviderTokens> {
+    async disconnect(accountId: string): Promise<void> {
+        dbRun(
+            `UPDATE external_accounts SET status = 'revoked', updated_at = datetime('now') WHERE id = ?`,
+            [accountId],
+        );
+    }
+
+    async refreshAuth(accountId: string): Promise<ProviderTokens> {
         const agent = await agentForAccount(accountId);
-        if (!agent.session) throw new Error('No active Bluesky session');
+        if (!agent.session) throw new Error('No active ATProto session');
         const refreshed = await agent.com.atproto.server.refreshSession(undefined, {
             headers: { Authorization: `Bearer ${agent.session.refreshJwt}` },
         });
@@ -180,10 +189,15 @@ export class BlueskyProvider implements SocialProvider {
         }
     }
 
+    async deletePost(accountId: string, remotePostId: string): Promise<void> {
+        const agent = await agentForAccount(accountId);
+        await agent.deletePost(remotePostId);
+    }
+
     async getProfile(accountId: string): Promise<ProviderProfile> {
         const agent = await agentForAccount(accountId);
         const did = agent.session?.did;
-        if (!did) throw new Error('No Bluesky session');
+        if (!did) throw new Error('No ATProto session');
         const profile = await agent.getProfile({ actor: did });
         return {
             handle: profile.data.handle,
@@ -192,12 +206,18 @@ export class BlueskyProvider implements SocialProvider {
         };
     }
 
-    async disconnect(accountId: string): Promise<void> {
-        dbRun(
-            `UPDATE external_accounts SET status = 'revoked', updated_at = datetime('now') WHERE id = ?`,
-            [accountId],
-        );
+    async healthCheck(accountId: string): Promise<ProviderHealthResult> {
+        try {
+            await this.getProfile(accountId);
+            return { ok: true };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { ok: false, message: redactSecrets(message) };
+        }
     }
 }
 
-export const blueskyProvider = new BlueskyProvider();
+export const atprotoProvider = new AtprotoProvider();
+
+/** @deprecated Use atprotoProvider — kept for import compatibility during Phase 1. */
+export const blueskyProvider = atprotoProvider;

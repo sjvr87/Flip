@@ -4,7 +4,9 @@ import { requireAuth, type AuthedRequest } from '../auth/sessions.js';
 import { dbAll, dbGet, dbRun } from '../db/client.js';
 import { redactSecrets } from '../crypto/tokens.js';
 import { createDeliveries, enqueueDeliveriesForPost } from '../queue/deliveryProcessor.js';
+import { normalizeProviderId } from '../providers/registry.js';
 import type { PostDestinationInput, PostDeliveryRow, PostRow } from '../types.js';
+import { ProviderIds } from '../config/providers.js';
 
 export const postsRouter = Router();
 
@@ -31,13 +33,14 @@ postsRouter.post('/', (req: AuthedRequest, res) => {
         }
 
         for (const dest of destinations) {
-            if (!dest.provider) {
-                res.status(400).json({ error: 'Each destination requires a provider' });
+            const provider = normalizeProviderId(String(dest.provider ?? ''));
+            if (!provider) {
+                res.status(400).json({ error: `Unknown provider: ${dest.provider}` });
                 return;
             }
-            if (dest.provider !== 'flip' && !dest.accountId) {
+            if (provider !== ProviderIds.FLIP_LOCAL && !dest.accountId) {
                 res.status(400).json({
-                    error: `accountId required for provider ${dest.provider}`,
+                    error: `accountId required for provider ${provider}`,
                 });
                 return;
             }
@@ -52,7 +55,11 @@ postsRouter.post('/', (req: AuthedRequest, res) => {
 
         const deliveryIds = createDeliveries(
             postId,
-            destinations.map((d) => ({ provider: d.provider, accountId: d.accountId })),
+            destinations.map((d) => ({
+                provider: normalizeProviderId(String(d.provider)) ?? String(d.provider),
+                accountId: d.accountId,
+                destination: d.destination ?? null,
+            })),
             flipPostUri,
         );
 
@@ -87,6 +94,7 @@ postsRouter.get('/:id/deliveries', (req: AuthedRequest, res) => {
             id: d.id,
             provider: d.provider,
             destinationAccountId: d.destination_account_id,
+            destination: d.destination,
             status: d.status,
             remotePostId: d.remote_post_id,
             errorMessage: d.error_message,

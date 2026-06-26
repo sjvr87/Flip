@@ -41,6 +41,16 @@ describe('delivery state machine', () => {
         expect(nextStatusAfterAttempt('pending', false, 5, 5)).toBe('failed');
     });
 
+    it('marks not_implemented as terminal', () => {
+        expect(isTerminal('not_implemented')).toBe(true);
+        expect(canTransition('pending', 'not_implemented')).toBe(true);
+        expect(canTransition('not_implemented', 'pending')).toBe(false);
+    });
+
+    it('preserves not_implemented on retry logic', () => {
+        expect(nextStatusAfterAttempt('not_implemented', false, 1, 5)).toBe('not_implemented');
+    });
+
     it('applies exponential backoff', () => {
         const first = computeBackoffMs(1);
         const second = computeBackoffMs(2);

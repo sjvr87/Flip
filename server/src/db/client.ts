@@ -63,11 +63,23 @@ export function closeDb(): void {
     }
 }
 
+function columnExists(table: string, column: string): boolean {
+    const rows = dbAll<{ name: string }>(`PRAGMA table_info(${table})`);
+    return rows.some((row) => row.name === column);
+}
+
+function applyIncrementalMigrations(): void {
+    if (!columnExists('post_deliveries', 'destination')) {
+        dbRun('ALTER TABLE post_deliveries ADD COLUMN destination TEXT');
+    }
+}
+
 export function runMigrations(): void {
     const database = getDb();
     const schemaPath = path.join(__dirname, 'schema.sql');
     const sql = fs.readFileSync(schemaPath, 'utf8');
     database.exec(sql);
+    applyIncrementalMigrations();
     schedulePersist();
 }
 

@@ -7,7 +7,8 @@ import {
 } from '@/multiverse/api';
 import { connectedAccountsQueryKey, useConnectedAccounts } from '@/multiverse/hooks/useConnectedAccounts';
 import { ensureMultiverseSession } from '@/multiverse/session';
-import { isMultiverseEnabled } from '@/multiverse/config';
+import { isMultiverseEnabled, isProviderEnabled, providerIconName } from '@/multiverse/config';
+import { MultiverseProviderIds } from '@/multiverse/types';
 import type { ConnectedAccount } from '@/multiverse/types';
 import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,7 +42,7 @@ function AccountRow({
     return (
         <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
             <Ionicons
-                name={account.provider === 'bluesky' ? 'cloud-outline' : 'globe-outline'}
+                name={providerIconName(account.provider)}
                 size={24}
                 color={isDark ? '#fff' : '#6b7280'}
                 style={tw`mr-4`}
@@ -89,15 +90,15 @@ export default function ConnectedAccountsScreen() {
         },
     });
 
-    const startBlueskyLink = async () => {
+    const startAtprotoLink = async () => {
         if (!user?.id) return;
         try {
             setLinking(true);
             const token = await ensureMultiverseSession(user.id, user.username);
-            const flow = await beginConnect(token, 'bluesky');
+            const flow = await beginConnect(token, MultiverseProviderIds.ATPROTO);
             setConnectState(flow.state);
             Alert.alert(
-                'Link Bluesky account',
+                'Link ATProto account',
                 flow.instructions ??
                     'Enter your Bluesky handle and an app password on the next screen.',
             );
@@ -108,15 +109,15 @@ export default function ConnectedAccountsScreen() {
         }
     };
 
-    const completeBlueskyLink = async () => {
+    const completeAtprotoLink = async () => {
         if (!user?.id || !connectState) {
-            Alert.alert('Start linking first', 'Tap "Link Bluesky" before submitting credentials.');
+            Alert.alert('Start linking first', 'Tap "Link ATProto" before submitting credentials.');
             return;
         }
         try {
             setLinking(true);
             const token = await ensureMultiverseSession(user.id, user.username);
-            await completeConnect(token, 'bluesky', {
+            await completeConnect(token, MultiverseProviderIds.ATPROTO, {
                 state: connectState,
                 handle: handle.trim(),
                 appPassword,
@@ -125,7 +126,7 @@ export default function ConnectedAccountsScreen() {
             setAppPassword('');
             setConnectState(null);
             await refetch();
-            Alert.alert('Linked', 'Bluesky account connected.');
+            Alert.alert('Linked', 'ATProto account connected.');
         } catch (err) {
             Alert.alert('Link failed', err instanceof Error ? err.message : 'Unknown error');
         } finally {
@@ -173,17 +174,29 @@ export default function ConnectedAccountsScreen() {
 
                 <SectionHeader title="Add account" />
                 <View style={tw`px-5 py-4 bg-white dark:bg-black`}>
-                    <TouchableOpacity
-                        onPress={startBlueskyLink}
-                        disabled={linking}
-                        style={tw`flex-row items-center py-3`}>
-                        <Ionicons name="add-circle-outline" size={22} color="#22D3EE" />
-                        <Text style={tw`ml-3 text-base text-[#22D3EE] font-medium`}>
-                            Link Bluesky
-                        </Text>
-                    </TouchableOpacity>
+                    {isProviderEnabled('ATPROTO') ? (
+                        <TouchableOpacity
+                            onPress={startAtprotoLink}
+                            disabled={linking}
+                            style={tw`flex-row items-center py-3`}>
+                            <Ionicons name="add-circle-outline" size={22} color="#22D3EE" />
+                            <Text style={tw`ml-3 text-base text-[#22D3EE] font-medium`}>
+                                Link ATProto (Bluesky)
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    {isProviderEnabled('NOSTR') ? (
+                        <TouchableOpacity
+                            disabled
+                            style={tw`flex-row items-center py-3 opacity-50`}>
+                            <Ionicons name="add-circle-outline" size={22} color="#22D3EE" />
+                            <Text style={tw`ml-3 text-base text-gray-500 font-medium`}>
+                                Link Nostr (beta)
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
                     <Text style={tw`text-xs text-gray-500 mt-2 mb-3`}>
-                        ActivityPub linking is scaffolded for a future phase.
+                        Nostr and ActivityPub linking are scaffolded — enable feature flags when ready.
                     </Text>
 
                     {connectState ? (
@@ -206,10 +219,10 @@ export default function ConnectedAccountsScreen() {
                                 style={tw`border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white`}
                             />
                             <TouchableOpacity
-                                onPress={completeBlueskyLink}
+                                onPress={completeAtprotoLink}
                                 disabled={linking}
                                 style={tw`bg-[#22D3EE] rounded-full py-3 items-center ${linking ? 'opacity-60' : ''}`}>
-                                <Text style={tw`text-black font-semibold`}>Save Bluesky link</Text>
+                                <Text style={tw`text-black font-semibold`}>Save ATProto link</Text>
                             </TouchableOpacity>
                         </View>
                     ) : null}

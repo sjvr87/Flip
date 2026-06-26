@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { ProviderIds } from '../config/providers.js';
 import { dbAll, dbGet, dbRun } from '../db/client.js';
 import { redactSecrets } from '../crypto/tokens.js';
-import { getProvider } from '../providers/registry.js';
+import { getProvider, normalizeProviderId, shouldGuardDelivery } from '../providers/registry.js';
 import {
     computeBackoffMs,
     isTerminal,
@@ -10,6 +11,7 @@ import {
 import type { PostDeliveryRow } from '../types.js';
 
 const MAX_ATTEMPTS = Number(process.env.FLIP_DELIVERY_MAX_ATTEMPTS ?? 5);
+const NOT_IMPLEMENTED_MESSAGE = 'NOT_IMPLEMENTED: provider delivery scaffold';
 
 const processing = new Set<string>();
 
@@ -19,6 +21,12 @@ export function deliveryIdempotencyKey(
     destinationAccountId: string | null,
 ): string {
     return `${postId}:${provider}:${destinationAccountId ?? 'native'}`;
+}
+
+function serializeDestination(destination: string | Record<string, unknown> | null | undefined): string | null {
+    if (destination == null) return null;
+    if (typeof destination === 'string') return destination;
+    return JSON.stringify(destination);
 }
 
 export async function processDelivery(deliveryId: string): Promise<void> {
@@ -43,8 +51,14 @@ export async function processDelivery(deliveryId: string): Promise<void> {
             return;
         }
 
-        if (delivery.provider === 'flip') {
+        const providerId = normalizeProviderId(delivery.provider);
+        if (providerId === ProviderIds.FLIP_LOCAL || delivery.provider === 'flip') {
             markSent(deliveryId, delivery.post_id);
+            return;
+        }
+
+        if (shouldGuardDelivery(delivery.provider)) {
+            markNotImplemented(deliveryId);
             return;
         }
 
@@ -71,6 +85,7 @@ export async function processDelivery(deliveryId: string): Promise<void> {
                 text: post.body_text,
                 mediaType: post.media_type,
                 mediaUri: post.media_uri,
+                destination: delivery.destination,
             });
             dbRun(
                 `UPDATE post_deliveries SET status = 'sent', remote_post_id = ?, error_message = NULL,
@@ -79,6 +94,11 @@ export async function processDelivery(deliveryId: string): Promise<void> {
             );
         } catch (error) {
             const raw = error instanceof Error ? error.message : String(error);
+            if (raw.includes('NOT_IMPLEMENTED')) {
+                markNotImplemented(deliveryId, raw);
+                return;
+            }
+
             const message = redactSecrets(raw);
             const nextStatus = nextStatusAfterAttempt(
                 delivery.status,
@@ -124,6 +144,14 @@ function markFailed(deliveryId: string, message: string): void {
     );
 }
 
+function markNotImplemented(deliveryId: string, message = NOT_IMPLEMENTED_MESSAGE): void {
+    dbRun(
+        `UPDATE post_deliveries SET status = 'not_implemented', error_message = ?, next_attempt_at = NULL,
+            remote_post_id = NULL, updated_at = datetime('now') WHERE id = ?`,
+        [redactSecrets(message), deliveryId],
+    );
+}
+
 export function enqueueDeliveriesForPost(postId: string): void {
     const rows = dbAll<{ id: string }>(
         `SELECT id FROM post_deliveries WHERE post_id = ? AND status = 'pending'`,
@@ -152,16 +180,21 @@ export function startDeliveryWorker(intervalMs = 30_000): NodeJS.Timeout {
 
 export function createDeliveries(
     postId: string,
-    destinations: { provider: string; accountId?: string }[],
+    destinations: {
+        provider: string;
+        accountId?: string;
+        destination?: string | Record<string, unknown> | null;
+    }[],
     flipPostUri?: string | null,
 ): string[] {
     const ids: string[] = [];
 
     for (const dest of destinations) {
+        const normalized = normalizeProviderId(dest.provider) ?? dest.provider;
         const id = randomUUID();
         const idempotencyKey = deliveryIdempotencyKey(
             postId,
-            dest.provider,
+            normalized,
             dest.accountId ?? null,
         );
 
@@ -175,17 +208,22 @@ export function createDeliveries(
             continue;
         }
 
+        const destinationJson = serializeDestination(dest.destination);
+
         dbRun(
             `INSERT INTO post_deliveries
-                (id, post_id, provider, destination_account_id, status, idempotency_key, remote_post_id)
-             VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+                (id, post_id, provider, destination_account_id, destination, status, idempotency_key, remote_post_id)
+             VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
             [
                 id,
                 postId,
-                dest.provider,
+                normalized,
                 dest.accountId ?? null,
+                destinationJson,
                 idempotencyKey,
-                dest.provider === 'flip' ? (flipPostUri ?? null) : null,
+                normalized === ProviderIds.FLIP_LOCAL || dest.provider === 'flip'
+                    ? (flipPostUri ?? null)
+                    : null,
             ],
         );
         ids.push(id);
