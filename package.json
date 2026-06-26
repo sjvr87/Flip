@@ -33,7 +33,7 @@
     "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
     "multiverse:install": "npm.cmd install --prefix server",
     "multiverse:dev": "npm.cmd run dev --prefix server",
-    "multiverse:test": "npm.cmd test --prefix server"
+    "multiverse:test": "npm test --prefix server"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
