@@ -1,5 +1,5 @@
 @echo off
-REM Nuclear dev reset: kill Metro on 8081, clear cache, adb reverse, launch LAN deep link.
+REM Nuclear dev reset: git pull, kill Metro on 8081, clear cache, adb reverse, launch LAN deep link.
 REM Use when app won't connect, crashes on launch, or dev launcher shows broken servers.
 REM Deep link bypasses the expo-dev-client picker entirely.
 cd /d "%~dp0"

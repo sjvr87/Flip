@@ -5,7 +5,7 @@
 # Modes:
 #   (default)        flip-dev.bat           - pull + adb + reuse Metro (or start one window)
 #   -RestartMetro    flip-dev-restart.bat   - pull + adb; recycle Metro if unhealthy (clear cache)
-#   -Reconnect       flip-reconnect.bat     - post-crash: adb + fix stale Metro + launch (no pull)
+#   -Reconnect       flip-reconnect.bat     - pull + adb; fix stale Metro + launch (post-crash)
 #   -Reset           flip-reset-dev.bat     - pull current branch, kill Metro, clear cache, launch
 #   -ConnectOnly     flip-connect.bat       - adb + launch only (Metro must already be healthy)
 #   -ConnectOnly -Reload  flip-reload.bat   - adb + POST /reload (no pull — JS already on disk)
@@ -52,7 +52,7 @@ function Invoke-AdbString {
 $modeLabel = if ($Reset) {
   "reset (pull + kill Metro, fresh start)"
 } elseif ($Reconnect) {
-  "reconnect (post-crash)"
+  "reconnect (pull + post-crash)"
 } elseif ($NoLaunch) {
   "sync (adb reverse + Metro, no launch)"
 } elseif ($ConnectOnly) {
@@ -64,9 +64,9 @@ $modeLabel = if ($Reset) {
 }
 Write-Host "== Flip dev-connect ($modeLabel) ==" -ForegroundColor Cyan
 
-# Pull latest on current branch unless fast reconnect/reload/sync only.
-# Reset pulls too — stale local tree was launching old JS despite GitHub updates.
-$skipPull = $ConnectOnly -or $Reconnect -or $NoLaunch
+# Pull latest on current branch unless fast connect/reload/sync only.
+# Reset + Reconnect pull — stale local tree was launching old JS despite GitHub updates.
+$skipPull = $ConnectOnly -or $NoLaunch
 if (-not $skipPull) {
   $branch = (git branch --show-current).Trim()
   Write-Host "[1/6] git fetch origin $branch..."
@@ -596,9 +596,9 @@ if ($serials.Count -gt 0) {
 $ok = Write-DevStatus -ReverseOk $reverseOk
 Write-Host ""
 Write-Host "=== Scripts ===" -ForegroundColor Cyan
-Write-Host "- flip-reset-dev.bat: kill Metro + clear cache + adb reverse + launch (when nothing works)"
+Write-Host "- flip-reset-dev.bat: pull + kill Metro + clear cache + adb reverse + launch"
 Write-Host "- flip-dev.bat: first connect / sync branch - pull + adb + reuse Metro"
-Write-Host "- flip-reconnect.bat: after crash - adb + fix Metro + launch (fast, no pull)"
+Write-Host "- flip-reconnect.bat: pull + adb + fix Metro + launch (after crash)"
 Write-Host "- flip-connect.bat: adb + launch only (Metro already healthy)"
 Write-Host "- flip-reload.bat: adb + POST /reload (JS tweak, app already running)"
 Write-Host "- flip-sync.bat: adb reverse + wait for Metro (no launch; phone stays on current app)"
