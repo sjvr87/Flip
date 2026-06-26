@@ -68,17 +68,37 @@ function patchGradleProperties() {
   }
 
   let src = fs.readFileSync(propsFile, 'utf8');
+  let propsChanged = false;
+  // FLIP_GRADLE_JVMARGS
+  const desiredJvm = '-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8';
+  const jvmRe = /^org\.gradle\.jvmargs=.*/m;
+  if (jvmRe.test(src)) {
+    if (!src.includes('-Xmx4096m')) {
+      src = src.replace(jvmRe, `org.gradle.jvmargs=${desiredJvm}`);
+      propsChanged = true;
+      console.log('[patch-android-node] Raised org.gradle.jvmargs for CMake/NDK builds');
+    }
+  } else {
+    src = src.replace(
+      '# Project-wide Gradle settings.\n',
+      `# Project-wide Gradle settings.\n\norg.gradle.jvmargs=${desiredJvm}\n`,
+    );
+    propsChanged = true;
+    console.log('[patch-android-node] Set org.gradle.jvmargs');
+  }
   const line = `nodeExecutable=${nodeExe}`;
-  if (src.includes('nodeExecutable=')) {
-    return;
+  if (!src.includes('nodeExecutable=')) {
+    src = src.replace(
+      '# Project-wide Gradle settings.\n',
+      `# Project-wide Gradle settings.\n\n# Node for Gradle autolinking (Windows PATH workaround)\n${line}\n`,
+    );
+    propsChanged = true;
   }
 
-  src = src.replace(
-    '# Project-wide Gradle settings.\n',
-    `# Project-wide Gradle settings.\n\n# Node for Gradle autolinking (Windows PATH workaround)\n${line}\n`,
-  );
-  fs.writeFileSync(propsFile, src);
-  console.log('[patch-android-node] Set nodeExecutable in android/gradle.properties');
+  if (propsChanged) {
+    fs.writeFileSync(propsFile, src);
+    console.log('[patch-android-node] Updated android/gradle.properties');
+  }
 }
 
 function patchAppBuildGradle(src) {
