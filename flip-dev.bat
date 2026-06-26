@@ -1,5 +1,5 @@
 @echo off
-REM First connect / sync branch: git pull + adb reverse + reuse Metro (one window max).
+REM First connect / sync branch: git pull + adb + Metro + auto-sync watcher (minimized).
 REM When nothing works: flip-reset-dev.bat
 REM After crash (fast): flip-reconnect.bat
 REM JS tweak while app runs: flip-reload.bat
@@ -22,4 +22,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-exit 0
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-flip-auto-sync.ps1"
+exit /b 0

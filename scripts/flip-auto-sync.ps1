@@ -1,8 +1,8 @@
 # Watch origin for new commits, pull, and reload Flip on the phone (adb + Metro).
-# Double-click: flip-auto-sync.bat  (fix branch, keeps window open)
+# Started automatically by flip-dev.bat, or double-click flip-auto-sync.bat.
 param(
     [string]$Branch = 'cursor/fix-s25-feed-tabs-regression-56a3',
-    [int]$IntervalSec = 15,
+    [int]$IntervalSec = 10,
     [switch]$NoReload,
     [bool]$CheckoutBranch = $true
 )
@@ -16,6 +16,19 @@ if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir | Out-Null
 }
 $LogFile = Join-Path $LogDir 'auto-sync.log'
+$LockFile = Join-Path $LogDir 'auto-sync.lock'
+
+if (Test-Path $LockFile) {
+    $existingPid = (Get-Content $LockFile -Raw -ErrorAction SilentlyContinue).Trim()
+    if ($existingPid -match '^\d+$') {
+        $proc = Get-Process -Id ([int]$existingPid) -ErrorAction SilentlyContinue
+        if ($proc) {
+            Write-Host "Flip auto-sync already running (PID $existingPid)." -ForegroundColor DarkGray
+            exit 0
+        }
+    }
+}
+Set-Content -Path $LockFile -Value $PID -NoNewline
 
 function Write-Log {
     param([string]$Message, [string]$Color = 'White')
@@ -52,7 +65,7 @@ function Invoke-PhoneReload {
         return $true
     }
 
-    Write-Log "Phone reload failed (exit $LASTEXITCODE). Is USB debugging on?" 'Yellow'
+    Write-Log "Phone reload FAILED (exit $LASTEXITCODE). Plug in phone + USB debugging." 'Red'
     return $false
 }
 
@@ -93,7 +106,7 @@ function Sync-Branch {
             }
             $local = (& git rev-parse HEAD 2>$null).Trim()
         } else {
-            Write-Log "On '$onBranch' but watching '$TargetBranch' — use flip-auto-sync.bat" 'Yellow'
+            Write-Log "On '$onBranch' but watching '$TargetBranch'." 'Yellow'
             return $false
         }
     }
@@ -122,59 +135,65 @@ function Sync-Branch {
     return $true
 }
 
-if (-not (Test-Path (Join-Path $Root 'package.json'))) {
-    Write-Log 'ERROR: Run from Flip repo root (package.json missing).' 'Red'
-    exit 1
-}
+try {
+    if (-not (Test-Path (Join-Path $Root 'package.json'))) {
+        Write-Log 'ERROR: Run from Flip repo root (package.json missing).' 'Red'
+        exit 1
+    }
 
-$watchBranch = if ($Branch) { $Branch } else { (& git branch --show-current 2>$null).Trim() }
-if (-not $watchBranch) {
-    Write-Log 'ERROR: not on a git branch.' 'Red'
-    exit 1
-}
-
-Write-Host ''
-Write-Log '== Flip auto-sync ==' 'Cyan'
-Write-Log "Repo:   $Root"
-Write-Log "Branch: $watchBranch"
-Write-Log "Poll:   every ${IntervalSec}s — leave this window open (Ctrl+C to stop)"
-Write-Log "Log:    $LogFile"
-Write-Log 'First run: flip-dev.bat once if Metro is down'
-Write-Host ''
-
-$null = Sync-Branch -TargetBranch $watchBranch -ForceReload
-
-$lastRemote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
-
-while ($true) {
     $watchBranch = if ($Branch) { $Branch } else { (& git branch --show-current 2>$null).Trim() }
     if (-not $watchBranch) {
-        Start-Sleep -Seconds $IntervalSec
-        continue
+        Write-Log 'ERROR: not on a git branch.' 'Red'
+        exit 1
     }
 
-    & git fetch origin $watchBranch 2>&1 | Out-Null
-    $remote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
-    $local = (& git rev-parse HEAD 2>$null).Trim()
-    $localShort = Get-ShortSha 'HEAD'
-    $remoteShort = Get-ShortSha "origin/$watchBranch"
-    $metro = if (Test-MetroHealthy) { 'Metro OK' } else { 'Metro DOWN — run flip-dev.bat' }
+    Write-Host ''
+    Write-Log '== Flip auto-sync ==' 'Cyan'
+    Write-Log "Repo:   $Root"
+    Write-Log "Branch: $watchBranch"
+    Write-Log "Poll:   every ${IntervalSec}s (Ctrl+C to stop)"
+    Write-Log "Log:    $LogFile"
+    Write-Log 'Phone must stay on USB. Metro must be running (flip-dev.bat).'
+    Write-Host ''
 
-    if ($remote -and $remote -ne $lastRemote) {
-        if ($remote -ne $local) {
-            $null = Sync-Branch -TargetBranch $watchBranch
-        } else {
-            Write-Log "Remote moved; local matches ($localShort). Reloading phone..." 'DarkGray'
-            Invoke-PhoneReload | Out-Null
+    $null = Sync-Branch -TargetBranch $watchBranch -ForceReload
+
+    $lastRemote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
+
+    while ($true) {
+        $watchBranch = if ($Branch) { $Branch } else { (& git branch --show-current 2>$null).Trim() }
+        if (-not $watchBranch) {
+            Start-Sleep -Seconds $IntervalSec
+            continue
         }
-        $lastRemote = $remote
-    } elseif ($local -and $remote -and $local -ne $remote) {
-        Write-Log "BEHIND remote ($localShort vs $remoteShort) — pulling now..." 'Yellow'
-        $null = Sync-Branch -TargetBranch $watchBranch
-        $lastRemote = $remote
-    } else {
-        Write-Log "Watching $watchBranch  local=$localShort  remote=$remoteShort  ($metro)" 'DarkGray'
-    }
 
-    Start-Sleep -Seconds $IntervalSec
+        & git fetch origin $watchBranch 2>&1 | Out-Null
+        $remote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
+        $local = (& git rev-parse HEAD 2>$null).Trim()
+        $localShort = Get-ShortSha 'HEAD'
+        $remoteShort = Get-ShortSha "origin/$watchBranch"
+        $metro = if (Test-MetroHealthy) { 'Metro OK' } else { 'Metro DOWN' }
+
+        if ($remote -and $remote -ne $lastRemote) {
+            if ($remote -ne $local) {
+                $null = Sync-Branch -TargetBranch $watchBranch
+            } else {
+                Write-Log "Remote moved; local matches ($localShort). Reloading phone..." 'DarkGray'
+                Invoke-PhoneReload | Out-Null
+            }
+            $lastRemote = $remote
+        } elseif ($local -and $remote -and $local -ne $remote) {
+            Write-Log "BEHIND remote ($localShort vs $remoteShort) — pulling now..." 'Yellow'
+            $null = Sync-Branch -TargetBranch $watchBranch
+            $lastRemote = $remote
+        } else {
+            Write-Log "Watching $watchBranch  local=$localShort  remote=$remoteShort  ($metro)" 'DarkGray'
+        }
+
+        Start-Sleep -Seconds $IntervalSec
+    }
+} finally {
+    if (Test-Path $LockFile) {
+        Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
+    }
 }

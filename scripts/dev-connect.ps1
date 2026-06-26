@@ -23,7 +23,19 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "R5CXC20L8ZN" }
+$DeviceFile = Join-Path $Root ".flip-adb-device"
+$savedDevice = ""
+if (Test-Path $DeviceFile) {
+  $savedDevice = (Get-Content $DeviceFile -Raw -ErrorAction SilentlyContinue).Trim()
+}
+
+$PreferredDevice = if ($env:FLIP_ADB_DEVICE) {
+  $env:FLIP_ADB_DEVICE.Trim()
+} elseif ($savedDevice) {
+  $savedDevice
+} else {
+  ""
+}
 
 function Get-LanIp {
   $getLanScript = Join-Path $PSScriptRoot "get-lan-ip.ps1"
@@ -269,16 +281,36 @@ function Invoke-MetroReload {
 
 function Select-TargetSerials([string[]]$AllSerials) {
   if ($AllSerials.Count -eq 0) { return @() }
-  if ($PreferredDevice -and ($AllSerials -contains $PreferredDevice)) {
-    if ($AllSerials.Count -gt 1) {
-      Write-Host "  Using preferred device $PreferredDevice (set FLIP_ADB_DEVICE to override)" -ForegroundColor DarkGray
+
+  if ($AllSerials.Count -eq 1) {
+    $only = $AllSerials[0]
+    if ($PreferredDevice -and $PreferredDevice -ne $only) {
+      Write-Host "  Using connected device $only (preferred $PreferredDevice not plugged in)" -ForegroundColor Yellow
     }
+    return @($only)
+  }
+
+  if ($PreferredDevice -and ($AllSerials -contains $PreferredDevice)) {
+    Write-Host "  Using preferred device $PreferredDevice (set FLIP_ADB_DEVICE to override)" -ForegroundColor DarkGray
     return @($PreferredDevice)
   }
-  if ($AllSerials.Count -gt 1 -and $PreferredDevice) {
+
+  if ($PreferredDevice) {
     Write-Host "  Preferred device $PreferredDevice not found; using $($AllSerials -join ', ')" -ForegroundColor Yellow
+  } else {
+    Write-Host "  Multiple devices — using all: $($AllSerials -join ', '). Set FLIP_ADB_DEVICE to one serial." -ForegroundColor Yellow
   }
   return $AllSerials
+}
+
+function Save-ConnectedDevice([string[]]$TargetSerials) {
+  if ($TargetSerials.Count -ne 1) { return }
+  try {
+    Set-Content -Path $DeviceFile -Value $TargetSerials[0] -NoNewline
+    Write-Host "  Saved device $($TargetSerials[0]) to .flip-adb-device" -ForegroundColor DarkGray
+  } catch {
+    # non-fatal
+  }
 }
 
 function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
@@ -428,6 +460,7 @@ if ($unauthorized.Count -gt 0) {
 } else {
   Write-Host "[3/6] adb reverse tcp:8081 tcp:8081"
   $reverseOk = Ensure-AdbReverse -TargetSerials $serials -AdbPath $adb
+  Save-ConnectedDevice -TargetSerials $serials
 }
 
 if ($env:CI -eq "true" -or $env:CI -eq "1") {
@@ -511,7 +544,13 @@ if ($ConnectOnly -and -not $Reconnect) {
 
   if ($Reload -and $metroHealthy -and $serials.Count -gt 0) {
     Write-Host "[5/6] Reload JS via Metro"
-    Invoke-MetroReload | Out-Null
+    $reloaded = Invoke-MetroReload
+    if (-not $reloaded) {
+      exit 1
+    }
+  } elseif ($Reload -and $serials.Count -eq 0) {
+    Write-Host "[5/6] Reload FAILED — no phone on USB (plug in S25/S26, enable USB debugging)" -ForegroundColor Red
+    exit 1
   } elseif ($serials.Count -gt 0) {
     Write-Host "[5/6] Launch Flip on device"
     if (-not $script:LanIp) {
