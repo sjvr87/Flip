@@ -39,6 +39,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { prepareImageForUpload, prepareVideoForUpload } from '@/utils/uploadCompression';
+import { isExpoVideoPlayerUsable } from '@/utils/expoVideoPlayer';
 import type { FlipAudioSource } from '@/atproto/types';
 import tw from 'twrnc';
 
@@ -46,14 +47,34 @@ const MAX_CAPTION_LENGTH = 200;
 const MAX_ALT_TEXT_LENGTH = 2000;
 
 function CaptionVideoThumb({ uri }: { uri: string }) {
-    const player = useVideoPlayer(uri, () => {});
+    const player = useVideoPlayer(uri, (p) => {
+        p.loop = true;
+        p.muted = true;
+    });
+    const [showSurface, setShowSurface] = useState(false);
+
+    useEffect(() => {
+        if (!isExpoVideoPlayerUsable(player)) {
+            setShowSurface(false);
+            return;
+        }
+        setShowSurface(true);
+        return () => {
+            setShowSurface(false);
+        };
+    }, [player, uri]);
+
+    if (!showSurface || !isExpoVideoPlayerUsable(player)) {
+        return <View style={tw`flex-1 w-full h-full bg-black`} />;
+    }
+
     return (
         <VideoView
             style={tw`flex-1 w-full h-full bg-black`}
             player={player}
             allowsPictureInPicture={false}
             nativeControls={false}
-            surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+            surfaceType="surfaceView"
         />
     );
 }
@@ -434,6 +455,9 @@ export default function CaptionScreen() {
         },
     });
 
+    const showMediaThumb =
+        isFocused && !overlayVisible && !postMutation.isPending && !postMutation.isSuccess;
+
     const handlePost = () => {
         postMutation.mutate({
             originalPath: mediaSourcePath,
@@ -616,16 +640,19 @@ export default function CaptionScreen() {
                     </View>
 
                     <View style={tw`w-20 h-[150px] bg-black rounded-lg overflow-hidden relative`}>
-                        {isFocused &&
-                            (isPhoto ? (
+                        {showMediaThumb ? (
+                            isPhoto ? (
                                 <Image
                                     source={{ uri: videoUri }}
                                     style={tw`flex-1 w-full h-full bg-black`}
                                     contentFit="cover"
                                 />
-                            ) : isFocused ? (
-                                <CaptionVideoThumb uri={videoUri} />
-                            ) : null)}
+                            ) : (
+                                <CaptionVideoThumb key={videoUri} uri={videoUri} />
+                            )
+                        ) : (
+                            <View style={tw`flex-1 w-full h-full bg-black`} />
+                        )}
                     </View>
                 </View>
 
