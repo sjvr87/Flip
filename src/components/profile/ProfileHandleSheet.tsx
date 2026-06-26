@@ -19,7 +19,6 @@ type Props = {
     user?: ProfileUser | null;
     onClose: () => void;
     onCopyHandle: () => void;
-    onCopyLink: () => void;
     onShowQr: () => void;
 };
 
@@ -49,7 +48,6 @@ export function ProfileHandleSheet({
     user,
     onClose,
     onCopyHandle,
-    onCopyLink,
     onShowQr,
 }: Props) {
     const insets = useSafeAreaInsets();
@@ -83,9 +81,9 @@ export function ProfileHandleSheet({
                         isDark={isDark}
                     />
                     <SheetRow
-                        icon="link-outline"
-                        label="Copy profile link"
-                        onPress={onCopyLink}
+                        icon="qr-code-outline"
+                        label="Show profile QR code"
+                        onPress={onShowQr}
                         isDark={isDark}
                     />
                     <SheetRow
@@ -104,12 +102,6 @@ export function ProfileHandleSheet({
                                 console.error('Share profile error:', error);
                             }
                         }}
-                        isDark={isDark}
-                    />
-                    <SheetRow
-                        icon="qr-code-outline"
-                        label="Show profile QR code"
-                        onPress={onShowQr}
                         isDark={isDark}
                     />
 

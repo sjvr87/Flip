@@ -5,7 +5,7 @@ import { ProfileHandleSheet, ProfileQrSheet } from '@/components/profile/Profile
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { BriefToast } from '@/components/ui/BriefToast';
 import { useTheme } from '@/contexts/ThemeContext';
-import { copyProfileHandle, copyProfileLink } from '@/utils/profileUrl';
+import { copyProfileHandle } from '@/utils/profileUrl';
 import { openBrowser } from '@/utils/requests';
 import { prettyCount } from '@/utils/ui';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -33,12 +33,6 @@ export default function AccountHeader(props) {
         if (ok) showCopiedToast();
     };
 
-    const handleCopyLink = async () => {
-        setHandleSheetOpen(false);
-        const ok = await copyProfileLink(props.user, { showAlert: false });
-        if (ok) showCopiedToast();
-    };
-
     const openLink = async (path) => {
         await openBrowser(path, { presentationStyle: 'popover', showTitle: false });
     };
@@ -53,7 +47,7 @@ export default function AccountHeader(props) {
                         onPress={() => setHandleSheetOpen(true)}
                         accessibilityRole="button"
                         accessibilityLabel="Profile handle options"
-                        accessibilityHint="Copy handle, copy link, share, or show QR code">
+                        accessibilityHint="Copy handle, show QR code, or share profile link">
                         <MentionText
                             username={props.user?.username}
                             style={{ fontWeight: 'bold', fontSize: 24 }}
@@ -244,7 +238,6 @@ export default function AccountHeader(props) {
                 user={props.user}
                 onClose={() => setHandleSheetOpen(false)}
                 onCopyHandle={handleCopyHandle}
-                onCopyLink={handleCopyLink}
                 onShowQr={() => {
                     setHandleSheetOpen(false);
                     setQrSheetOpen(true);
@@ -255,7 +248,11 @@ export default function AccountHeader(props) {
                 user={props.user}
                 onClose={() => setQrSheetOpen(false)}
             />
-            <BriefToast message={toastMessage} onHidden={() => setToastMessage(null)} />
+            <BriefToast
+                message={toastMessage}
+                durationMs={900}
+                onHidden={() => setToastMessage(null)}
+            />
         </YStack>
     );
 }
