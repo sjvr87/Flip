@@ -3,17 +3,21 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 
 /** Matches feed action rail `ICON_SLOT` (30px). */
 export const MEGAPHONE_COMMENT_DESIGN_SIZE = 30;
-/** Activity / notification avatar badge — bumped for optical match with heart at 20px. */
-export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = 26;
+/** Activity / notification avatar badge — optical match with heart at 20px. */
+export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = 32;
 
 type MegaphoneCommentIconProps = {
     size?: number;
     color?: string;
+    /** Tighter crop for activity avatar badge — figure fills frame, not distorted. */
+    crop?: 'full' | 'badge';
 };
 
 const VIEW = 24;
 /** Expanded crop — exaggerated bell + sound arcs on the left after mirror. */
 const VIEW_BOX = '0 -3.5 33 27';
+/** Activity badge — trim empty viewBox margin so the figure reads as large as the heart. */
+const VIEW_BOX_BADGE = '4 -0.5 21 23';
 
 /** Detached circular head — small gap below before torso/neck. */
 const HEAD = { cx: 13.6, cy: 3.25, r: 2.28 };
@@ -137,9 +141,11 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
 const MegaphoneCommentIcon = memo(function MegaphoneCommentIcon({
     size = MEGAPHONE_COMMENT_DESIGN_SIZE,
     color = '#FFFFFF',
+    crop = 'full',
 }: MegaphoneCommentIconProps) {
+    const viewBox = crop === 'badge' ? VIEW_BOX_BADGE : VIEW_BOX;
     return (
-        <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+        <Svg width={size} height={size} viewBox={viewBox} fill="none">
             <G transform={`translate(${VIEW}, 0) scale(-1, 1)`}>
                 {SOUND_WAVES.map((wave, index) => (
                     <Path

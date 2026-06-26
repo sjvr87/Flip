@@ -36,8 +36,8 @@ interface NotificationItemProps {
 }
 
 const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
-/** Comment megaphone reads smaller in the viewBox — sit lower/right so it clears the avatar. */
-const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -8, right: -10 };
+/** Bottom-right corner of avatar — comment icon hangs on the corner for clear separation from the photo. */
+const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -14, right: -16 };
 
 function isCommentActivityType(type: string): boolean {
     return type === 'video.comment' || type === 'video.commentReply';
@@ -105,6 +105,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     <MegaphoneCommentIcon
                         size={MEGAPHONE_COMMENT_ACTIVITY_SIZE}
                         color={activityIconColor}
+                        crop="badge"
                     />
                 );
             case 'comment.share':
@@ -124,13 +125,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     };
 
     const badgeIcon = getBadgeIcon();
-    const badgeOffset = useMemo(
-        () =>
-            isCommentActivityType(item.type)
-                ? COMMENT_ACTIVITY_BADGE_OFFSET
-                : DEFAULT_ACTIVITY_BADGE_OFFSET,
-        [item.type],
-    );
+    const badgeOffset = isCommentActivityType(item.type)
+        ? COMMENT_ACTIVITY_BADGE_OFFSET
+        : DEFAULT_ACTIVITY_BADGE_OFFSET;
 
     const showActionButtons = false;
 
