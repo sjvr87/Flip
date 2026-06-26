@@ -3,6 +3,8 @@ name: Auto Review & Merge by Copilot
 on:
   pull_request:
     types: [opened, synchronize]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   review-and-merge:
@@ -10,14 +12,13 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-      checks: write
-      
+
     steps:
       - name: Checkout PR code
         uses: actions/checkout@v3
         with:
           ref: ${{ github.head_ref }}
-      
+
       - name: Run tests (if any)
         run: |
           if [ -f "package.json" ]; then
@@ -25,38 +26,73 @@ jobs:
             npm test || echo "Tests need attention"
           fi
         continue-on-error: true
-      
-      - name: Copilot Review & Comment
+
+      - name: Copilot review comment
         uses: actions/github-script@v6
+        continue-on-error: true
         with:
           script: |
             const pr = context.payload.pull_request;
-            
+            if (!pr) return;
+
             await github.rest.pulls.createReview({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number,
               event: 'COMMENT',
-              body: '🤖 **Copilot Review**: Analyzing your changes.'
+              body: '🤖 **Copilot Review**: Analyzing your changes. Human approval is required before merge.',
             });
-      
-      - name: Auto-merge if clean
+
+      - name: Merge when human-approved
         uses: actions/github-script@v6
         with:
           script: |
             const pr = context.payload.pull_request;
-            
-            await github.rest.pulls.createReview({
+            if (!pr) {
+              core.info('No pull_request in payload; skipping merge step.');
+              return;
+            }
+
+            const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number,
-              event: 'APPROVE',
-              body: '✅ Approved by Copilot. Merging now.'
             });
-            
+
+            const latestByUser = new Map();
+            for (const review of reviews) {
+              latestByUser.set(review.user.login, review);
+            }
+
+            const hasHumanApproval = [...latestByUser.values()].some(
+              (review) =>
+                review.state === 'APPROVED' &&
+                review.user.type !== 'Bot' &&
+                review.user.login !== 'github-actions[bot]',
+            );
+
+            if (!hasHumanApproval) {
+              core.info(
+                'No human approval yet (reviewDecision would be REVIEW_REQUIRED). Skipping merge.',
+              );
+              return;
+            }
+
+            const { data: prState } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+
+            if (!prState.mergeable) {
+              core.info('PR is not mergeable yet; skipping merge.');
+              return;
+            }
+
+            core.info('Human approval present and PR is mergeable; merging.');
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number,
-              merge_method: 'squash'
+              merge_method: 'squash',
             });
