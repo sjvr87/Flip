@@ -40,6 +40,10 @@ export const AVATAR_SIZE = {
 export const AVATAR_CORNER_BADGE_SIZE = 28;
 export const AVATAR_CORNER_BADGE_OFFSET = { bottom: -14, right: -8 } as const;
 
+/** Activity comment badge — smaller, hangs off bottom-right so it covers less of the photo. */
+export const ACTIVITY_COMMENT_BADGE_SIZE = 24;
+export const ACTIVITY_COMMENT_BADGE_OFFSET = { bottom: -19, right: -13 } as const;
+
 export function squircleStyle(size: number) {
     const radius = squircleRadius(size);
     return {

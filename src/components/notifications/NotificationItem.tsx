@@ -5,7 +5,7 @@ import MegaphoneCommentIcon, {
 import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
-import { AVATAR_SIZE, AVATAR_CORNER_BADGE_OFFSET } from '@/utils/avatarShape';
+import { ACTIVITY_COMMENT_BADGE_OFFSET, AVATAR_SIZE } from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -36,8 +36,8 @@ interface NotificationItemProps {
 }
 
 const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
-/** Same corner placement as feed follow/add badge (FeedActionRail). */
-const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...AVATAR_CORNER_BADGE_OFFSET };
+/** Off the avatar corner — full icon visible without covering the profile photo. */
+const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_COMMENT_BADGE_OFFSET };
 
 function isCommentActivityType(type: string): boolean {
     return type === 'video.comment' || type === 'video.commentReply';

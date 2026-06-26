@@ -1,11 +1,11 @@
-import { AVATAR_CORNER_BADGE_SIZE } from '@/utils/avatarShape';
+import { ACTIVITY_COMMENT_BADGE_SIZE } from '@/utils/avatarShape';
 import { memo } from 'react';
 import Svg, { Circle, G, Path } from 'react-native-svg';
 
 /** Matches feed action rail `ICON_SLOT` (30px). */
 export const MEGAPHONE_COMMENT_DESIGN_SIZE = 30;
-/** Activity badge — same footprint as feed follow/add icon on creator avatar. */
-export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = AVATAR_CORNER_BADGE_SIZE;
+/** Activity notifications — slightly smaller than feed follow badge; sits off the avatar corner. */
+export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = ACTIVITY_COMMENT_BADGE_SIZE;
 
 type MegaphoneCommentIconProps = {
     size?: number;
