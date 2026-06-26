@@ -52,6 +52,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import tw from 'twrnc';
 
 const { width } = Dimensions.get('window');
@@ -262,7 +263,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
             ]}>
             <View style={[tw`flex-1 px-4 pt-4`, { minHeight: 0 }]}>
                 <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-2`}>
-                    <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
+                    <Avatar url={item.account.avatar} width={AVATAR_SIZE.explore} onPress={onOpenProfile} />
                     <View style={tw`ml-2.5 flex-1`}>
                         <Text
                             style={tw`text-black font-semibold text-sm dark:text-white`}

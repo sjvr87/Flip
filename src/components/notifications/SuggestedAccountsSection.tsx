@@ -1,7 +1,9 @@
 import MentionText from '@/components/MentionText';
+import Avatar from '@/components/Avatar';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import {
     fetchAuthorRecentMediaThumbnails,
     followAccount,
@@ -97,17 +99,7 @@ function SuggestedAccountRow({
             <PressableHaptics
                 onPress={() => onView(account.id)}
                 style={tw`flex-row items-center mb-3`}>
-                {account.avatar ? (
-                    <Image
-                        source={{ uri: account.avatar }}
-                        style={tw`w-11 h-11 rounded-full mr-3`}
-                    />
-                ) : (
-                    <View
-                        style={tw`w-11 h-11 rounded-full mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
-                        <Ionicons name="person" size={20} color="#999" />
-                    </View>
-                )}
+                <Avatar url={account.avatar} width={AVATAR_SIZE.suggested} style={tw`mr-3`} />
                 <View style={tw`flex-1`}>
                     {account.name && account.name !== account.username ? (
                         <StackText

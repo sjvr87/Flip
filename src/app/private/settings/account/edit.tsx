@@ -1,6 +1,7 @@
 import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
+import { squircleRadius } from '@/utils/avatarShape';
 import { fetchSelfAccount, getMimeType, updateAccountAvatar } from '@/utils/requests';
 import { truncate } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';

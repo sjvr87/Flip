@@ -2,6 +2,7 @@ import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useAuthStore } from '@/utils/authStore';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import { Link, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import tw from 'twrnc';
@@ -30,7 +31,7 @@ export default function AccountListItem(props) {
             <XStack justifyContent="space-between" alignItems="center" gap="$3">
                 <XStack alignItems="center" gap="$3" flex={1}>
                     <Link href={`/private/profile/${props.item?.id.toString()}`}>
-                        <Avatar url={props.item?.avatar} width={60} />
+                        <Avatar url={props.item?.avatar} width={AVATAR_SIZE.list} />
                     </Link>
                     <YStack flex={1}>
                         <XStack alignItems="center" gap="$1">

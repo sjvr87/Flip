@@ -1,5 +1,7 @@
 import FoldedHeartIcon, { FOLDED_HEART_ACTIVITY_SIZE } from '@/components/icons/FoldedHeartIcon';
+import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -112,7 +114,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             {isUnread && <View style={tw`w-2 h-2 rounded-full bg-red-500 mr-2 mt-1.5`} />}
 
             <Pressable onPress={() => onProfilePress(item.actor, item)} style={tw`relative mr-3`}>
-                <Image source={{ uri: item.actor.avatar }} style={tw`w-12 h-12 rounded-full`} />
+                <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
                 {getBadgeIcon() && (
                     <View
                         style={[

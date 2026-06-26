@@ -1,4 +1,5 @@
 import { Storage } from '@/utils/cache';
+import { squircleRadius } from '@/utils/avatarShape';
 import { Image, ImageProps } from 'expo-image';
 import { router } from 'expo-router';
 import React, { memo, useMemo, useState } from 'react';
@@ -14,11 +15,11 @@ import { Pressable, StyleSheet, ViewStyle } from 'react-native';
 // Hardcoded fallback URL
 const DEFAULT_FALLBACK_URL = 'https://loopsusercontent.com/avatars/default.jpg?v=1';
 
-// Built-in theme presets.
+// Built-in theme presets (squircle radii — see squircleRadius()).
 const THEMES = {
-    sm: { size: 32, radius: 9999, borderWidth: 0, borderColor: 'transparent' },
-    md: { size: 40, radius: 9999, borderWidth: 0, borderColor: 'transparent' },
-    lg: { size: 56, radius: 9999, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+    sm: { size: 32, radius: 9, borderWidth: 0, borderColor: 'transparent' },
+    md: { size: 40, radius: 12, borderWidth: 0, borderColor: 'transparent' },
+    lg: { size: 56, radius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
     xl: { size: 120, radius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
 } as const;
 
@@ -34,10 +35,12 @@ export type AvatarProps = {
     /** Primary image URL */
     url?: string | null;
     /** Shorthand for square size. Height === Width. */
-    width?: number; // alias: size
-    /** Corner radius (ignored if `rounded` is true). */
+    width?: number;
+    /** Alias for `width`. */
+    size?: number;
+    /** Corner radius when `rounded` is false (defaults to squircle for size). */
     radius?: number;
-    /** If true, makes the avatar a perfect circle (default true). */
+    /** If true, perfect circle. Default false — squircle avatars app-wide. */
     rounded?: boolean;
     /** Border width in dp. */
     borderWidth?: number;
@@ -78,8 +81,9 @@ const pickTheme = (theme?: AvatarThemeKey | AvatarThemeConfig) => {
 const Avatar = memo(function Avatar({
     url,
     width,
+    size,
     radius,
-    rounded = true,
+    rounded = false,
     borderWidth,
     borderColor,
     theme,
@@ -101,9 +105,11 @@ const Avatar = memo(function Avatar({
 
     const resolvedTheme = useMemo(() => pickTheme(theme), [theme]);
 
-    const size = width ?? resolvedTheme.size ?? 40;
+    const dimension = width ?? size ?? resolvedTheme.size ?? 40;
 
-    const computedRadius = rounded ? Math.ceil(size / 2) : (radius ?? resolvedTheme.radius ?? 0);
+    const computedRadius = rounded
+        ? Math.ceil(dimension / 2)
+        : (radius ?? resolvedTheme.radius ?? squircleRadius(dimension));
 
     const finalBorderWidth = borderWidth ?? resolvedTheme.borderWidth ?? 0;
     const finalBorderColor = borderColor ?? resolvedTheme.borderColor ?? 'transparent';
@@ -138,8 +144,8 @@ const Avatar = memo(function Avatar({
             style={[
                 styles.base,
                 {
-                    width: size,
-                    height: size,
+                    width: dimension,
+                    height: dimension,
                     borderRadius: computedRadius,
                     borderWidth: finalBorderWidth,
                     borderColor: finalBorderColor,

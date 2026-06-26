@@ -10,6 +10,7 @@ import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { FOLLOWING_DIDS_QUERY_KEY, useFollowingDids } from '@/hooks/useFollowingDids';
 import { addAccountToFollowingCache, appendAccountToFollowingSet, followAccount } from '@/atproto';
 import { useAuthStore } from '@/utils/authStore';
+import { squircleRadius, AVATAR_SIZE as AVATAR_SIZES } from '@/utils/avatarShape';
 import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,8 +23,8 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 /** Uniform slot — Ionicons + custom SVGs share this hit area. */
 const ICON_SLOT = 30;
 /** Feed avatar — squircle, slightly larger than prior 40px circle-in-48px ring. */
-const AVATAR_SIZE = 48;
-const AVATAR_RADIUS = 14;
+const AVATAR_SIZE = AVATAR_SIZES.feed;
+const AVATAR_RADIUS = squircleRadius(AVATAR_SIZE);
 const AVATAR_INNER = AVATAR_SIZE + 6;
 const AVATAR_RING = AVATAR_INNER + 4;
 const FOLLOW_BADGE_SIZE = 28;
