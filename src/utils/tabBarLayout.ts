@@ -80,9 +80,8 @@ const ANDROID_STATUS_ICON_ROW_DP = 24;
 
 /**
  * Status bar band + feed video top inset.
- * Android feed only: ignore SafeAreaProvider top (edge-to-edge cutout inflation, e.g. ~149px
- * on Samsung punch-hole). Blend the 24dp icon row with the full status frame so the black band
- * sits between a short cap (~72px) and the full frame (~84–96px on ~3x Samsung).
+ * Android feed: match the OS status bar frame (clock/battery/signal row) exactly.
+ * Do not use SafeAreaProvider top — Samsung punch-hole safe area inflates (~149px).
  */
 export function getFeedStatusBarTopInset(safeAreaTop: number): number {
     if (Platform.OS !== 'android') {
@@ -91,8 +90,10 @@ export function getFeedStatusBarTopInset(safeAreaTop: number): number {
 
     const iconRowPx = PixelRatio.roundToNearestPixel(ANDROID_STATUS_ICON_ROW_DP);
     const frameHeight = StatusBar.currentHeight;
+
     if (frameHeight != null && frameHeight > 0) {
-        return Math.round((iconRowPx + frameHeight) / 2);
+        // Flush with system status icons — OS status bar height, never punch-hole safe area.
+        return frameHeight;
     }
 
     return iconRowPx;

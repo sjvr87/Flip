@@ -2,9 +2,7 @@ import { Divider, SectionHeader, SettingsItem } from '@/components/settings/Stac
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
-import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { openBrowser } from '@/utils/requests';
-import { shareContent } from '@/utils/sharer';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
@@ -12,7 +10,7 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function SettingsScreen() {
-    const { logOut, resetOnboarding, user } = useAuthStore();
+    const { logOut } = useAuthStore();
     const router = useRouter();
     const queryClient = useQueryClient();
     const notificationStore = useNotificationStore();
@@ -41,25 +39,6 @@ export default function SettingsScreen() {
 
     const handleReportBug = async () => {
         await openBrowser('https://github.com/joinloops/loops-expo/issues/new');
-    };
-
-    const handleShare = async () => {
-        try {
-            await shareContent({
-                message: `Check out my account on Flip!`,
-                url: getProfileUrl(user),
-            });
-        } catch (error) {
-            console.error('Share error:', error);
-        }
-    };
-
-    const handleCopyProfileLink = async () => {
-        try {
-            await copyProfileLink(user);
-        } catch (error) {
-            console.error('Copy profile link error:', error);
-        }
     };
 
     return (
@@ -110,18 +89,6 @@ export default function SettingsScreen() {
                     onPress={() => router.push('/private/settings/security')}
                 />
 
-                <Divider />
-                <SettingsItem
-                    icon="share-outline"
-                    label="Share profile"
-                    onPress={() => handleShare()}
-                />
-                <Divider />
-                <SettingsItem
-                    icon="copy-outline"
-                    label="Copy profile link"
-                    onPress={() => handleCopyProfileLink()}
-                />
                 <Divider />
                 <SectionHeader title="Content & Display" />
                 <SettingsItem

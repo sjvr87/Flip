@@ -1072,7 +1072,7 @@ export default function LoopsFeed({ navigation }) {
     const refreshing = manualRefreshing && (isRefetching || isFetching) && !isFetchingNextPage;
 
     const feedHeader = (
-        <View style={[styles.header, { top: statusBarInset + 2 }]}>
+        <View style={[styles.header, { top: statusBarInset }]}>
             <View style={styles.tabContainer}>
                 <TouchableOpacity
                     accessibilityRole="tab"
