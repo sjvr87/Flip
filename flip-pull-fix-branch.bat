@@ -6,17 +6,8 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-echo == Checkout cursor/fix-s25-feed-tabs-regression-56a3 ==
-git fetch origin
-git checkout cursor/fix-s25-feed-tabs-regression-56a3
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\ensure-fix-branch.ps1"
 if errorlevel 1 (
-  echo checkout failed
-  pause
-  exit /b 1
-)
-git pull origin cursor/fix-s25-feed-tabs-regression-56a3
-if errorlevel 1 (
-  echo pull failed
   pause
   exit /b 1
 )

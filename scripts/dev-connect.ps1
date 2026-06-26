@@ -16,7 +16,8 @@ param(
   [switch]$Reload,
   [switch]$Reconnect,
   [switch]$Reset,
-  [switch]$NoLaunch
+  [switch]$NoLaunch,
+  [switch]$WaitForDevice
 )
 
 $ErrorActionPreference = "Stop"
@@ -393,6 +394,52 @@ function Write-NoLanIpHelp {
   Write-Host ""
 }
 
+function Get-AdbDeviceSerials {
+  param([string]$AdbPath)
+  $devicesOut = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("devices")
+  $serials = @()
+  $unauthorized = @()
+  $offline = @()
+  foreach ($line in ($devicesOut -split "`n")) {
+    if ($line -match "^\s*(\S+)\s+device\s*$") {
+      $serials += $Matches[1]
+    } elseif ($line -match "^\s*(\S+)\s+unauthorized\s*$") {
+      $unauthorized += $Matches[1]
+    } elseif ($line -match "^\s*(\S+)\s+offline\s*$") {
+      $offline += $Matches[1]
+    }
+  }
+  return @{
+    Output = $devicesOut
+    Serials = $serials
+    Unauthorized = $unauthorized
+    Offline = $offline
+  }
+}
+
+function Wait-ForUsbDevice {
+  param(
+    [string]$AdbPath,
+    [int]$TimeoutSec = 45
+  )
+  Write-Host ""
+  Write-Host "Waiting up to ${TimeoutSec}s for phone on USB — plug in + tap Allow on phone..." -ForegroundColor Yellow
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    $scan = Get-AdbDeviceSerials -AdbPath $AdbPath
+    if ($scan.Unauthorized.Count -gt 0) {
+      Write-Host "  Phone detected but UNAUTHORIZED — tap Allow USB debugging on phone." -ForegroundColor Red
+    } elseif ($scan.Serials.Count -gt 0) {
+      Write-Host "  Device found: $($scan.Serials -join ', ')" -ForegroundColor Green
+      return $scan
+    } else {
+      Write-Host "  (no device yet...)" -ForegroundColor DarkGray
+    }
+    Start-Sleep -Seconds 2
+  }
+  return Get-AdbDeviceSerials -AdbPath $AdbPath
+}
+
 function Write-UsbDeviceHelp {
   param([string]$Reason)
   Write-Host ""
@@ -433,23 +480,21 @@ function Write-DevStatus {
 }
 
 Write-Host '[2/6] adb devices'
-$devicesOut = Invoke-AdbString -AdbPath $adb -AdbArgs @("devices")
-Write-Host $devicesOut
+$deviceScan = Get-AdbDeviceSerials -AdbPath $adb
+Write-Host $deviceScan.Output
 
-$serials = @()
-$unauthorized = @()
-$offline = @()
-foreach ($line in ($devicesOut -split "`n")) {
-  if ($line -match "^\s*(\S+)\s+device\s*$") {
-    $serials += $Matches[1]
-  } elseif ($line -match "^\s*(\S+)\s+unauthorized\s*$") {
-    $unauthorized += $Matches[1]
-  } elseif ($line -match "^\s*(\S+)\s+offline\s*$") {
-    $offline += $Matches[1]
-  }
+$unauthorized = @($deviceScan.Unauthorized)
+$offline = @($deviceScan.Offline)
+$serials = Select-TargetSerials @($deviceScan.Serials)
+
+$shouldWaitForDevice = $WaitForDevice.IsPresent -and -not $ConnectOnly -and -not $NoLaunch -and $serials.Count -eq 0
+if ($shouldWaitForDevice) {
+  $deviceScan = Wait-ForUsbDevice -AdbPath $adb -TimeoutSec 45
+  Write-Host $deviceScan.Output
+  $unauthorized = @($deviceScan.Unauthorized)
+  $offline = @($deviceScan.Offline)
+  $serials = Select-TargetSerials @($deviceScan.Serials)
 }
-
-$serials = Select-TargetSerials $serials
 
 $reverseOk = $false
 if ($unauthorized.Count -gt 0) {

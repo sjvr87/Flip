@@ -16,5 +16,10 @@ echo   - Agents push to GitHub -^> auto-sync pulls + reloads (~5s)
 echo   Log: logs\auto-sync.log
 echo ============================================================
 echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\ensure-fix-branch.ps1"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
 call "%~dp0flip-dev.bat"
 exit /b %ERRORLEVEL%
