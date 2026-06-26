@@ -22,5 +22,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+echo.
+echo  Phone will update by itself when agents push. Auto-sync starting...
+echo  (minimized window — see logs\auto-sync.log)
+echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-flip-auto-sync.ps1"
 exit /b 0

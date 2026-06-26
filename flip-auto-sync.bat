@@ -1,7 +1,6 @@
 @echo off
 title Flip auto-sync
-REM Auto pull agent fix branch + reload phone. LEAVE THIS WINDOW OPEN while testing.
-REM First time today (Metro down): flip-dev.bat once, then run this again.
+REM Usually started by flip-dev / flip-live. Leave running for automatic phone updates.
 cd /d "%~dp0"
 if not exist "package.json" (
   echo ERROR: Run from Flip repo root — C:\Users\tomas\Documents\Flip

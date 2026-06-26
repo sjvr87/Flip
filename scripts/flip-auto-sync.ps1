@@ -2,12 +2,18 @@
 # Started automatically by flip-dev.bat, or double-click flip-auto-sync.bat.
 param(
     [string]$Branch = 'cursor/fix-s25-feed-tabs-regression-56a3',
-    [int]$IntervalSec = 10,
+    [int]$IntervalSec = 5,
     [switch]$NoReload,
     [bool]$CheckoutBranch = $true
 )
 
 $ErrorActionPreference = 'Continue'
+
+# Cursor/CI can set CI=1 and disable Metro hot reload on the dev machine.
+if ($env:CI) {
+    Remove-Item Env:CI -ErrorAction SilentlyContinue
+}
+
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
@@ -131,6 +137,7 @@ function Sync-Branch {
 
     $pulled = (& git log -1 --oneline 2>$null).Trim()
     Write-Log "Pulled: $pulled" 'Green'
+    Write-Log 'Files on disk changed — Metro hot-reload + phone reload...' 'Cyan'
     Invoke-PhoneReload | Out-Null
     return $true
 }
@@ -156,7 +163,7 @@ try {
     Write-Log 'Phone must stay on USB. Metro must be running (flip-dev.bat).'
     Write-Host ''
 
-    $null = Sync-Branch -TargetBranch $watchBranch -ForceReload
+    $null = Sync-Branch -TargetBranch $watchBranch
 
     $lastRemote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
 
