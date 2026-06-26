@@ -65,7 +65,7 @@ const MailboxTabIcon = memo(function MailboxTabIcon({
     const showEnvelope = state === 'allRead' || state === 'messages';
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 30 30" fill="none">
+        <Svg width={size} height={size} viewBox="0 -1.5 30 30" fill="none">
             {/* Post — hollow stroke, centered under body */}
             <Rect
                 x={13.4}

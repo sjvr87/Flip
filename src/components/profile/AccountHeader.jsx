@@ -1,46 +1,42 @@
 import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { ProfileHandleSheet, ProfileQrSheet } from '@/components/profile/ProfileHandleSheet';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
+import { BriefToast } from '@/components/ui/BriefToast';
 import { useTheme } from '@/contexts/ThemeContext';
-import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
+import { copyProfileHandle, copyProfileLink } from '@/utils/profileUrl';
 import { openBrowser } from '@/utils/requests';
-import { shareContent } from '@/utils/sharer';
 import { prettyCount } from '@/utils/ui';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import tw from 'twrnc';
 import ExpandableBio from './ExpandableBio';
 
 export default function AccountHeader(props) {
     const { isDark } = useTheme();
+    const [handleSheetOpen, setHandleSheetOpen] = useState(false);
+    const [qrSheetOpen, setQrSheetOpen] = useState(false);
+    const [toastMessage, setToastMessage] = useState(null);
 
-    const isOwner = props?.is_owner || props.user?.is_owner;
+    const isOwner = props?.isOwner || props?.is_owner || props.user?.is_owner;
 
     const state = props?.userState;
 
-    const profileUrl = getProfileUrl(props.user);
+    const showCopiedToast = () => setToastMessage('Copied');
 
-    const handleShare = async () => {
-        try {
-            await shareContent({
-                message: isOwner
-                    ? 'Check out my account on Flip!'
-                    : `Check out @${props.user?.username}'s account on Flip!`,
-                url: profileUrl,
-            });
-        } catch (error) {
-            console.error('Share error:', error);
-        }
+    const handleCopyHandle = async () => {
+        setHandleSheetOpen(false);
+        const ok = await copyProfileHandle(props.user, { showAlert: false });
+        if (ok) showCopiedToast();
     };
 
     const handleCopyLink = async () => {
-        try {
-            await copyProfileLink(props.user);
-        } catch (error) {
-            console.error('Copy profile link error:', error);
-        }
+        setHandleSheetOpen(false);
+        const ok = await copyProfileLink(props.user, { showAlert: false });
+        if (ok) showCopiedToast();
     };
 
     const openLink = async (path) => {
@@ -52,10 +48,23 @@ export default function AccountHeader(props) {
             <Avatar url={props.user?.avatar} theme="xl" rounded={false} />
 
             <XStack gap="$2" alignItems="center">
-                <MentionText
-                    username={props.user?.username}
-                    style={{ fontWeight: 'bold', fontSize: 24 }}
-                />
+                {isOwner ? (
+                    <Pressable
+                        onPress={() => setHandleSheetOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Profile handle options"
+                        accessibilityHint="Copy handle, copy link, share, or show QR code">
+                        <MentionText
+                            username={props.user?.username}
+                            style={{ fontWeight: 'bold', fontSize: 24 }}
+                        />
+                    </Pressable>
+                ) : (
+                    <MentionText
+                        username={props.user?.username}
+                        style={{ fontWeight: 'bold', fontSize: 24 }}
+                    />
+                )}
             </XStack>
 
             <XStack justifyContent="center" alignItems="center" gap="$10">
@@ -131,25 +140,11 @@ export default function AccountHeader(props) {
             <XStack gap="$2" width="100%" paddingHorizontal="$3">
                 {isOwner ? (
                     props.showActions ? (
-                        <>
-                            <XStack flex={1} justifyContent="center" alignItems="center" gap="$3">
-                                <Link href="/private/settings/account/edit" role="button" asChild>
-                                    <Button title="Edit profile" theme="light" />
-                                </Link>
-                                <Button title="Share profile" theme="light" onPress={handleShare} />
-                                <Pressable
-                                    onPress={handleCopyLink}
-                                    accessibilityLabel="Copy profile link"
-                                    accessibilityRole="button"
-                                    style={tw`px-3 py-2 rounded-full bg-gray-100 dark:bg-gray-900`}>
-                                    <Ionicons
-                                        name="copy-outline"
-                                        size={22}
-                                        color={isDark ? '#ccc' : '#333'}
-                                    />
-                                </Pressable>
-                            </XStack>
-                        </>
+                        <XStack flex={1} justifyContent="center" alignItems="center" gap="$3">
+                            <Link href="/private/settings/account/edit" role="button" asChild>
+                                <Button title="Edit profile" theme="light" />
+                            </Link>
+                        </XStack>
                     ) : null
                 ) : (
                     <XStack flex={1} justifyContent="center" alignItems="center" gap="$3">
@@ -243,6 +238,24 @@ export default function AccountHeader(props) {
                     ))}
                 </ScrollView>
             )}
+
+            <ProfileHandleSheet
+                visible={handleSheetOpen}
+                user={props.user}
+                onClose={() => setHandleSheetOpen(false)}
+                onCopyHandle={handleCopyHandle}
+                onCopyLink={handleCopyLink}
+                onShowQr={() => {
+                    setHandleSheetOpen(false);
+                    setQrSheetOpen(true);
+                }}
+            />
+            <ProfileQrSheet
+                visible={qrSheetOpen}
+                user={props.user}
+                onClose={() => setQrSheetOpen(false)}
+            />
+            <BriefToast message={toastMessage} onHidden={() => setToastMessage(null)} />
         </YStack>
     );
 }

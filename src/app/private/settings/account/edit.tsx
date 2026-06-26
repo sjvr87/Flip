@@ -166,7 +166,7 @@ export default function EditProfileScreen() {
     };
 
     const copyProfileUrl = async () => {
-        await copyProfileLink(user);
+        await copyProfileLink(user, { showAlert: false });
     };
 
     return (

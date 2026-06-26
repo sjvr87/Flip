@@ -27,11 +27,20 @@ import { Platform, StyleSheet, View } from 'react-native';
 /** Fixed square slot so every tab icon shares the same footprint and center. */
 const TAB_ICON_SLOT_SIZE = 42;
 const ICON_SIZE = 42;
-/** Mailbox SVG uses a 30×30 viewBox; other tab icons use 26×26. */
-const MAILBOX_ICON_SIZE = Math.round(ICON_SIZE * (30 / 26));
+
+/** Lift inbox icon to align visually with 26×26 tab icons (mailbox SVG sits lower in viewBox). */
+const INBOX_TAB_ICON_LIFT = -3;
 
 function TabIconSlot({ children }: { children: ReactNode }) {
     return <View style={styles.tabIconSlot}>{children}</View>;
+}
+
+function InboxTabIconSlot({ children }: { children: ReactNode }) {
+    return (
+        <View style={[styles.tabIconSlot, { transform: [{ translateY: INBOX_TAB_ICON_LIFT }] }]}>
+            {children}
+        </View>
+    );
 }
 
 /** Scrim on icon row only; solid black under system nav inset (same footprint as other tabs). */
@@ -215,16 +224,16 @@ export default function TabsLayout() {
                           }
                         : {}),
                     tabBarIcon: ({ color, focused }) => (
-                        <TabIconSlot>
+                        <InboxTabIconSlot>
                             <MailboxTabIcon
                                 color={color}
                                 focused={focused}
-                                size={MAILBOX_ICON_SIZE}
+                                size={ICON_SIZE}
                                 state={mailboxIconState}
                                 hasUnreadActivity={unreadActivity > 0}
                                 hasUnreadMessages={unreadMessages > 0}
                             />
-                        </TabIconSlot>
+                        </InboxTabIconSlot>
                     ),
                 }}
             />
