@@ -1,6 +1,10 @@
 import FoldedHeartIcon, { FOLDED_HEART_ACTIVITY_SIZE } from '@/components/icons/FoldedHeartIcon';
+import MegaphoneCommentIcon, {
+    MEGAPHONE_COMMENT_ACTIVITY_SIZE,
+} from '@/components/icons/MegaphoneCommentIcon';
 import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
+import { useTheme } from '@/contexts/ThemeContext';
 import { AVATAR_SIZE } from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +41,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     onProfilePress,
 }) => {
     const isUnread = item.read_at === null;
+    const { isDark } = useTheme();
+    const activityIconColor = isDark ? '#FFFFFF' : '#1A1A1A';
 
     const getNotificationText = () => {
         switch (item.type) {
@@ -87,7 +93,12 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return <FoldedHeartIcon size={FOLDED_HEART_ACTIVITY_SIZE} variant="filled" />;
             case 'video.commentReply':
             case 'video.comment':
-                return <Ionicons name="chatbubble" size={16} color="#007AFF" />;
+                return (
+                    <MegaphoneCommentIcon
+                        size={MEGAPHONE_COMMENT_ACTIVITY_SIZE}
+                        color={activityIconColor}
+                    />
+                );
             case 'comment.share':
             case 'commentReply.share':
             case 'video.share':
