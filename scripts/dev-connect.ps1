@@ -23,7 +23,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "R3GL10HN64A" }
+$PreferredDevice = if ($env:FLIP_ADB_DEVICE) { $env:FLIP_ADB_DEVICE.Trim() } else { "" }
 
 function Get-LanIp {
   $getLanScript = Join-Path $PSScriptRoot "get-lan-ip.ps1"
@@ -267,41 +267,58 @@ function Select-TargetSerials([string[]]$AllSerials) {
   if ($AllSerials.Count -eq 0) { return @() }
   if ($PreferredDevice -and ($AllSerials -contains $PreferredDevice)) {
     if ($AllSerials.Count -gt 1) {
-      Write-Host "  Using preferred device $PreferredDevice (set FLIP_ADB_DEVICE to override)" -ForegroundColor DarkGray
+      Write-Host "  Using FLIP_ADB_DEVICE=$PreferredDevice" -ForegroundColor DarkGray
     }
     return @($PreferredDevice)
   }
+  if (-not $PreferredDevice -and $AllSerials.Count -eq 1) {
+    Write-Host "  Auto-selected device $($AllSerials[0]) (set FLIP_ADB_DEVICE to pin)" -ForegroundColor DarkGray
+    return $AllSerials
+  }
   if ($AllSerials.Count -gt 1 -and $PreferredDevice) {
     Write-Host "  Preferred device $PreferredDevice not found; using $($AllSerials -join ', ')" -ForegroundColor Yellow
+  } elseif ($AllSerials.Count -gt 1) {
+    Write-Host "  Multiple devices: $($AllSerials -join ', ') - set FLIP_ADB_DEVICE to pick one" -ForegroundColor Yellow
   }
   return $AllSerials
 }
 
+function Set-AdbReversePort {
+  param(
+    [string]$AdbPath,
+    [string]$Serial,
+    [int]$Port
+  )
+  $tag = "tcp:${Port}"
+  $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reverse", "--remove", $tag)
+  $rev = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reverse", $tag, "tcp:${Port}")
+  $list = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reverse", "--list")
+  if ($list -notmatch [regex]::Escape($tag)) {
+    Write-Host "  $Serial : $tag reverse missing - reconnecting adb..." -ForegroundColor Yellow
+    $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reconnect")
+    Start-Sleep -Milliseconds 800
+    $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reverse", "--remove", $tag)
+    $rev = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reverse", $tag, "tcp:${Port}")
+    $list = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "reverse", "--list")
+  }
+  if ($list -match [regex]::Escape($tag)) {
+    Write-Host "  $Serial : reverse $tag OK ($rev)" -ForegroundColor Green
+    return $true
+  }
+  Write-Host "  $Serial : reverse $tag FAILED - $rev" -ForegroundColor Red
+  return $false
+}
+
 function Ensure-AdbReverse([string[]]$TargetSerials, [string]$AdbPath) {
+  $metroPort = 8081
+  $multiversePort = 8788
   $anyOk = $false
   foreach ($serial in $TargetSerials) {
     $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $serial, "wait-for-device")
     $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
-    $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reverse", "--remove", "tcp:8081")
-
-    $rev = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reverse", "tcp:8081", "tcp:8081")
-    $list = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reverse", "--list")
-
-    if ($list -notmatch "tcp:8081") {
-      Write-Host "  $serial : reverse missing - reconnecting adb..." -ForegroundColor Yellow
-      $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reconnect")
-      Start-Sleep -Milliseconds 800
-      $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reverse", "--remove", "tcp:8081")
-      $rev = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reverse", "tcp:8081", "tcp:8081")
-      $list = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $serial, "reverse", "--list")
-    }
-
-    if ($list -match "tcp:8081") {
-      Write-Host "  $serial : reverse OK ($rev)" -ForegroundColor Green
-      $anyOk = $true
-    } else {
-      Write-Host "  $serial : reverse FAILED - $rev" -ForegroundColor Red
-    }
+    $metroOk = Set-AdbReversePort -AdbPath $AdbPath -Serial $serial -Port $metroPort
+    $multiverseOk = Set-AdbReversePort -AdbPath $AdbPath -Serial $serial -Port $multiversePort
+    if ($metroOk -and $multiverseOk) { $anyOk = $true }
   }
   return $anyOk
 }
@@ -381,7 +398,7 @@ function Write-DevStatus {
   Write-Host ""
   Write-Host "=== Status ===" -ForegroundColor Cyan
   Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
-  Write-Host ("adb reverse 8081: {0}" -f $(if ($ReverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
+  Write-Host ("adb reverse 8081+8788: {0}" -f $(if ($ReverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
   Write-Host ("Metro /status: {0}" -f $(if ($finalMetroHealthy) { "running" } else { "NOT running" }))
   if ($finalMetroHealthy) {
     Write-Host 'Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler / QR / connection URL)'
@@ -422,7 +439,7 @@ if ($unauthorized.Count -gt 0) {
 } elseif ($serials.Count -eq 0) {
   Write-UsbDeviceHelp "no device listed"
 } else {
-  Write-Host "[3/6] adb reverse tcp:8081 tcp:8081"
+  Write-Host "[3/6] adb reverse tcp:8081 + tcp:8788"
   $reverseOk = Ensure-AdbReverse -TargetSerials $serials -AdbPath $adb
 }
 
@@ -484,7 +501,7 @@ if ($NoLaunch) {
   Write-Host ""
   Write-Host "=== Status (sync) ===" -ForegroundColor Cyan
   Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
-  Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
+  Write-Host ("adb reverse 8081+8788: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
   Write-Host ("Metro /status: {0}" -f $(if ($metroHealthy) { "running" } else { "NOT running" }))
   if ($metroHealthy -and $reverseOk) {
     Write-Host ""
@@ -524,7 +541,7 @@ if ($ConnectOnly -and -not $Reconnect) {
   Write-Host ""
   Write-Host "=== Status (connect-only) ===" -ForegroundColor Cyan
   Write-Host ("Device(s): {0}" -f ($(if ($serials.Count) { $serials -join ", " } else { "(none)" })))
-  Write-Host ("adb reverse 8081: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
+  Write-Host ("adb reverse 8081+8788: {0}" -f $(if ($reverseOk) { "OK" } elseif ($serials.Count -eq 0) { "skipped" } else { "FAILED" }))
   Write-Host ("Metro /status: {0}" -f $(if ($metroHealthy) { "running" } else { "NOT running" }))
   Write-Host ""
   Write-Host "Tip: nothing works? flip-reset-dev.bat | after crash: flip-reconnect.bat | JS-only: flip-reload.bat"
