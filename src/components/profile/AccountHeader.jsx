@@ -49,7 +49,7 @@ export default function AccountHeader(props) {
 
     return (
         <YStack paddingX="$5" paddingY="$3" alignItems="center" gap="$3">
-            <Avatar url={props.user?.avatar} theme="xl" />
+            <Avatar url={props.user?.avatar} theme="xl" rounded={false} />
 
             <XStack gap="$2" alignItems="center">
                 <MentionText

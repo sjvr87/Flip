@@ -2,6 +2,7 @@ import AccountHeader from '@/components/profile/AccountHeader';
 import AccountTabs from '@/components/profile/AccountTabs';
 import ProfilePlaylists from '@/components/profile/ProfilePlaylists';
 import VideoGrid from '@/components/profile/VideoGrid';
+import { FlipItFileTitle } from '@/components/branding/FlipItFileTitle';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -318,7 +319,6 @@ export default function ProfileScreen() {
 
     const headerOptions = useMemo(
         () => ({
-            title: 'Profile',
             headerStyle: tw`bg-white dark:bg-black`,
             headerTintColor: isDark ? '#fff' : '#000',
             headerTitleStyle: {
@@ -327,7 +327,9 @@ export default function ProfileScreen() {
             },
             headerShadowVisible: false,
             headerShown: true,
-            headerTitle: 'My Profile',
+            headerTitle: () => (
+                <FlipItFileTitle color={isDark ? '#fff' : '#000'} />
+            ),
             headerRight: () => (
                 <XStack gap="$3">
                     <PressableHaptics
