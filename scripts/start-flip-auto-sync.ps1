@@ -9,7 +9,7 @@ if (-not (Test-Path $LogDir)) {
 }
 
 if (Test-Path $LockFile) {
-    $existingPid = (Get-Content $LockFile -Raw).Trim()
+    $existingPid = (Get-Content $LockFile -Raw -ErrorAction SilentlyContinue).Trim()
     if ($existingPid -match '^\d+$') {
         $proc = Get-Process -Id ([int]$existingPid) -ErrorAction SilentlyContinue
         if ($proc) {
@@ -17,6 +17,7 @@ if (Test-Path $LockFile) {
             exit 0
         }
     }
+    Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
 }
 
 $autoSyncBat = Join-Path $Root 'flip-auto-sync.bat'

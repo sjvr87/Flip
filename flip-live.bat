@@ -22,4 +22,16 @@ if errorlevel 1 (
   exit /b 1
 )
 call "%~dp0flip-dev.bat"
-exit /b %ERRORLEVEL%
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+echo.
+echo ============================================================
+echo   AUTO-SYNC ON - phone will update when agents push (~5s)
+echo   Minimized window: Flip auto-sync (taskbar)
+echo   Log: logs\auto-sync.log
+echo   You can close THIS window; keep PC awake + Metro running.
+echo ============================================================
+echo.
+exit /b 0

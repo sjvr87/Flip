@@ -24,6 +24,19 @@ if (-not (Test-Path $LogDir)) {
 $LogFile = Join-Path $LogDir 'auto-sync.log'
 $LockFile = Join-Path $LogDir 'auto-sync.lock'
 
+function Clear-StaleAutoSyncLock {
+    if (-not (Test-Path $LockFile)) { return }
+    $existingPid = (Get-Content $LockFile -Raw -ErrorAction SilentlyContinue).Trim()
+    if ($existingPid -match '^\d+$') {
+        $proc = Get-Process -Id ([int]$existingPid) -ErrorAction SilentlyContinue
+        if (-not $proc) {
+            Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Clear-StaleAutoSyncLock
+
 if (Test-Path $LockFile) {
     $existingPid = (Get-Content $LockFile -Raw -ErrorAction SilentlyContinue).Trim()
     if ($existingPid -match '^\d+$') {
@@ -109,7 +122,7 @@ function Sync-Branch {
 
     $remote = (& git rev-parse "origin/$TargetBranch" 2>$null).Trim()
     if (-not $remote) {
-        Write-Log "origin/$TargetBranch not found — check network or branch name." 'Yellow'
+        Write-Log "origin/$TargetBranch not found - check network or branch name." 'Yellow'
         return $false
     }
 
@@ -145,13 +158,13 @@ function Sync-Branch {
     Write-Log "Behind remote ($localShort -> $remoteShort). Pulling..." 'Cyan'
     & git pull origin $TargetBranch 2>&1 | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) {
-        Write-Log 'Pull failed — fix conflicts manually.' 'Red'
+        Write-Log 'Pull failed - fix conflicts manually.' 'Red'
         return $false
     }
 
     $pulled = (& git log -1 --oneline 2>$null).Trim()
     Write-Log "Pulled: $pulled" 'Green'
-    Write-Log 'Files on disk changed — Metro hot-reload + phone reload...' 'Cyan'
+    Write-Log 'Files on disk changed - Metro hot-reload + phone reload...' 'Cyan'
     Invoke-PhoneReload | Out-Null
     return $true
 }
@@ -176,6 +189,12 @@ try {
     Write-Log "Log:    $LogFile"
     Write-Log 'Phone: USB (best) or same Wi-Fi with Flip open. Metro must be running.'
     Write-Host ''
+
+    $ensure = Join-Path $PSScriptRoot 'ensure-fix-branch.ps1'
+    if (Test-Path $ensure) {
+        Write-Log 'Ensuring fix branch...' 'Cyan'
+        & $ensure 2>&1 | ForEach-Object { Write-Host $_ }
+    }
 
     $null = Sync-Branch -TargetBranch $watchBranch
 
@@ -204,7 +223,7 @@ try {
             }
             $lastRemote = $remote
         } elseif ($local -and $remote -and $local -ne $remote) {
-            Write-Log "BEHIND remote ($localShort vs $remoteShort) — pulling now..." 'Yellow'
+            Write-Log "BEHIND remote ($localShort vs $remoteShort) - pulling now..." 'Yellow'
             $null = Sync-Branch -TargetBranch $watchBranch
             $lastRemote = $remote
         } else {
