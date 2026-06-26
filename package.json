@@ -31,6 +31,8 @@
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
     "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
+    "runflip": "scripts\\runflip.bat",
+    "runflip:full": "scripts\\runflip-full.bat",
     "multiverse:install": "npm.cmd install --prefix server",
     "multiverse:dev": "npm.cmd run dev --prefix server",
     "multiverse:test": "npm test --prefix server"
