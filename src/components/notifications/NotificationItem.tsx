@@ -105,7 +105,6 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     <MegaphoneCommentIcon
                         size={MEGAPHONE_COMMENT_ACTIVITY_SIZE}
                         color={activityIconColor}
-                        crop="badge"
                     />
                 );
             case 'comment.share':

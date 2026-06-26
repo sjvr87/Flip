@@ -10,15 +10,11 @@ export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = ACTIVITY_COMMENT_BADGE_SIZE;
 type MegaphoneCommentIconProps = {
     size?: number;
     color?: string;
-    /** Tighter crop for activity avatar badge — figure fills frame, not distorted. */
-    crop?: 'full' | 'badge';
 };
 
 const VIEW = 24;
 /** Expanded crop — exaggerated bell + sound arcs on the left after mirror. */
 const VIEW_BOX = '0 -3.5 33 27';
-/** Activity badge — trim empty viewBox margin so figure fills frame like follow/add badge. */
-const VIEW_BOX_BADGE = '5 0 20 22';
 
 /** Detached circular head — small gap below before torso/neck. */
 const HEAD = { cx: 13.6, cy: 3.25, r: 2.28 };
@@ -142,11 +138,9 @@ function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: nu
 const MegaphoneCommentIcon = memo(function MegaphoneCommentIcon({
     size = MEGAPHONE_COMMENT_DESIGN_SIZE,
     color = '#FFFFFF',
-    crop = 'full',
 }: MegaphoneCommentIconProps) {
-    const viewBox = crop === 'badge' ? VIEW_BOX_BADGE : VIEW_BOX;
     return (
-        <Svg width={size} height={size} viewBox={viewBox} fill="none">
+        <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
             <G transform={`translate(${VIEW}, 0) scale(-1, 1)`}>
                 {SOUND_WAVES.map((wave, index) => (
                     <Path
