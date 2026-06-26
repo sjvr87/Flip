@@ -1,6 +1,7 @@
 import AccountHeader from '@/components/profile/AccountHeader';
 import AccountTabs from '@/components/profile/AccountTabs';
 import ProfilePlaylists from '@/components/profile/ProfilePlaylists';
+import ProfileTopFriends from '@/components/profile/ProfileTopFriends';
 import VideoGrid from '@/components/profile/VideoGrid';
 import { ReportModal } from '@/components/ReportModal';
 import { StackText, YStack } from '@/components/ui/Stack';
@@ -8,8 +9,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import {
     blockAccount as atprotoBlockAccount,
     cancelFollowRequest as atprotoCancelFollowRequest,
+    canViewFollowLists,
     fetchAccount as atprotoFetchAccount,
     fetchAccountState as atprotoFetchAccountState,
+    fetchProfilePrefs,
+    fetchProfileTheme,
     fetchUserVideos as atprotoFetchUserVideos,
     fetchUserPhotos as atprotoFetchUserPhotos,
     followAccount as atprotoFollowAccount,
@@ -35,6 +39,7 @@ import {
     toProfileFeedPath,
 } from '@/utils/profileNavigation';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
+import { profileAccentColor, profileBackgroundStyle } from '@/utils/profileThemeStyles';
 import { shareContent } from '@/utils/sharer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -114,6 +119,26 @@ export default function ProfileScreen() {
         staleTime: 2 * 60 * 1000,
     });
 
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', id?.toString()],
+        queryFn: () => fetchProfilePrefs(id),
+        enabled: !!id && atproto,
+    });
+
+    const { data: profileTheme } = useQuery({
+        queryKey: ['profileTheme', id?.toString()],
+        queryFn: () => fetchProfileTheme(id),
+        enabled: !!id && atproto,
+    });
+
+    const profileBgStyle = profileBackgroundStyle(profileTheme);
+    const accentColor = profileAccentColor(profileTheme);
+
+    const isProfileOwner = !!user?.is_owner;
+    const canViewFollowersList = atproto
+        ? canViewFollowLists(profilePrefs, 'followers', isProfileOwner)
+        : true;
+
     const { data: playlists, isLoading: playlistsLoading } = useQuery({
         queryKey: ['accountPlaylists', id?.toString()],
         queryFn: async () => {
@@ -136,7 +161,7 @@ export default function ProfileScreen() {
         queryFn: atproto ? atprotoFetchUserVideos : fetchUserVideos,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: !!user && !!id && activeTab === 'videos',
+        enabled: !!user && !!id,
         staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
     });
@@ -162,6 +187,13 @@ export default function ProfileScreen() {
         if (!videosData?.pages) return [];
         return videosData.pages.flatMap((page) => page?.data ?? []);
     }, [videosData?.pages]);
+
+    const displayVideoCount = useMemo(() => {
+        if (videosLoading || !videosData?.pages) return undefined;
+        return videos.length;
+    }, [videosLoading, videosData?.pages, videos.length]);
+
+    const videosResolved = !videosLoading && !!videosData?.pages;
 
     const photos = useMemo(() => {
         if (!photosData?.pages) return [];
@@ -378,7 +410,11 @@ export default function ProfileScreen() {
 
     if (userLoading) {
         return (
-            <View style={tw`flex-1 bg-white dark:bg-black justify-center items-center`}>
+            <View
+                style={[
+                    tw`flex-1 bg-white dark:bg-black justify-center items-center`,
+                    profileBgStyle,
+                ]}>
                 <Stack.Screen
                     options={{
                         title: user?.name || 'Profile',
@@ -405,7 +441,7 @@ export default function ProfileScreen() {
                         ),
                     }}
                 />
-                <ActivityIndicator size="large" color="#22D3EE" />
+                <ActivityIndicator size="large" color={accentColor} />
             </View>
         );
     }
@@ -421,7 +457,7 @@ export default function ProfileScreen() {
     }
 
     return (
-        <View style={tw`flex-1 bg-white dark:bg-black`}>
+        <View style={[tw`flex-1 bg-white dark:bg-black`, profileBgStyle]}>
             <Stack.Screen
                 options={{
                     title: user?.name || 'Profile',
@@ -459,11 +495,20 @@ export default function ProfileScreen() {
                         <AccountHeader
                             user={user}
                             userState={userState}
+                            videoCount={displayVideoCount}
+                            videosResolved={videosResolved}
+                            canViewFollowersList={canViewFollowersList}
                             onFollowPress={handleOnFollowPress}
                             onMenuPress={handleOnOpenMenu}
                             onUnblockPress={handleOnUnblockPress}
                             isFollowLoading={followMutation.isPending}
                         />
+                        {atproto ? (
+                            <ProfileTopFriends
+                                topFriendIds={profilePrefs?.topFriends}
+                                isOwner={isProfileOwner}
+                            />
+                        ) : null}
                         <AccountTabs
                             activeTab={activeTab}
                             onTabChange={setActiveTab}

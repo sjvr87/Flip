@@ -30,7 +30,12 @@
     "dev:connect:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -Reset",
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
-    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1"
+    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
+    "runflip": "scripts\\runflip.bat",
+    "runflip:full": "scripts\\runflip-full.bat",
+    "multiverse:install": "npm.cmd install --prefix server",
+    "multiverse:dev": "npm.cmd run dev --prefix server",
+    "multiverse:test": "npm test --prefix server"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",
@@ -49,6 +54,7 @@
     "expo-constants": "~56.0.16",
     "expo-dev-client": "~56.0.16",
     "expo-device": "~56.0.4",
+    "expo-file-system": "~56.0.8",
     "expo-font": "~56.0.5",
     "expo-haptics": "~56.0.3",
     "expo-image": "~56.0.9",
@@ -75,6 +81,7 @@
     "react-native-gesture-handler": "~2.31.1",
     "react-native-keyboard-controller": "1.21.6",
     "react-native-mmkv": "2.12.2",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "4.3.1",
     "react-native-render-html": "^6.3.4",
     "react-native-safe-area-context": "~5.7.0",

@@ -17,6 +17,7 @@ export default function AccountHeader(props) {
     const { isDark } = useTheme();
 
     const isOwner = props?.is_owner || props.user?.is_owner;
+    const canViewFollowersList = props.canViewFollowersList !== false;
 
     const state = props?.userState;
 
@@ -65,7 +66,13 @@ export default function AccountHeader(props) {
                             fontSize="$5"
                             fontWeight="bold"
                             textColor="text-black dark:text-white">
-                            {prettyCount(props.user?.post_count || 0)}
+                            {props.videosResolved === false
+                                ? '—'
+                                : prettyCount(
+                                      props.videoCount !== undefined
+                                          ? props.videoCount
+                                          : props.user?.post_count || 0,
+                                  )}
                         </StackText>
                         <StackText fontSize="$2" textColor="text-gray-500 dark:text-gray-400">
                             Videos
@@ -73,7 +80,7 @@ export default function AccountHeader(props) {
                     </YStack>
                 </Pressable>
 
-                {props.user?.id ? (
+                {props.user?.id && canViewFollowersList ? (
                     <Link
                         href={`/private/profile/followers/${props.user?.id}?username=${props.user?.username}&followersCount=${props.user?.follower_count}&followingCount=${props.user?.following_count}`}
                         asChild>

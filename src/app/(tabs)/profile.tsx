@@ -1,11 +1,19 @@
 import AccountHeader from '@/components/profile/AccountHeader';
 import AccountTabs from '@/components/profile/AccountTabs';
 import ProfilePlaylists from '@/components/profile/ProfilePlaylists';
+import ProfileTopFriends from '@/components/profile/ProfileTopFriends';
 import VideoGrid from '@/components/profile/VideoGrid';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { fetchSelfAccount, fetchSelfAccountPhotos, fetchSelfAccountVideos } from '@/atproto';
+import {
+    fetchProfilePrefs,
+    fetchProfileTheme,
+    fetchSelfAccount,
+    fetchSelfAccountPhotos,
+    fetchSelfAccountVideos,
+} from '@/atproto';
+import { profileAccentColor, profileBackgroundStyle } from '@/utils/profileThemeStyles';
 import {
     fetchAccountFavorites,
     fetchAccountLikes,
@@ -39,6 +47,21 @@ export default function ProfileScreen() {
         gcTime: 10 * 60 * 1000,
     });
 
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', user?.id],
+        queryFn: () => fetchProfilePrefs(user!.id),
+        enabled: !!user?.id && usesAtprotoBackend(),
+    });
+
+    const { data: profileTheme } = useQuery({
+        queryKey: ['profileTheme', user?.id],
+        queryFn: () => fetchProfileTheme(user!.id),
+        enabled: !!user?.id && usesAtprotoBackend(),
+    });
+
+    const profileBgStyle = profileBackgroundStyle(profileTheme);
+    const accentColor = profileAccentColor(profileTheme, isDark ? '#fff' : '#22D3EE');
+
     useEffect(() => {
         if (tabParam === 'photos') {
             setActiveTab('photos');
@@ -63,7 +86,9 @@ export default function ProfileScreen() {
         initialPageParam: undefined,
         refetchOnWindowFocus: true,
         getNextPageParam: (lastPage) => lastPage?.meta?.next_cursor ?? undefined,
-        enabled: activeTab === 'videos',
+        enabled: !!user,
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
     });
 
     const {
@@ -135,6 +160,13 @@ export default function ProfileScreen() {
         const fromServer = videosData.pages.flatMap((p: any) => p?.data ?? []);
         return reconcilePendingProfilePosts(fromServer, false);
     }, [videosData]);
+
+    const displayVideoCount = useMemo(() => {
+        if (videosLoading || !videosData?.pages) return undefined;
+        return videos.length;
+    }, [videosLoading, videosData?.pages, videos.length]);
+
+    const videosResolved = !videosLoading && !!videosData?.pages;
 
     const photos = useMemo(() => {
         if (!photosData?.pages?.length) {
@@ -357,14 +389,18 @@ export default function ProfileScreen() {
 
     if (userLoading || !user) {
         return (
-            <View style={tw`flex-1 bg-white dark:bg-black justify-center items-center`}>
-                <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
+            <View
+                style={[
+                    tw`flex-1 bg-white dark:bg-black justify-center items-center`,
+                    profileBgStyle,
+                ]}>
+                <ActivityIndicator size="large" color={accentColor} />
             </View>
         );
     }
 
     return (
-        <View style={tw`flex-1 bg-white dark:bg-black`}>
+        <View style={[tw`flex-1 bg-white dark:bg-black`, profileBgStyle]}>
             <Stack.Screen options={headerOptions} />
 
             <FlatList
@@ -382,8 +418,16 @@ export default function ProfileScreen() {
                             isOwner={true}
                             showActions={true}
                             loading={userLoading}
+                            videoCount={displayVideoCount}
+                            videosResolved={videosResolved}
                             onEditBio={handleEditBio}
                         />
+                        {usesAtprotoBackend() ? (
+                            <ProfileTopFriends
+                                topFriendIds={profilePrefs?.topFriends}
+                                isOwner={true}
+                            />
+                        ) : null}
                         <AccountTabs
                             activeTab={activeTab}
                             isOwner={true}
@@ -405,7 +449,7 @@ export default function ProfileScreen() {
                 ListEmptyComponent={
                     isLoading || isFetching ? (
                         <YStack style={tw`my-6`} alignItems="center">
-                            <ActivityIndicator size="large" color={isDark ? '#fff' : '#22D3EE'} />
+                            <ActivityIndicator size="large" color={accentColor} />
                         </YStack>
                     ) : (
                         renderEmpty()
@@ -414,7 +458,7 @@ export default function ProfileScreen() {
                 ListFooterComponent={
                     isFetchingNextPage ? (
                         <YStack paddingVertical="$6" alignItems="center">
-                            <ActivityIndicator color={isDark ? '#fff' : '#22D3EE'} />
+                            <ActivityIndicator color={accentColor} />
                         </YStack>
                     ) : null
                 }

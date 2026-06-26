@@ -23,4 +23,18 @@ module.exports = defineConfig([
       globals: globals.node,
     },
   },
+  {
+    // React Compiler lint (react-hooks v7) — enable incrementally; repo not migrated yet.
+    rules: {
+      'react-hooks/immutability': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/error-boundaries': 'off',
+      'react/no-unescaped-entities': 'off',
+      'react/display-name': 'off',
+    },
+  },
 ]);

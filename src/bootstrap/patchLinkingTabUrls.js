@@ -54,7 +54,7 @@ function withQueueMicrotaskShadow(impl, fn) {
         } catch {
             // tests / web
         }
-        // Never restore Hermes/RN native queueMicrotask stubs — they can be typeof "function"
+        // Never restore Hermes/RN native queueMicrotask stubs ï¿½ they can be typeof "function"
         // yet throw "undefined is not a function" when React Navigation dispatches.
     }
 }

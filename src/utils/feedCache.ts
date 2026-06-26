@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { postToFlipItem } from '@/atproto/adapters';
 import { getAgent } from '@/atproto/agent';
+import { handleToUsername } from '@/atproto/identifiers';
 import type { FlipFeedPage, FlipVideo } from '@/atproto/types';
 import { decodeRouteParam } from '@/utils/profileNavigation';
 
@@ -357,7 +358,7 @@ function buildLocalPostedMediaItem(options: {
     const handle = agent.session?.handle;
     if (!did || !handle) return null;
 
-    const username = handle.includes('.') ? handle.split('.')[0] : handle;
+    const username = handleToUsername(handle);
     const uriSuffix = options.uri.split('/').pop() ?? '';
     const mediaUri = options.localMediaUri.startsWith('file://')
         ? options.localMediaUri

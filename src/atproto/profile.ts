@@ -1,4 +1,4 @@
-import { AtUri } from '@atproto/api';
+import { AtUri, type AppBskyActorDefs } from '@atproto/api';
 import { profileToFlipUser } from './adapters';
 import { getAgent, withAuthenticatedFetch } from './agent';
 import type { FlipUserProfile } from './types';
@@ -8,6 +8,45 @@ export type FlipAccountState = {
     blocking: boolean;
     pending_follow_request: boolean;
 };
+
+export type FlipFollowListItem = {
+    id: string;
+    username: string;
+    name: string;
+    avatar: string;
+    is_following: boolean;
+};
+
+type FollowListPage = {
+    data: FlipFollowListItem[];
+    meta: { next_cursor: string | null };
+};
+
+function actorToFollowListItem(actor: AppBskyActorDefs.ProfileView): FlipFollowListItem {
+    const profile = profileToFlipUser({
+        did: actor.did,
+        handle: actor.handle,
+        displayName: actor.displayName,
+        avatar: actor.avatar,
+        description: actor.description,
+        postsCount: actor.postsCount,
+        followersCount: actor.followersCount,
+        followsCount: actor.followsCount,
+    });
+
+    return {
+        id: profile.id,
+        username: profile.username,
+        name: profile.name,
+        avatar: profile.avatar,
+        is_following: !!actor.viewer?.following,
+    };
+}
+
+function normalizeFollowCursor(pageParam: string | false | undefined): string | undefined {
+    if (!pageParam || pageParam === '0') return undefined;
+    return pageParam;
+}
 
 async function resolveActorDid(actor: string): Promise<string> {
     const profile = await withAuthenticatedFetch(() => getAgent().getProfile({ actor }));
@@ -72,6 +111,52 @@ export async function blockAccount(actor: string): Promise<{ data: Record<string
     );
 
     return { data: {} };
+}
+
+export async function fetchAccountFollowers({
+    queryKey,
+    pageParam = false,
+}: {
+    queryKey: unknown[];
+    pageParam?: string | false;
+}): Promise<FollowListPage> {
+    const actor = queryKey[1] as string;
+
+    const res = await withAuthenticatedFetch(() =>
+        getAgent().app.bsky.graph.getFollowers({
+            actor,
+            limit: 30,
+            cursor: normalizeFollowCursor(pageParam),
+        }),
+    );
+
+    return {
+        data: res.data.followers.map(actorToFollowListItem),
+        meta: { next_cursor: res.data.cursor ?? null },
+    };
+}
+
+export async function fetchAccountFollowing({
+    queryKey,
+    pageParam = false,
+}: {
+    queryKey: unknown[];
+    pageParam?: string | false;
+}): Promise<FollowListPage> {
+    const actor = queryKey[1] as string;
+
+    const res = await withAuthenticatedFetch(() =>
+        getAgent().app.bsky.graph.getFollows({
+            actor,
+            limit: 30,
+            cursor: normalizeFollowCursor(pageParam),
+        }),
+    );
+
+    return {
+        data: res.data.follows.map(actorToFollowListItem),
+        meta: { next_cursor: res.data.cursor ?? null },
+    };
 }
 
 export async function unblockAccount(actor: string): Promise<{ data: Record<string, never> }> {

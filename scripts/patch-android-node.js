@@ -68,17 +68,37 @@ function patchGradleProperties() {
   }
 
   let src = fs.readFileSync(propsFile, 'utf8');
+  let propsChanged = false;
+  // FLIP_GRADLE_JVMARGS
+  const desiredJvm = '-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8';
+  const jvmRe = /^org\.gradle\.jvmargs=.*/m;
+  if (jvmRe.test(src)) {
+    if (!src.includes('-Xmx4096m')) {
+      src = src.replace(jvmRe, `org.gradle.jvmargs=${desiredJvm}`);
+      propsChanged = true;
+      console.log('[patch-android-node] Raised org.gradle.jvmargs for CMake/NDK builds');
+    }
+  } else {
+    src = src.replace(
+      '# Project-wide Gradle settings.\n',
+      `# Project-wide Gradle settings.\n\norg.gradle.jvmargs=${desiredJvm}\n`,
+    );
+    propsChanged = true;
+    console.log('[patch-android-node] Set org.gradle.jvmargs');
+  }
   const line = `nodeExecutable=${nodeExe}`;
-  if (src.includes('nodeExecutable=')) {
-    return;
+  if (!src.includes('nodeExecutable=')) {
+    src = src.replace(
+      '# Project-wide Gradle settings.\n',
+      `# Project-wide Gradle settings.\n\n# Node for Gradle autolinking (Windows PATH workaround)\n${line}\n`,
+    );
+    propsChanged = true;
   }
 
-  src = src.replace(
-    '# Project-wide Gradle settings.\n',
-    `# Project-wide Gradle settings.\n\n# Node for Gradle autolinking (Windows PATH workaround)\n${line}\n`,
-  );
-  fs.writeFileSync(propsFile, src);
-  console.log('[patch-android-node] Set nodeExecutable in android/gradle.properties');
+  if (propsChanged) {
+    fs.writeFileSync(propsFile, src);
+    console.log('[patch-android-node] Updated android/gradle.properties');
+  }
 }
 
 function patchAppBuildGradle(src) {
@@ -168,14 +188,9 @@ function patchExpoAutolinkingNode() {
     'Os.kt',
   );
   if (fs.existsSync(osKt)) {
-    const osSrc = fs.readFileSync(osKt, 'utf8');
-    if (!osSrc.includes('resolveNodeExecutable')) {
-      const nextOs = osSrc.replace(
-        'package expo.modules.plugin\n\nobject Os {',
-        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {`,
-      ).replace(
-        '  fun isWindows(): Boolean =>',
-        `  fun resolveNodeExecutable(): String {
+    let osSrc = fs.readFileSync(osKt, 'utf8');
+    if (!osSrc.includes('fun resolveNodeExecutable()')) {
+      const resolveFn = `  fun resolveNodeExecutable(): String {
     System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
     if (isWindows()) {
       val candidates = listOf(
@@ -193,9 +208,21 @@ function patchExpoAutolinkingNode() {
     return "node"
   }
 
-  fun isWindows(): Boolean =>`,
-      );
-      fs.writeFileSync(osKt, nextOs);
+`;
+      if (!osSrc.includes('import java.io.File')) {
+        osSrc = osSrc.replace(
+          'package expo.modules.plugin\n',
+          'package expo.modules.plugin\n\nimport java.io.File\n',
+        );
+      }
+      if (osSrc.includes('  fun isWindows(): Boolean =>')) {
+        osSrc = osSrc.replace('  fun isWindows(): Boolean =>', `${resolveFn}  fun isWindows(): Boolean =>`);
+      } else if (/  fun isWindows\(\): Boolean\s*=/.test(osSrc)) {
+        osSrc = osSrc.replace(/(  fun isWindows\(\): Boolean\s*=)/, `${resolveFn}$1`);
+      } else {
+        osSrc = osSrc.replace('object Os {', `object Os {\n${resolveFn}`);
+      }
+      fs.writeFileSync(osKt, osSrc);
       console.log('[patch-android-node] Patched expo Os.kt for Node resolution');
     }
   }

@@ -102,12 +102,42 @@ export type { FlipConvo, FlipChatMessage, FlipConvoMember } from './chat';
 export {
     fetchAccount,
     fetchAccountState,
+    fetchAccountFollowers,
+    fetchAccountFollowing,
     followAccount,
     unfollowAccount,
     cancelFollowRequest,
     blockAccount,
     unblockAccount,
 } from './profile';
+
+export {
+    fetchProfilePrefs,
+    saveProfilePrefs,
+    canViewFollowLists,
+    PROFILE_PREFS_COLLECTION,
+} from './profilePrefs';
+export type { FlipProfilePrefs } from './profilePrefs';
+
+export { fetchProfileTheme, saveProfileTheme, PROFILE_THEME_COLLECTION } from './profileTheme';
+export type { FlipProfileTheme } from './profileTheme';
+
+export {
+    fetchProfileDisplayLinks,
+    getProfileLinksForSelf,
+    getProfileLinksForActor,
+    addProfileLink,
+    deleteProfileLink,
+    fetchProfileLinkAnalytics,
+    recordProfileLinkClick,
+    PROFILE_LINKS_COLLECTION,
+} from './profileLinks';
+export type {
+    FlipProfileLinkRow,
+    ProfileDisplayLink,
+    ProfileLinksPayload,
+    StoredProfileLink,
+} from './profileLinks';
 
 export { fetchReportRules, submitReport } from './moderation';
 

@@ -8,6 +8,8 @@ import {
     fetchNotifications as atprotoFetchNotifications,
     blockAccount as atprotoBlockAccount,
     followAccount as atprotoFollowAccount,
+    fetchAccountFollowers as atprotoFetchAccountFollowers,
+    fetchAccountFollowing as atprotoFetchAccountFollowing,
     fetchReportRules as atprotoFetchReportRules,
     getExploreAccounts as atprotoGetExploreAccounts,
     getExploreTags as atprotoGetExploreTags,
@@ -818,6 +820,10 @@ export async function fetchAccountFollowing({
     queryKey: any[];
     pageParam?: string | false;
 }): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchAccountFollowing({ queryKey, pageParam });
+    }
+
     const [, accountId, search] = queryKey;
 
     let url = `api/v1/account/following/${accountId}`;
@@ -846,6 +852,10 @@ export async function fetchAccountFollowers({
     queryKey: any[];
     pageParam?: string | false;
 }): Promise<any> {
+    if (usesAtprotoBackend()) {
+        return atprotoFetchAccountFollowers({ queryKey, pageParam });
+    }
+
     const [, accountId, search] = queryKey;
 
     let url = `api/v1/account/followers/${accountId}`;

@@ -1,0 +1,26 @@
+---
+description: GitHub-first storage — push progress, keep disk ephemeral
+alwaysApply: true
+---
+
+# GitHub-first storage
+
+Pair with [docs/STORAGE_POLICY.md](../../docs/STORAGE_POLICY.md) and [docs/DISK_CLEANUP.md](../../docs/DISK_CLEANUP.md).
+
+## Agents must
+
+1. **Push meaningful commits** to the active feature branch unless the user says not to.
+2. **Never commit** logcat/metro session files, `.pid` files, or build artifacts.
+3. **Run disk cleanup** when `C:` free space is under ~5 GB before `android:dev` or Gradle work.
+4. **Prefer GitHub** for handoffs (`.github/handoffs/`, issue #24) over local-only notes.
+
+## Safe local deletes
+
+- `%USERPROFILE%\.gradle\caches` and `daemon` (stop Java first)
+- `npm cache clean --force`
+- `logcat-*.txt`, `metro-live-session.txt` at repo root
+
+## Do not delete
+
+- Uncommitted source without user ack
+- Android SDK under `%LOCALAPPDATA%\Android\Sdk`

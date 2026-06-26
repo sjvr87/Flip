@@ -55,7 +55,6 @@ export default function TabsLayout() {
     const authReady = useAuthStore((s) => s.authReady);
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
-
     useEffect(() => {
         const onCreateTab =
             pathname === '/create' || pathname === '/(tabs)/create' || pathname.endsWith('/create');

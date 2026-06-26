@@ -15,7 +15,12 @@ function normalizeFollowingSet(data: unknown): Set<string> {
 export function useFollowingDids() {
     const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
-    const { data: followingDids, isSuccess, isError, isFetched } = useQuery({
+    const {
+        data: followingDids,
+        isSuccess,
+        isError,
+        isFetched,
+    } = useQuery({
         queryKey: FOLLOWING_DIDS_QUERY_KEY,
         queryFn: fetchFollowingDidsSet,
         enabled: isLoggedIn,

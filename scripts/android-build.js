@@ -58,6 +58,20 @@ function run(label, command, args, options = {}) {
 console.log('[android:build] Patching Android Node/Gradle paths…');
 run('patch-android-node', 'node', ['./scripts/patch-android-node.js']);
 
+function cleanWorkletsCxx() {
+  const cxx = path.join(
+    root,
+    'node_modules',
+    'react-native-worklets',
+    'android',
+    '.cxx',
+  );
+  if (fs.existsSync(cxx)) {
+    fs.rmSync(cxx, { recursive: true, force: true });
+    console.log('[android:build] Cleared react-native-worklets .cxx cache');
+  }
+}
+
 if (!fs.existsSync(gradlew)) {
   console.error(
     '[android:build] android/ not found. Run first: npm run android:prebuild',
@@ -65,8 +79,16 @@ if (!fs.existsSync(gradlew)) {
   process.exit(1);
 }
 
-console.log('[android:build] Gradle :app:assembleDebug…');
-run('gradle', gradlew, [':app:assembleDebug'], { cwd: androidDir });
+// Physical Samsung flagships are arm64 — skip x86/x86_64/32-bit to cut NDK memory use on Windows.
+const deviceAbi =
+  process.env.FLIP_ANDROID_ABI ||
+  (process.env.FLIP_ANDROID_ABIS && process.env.FLIP_ANDROID_ABIS.split(',')[0]) ||
+  'arm64-v8a';
+cleanWorkletsCxx();
+console.log(`[android:build] Gradle :app:assembleDebug (${deviceAbi})…`);
+run('gradle', gradlew, [`-PreactNativeArchitectures=${deviceAbi}`, ':app:assembleDebug'], {
+  cwd: androidDir,
+});
 
 if (!fs.existsSync(apkPath)) {
   console.error(`[android:build] APK missing at ${apkPath}`);

@@ -2,6 +2,7 @@ import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
+import { looksLikePdsHostname } from '@/atproto/identifiers';
 import { hasStoredSession } from '@/atproto/agent';
 import {
     authenticateWithBiometric,
@@ -12,6 +13,7 @@ import { skipBiometricAutoPromptOnLaunch } from '@/utils/androidVideoSafeMode';
 import { getPostAuthRoute } from '@/utils/ageVerification';
 import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -35,6 +37,21 @@ import tw from 'twrnc';
 type SignInMode = 'loading' | 'unlock' | 'password' | 'full' | 'oauth';
 
 const APP_PASSWORD_HELP_URL = 'https://bsky.app/settings/app-passwords';
+
+/** Dev-only: prefill Server field when staging PDS is configured (Phase 0 manual login). */
+function getDevStagingServiceDefault(): string {
+    if (!__DEV__) return 'bsky.social';
+
+    const extra = Constants.expoConfig?.extra as { flipStagingPdsHost?: string } | undefined;
+    const configured =
+        extra?.flipStagingPdsHost?.trim() ||
+        process.env.EXPO_PUBLIC_FLIP_STAGING_PDS_HOST?.trim() ||
+        '';
+    if (!configured) return 'bsky.social';
+
+    if (configured.includes('://')) return configured;
+    return configured;
+}
 
 function formatHandle(identifier: string): string {
     if (identifier.includes('@')) return identifier;
@@ -61,7 +78,7 @@ export default function SignInScreen() {
     const [biometricsAvailable, setBiometricsAvailable] = useState(false);
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
-    const [service, setService] = useState('bsky.social');
+    const [service, setService] = useState(getDevStagingServiceDefault);
     const [showAppPassword, setShowAppPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
@@ -195,6 +212,14 @@ export default function SignInScreen() {
             return;
         }
 
+        if (looksLikePdsHostname(loginIdentifier)) {
+            Alert.alert(
+                'Use your handle',
+                'Enter your personal handle (e.g. you.bsky.social or yourname.com), not the server name bsky.social.',
+            );
+            return;
+        }
+
         setLoginError(null);
         setIsLoading(true);
         setStatusMessage('Signing you in...');
@@ -225,7 +250,6 @@ export default function SignInScreen() {
         setSavedHandle(null);
         setIdentifier('');
         setPassword('');
-        setService('bsky.social');
         setService('bsky.social');
         setShowAppPassword(false);
         setMode('oauth');
@@ -350,7 +374,8 @@ export default function SignInScreen() {
             </Pressable>
 
             <Text style={[styles.oauthHint, isDark && styles.oauthHintDark]}>
-                Approve access in Bluesky — one tap if you are already signed in there.
+                Works with bsky.social and custom-domain handles (e.g. yourname.com). Approve access
+                in Bluesky — one tap if you are already signed in there.
             </Text>
 
             {loginError ? (
@@ -359,7 +384,12 @@ export default function SignInScreen() {
 
             <Pressable
                 style={styles.textLink}
-                onPress={() => { setLoginError(null); setIsLoading(false); setShowAppPassword(true); setMode('full'); }}>
+                onPress={() => {
+                    setLoginError(null);
+                    setIsLoading(false);
+                    setShowAppPassword(true);
+                    setMode('full');
+                }}>
                 <Text style={[styles.textLinkLabelMuted, isDark && styles.textLinkLabelMutedDark]}>
                     Use app password instead
                 </Text>
@@ -393,11 +423,11 @@ export default function SignInScreen() {
             {mode === 'full' && showAppPassword ? (
                 <>
                     <Text style={[styles.label, isDark && styles.labelDark]}>
-                        Bluesky handle or email
+                        Bluesky handle, custom domain, or email
                     </Text>
                     <TextInput
                         style={[styles.input, isDark && styles.inputDark]}
-                        placeholder="you.bsky.social"
+                        placeholder="you.bsky.social or yourname.com"
                         placeholderTextColor={colors.placeholder}
                         autoCapitalize="none"
                         autoCorrect={false}
