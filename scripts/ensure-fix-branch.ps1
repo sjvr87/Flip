@@ -8,7 +8,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 if (-not (Test-Path (Join-Path $Root 'package.json'))) {
-    Write-Host 'ERROR: package.json missing — run from Flip repo root.' -ForegroundColor Red
+    Write-Host 'ERROR: package.json missing - run from Flip repo root.' -ForegroundColor Red
     exit 1
 }
 

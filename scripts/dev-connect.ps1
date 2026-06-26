@@ -423,12 +423,12 @@ function Wait-ForUsbDevice {
     [int]$TimeoutSec = 45
   )
   Write-Host ""
-  Write-Host "Waiting up to ${TimeoutSec}s for phone on USB — plug in + tap Allow on phone..." -ForegroundColor Yellow
+  Write-Host ('Waiting up to {0}s for phone on USB - plug in + tap Allow on phone...' -f $TimeoutSec) -ForegroundColor Yellow
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   while ((Get-Date) -lt $deadline) {
     $scan = Get-AdbDeviceSerials -AdbPath $AdbPath
     if ($scan.Unauthorized.Count -gt 0) {
-      Write-Host "  Phone detected but UNAUTHORIZED — tap Allow USB debugging on phone." -ForegroundColor Red
+      Write-Host "  Phone detected but UNAUTHORIZED - tap Allow USB debugging on phone." -ForegroundColor Red
     } elseif ($scan.Serials.Count -gt 0) {
       Write-Host "  Device found: $($scan.Serials -join ', ')" -ForegroundColor Green
       return $scan
@@ -610,7 +610,7 @@ if ($ConnectOnly -and -not $Reconnect) {
   } else {
     Write-Host '[5/6] Launch/reload - skipped (no device)' -ForegroundColor Yellow
     if (-not $Reload) {
-      Write-Host '  Plug USB + run flip-usb-connect.bat — or open Flip on Wi-Fi for Metro-only reload.' -ForegroundColor DarkGray
+      Write-Host '  Plug USB + run flip-usb-connect.bat - or open Flip on Wi-Fi for Metro-only reload.' -ForegroundColor DarkGray
     }
   }
 

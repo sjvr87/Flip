@@ -30,7 +30,7 @@ Write-Host 'Reloading JS on phone...' -ForegroundColor Cyan
 $head = (& git log -1 --oneline 2>$null).Trim()
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor Green
-Write-Host "  FLIP OPEN OK — $head" -ForegroundColor Green
+Write-Host "  FLIP OPEN OK - $head" -ForegroundColor Green
 Write-Host '  Leave PC awake. Agents push -> auto-sync reloads (~5s).' -ForegroundColor Green
 Write-Host '  Log: logs\auto-sync.log' -ForegroundColor Green
 Write-Host '============================================================' -ForegroundColor Green
