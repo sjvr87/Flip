@@ -1069,11 +1069,6 @@ export default function LoopsFeed({ navigation }) {
 
     const snapFeedFromScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-            if (isSnappingRef.current) {
-                isSnappingRef.current = false;
-                return;
-            }
-
             const { contentOffset, velocity } = event.nativeEvent;
             const target = resolveFeedSnapIndex(
                 contentOffset.y,
@@ -1084,27 +1079,33 @@ export default function LoopsFeed({ navigation }) {
             );
             const targetOffset = target * feedHeight;
 
-            if (Math.abs(contentOffset.y - targetOffset) > 2) {
-                isSnappingRef.current = true;
-                flatListRef.current?.scrollToOffset({
-                    offset: targetOffset,
-                    animated: true,
-                });
+            if (Math.abs(contentOffset.y - targetOffset) <= 1) {
+                isSnappingRef.current = false;
+                return;
             }
+
+            if (isSnappingRef.current) {
+                isSnappingRef.current = false;
+                return;
+            }
+
+            isSnappingRef.current = true;
+            flatListRef.current?.scrollToOffset({
+                offset: targetOffset,
+                animated: false,
+            });
         },
         [feedHeight, videosWithEnd.length],
     );
 
     const handleScrollBeginDrag = useCallback(() => {
         scrollStartIndexRef.current = currentIndexRef.current;
+        isSnappingRef.current = false;
     }, []);
 
     const handleScrollEndDrag = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const velocityY = event.nativeEvent.velocity?.y ?? 0;
-            if (Math.abs(velocityY) < 0.4) {
-                snapFeedFromScroll(event);
-            }
+            snapFeedFromScroll(event);
         },
         [snapFeedFromScroll],
     );
@@ -1243,7 +1244,7 @@ export default function LoopsFeed({ navigation }) {
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                     pagingEnabled={false}
                     showsVerticalScrollIndicator={false}
-                    decelerationRate={0.92}
+                    decelerationRate="fast"
                     onScrollBeginDrag={handleScrollBeginDrag}
                     onScrollEndDrag={handleScrollEndDrag}
                     onMomentumScrollEnd={handleMomentumScrollEnd}

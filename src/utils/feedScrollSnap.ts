@@ -34,18 +34,21 @@ export function resolveFeedSnapIndex(
         return clampIndex(startIndex + dir * jump, maxIndex);
     }
 
-    const ONE_VIDEO_DRAG = 0.14;
-    const ONE_VIDEO_VEL = 0.55;
+    // Soft swipe: position-first (past halfway commits), velocity can commit a flick early.
+    // Never mix opposing position + velocity — that caused half-swipe pull-back.
+    const COMMIT_RATIO = 0.45;
+    const FLICK_VEL = 0.32;
 
-    const wantsNext = dragRatio > ONE_VIDEO_DRAG || vel > ONE_VIDEO_VEL;
-    const wantsPrev = dragRatio < -ONE_VIDEO_DRAG || vel < -ONE_VIDEO_VEL;
-
-    if (wantsNext && !wantsPrev) {
-        return clampIndex(startIndex + 1, maxIndex);
+    let delta = 0;
+    if (dragRatio >= COMMIT_RATIO) {
+        delta = 1;
+    } else if (dragRatio <= -COMMIT_RATIO) {
+        delta = -1;
+    } else if (vel >= FLICK_VEL) {
+        delta = 1;
+    } else if (vel <= -FLICK_VEL) {
+        delta = -1;
     }
-    if (wantsPrev && !wantsNext) {
-        return clampIndex(startIndex - 1, maxIndex);
-    }
 
-    return clampIndex(startIndex, maxIndex);
+    return clampIndex(startIndex + delta, maxIndex);
 }
