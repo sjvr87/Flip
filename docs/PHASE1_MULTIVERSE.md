@@ -177,6 +177,63 @@ Provider aliases: `flip` → `flip_local`, `bluesky` → `atproto`.
 - **Single SQLite file**: no horizontal scale; suitable for dev / single-node beta
 - **Delivery worker**: in-process interval (30s); no external queue (Redis, etc.)
 
+## Production deployment
+
+**Status (Phase 1): local only — production host not deployed yet.**
+
+| Target | Role | Multiverse API? |
+|--------|------|----------------|
+| `server/` + `npm run multiverse:dev` | Local Express + SQLite on `:8788` | Yes (dev) |
+| Heroku (`flip.app` via `.github/workflows/deploy-web.yml`) | Static OAuth metadata + web shell | **No** — does not run `server/` |
+| Netlify / EAS / Firebase | Mobile app builds, not API | **No** |
+| PR [#63](https://github.com/sjvr87/Flip/pull/63) | Phase 1 multiverse MVP | Open; merge before beta rollout |
+
+When you deploy the multiverse API for beta/production:
+
+1. Choose a **single-node** host with a **persistent disk** for SQLite (`FLIP_DB_PATH`). Fly.io, Railway, Render, or a small VPS are typical choices; `api.flip.app` (or similar) is the intended public URL pattern.
+2. Set required secrets on that host — see [`.github/PRODUCTION_SECRETS.md`](../.github/PRODUCTION_SECRETS.md).
+3. Point the Expo client at the live API: `EXPO_PUBLIC_FLIP_API_URL` / `app.json` `extra.flipMultiverseApiUrl`.
+4. Verify `GET https://<your-api>/health` returns `ok: true` and expected provider flags.
+
+Do **not** put `FLIP_TOKEN_ENCRYPTION_KEY` in GitHub Actions repo secrets unless you automate deploy from CI; the encryption key belongs on the runtime host only. CI uses a disposable test key in `.github/workflows/multiverse-test.yml`.
+
+## Production secret setup
+
+`FLIP_TOKEN_ENCRYPTION_KEY` is **required** before any request encrypts or decrypts linked-account tokens. The server throws on first use if it is missing or shorter than 32 characters.
+
+**Generate once** (save the output in your password manager — never commit it):
+
+```bash
+# OpenSSL (macOS/Linux/Git Bash)
+openssl rand -base64 32
+
+# Node (any platform)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+**Set on your production host** (examples — replace `YOUR_APP` / `YOUR_KEY`):
+
+```bash
+# Heroku
+heroku config:set FLIP_TOKEN_ENCRYPTION_KEY="YOUR_KEY" -a YOUR_APP
+heroku config:set FF_PROVIDER_ATPROTO=true FF_PROVIDER_NOSTR=false FF_PROVIDER_ACTIVITYPUB=false -a YOUR_APP
+
+# Fly.io
+fly secrets set FLIP_TOKEN_ENCRYPTION_KEY="YOUR_KEY" FF_PROVIDER_ATPROTO=true FF_PROVIDER_NOSTR=false FF_PROVIDER_ACTIVITYPUB=false -a YOUR_APP
+
+# Railway / Render
+# Use the provider dashboard or CLI to set the same variable names.
+```
+
+**Verify (no secret in output):**
+
+```bash
+curl -s https://YOUR_API_HOST/health | jq .
+# Expect: { "ok": true, "providers": { "atproto": true, "nostr": false, "activitypub": false } }
+```
+
+Full host-by-host commands, rotation notes, and client env: [`.github/PRODUCTION_SECRETS.md`](../.github/PRODUCTION_SECRETS.md).
+
 ## CI
 
 Pull requests touching `server/**` run `npm run multiverse:test` via `.github/workflows/multiverse-test.yml`.
