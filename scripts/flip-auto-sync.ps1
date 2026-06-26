@@ -1,18 +1,28 @@
-# Watch origin for new commits, pull, and reload Metro on the phone.
-# Usage:
-#   flip-auto-sync.bat
-#   flip-auto-sync-fix-branch.bat
-#   powershell -File scripts/flip-auto-sync.ps1 -Branch cursor/fix-s25-feed-tabs-regression-56a3
+# Watch origin for new commits, pull, and reload Flip on the phone (adb + Metro).
+# Double-click: flip-auto-sync.bat  (fix branch, keeps window open)
 param(
-    [string]$Branch = '',
-    [int]$IntervalSec = 20,
+    [string]$Branch = 'cursor/fix-s25-feed-tabs-regression-56a3',
+    [int]$IntervalSec = 15,
     [switch]$NoReload,
-    [switch]$CheckoutBranch
+    [bool]$CheckoutBranch = $true
 )
 
 $ErrorActionPreference = 'Continue'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
+
+$LogDir = Join-Path $Root 'logs'
+if (-not (Test-Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir | Out-Null
+}
+$LogFile = Join-Path $LogDir 'auto-sync.log'
+
+function Write-Log {
+    param([string]$Message, [string]$Color = 'White')
+    $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Message"
+    Add-Content -Path $LogFile -Value $line
+    Write-Host $line -ForegroundColor $Color
+}
 
 function Test-MetroHealthy {
     try {
@@ -24,31 +34,49 @@ function Test-MetroHealthy {
     }
 }
 
-function Invoke-MetroReload {
-    try {
-        Invoke-WebRequest -Uri 'http://127.0.0.1:8081/reload' -Method POST -UseBasicParsing -TimeoutSec 5 | Out-Null
-        Write-Host '  Metro reload sent.' -ForegroundColor Green
+function Invoke-PhoneReload {
+    if ($NoReload) {
         return $true
-    } catch {
-        Write-Host "  Metro reload failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    $devConnect = Join-Path $PSScriptRoot 'dev-connect.ps1'
+    if (-not (Test-Path $devConnect)) {
+        Write-Log 'dev-connect.ps1 missing — cannot reload phone.' 'Yellow'
         return $false
     }
+
+    Write-Log 'Reloading phone (adb reverse + Metro /reload)...' 'Cyan'
+    & $devConnect -ConnectOnly -Reload 2>&1 | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -eq 0) {
+        Write-Log 'Phone reload OK.' 'Green'
+        return $true
+    }
+
+    Write-Log "Phone reload failed (exit $LASTEXITCODE). Is USB debugging on?" 'Yellow'
+    return $false
+}
+
+function Get-ShortSha {
+    param([string]$Ref)
+    $full = (& git rev-parse $Ref 2>$null).Trim()
+    if (-not $full) { return '???????' }
+    return $full.Substring(0, [Math]::Min(7, $full.Length))
 }
 
 function Sync-Branch {
     param([string]$TargetBranch, [switch]$ForceReload)
 
     if (-not $TargetBranch) {
-        Write-Host 'ERROR: no branch to sync.' -ForegroundColor Red
+        Write-Log 'ERROR: no branch to sync.' 'Red'
         return $false
     }
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] git fetch origin $TargetBranch..." -ForegroundColor Cyan
+    Write-Log "git fetch origin $TargetBranch..." 'Cyan'
     & git fetch origin $TargetBranch 2>&1 | ForEach-Object { Write-Host $_ }
 
     $remote = (& git rev-parse "origin/$TargetBranch" 2>$null).Trim()
     if (-not $remote) {
-        Write-Host "  WARN: origin/$TargetBranch not found. Check branch name and network." -ForegroundColor Yellow
+        Write-Log "origin/$TargetBranch not found — check network or branch name." 'Yellow'
         return $false
     }
 
@@ -57,64 +85,63 @@ function Sync-Branch {
 
     if ($onBranch -ne $TargetBranch) {
         if ($CheckoutBranch) {
-            Write-Host "  Checking out $TargetBranch..." -ForegroundColor Cyan
+            Write-Log "Checking out $TargetBranch..." 'Cyan'
             & git checkout $TargetBranch 2>&1 | ForEach-Object { Write-Host $_ }
             if ($LASTEXITCODE -ne 0) {
-                Write-Host '  Checkout failed.' -ForegroundColor Red
+                Write-Log 'Checkout failed.' 'Red'
                 return $false
             }
             $local = (& git rev-parse HEAD 2>$null).Trim()
         } else {
-            Write-Host "  On branch '$onBranch' but watching '$TargetBranch'." -ForegroundColor Yellow
-            Write-Host "  Run flip-auto-sync-fix-branch.bat or pass -CheckoutBranch." -ForegroundColor Yellow
+            Write-Log "On '$onBranch' but watching '$TargetBranch' — use flip-auto-sync.bat" 'Yellow'
             return $false
         }
     }
 
+    $remoteShort = Get-ShortSha "origin/$TargetBranch"
+    $localShort = Get-ShortSha 'HEAD'
+
     if ($local -eq $remote) {
-        Write-Host '  Already up to date.' -ForegroundColor DarkGray
-        if ($ForceReload -and (Test-MetroHealthy)) {
-            Invoke-MetroReload | Out-Null
+        Write-Log "Up to date ($localShort)." 'DarkGray'
+        if ($ForceReload) {
+            Invoke-PhoneReload | Out-Null
         }
         return $true
     }
 
-    Write-Host "  Pulling origin/$TargetBranch..." -ForegroundColor Cyan
+    Write-Log "Behind remote ($localShort -> $remoteShort). Pulling..." 'Cyan'
     & git pull origin $TargetBranch 2>&1 | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) {
-        Write-Host '  Pull failed — fix conflicts manually.' -ForegroundColor Red
+        Write-Log 'Pull failed — fix conflicts manually.' 'Red'
         return $false
     }
 
-    & git log -1 --oneline
-    if (-not $NoReload) {
-        if (Test-MetroHealthy) {
-            Invoke-MetroReload | Out-Null
-        } else {
-            Write-Host '  Metro not on 8081 — run flip-dev.bat first, then leave this window open.' -ForegroundColor Yellow
-        }
-    }
+    $pulled = (& git log -1 --oneline 2>$null).Trim()
+    Write-Log "Pulled: $pulled" 'Green'
+    Invoke-PhoneReload | Out-Null
     return $true
 }
 
-$watchBranch = $Branch
-if (-not $watchBranch) {
-    $watchBranch = (& git branch --show-current 2>$null).Trim()
-}
-
-if (-not $watchBranch) {
-    Write-Host 'ERROR: not on a git branch. cd to Flip repo and try again.' -ForegroundColor Red
+if (-not (Test-Path (Join-Path $Root 'package.json'))) {
+    Write-Log 'ERROR: Run from Flip repo root (package.json missing).' 'Red'
     exit 1
 }
 
-Write-Host '== Flip auto-sync ==' -ForegroundColor Cyan
-Write-Host "Repo:    $Root"
-Write-Host "Branch:  $watchBranch"
-Write-Host "Poll:    every ${IntervalSec}s (Ctrl+C to stop)"
-Write-Host 'Needs:   Metro healthy on 8081 (run flip-dev.bat once if not)'
+$watchBranch = if ($Branch) { $Branch } else { (& git branch --show-current 2>$null).Trim() }
+if (-not $watchBranch) {
+    Write-Log 'ERROR: not on a git branch.' 'Red'
+    exit 1
+}
+
+Write-Host ''
+Write-Log '== Flip auto-sync ==' 'Cyan'
+Write-Log "Repo:   $Root"
+Write-Log "Branch: $watchBranch"
+Write-Log "Poll:   every ${IntervalSec}s — leave this window open (Ctrl+C to stop)"
+Write-Log "Log:    $LogFile"
+Write-Log 'First run: flip-dev.bat once if Metro is down'
 Write-Host ''
 
-# Sync immediately on start so you do not wait for the next agent push.
 $null = Sync-Branch -TargetBranch $watchBranch -ForceReload
 
 $lastRemote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
@@ -129,20 +156,24 @@ while ($true) {
     & git fetch origin $watchBranch 2>&1 | Out-Null
     $remote = (& git rev-parse "origin/$watchBranch" 2>$null).Trim()
     $local = (& git rev-parse HEAD 2>$null).Trim()
+    $localShort = Get-ShortSha 'HEAD'
+    $remoteShort = Get-ShortSha "origin/$watchBranch"
+    $metro = if (Test-MetroHealthy) { 'Metro OK' } else { 'Metro DOWN — run flip-dev.bat' }
 
     if ($remote -and $remote -ne $lastRemote) {
         if ($remote -ne $local) {
             $null = Sync-Branch -TargetBranch $watchBranch
         } else {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Remote updated; local already matches." -ForegroundColor DarkGray
-            if (-not $NoReload -and (Test-MetroHealthy)) {
-                Invoke-MetroReload | Out-Null
-            }
+            Write-Log "Remote moved; local matches ($localShort). Reloading phone..." 'DarkGray'
+            Invoke-PhoneReload | Out-Null
         }
         $lastRemote = $remote
+    } elseif ($local -and $remote -and $local -ne $remote) {
+        Write-Log "BEHIND remote ($localShort vs $remoteShort) — pulling now..." 'Yellow'
+        $null = Sync-Branch -TargetBranch $watchBranch
+        $lastRemote = $remote
     } else {
-        $metro = if (Test-MetroHealthy) { 'Metro OK' } else { 'Metro DOWN — run flip-dev.bat' }
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Watching $watchBranch ($metro)" -ForegroundColor DarkGray
+        Write-Log "Watching $watchBranch  local=$localShort  remote=$remoteShort  ($metro)" 'DarkGray'
     }
 
     Start-Sleep -Seconds $IntervalSec
