@@ -46,7 +46,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Linking,
-    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -382,15 +381,10 @@ export default function ProfileFeed({ navigation }) {
                         data={videos}
                         renderItem={renderItem}
                         keyExtractor={(item, index) => `${item.id}-${index}`}
-                        pagingEnabled
                         showsVerticalScrollIndicator={false}
-                        {...(Platform.OS === 'ios'
-                            ? {
-                                  snapToInterval: feedHeight,
-                                  snapToAlignment: 'start' as const,
-                                  decelerationRate: 'fast' as const,
-                              }
-                            : {})}
+                        snapToInterval={feedHeight}
+                        snapToAlignment="start"
+                        decelerationRate="fast"
                         viewabilityConfig={viewabilityConfig.current}
                         onViewableItemsChanged={onViewableItemsChanged}
                         onEndReached={handleEndReached}
