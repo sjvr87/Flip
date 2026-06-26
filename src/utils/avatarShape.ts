@@ -8,16 +8,30 @@ export function squircleRadius(size: number): number {
 
 /** Common avatar footprints used across Flip. */
 export const AVATAR_SIZE = {
-    /** Explore text-post row */
-    explore: 36,
+    /** Tiny overlay (search video caption row) */
+    micro: 20,
+    /** Starter kit browse stacked avatars */
+    tiny: 24,
+    /** Starter kit creator chip */
+    mini: 16,
+    /** Comment thread replies */
+    reply: 28,
     /** Comments / compact rows */
     comment: 32,
+    /** Explore text-post row */
+    explore: 36,
+    /** Video timeline action rail */
+    feed: 42,
     /** Suggested accounts row */
     suggested: 44,
-    /** Inbox, activity, followers */
+    /** Inbox, activity, notifications, followers */
     row: 48,
+    /** Search user rows (w-14) */
+    searchRow: 56,
     /** Follower / following lists */
     list: 60,
+    /** Sign-in welcome card */
+    signIn: 88,
     /** Profile header */
     profile: 120,
 } as const;

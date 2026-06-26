@@ -1,5 +1,7 @@
 import MentionText from '@/components/MentionText';
+import Avatar from '@/components/Avatar';
 import { useTheme } from '@/contexts/ThemeContext';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import {
     fetchStarterKit,
     fetchStarterKitMembership,
@@ -212,10 +214,7 @@ export default function StarterKitInviteScreen() {
                     {/* Meta */}
                     <View style={tw`flex-row items-center flex-wrap gap-x-3 gap-y-1`}>
                         <View style={tw`flex-row items-center gap-1.5`}>
-                            <Image
-                                source={{ uri: kit.creator.avatar }}
-                                style={tw`w-4 h-4 rounded-full`}
-                            />
+                            <Avatar url={kit.creator.avatar} width={AVATAR_SIZE.mini} />
                             <MentionText
                                 username={kit.creator.username}
                                 style={tw`text-xs font-semibold`}
@@ -250,10 +249,7 @@ export default function StarterKitInviteScreen() {
                                 tw`flex-row items-center gap-3 py-2.5`,
                                 idx > 0 && { borderTopWidth: 1, borderTopColor: divider },
                             ]}>
-                            <Image
-                                source={{ uri: account.avatar }}
-                                style={tw`w-9 h-9 rounded-full`}
-                            />
+                            <Avatar url={account.avatar} width={AVATAR_SIZE.explore} />
                             <View style={tw`flex-1`}>
                                 <Text
                                     style={[

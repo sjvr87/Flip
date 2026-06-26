@@ -1,5 +1,5 @@
 import { Storage } from '@/utils/cache';
-import { squircleRadius } from '@/utils/avatarShape';
+import { squircleRadius, AVATAR_SIZE } from '@/utils/avatarShape';
 import { Image, ImageProps } from 'expo-image';
 import { router } from 'expo-router';
 import React, { memo, useMemo, useState } from 'react';
@@ -15,18 +15,17 @@ import { Pressable, StyleSheet, ViewStyle } from 'react-native';
 // Hardcoded fallback URL
 const DEFAULT_FALLBACK_URL = 'https://loopsusercontent.com/avatars/default.jpg?v=1';
 
-// Built-in theme presets (squircle radii — see squircleRadius()).
+// Built-in theme presets — radius always from squircleRadius(size) at render time.
 const THEMES = {
-    sm: { size: 32, radius: 9, borderWidth: 0, borderColor: 'transparent' },
-    md: { size: 40, radius: 12, borderWidth: 0, borderColor: 'transparent' },
-    lg: { size: 56, radius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
-    xl: { size: 120, radius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+    sm: { size: AVATAR_SIZE.comment, borderWidth: 0, borderColor: 'transparent' },
+    md: { size: 40, borderWidth: 0, borderColor: 'transparent' },
+    lg: { size: 56, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+    xl: { size: AVATAR_SIZE.profile, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
 } as const;
 
 export type AvatarThemeKey = keyof typeof THEMES;
 export type AvatarThemeConfig = {
     size?: number;
-    radius?: number;
     borderWidth?: number;
     borderColor?: string;
 };
@@ -109,7 +108,7 @@ const Avatar = memo(function Avatar({
 
     const computedRadius = rounded
         ? Math.ceil(dimension / 2)
-        : (radius ?? resolvedTheme.radius ?? squircleRadius(dimension));
+        : (radius ?? squircleRadius(dimension));
 
     const finalBorderWidth = borderWidth ?? resolvedTheme.borderWidth ?? 0;
     const finalBorderColor = borderColor ?? resolvedTheme.borderColor ?? 'transparent';

@@ -1,4 +1,5 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import Avatar from '@/components/Avatar';
 import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
@@ -9,6 +10,7 @@ import {
     getBiometricLabel,
 } from '@/utils/biometricAuth';
 import { skipBiometricAutoPromptOnLaunch } from '@/utils/androidVideoSafeMode';
+import { AVATAR_SIZE, squircleStyle } from '@/utils/avatarShape';
 import { getPostAuthRoute } from '@/utils/ageVerification';
 import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -276,9 +278,15 @@ export default function SignInScreen() {
     const unlockView = (
         <View style={styles.centered}>
             {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" />
+                <Avatar
+                    url={avatarUri}
+                    width={AVATAR_SIZE.signIn}
+                    style={styles.avatarFrame}
+                    borderWidth={3}
+                    borderColor="rgba(255,255,255,0.35)"
+                />
             ) : (
-                <View style={styles.avatarPlaceholder}>
+                <View style={[styles.avatarPlaceholder, squircleStyle(AVATAR_SIZE.signIn)]}>
                     <Ionicons name="person" size={40} color="rgba(255,255,255,0.8)" />
                 </View>
             )}
@@ -599,18 +607,10 @@ const styles = StyleSheet.create({
     statusTextDark: {
         color: 'rgba(255,255,255,0.75)',
     },
-    avatar: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
+    avatarFrame: {
         marginBottom: 8,
-        borderWidth: 3,
-        borderColor: 'rgba(255,255,255,0.35)',
     },
     avatarPlaceholder: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
         marginBottom: 8,
         backgroundColor: 'rgba(255,255,255,0.15)',
         alignItems: 'center',
