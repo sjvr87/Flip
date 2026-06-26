@@ -1,4 +1,5 @@
 import FoldedHeartIcon, { FOLDED_HEART_ACTIVITY_SIZE } from '@/components/icons/FoldedHeartIcon';
+import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
 import {
     MEGAPHONE_COMMENT_ACTIVITY_SIZE,
     MegaphoneCommentIconSlot,
@@ -8,6 +9,8 @@ import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
     ACTIVITY_COMMENT_BADGE_OFFSET,
+    ACTIVITY_FOLLOW_BADGE_OFFSET,
+    ACTIVITY_FOLLOW_BADGE_SIZE,
     ACTIVITY_LIKE_BADGE_OFFSET,
     AVATAR_SIZE,
 } from '@/utils/avatarShape';
@@ -43,6 +46,7 @@ interface NotificationItemProps {
 const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
 const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_COMMENT_BADGE_OFFSET };
 const LIKE_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_LIKE_BADGE_OFFSET };
+const FOLLOW_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_FOLLOW_BADGE_OFFSET };
 
 function isCommentActivityType(type: string): boolean {
     return type === 'video.comment' || type === 'video.commentReply';
@@ -52,6 +56,10 @@ function isLikeActivityType(type: string): boolean {
     return type === 'video.like' || type === 'comment.like' || type === 'commentReply.like';
 }
 
+function isFollowActivityType(type: string): boolean {
+    return type === 'new_follower';
+}
+
 function getActivityBadgeOffset(type: string): ViewStyle {
     if (isCommentActivityType(type)) {
         return COMMENT_ACTIVITY_BADGE_OFFSET;
@@ -59,7 +67,18 @@ function getActivityBadgeOffset(type: string): ViewStyle {
     if (isLikeActivityType(type)) {
         return LIKE_ACTIVITY_BADGE_OFFSET;
     }
+    if (isFollowActivityType(type)) {
+        return FOLLOW_ACTIVITY_BADGE_OFFSET;
+    }
     return DEFAULT_ACTIVITY_BADGE_OFFSET;
+}
+
+function isCornerBadgeType(type: string): boolean {
+    return (
+        isCommentActivityType(type) ||
+        isLikeActivityType(type) ||
+        isFollowActivityType(type)
+    );
 }
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({
@@ -113,7 +132,12 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const getBadgeIcon = () => {
         switch (item.type) {
             case 'new_follower':
-                return <Ionicons name="person-add" size={16} color="#007AFF" />;
+                return (
+                    <FollowAddBadgeIcon
+                        size={ACTIVITY_FOLLOW_BADGE_SIZE}
+                        color={activityIconColor}
+                    />
+                );
             case 'video.like':
             case 'comment.like':
             case 'commentReply.like':
@@ -163,9 +187,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         style={[
                             tw`absolute items-center justify-center`,
                             badgeOffset,
-                            (isCommentActivityType(item.type) || isLikeActivityType(item.type)) && {
-                                zIndex: 10,
-                            },
+                            isCornerBadgeType(item.type) && { zIndex: 10 },
                         ]}>
                         {badgeIcon}
                     </View>

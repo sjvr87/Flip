@@ -1,11 +1,16 @@
 import MentionText from '@/components/MentionText';
 import Avatar from '@/components/Avatar';
+import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
-import { AVATAR_SIZE } from '@/utils/avatarShape';
+import { useTheme } from '@/contexts/ThemeContext';
+import {
+    ACTIVITY_FOLLOW_BADGE_OFFSET,
+    ACTIVITY_FOLLOW_BADGE_SIZE,
+    AVATAR_SIZE,
+} from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
-import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import tw from 'twrnc';
 
@@ -40,6 +45,8 @@ export function FollowerNotificationRow({
     isAccepted,
 }: Props) {
     const isUnread = item.read_at === null;
+    const { isDark } = useTheme();
+    const followBadgeColor = isDark ? '#FFFFFF' : '#1A1A1A';
     const followText = item.kit?.path ? 'followed you from a Starter Kit.' : 'followed you.';
 
     return (
@@ -47,10 +54,20 @@ export function FollowerNotificationRow({
             style={tw`flex-row items-center py-3 px-4 border-b border-gray-100 dark:border-gray-900`}>
             {isUnread ? <View style={tw`w-2 h-2 rounded-full bg-red-500 mr-2`} /> : null}
 
-            <Pressable onPress={onProfilePress} style={tw`relative mr-3`}>
+            <Pressable
+                onPress={onProfilePress}
+                style={[tw`relative mr-3`, { overflow: 'visible' }]}>
                 <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
-                <View style={tw`absolute -bottom-0.5 -right-0.5`}>
-                    <Ionicons name="person-add" size={16} color="#007AFF" />
+                <View
+                    style={[
+                        tw`absolute items-center justify-center`,
+                        ACTIVITY_FOLLOW_BADGE_OFFSET,
+                        { zIndex: 10 },
+                    ]}>
+                    <FollowAddBadgeIcon
+                        size={ACTIVITY_FOLLOW_BADGE_SIZE}
+                        color={followBadgeColor}
+                    />
                 </View>
             </Pressable>
 
