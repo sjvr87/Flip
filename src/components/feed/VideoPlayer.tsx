@@ -101,6 +101,10 @@ function VideoSlidePlaceholder({
 }) {
     const thumbnail = item.media?.thumbnail;
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
+    const videoBandStyle = {
+        top: videoTopInset,
+        bottom: videoBottomReserved,
+    };
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
@@ -112,11 +116,7 @@ function VideoSlidePlaceholder({
 
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View
-                style={[
-                    styles.videoWrapper,
-                    { top: videoTopInset, bottom: videoBottomReserved },
-                ]}>
+            <View style={[styles.videoWrapper, videoBandStyle]}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>
@@ -246,13 +246,10 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle =
-        videoTopInset === 0 && videoBottomReserved === 0
-            ? StyleSheet.absoluteFillObject
-            : {
-                  top: videoTopInset,
-                  bottom: videoBottomReserved,
-              };
+    const videoBandStyle = {
+        top: videoTopInset,
+        bottom: videoBottomReserved,
+    };
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);

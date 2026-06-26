@@ -2,8 +2,6 @@ import { useMemo } from 'react';
 import { PixelRatio, Platform, StatusBar, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** Paging overlap hides the hairline seam between adjacent feed cells while scrolling. */
-export const FEED_PAGING_CELL_OVERLAP = 1;
 /** Semi-transparent scrim on Home feed tab bar icon row only. */
 export const TAB_BAR_HOME_OVERLAY_BG = 'rgba(0, 0, 0, 0.5)';
 /** Solid fill under icons (system nav inset) — matches video letterbox black. */
@@ -198,11 +196,6 @@ export function computeFeedVideoViewport(
     const bottomReserved = tabBarContentHeight;
     const viewportHeight = Math.max(0, Math.round(windowHeight - topInset - bottomReserved));
     return { topInset, bottomReserved, viewportHeight };
-}
-
-/** Video band insets inside each feed slide — full bleed under status bar + tab overlays. */
-export function getFeedVideoBandInsets(): { top: number; bottom: number } {
-    return { top: 0, bottom: 0 };
 }
 
 /** @deprecated Use `useFlipTabBarMetrics` or `computeFlipTabBarMetrics` */

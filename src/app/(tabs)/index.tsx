@@ -39,7 +39,8 @@ import {
     setAppInForeground,
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
-import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets, FEED_PAGING_CELL_OVERLAP } from '@/utils/tabBarLayout';
+import { computeFeedVideoViewport, useFlipTabBarMetrics } from '@/utils/tabBarLayout';
+import { resolveFeedSnapIndex } from '@/utils/feedScrollSnap';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
     cancelOffscreenPrefetch,
@@ -73,6 +74,8 @@ import {
     AppState,
     FlatList,
     InteractionManager,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
     Platform,
     PixelRatio,
     RefreshControl,
@@ -227,7 +230,6 @@ export default function LoopsFeed({ navigation }) {
     const feedHeight = PixelRatio.roundToNearestPixel(windowHeight);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
-    const feedVideoBand = useMemo(() => getFeedVideoBandInsets(), []);
     const feedVideoViewport = useMemo(
         () => computeFeedVideoViewport(windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved),
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
@@ -271,6 +273,7 @@ export default function LoopsFeed({ navigation }) {
 
     useEffect(() => subscribeFeedPlaybackActive(setGuardPlaybackActive), []);
     const flatListRef = useRef(null);
+    const isSnappingRef = useRef(false);
     const router = useRouter();
     const queryClient = useQueryClient();
     const currentVideoRef = useRef(null);
@@ -975,8 +978,8 @@ export default function LoopsFeed({ navigation }) {
                         activeIndex={currentIndex}
                         shouldPreload={shouldPreloadPlayer}
                         feedHeight={feedHeight}
-                        videoTopInset={feedVideoBand.top}
-                        videoBottomReserved={feedVideoBand.bottom}
+                        videoTopInset={feedVideoViewport.topInset}
+                        videoBottomReserved={feedVideoViewport.bottomReserved}
                         onLike={handleLike}
                         onComment={handleComment}
                         onCaptionExpand={handleCaptionExpand}
@@ -1000,25 +1003,15 @@ export default function LoopsFeed({ navigation }) {
                 );
             })();
 
-            return (
-                <View
-                    style={{
-                        height: feedHeight,
-                        marginBottom: -FEED_PAGING_CELL_OVERLAP,
-                        overflow: 'hidden',
-                        backgroundColor: '#000',
-                    }}>
-                    {cell}
-                </View>
-            );
+            return <View style={{ height: feedHeight, overflow: 'hidden', backgroundColor: '#000' }}>{cell}</View>;
         },
         [
             activeTab,
             currentIndex,
             feedError,
             feedHeight,
-            feedVideoBand.bottom,
-            feedVideoBand.top,
+            feedVideoViewport.bottomReserved,
+            feedVideoViewport.topInset,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -1071,6 +1064,52 @@ export default function LoopsFeed({ navigation }) {
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
     }, [maybeLoadMoreVideos]);
+
+    const snapFeedToIndex = useCallback(
+        (targetIndex: number, animated = true) => {
+            const maxIndex = Math.max(0, videosWithEnd.length - 1);
+            const clamped = Math.min(maxIndex, Math.max(0, targetIndex));
+            isSnappingRef.current = true;
+            flatListRef.current?.scrollToOffset({
+                offset: clamped * feedHeight,
+                animated,
+            });
+        },
+        [feedHeight, videosWithEnd.length],
+    );
+
+    const handleFeedScrollEnd = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            if (isSnappingRef.current) {
+                isSnappingRef.current = false;
+                return;
+            }
+
+            const { contentOffset, velocity } = event.nativeEvent;
+            const target = resolveFeedSnapIndex(
+                contentOffset.y,
+                feedHeight,
+                velocity?.y,
+                videosWithEnd.length,
+            );
+            const targetOffset = target * feedHeight;
+
+            if (Math.abs(contentOffset.y - targetOffset) > 2) {
+                snapFeedToIndex(target);
+            }
+        },
+        [feedHeight, snapFeedToIndex, videosWithEnd.length],
+    );
+
+    const handleScrollEndDrag = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const velocityY = event.nativeEvent.velocity?.y ?? 0;
+            if (Math.abs(velocityY) < 0.08) {
+                handleFeedScrollEnd(event);
+            }
+        },
+        [handleFeedScrollEnd],
+    );
 
     const getItemLayout = useCallback(
         (data, index) => ({
@@ -1197,21 +1236,11 @@ export default function LoopsFeed({ navigation }) {
                     extraData={currentIndex}
                     renderItem={renderItem}
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                    pagingEnabled
+                    pagingEnabled={false}
                     showsVerticalScrollIndicator={false}
-                    {...(Platform.OS === 'ios'
-                        ? {
-                              snapToInterval: feedHeight,
-                              snapToAlignment: 'start' as const,
-                              decelerationRate: 'fast' as const,
-                              disableIntervalMomentum: true,
-                          }
-                        : {
-                              snapToInterval: feedHeight,
-                              snapToAlignment: 'start' as const,
-                              decelerationRate: 'fast' as const,
-                              disableIntervalMomentum: true,
-                          })}
+                    decelerationRate={Platform.OS === 'ios' ? 0.99 : 0.985}
+                    onScrollEndDrag={handleScrollEndDrag}
+                    onMomentumScrollEnd={handleFeedScrollEnd}
                     scrollEventThrottle={16}
                     overScrollMode="never"
                     viewabilityConfig={viewabilityConfig.current}
