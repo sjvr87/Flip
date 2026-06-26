@@ -6,10 +6,10 @@
 #   (default)        flip-dev.bat           - pull + adb + reuse Metro (or start one window)
 #   -RestartMetro    flip-dev-restart.bat   - pull + adb; recycle Metro if unhealthy (clear cache)
 #   -Reconnect       flip-reconnect.bat     - post-crash: adb + fix stale Metro + launch (no pull)
-#   -Reset           flip-reset-dev.bat     - kill Metro, clear cache, fresh start, adb reverse, launch
+#   -Reset           flip-reset-dev.bat     - pull current branch, kill Metro, clear cache, launch
 #   -ConnectOnly     flip-connect.bat       - adb + launch only (Metro must already be healthy)
-#   -ConnectOnly -Reload  flip-reload.bat   - adb + POST /reload (JS tweak, app already running)
-#   -NoLaunch        flip-sync.bat          - adb reverse + wait for Metro; no force-stop or launch
+#   -ConnectOnly -Reload  flip-reload.bat   - adb + POST /reload (no pull — JS already on disk)
+#   -NoLaunch        flip-sync.bat          - adb reverse + wait for Metro; no pull, no launch
 param(
   [switch]$RestartMetro,
   [switch]$ConnectOnly,
@@ -50,7 +50,7 @@ function Invoke-AdbString {
 }
 
 $modeLabel = if ($Reset) {
-  "reset (kill Metro, fresh start)"
+  "reset (pull + kill Metro, fresh start)"
 } elseif ($Reconnect) {
   "reconnect (post-crash)"
 } elseif ($NoLaunch) {
@@ -64,11 +64,15 @@ $modeLabel = if ($Reset) {
 }
 Write-Host "== Flip dev-connect ($modeLabel) ==" -ForegroundColor Cyan
 
-$skipPull = $ConnectOnly -or $Reconnect -or $Reset -or $NoLaunch
+# Pull latest on current branch unless fast reconnect/reload/sync only.
+# Reset pulls too — stale local tree was launching old JS despite GitHub updates.
+$skipPull = $ConnectOnly -or $Reconnect -or $NoLaunch
 if (-not $skipPull) {
   $branch = (git branch --show-current).Trim()
-  Write-Host "[1/6] git pull origin $branch..."
+  Write-Host "[1/6] git fetch origin $branch..."
   $ErrorActionPreference = 'Continue'
+  $null = cmd /c "git fetch origin $branch 2>&1"
+  Write-Host "[1/6] git pull origin $branch..."
   $pull = (cmd /c "git pull origin $branch 2>&1")
   $ErrorActionPreference = 'Stop'
   Write-Host $pull

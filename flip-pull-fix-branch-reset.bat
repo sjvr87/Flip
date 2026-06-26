@@ -7,18 +7,15 @@ if not exist "package.json" (
   pause
   exit /b 1
 )
-echo == Sync fix branch (NOT main) ==
+echo == Sync fix branch (NOT main until PR #64 merges) ==
 git fetch origin
 git checkout cursor/fix-s25-feed-tabs-regression-56a3
 if errorlevel 1 goto fail
-git pull origin cursor/fix-s25-feed-tabs-regression-56a3
-if errorlevel 1 goto fail
 echo.
-echo Latest commit:
+echo Latest commit (flip-reset-dev will pull again):
 git log -1 --oneline
 echo.
-echo == Kill stale Metro, clear cache, adb reverse, launch (LAN:8081) ==
-echo    Use the NEW Metro window QR / exp://LAN URL — old LAN IP = stale bundle.
+echo == Reset: pull + kill Metro + clear cache + launch (fresh LAN URL) ==
 call flip-reset-dev.bat
 exit /b %ERRORLEVEL%
 
