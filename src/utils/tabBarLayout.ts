@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { PixelRatio, Platform, StatusBar, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/** Paging overlap hides the hairline seam between adjacent feed cells while scrolling. */
+export const FEED_PAGING_CELL_OVERLAP = 1;
 /** Semi-transparent scrim on Home feed tab bar icon row only. */
 export const TAB_BAR_HOME_OVERLAY_BG = 'rgba(0, 0, 0, 0.5)';
 /** Solid fill under icons (system nav inset) — matches video letterbox black. */
@@ -13,6 +15,26 @@ export const TAB_BAR_SOLID_BG_LIGHT = 'rgba(255, 255, 255, 0.98)';
 export const TAB_BAR_PADDING_TOP = 0;
 /** Matches `TAB_ICON_SLOT_SIZE` in `(tabs)/_layout.tsx`. */
 export const TAB_BAR_ICON_ROW_HEIGHT = 42;
+
+/** Create-tab FLIP–IT label span in its 26×26 viewBox — home scrim + feed letterbox align here. */
+const CREATE_TAB_VIEWBOX = 26;
+const CREATE_FLIP_LABEL_BASELINE = 3.7;
+const CREATE_IT_LABEL_BASELINE = 24.1;
+const CREATE_LABEL_FONT_SIZE = 5.0;
+
+/** Ink top of “FLIP” through ink bottom of “IT” (Create tab icon), in viewBox units. */
+export function getTabBarIconOpticalSpanVb(): number {
+    const labelTop = CREATE_FLIP_LABEL_BASELINE - CREATE_LABEL_FONT_SIZE;
+    const labelBottom = CREATE_IT_LABEL_BASELINE + CREATE_LABEL_FONT_SIZE * 0.2;
+    return labelBottom - labelTop;
+}
+
+/** Pixel height from FLIP top to IT bottom at the standard tab icon slot size. */
+export function getTabBarIconOpticalHeight(
+    slotSize = TAB_BAR_ICON_ROW_HEIGHT,
+): number {
+    return Math.round(slotSize * (getTabBarIconOpticalSpanVb() / CREATE_TAB_VIEWBOX));
+}
 /** Lift icons above the system nav / gesture bar (Samsung edge-to-edge). */
 const TAB_BAR_ICON_LIFT_DP = Platform.OS === 'android' ? 8 : 4;
 /** When SafeAreaProvider reports 0, gesture nav still needs clearance. */
@@ -68,7 +90,7 @@ export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics
         paddingBottom,
         iconLift,
         contentHeight,
-        feedVideoBottomReserved: contentHeight,
+        feedVideoBottomReserved: getTabBarIconOpticalHeight(contentHeight),
         totalHeight,
         feedOverlayBottom: totalHeight + 10,
         actionRailBottom: totalHeight + 20,
@@ -145,7 +167,7 @@ export function getFlipTabBarStyle(
             bottom: 0,
             backgroundColor: TAB_BAR_HOME_NAV_BG,
             borderTopWidth: 0,
-            overflow: 'hidden',
+            overflow: 'visible',
         };
     }
 
@@ -176,6 +198,11 @@ export function computeFeedVideoViewport(
     const bottomReserved = tabBarContentHeight;
     const viewportHeight = Math.max(0, Math.round(windowHeight - topInset - bottomReserved));
     return { topInset, bottomReserved, viewportHeight };
+}
+
+/** Video band insets inside each feed slide — full bleed under status bar + tab overlays. */
+export function getFeedVideoBandInsets(): { top: number; bottom: number } {
+    return { top: 0, bottom: 0 };
 }
 
 /** @deprecated Use `useFlipTabBarMetrics` or `computeFlipTabBarMetrics` */

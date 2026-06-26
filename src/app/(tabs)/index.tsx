@@ -39,7 +39,7 @@ import {
     setAppInForeground,
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
-import { computeFeedVideoViewport, useFlipTabBarMetrics } from '@/utils/tabBarLayout';
+import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets, FEED_PAGING_CELL_OVERLAP } from '@/utils/tabBarLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
     cancelOffscreenPrefetch,
@@ -74,6 +74,7 @@ import {
     FlatList,
     InteractionManager,
     Platform,
+    PixelRatio,
     RefreshControl,
     StyleSheet,
     Text,
@@ -223,9 +224,10 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 
 export default function LoopsFeed({ navigation }) {
     const { height: windowHeight } = useWindowDimensions();
-    const feedHeight = Math.round(windowHeight);
+    const feedHeight = PixelRatio.roundToNearestPixel(windowHeight);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
+    const feedVideoBand = useMemo(() => getFeedVideoBandInsets(), []);
     const feedVideoViewport = useMemo(
         () => computeFeedVideoViewport(windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved),
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
@@ -973,8 +975,8 @@ export default function LoopsFeed({ navigation }) {
                         activeIndex={currentIndex}
                         shouldPreload={shouldPreloadPlayer}
                         feedHeight={feedHeight}
-                        videoTopInset={feedVideoViewport.topInset}
-                        videoBottomReserved={feedVideoViewport.bottomReserved}
+                        videoTopInset={feedVideoBand.top}
+                        videoBottomReserved={feedVideoBand.bottom}
                         onLike={handleLike}
                         onComment={handleComment}
                         onCaptionExpand={handleCaptionExpand}
@@ -998,15 +1000,25 @@ export default function LoopsFeed({ navigation }) {
                 );
             })();
 
-            return <View style={{ height: feedHeight, overflow: 'hidden' }}>{cell}</View>;
+            return (
+                <View
+                    style={{
+                        height: feedHeight,
+                        marginBottom: -FEED_PAGING_CELL_OVERLAP,
+                        overflow: 'hidden',
+                        backgroundColor: '#000',
+                    }}>
+                    {cell}
+                </View>
+            );
         },
         [
             activeTab,
             currentIndex,
             feedError,
             feedHeight,
-            feedVideoViewport.bottomReserved,
-            feedVideoViewport.topInset,
+            feedVideoBand.bottom,
+            feedVideoBand.top,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -1197,7 +1209,8 @@ export default function LoopsFeed({ navigation }) {
                         : {
                               snapToInterval: feedHeight,
                               snapToAlignment: 'start' as const,
-                              decelerationRate: 0.98,
+                              decelerationRate: 'fast' as const,
+                              disableIntervalMomentum: true,
                           })}
                     scrollEventThrottle={16}
                     overScrollMode="never"

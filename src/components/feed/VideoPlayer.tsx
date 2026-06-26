@@ -246,10 +246,13 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle = {
-        top: videoTopInset,
-        bottom: videoBottomReserved,
-    };
+    const videoBandStyle =
+        videoTopInset === 0 && videoBottomReserved === 0
+            ? StyleSheet.absoluteFillObject
+            : {
+                  top: videoTopInset,
+                  bottom: videoBottomReserved,
+              };
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
