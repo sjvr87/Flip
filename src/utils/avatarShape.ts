@@ -36,6 +36,10 @@ export const AVATAR_SIZE = {
     profile: 120,
 } as const;
 
+/** Corner badge on avatar — matches feed follow/add affordance (FeedActionRail `followBadge`). */
+export const AVATAR_CORNER_BADGE_SIZE = 28;
+export const AVATAR_CORNER_BADGE_OFFSET = { bottom: -14, right: -8 } as const;
+
 export function squircleStyle(size: number) {
     const radius = squircleRadius(size);
     return {

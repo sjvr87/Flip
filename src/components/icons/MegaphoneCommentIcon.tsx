@@ -1,10 +1,11 @@
+import { AVATAR_CORNER_BADGE_SIZE } from '@/utils/avatarShape';
 import { memo } from 'react';
 import Svg, { Circle, G, Path } from 'react-native-svg';
 
 /** Matches feed action rail `ICON_SLOT` (30px). */
 export const MEGAPHONE_COMMENT_DESIGN_SIZE = 30;
-/** Activity / notification avatar badge — optical match with heart at 20px. */
-export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = 32;
+/** Activity badge — same footprint as feed follow/add icon on creator avatar. */
+export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = AVATAR_CORNER_BADGE_SIZE;
 
 type MegaphoneCommentIconProps = {
     size?: number;
@@ -16,8 +17,8 @@ type MegaphoneCommentIconProps = {
 const VIEW = 24;
 /** Expanded crop — exaggerated bell + sound arcs on the left after mirror. */
 const VIEW_BOX = '0 -3.5 33 27';
-/** Activity badge — trim empty viewBox margin so the figure reads as large as the heart. */
-const VIEW_BOX_BADGE = '4 -0.5 21 23';
+/** Activity badge — trim empty viewBox margin so figure fills frame like follow/add badge. */
+const VIEW_BOX_BADGE = '5 0 20 22';
 
 /** Detached circular head — small gap below before torso/neck. */
 const HEAD = { cx: 13.6, cy: 3.25, r: 2.28 };

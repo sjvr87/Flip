@@ -5,7 +5,7 @@ import MegaphoneCommentIcon, {
 import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
-import { AVATAR_SIZE } from '@/utils/avatarShape';
+import { AVATAR_SIZE, AVATAR_CORNER_BADGE_OFFSET } from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -36,8 +36,8 @@ interface NotificationItemProps {
 }
 
 const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
-/** Bottom-right corner of avatar — comment icon hangs on the corner for clear separation from the photo. */
-const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -14, right: -16 };
+/** Same corner placement as feed follow/add badge (FeedActionRail). */
+const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...AVATAR_CORNER_BADGE_OFFSET };
 
 function isCommentActivityType(type: string): boolean {
     return type === 'video.comment' || type === 'video.commentReply';
@@ -138,10 +138,19 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             ]}>
             {isUnread && <View style={tw`w-2 h-2 rounded-full bg-red-500 mr-2 mt-1.5`} />}
 
-            <Pressable onPress={() => onProfilePress(item.actor, item)} style={tw`relative mr-3`}>
+            <Pressable
+                onPress={() => onProfilePress(item.actor, item)}
+                style={[tw`relative mr-3`, { overflow: 'visible' }]}>
                 <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
                 {badgeIcon ? (
-                    <View style={[tw`absolute`, badgeOffset]}>{badgeIcon}</View>
+                    <View
+                        style={[
+                            tw`absolute items-center justify-center`,
+                            badgeOffset,
+                            isCommentActivityType(item.type) && { zIndex: 10 },
+                        ]}>
+                        {badgeIcon}
+                    </View>
                 ) : null}
             </Pressable>
 
