@@ -168,14 +168,9 @@ function patchExpoAutolinkingNode() {
     'Os.kt',
   );
   if (fs.existsSync(osKt)) {
-    const osSrc = fs.readFileSync(osKt, 'utf8');
-    if (!osSrc.includes('resolveNodeExecutable')) {
-      const nextOs = osSrc.replace(
-        'package expo.modules.plugin\n\nobject Os {',
-        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {`,
-      ).replace(
-        '  fun isWindows(): Boolean =>',
-        `  fun resolveNodeExecutable(): String {
+    let osSrc = fs.readFileSync(osKt, 'utf8');
+    if (!osSrc.includes('fun resolveNodeExecutable()')) {
+      const resolveFn = `  fun resolveNodeExecutable(): String {
     System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
     if (isWindows()) {
       val candidates = listOf(
@@ -193,9 +188,21 @@ function patchExpoAutolinkingNode() {
     return "node"
   }
 
-  fun isWindows(): Boolean =>`,
-      );
-      fs.writeFileSync(osKt, nextOs);
+`;
+      if (!osSrc.includes('import java.io.File')) {
+        osSrc = osSrc.replace(
+          'package expo.modules.plugin\n',
+          'package expo.modules.plugin\n\nimport java.io.File\n',
+        );
+      }
+      if (osSrc.includes('  fun isWindows(): Boolean =>')) {
+        osSrc = osSrc.replace('  fun isWindows(): Boolean =>', `${resolveFn}  fun isWindows(): Boolean =>`);
+      } else if (/  fun isWindows\(\): Boolean\s*=/.test(osSrc)) {
+        osSrc = osSrc.replace(/(  fun isWindows\(\): Boolean\s*=)/, `${resolveFn}$1`);
+      } else {
+        osSrc = osSrc.replace('object Os {', `object Os {\n${resolveFn}`);
+      }
+      fs.writeFileSync(osKt, osSrc);
       console.log('[patch-android-node] Patched expo Os.kt for Node resolution');
     }
   }
