@@ -3,8 +3,8 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 
 /** Matches feed action rail `ICON_SLOT` (30px). */
 export const MEGAPHONE_COMMENT_DESIGN_SIZE = 30;
-/** Activity / notification avatar badge — same artwork, smaller. */
-export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = 20;
+/** Activity / notification avatar badge — bumped for optical match with heart at 20px. */
+export const MEGAPHONE_COMMENT_ACTIVITY_SIZE = 26;
 
 type MegaphoneCommentIconProps = {
     size?: number;

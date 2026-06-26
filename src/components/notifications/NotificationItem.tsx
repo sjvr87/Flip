@@ -9,7 +9,7 @@ import { AVATAR_SIZE } from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View, type ViewStyle } from 'react-native';
 import tw from 'twrnc';
 
 interface Actor {
@@ -33,6 +33,14 @@ interface NotificationItemProps {
     };
     onPress: (item: any) => void;
     onProfilePress: (actor: Actor, item: any) => void;
+}
+
+const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
+/** Comment megaphone reads smaller in the viewBox — sit lower/right so it clears the avatar. */
+const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -8, right: -10 };
+
+function isCommentActivityType(type: string): boolean {
+    return type === 'video.comment' || type === 'video.commentReply';
 }
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({
@@ -116,6 +124,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     };
 
     const badgeIcon = getBadgeIcon();
+    const badgeOffset = useMemo(
+        () =>
+            isCommentActivityType(item.type)
+                ? COMMENT_ACTIVITY_BADGE_OFFSET
+                : DEFAULT_ACTIVITY_BADGE_OFFSET,
+        [item.type],
+    );
 
     const showActionButtons = false;
 
@@ -129,7 +144,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             <Pressable onPress={() => onProfilePress(item.actor, item)} style={tw`relative mr-3`}>
                 <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
                 {badgeIcon ? (
-                    <View style={tw`absolute -bottom-0.5 -right-0.5`}>{badgeIcon}</View>
+                    <View style={[tw`absolute`, badgeOffset]}>{badgeIcon}</View>
                 ) : null}
             </Pressable>
 
