@@ -71,7 +71,7 @@ export function ProfileHandleSheet({
                         {handle || 'Profile'}
                     </Text>
                     <Text style={tw`text-sm text-center mb-4 px-4 text-gray-500 dark:text-gray-400`}>
-                        Share your Flip profile
+                        See you on the flip side
                     </Text>
 
                     <SheetRow
