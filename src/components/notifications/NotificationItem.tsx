@@ -1,6 +1,7 @@
 import FoldedHeartIcon, { FOLDED_HEART_ACTIVITY_SIZE } from '@/components/icons/FoldedHeartIcon';
-import MegaphoneCommentIcon, {
+import {
     MEGAPHONE_COMMENT_ACTIVITY_SIZE,
+    MegaphoneCommentIconSlot,
 } from '@/components/icons/MegaphoneCommentIcon';
 import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
@@ -102,7 +103,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'video.commentReply':
             case 'video.comment':
                 return (
-                    <MegaphoneCommentIcon
+                    <MegaphoneCommentIconSlot
                         size={MEGAPHONE_COMMENT_ACTIVITY_SIZE}
                         color={activityIconColor}
                     />

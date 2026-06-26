@@ -2,7 +2,9 @@ import Avatar from '@/components/Avatar';
 import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
 import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
-import MegaphoneCommentIcon from '@/components/icons/MegaphoneCommentIcon';
+import {
+    MegaphoneCommentIconSlot,
+} from '@/components/icons/MegaphoneCommentIcon';
 import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
@@ -43,8 +45,7 @@ const OPTICAL = {
     remix: 1,
     comment: 1.17,
 } as const;
-/** Megaphone figure + waves read left-heavy in viewBox — nudge to rail centerline. */
-const COMMENT_ICON_OFFSET_X = 5;
+/** Megaphone optical offset lives in MegaphoneCommentIcon (shared with activity badge). */
 
 type FeedActionRailProps = {
     avatarUrl?: string | null;
@@ -182,9 +183,9 @@ function RemixActionIcon() {
 
 function CommentActionIcon() {
     return (
-        <ActionIconSlot opticalScale={OPTICAL.comment} opticalOffsetX={COMMENT_ICON_OFFSET_X}>
-            <MegaphoneCommentIcon size={ICON_SLOT} color={ICON_COLOR} />
-        </ActionIconSlot>
+        <View style={styles.iconShadow}>
+            <MegaphoneCommentIconSlot size={ICON_SLOT} color={ICON_COLOR} />
+        </View>
     );
 }
 
