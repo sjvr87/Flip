@@ -1,7 +1,7 @@
 import { MENTION_HANDLE_COLOR } from '@/constants/loopsPalette';
 import { ensureQueueMicrotask } from '@/utils/safeQueueMicrotask';
-import { PlatformPressable } from '@react-navigation/elements';
-import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from 'expo-router/react-navigation';
+import type { BottomTabBarButtonProps } from 'expo-router/js-tabs';
 import React from 'react';
 import { Platform } from 'react-native';
 
