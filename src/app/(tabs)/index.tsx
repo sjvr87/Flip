@@ -1105,6 +1105,11 @@ export default function LoopsFeed({ navigation }) {
 
     const handleScrollEndDrag = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const velocityY = event.nativeEvent.velocity?.y ?? 0;
+            // Let momentum run — snapping here kills the scroll and pulls back to current video.
+            if (Math.abs(velocityY) >= 0.28) {
+                return;
+            }
             snapFeedFromScroll(event);
         },
         [snapFeedFromScroll],

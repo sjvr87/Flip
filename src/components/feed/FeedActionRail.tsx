@@ -24,15 +24,16 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /** Uniform slot — Ionicons + custom SVGs share this hit area. */
 const ICON_SLOT = 30;
-/** Feed rail creator avatar — slightly larger than AVATAR_SIZES.feed (42). */
-const FEED_RAIL_AVATAR_SIZE = 46;
+/** Feed rail creator avatar — photo fills ring (no hollow padding). */
+const FEED_RAIL_AVATAR_SIZE = 48;
 const AVATAR_SIZE = FEED_RAIL_AVATAR_SIZE;
 const AVATAR_RADIUS = squircleRadius(AVATAR_SIZE);
-const AVATAR_INNER = AVATAR_SIZE + 6;
-const AVATAR_RING = AVATAR_INNER + 4;
+/** Thin ring only — image is AVATAR_SIZE, not smaller inside a larger box. */
+const AVATAR_RING = AVATAR_SIZE + 4;
+const AVATAR_INNER = AVATAR_SIZE;
 const FOLLOW_BADGE_SIZE = 28;
 /** Lift avatar + follow badge together on the action rail. */
-const FEED_AVATAR_LIFT = -6;
+const FEED_AVATAR_LIFT = -10;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 /** Reserved below every icon so counts don't shift icon vertical position. */
@@ -565,6 +566,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.35)',
+        padding: 0,
     },
     avatarRingFollowed: {
         borderColor: 'rgba(255,255,255,0.55)',
@@ -578,7 +580,7 @@ const styles = StyleSheet.create({
     followBadge: {
         position: 'absolute',
         right: -9,
-        bottom: -15,
+        bottom: -17,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,

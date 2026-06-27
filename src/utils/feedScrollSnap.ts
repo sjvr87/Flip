@@ -34,10 +34,9 @@ export function resolveFeedSnapIndex(
         return clampIndex(startIndex + dir * jump, maxIndex);
     }
 
-    // Soft swipe: position-first (past halfway commits), velocity can commit a flick early.
-    // Never mix opposing position + velocity — that caused half-swipe pull-back.
-    const COMMIT_RATIO = 0.45;
-    const FLICK_VEL = 0.32;
+    // Soft swipe: position-first; lower threshold so a normal flick commits.
+    const COMMIT_RATIO = 0.22;
+    const FLICK_VEL = 0.25;
 
     let delta = 0;
     if (dragRatio >= COMMIT_RATIO) {
@@ -48,6 +47,9 @@ export function resolveFeedSnapIndex(
         delta = 1;
     } else if (vel <= -FLICK_VEL) {
         delta = -1;
+    } else if (Math.abs(dragRatio) >= 0.12) {
+        // Partial drag with no momentum — commit toward nearest slide.
+        delta = dragRatio > 0 ? 1 : -1;
     }
 
     return clampIndex(startIndex + delta, maxIndex);
