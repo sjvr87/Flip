@@ -674,19 +674,19 @@ function VideoPlayerCore({
         setVideoReady(true);
     }, [player]);
 
-    // Android textureView may not fire onFirstFrameRender while the view is opacity:0.
+    // Fallback when onFirstFrameRender is delayed — only after playback actually starts.
     useEffect(() => {
         if (!isActive || firstFrameRendered || !isPlayerUsable(player)) {
             return;
         }
-        if (!isPlaying && playerStatus !== 'readyToPlay') {
+        if (!isPlaying || playerStatus !== 'readyToPlay') {
             return;
         }
         const timer = setTimeout(() => {
             if (isMountedRef.current && playerRef.current === player && !firstFrameRendered) {
                 setFirstFrameRendered(true);
             }
-        }, 400);
+        }, 600);
         return () => clearTimeout(timer);
     }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
 
@@ -981,11 +981,10 @@ function VideoPlayerCore({
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
-                <VideoPoster thumbnail={thumbnail} />
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={[styles.video, firstFrameRendered ? styles.videoVisible : styles.videoHidden]}
+                        style={styles.video}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -998,6 +997,7 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
+                {!firstFrameRendered ? <VideoPoster thumbnail={thumbnail} /> : null}
             </View>
 
             <GestureDetector gesture={videoTapGesture}>
@@ -1170,12 +1170,6 @@ const styles = StyleSheet.create({
         height: '100%',
         backgroundColor: 'transparent',
         zIndex: 1,
-    },
-    videoHidden: {
-        opacity: 0,
-    },
-    videoVisible: {
-        opacity: 1,
     },
     tapOverlay: {
         position: 'absolute',

@@ -275,6 +275,7 @@ export default function LoopsFeed({ navigation }) {
     useEffect(() => subscribeFeedPlaybackActive(setGuardPlaybackActive), []);
     const flatListRef = useRef(null);
     const isSnappingRef = useRef(false);
+    const rigorousSnapRef = useRef(false);
     const scrollStartIndexRef = useRef(0);
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -1095,6 +1096,7 @@ export default function LoopsFeed({ navigation }) {
     const handleScrollBeginDrag = useCallback(() => {
         scrollStartIndexRef.current = currentIndexRef.current;
         isSnappingRef.current = false;
+        rigorousSnapRef.current = false;
     }, []);
 
     const handleScrollEndDrag = useCallback(
@@ -1110,7 +1112,19 @@ export default function LoopsFeed({ navigation }) {
                     scrollStartIndexRef.current,
                 )
             ) {
-                snapFeedFromScroll(event, true);
+                const target = resolveFeedSnapIndex(
+                    contentOffset.y,
+                    feedHeight,
+                    velocityY,
+                    videosWithEnd.length,
+                    scrollStartIndexRef.current,
+                );
+                const dest = videosWithEnd[target];
+                if (dest?.media?.thumbnail) {
+                    prefetchThumbnails([dest.media.thumbnail]);
+                }
+                rigorousSnapRef.current = true;
+                snapFeedFromScroll(event, false);
                 return;
             }
 
@@ -1119,11 +1133,15 @@ export default function LoopsFeed({ navigation }) {
                 snapFeedFromScroll(event, false);
             }
         },
-        [feedHeight, snapFeedFromScroll],
+        [feedHeight, snapFeedFromScroll, videosWithEnd],
     );
 
     const handleMomentumScrollEnd = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            if (rigorousSnapRef.current) {
+                rigorousSnapRef.current = false;
+                return;
+            }
             snapFeedFromScroll(event, false);
         },
         [snapFeedFromScroll],
