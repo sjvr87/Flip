@@ -25,6 +25,7 @@ import {
     resetSessionSeen,
     softRefreshFeed,
     warmFeedTabMedia,
+    warmFeedVideosNearIndex,
 } from '@/utils/feedCache';
 import {
     getFeedNetworkProfile,
