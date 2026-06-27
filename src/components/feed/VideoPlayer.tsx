@@ -684,49 +684,34 @@ function VideoPlayerCore({
         }
     }, [player, isActive]);
 
-    // Fallback when onFirstFrameRender is delayed — only after playback actually starts.
+    // Fallback when onFirstFrameRender is delayed on Android surfaceView.
     useEffect(() => {
         if (!isActive || firstFrameRendered || !isPlayerUsable(player)) {
             return;
         }
-        if (!isPlaying || playerStatus !== 'readyToPlay') {
-            return;
-        }
-        const timer = setTimeout(() => {
-            if (isMountedRef.current && playerRef.current === player && !firstFrameRendered) {
-                setFirstFrameRendered(true);
+        let cancelled = false;
+        const revealIfPlaying = () => {
+            if (cancelled || !isMountedRef.current || playerRef.current !== player) {
+                return;
             }
-        }, 600);
-        return () => clearTimeout(timer);
+            try {
+                if (player.playing || player.status === 'readyToPlay') {
+                    setFirstFrameRendered(true);
+                    setVideoReady(true);
+                }
+            } catch {
+                // player may already be released
+            }
+        };
+        revealIfPlaying();
+        const interval = setInterval(revealIfPlaying, 120);
+        const stop = setTimeout(() => clearInterval(interval), 2500);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+            clearTimeout(stop);
+        };
     }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
-
-    // Warm the next slide: muted decode so first frame is ready before the user lands on it.
-    useEffect(() => {
-        if (!isPlayerUsable(player) || isActive || !shouldPreload || standalonePlayback) {
-            return;
-        }
-        if (!playbackAllowed || !screenFocused || firstFrameRendered) {
-            return;
-        }
-        try {
-            player.muted = true;
-            if (playerStatus === 'readyToPlay') {
-                player.play();
-            }
-        } catch {
-            // player may already be released
-        }
-    }, [
-        player,
-        playerEpoch,
-        playerStatus,
-        isActive,
-        shouldPreload,
-        standalonePlayback,
-        playbackAllowed,
-        screenFocused,
-        firstFrameRendered,
-    ]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -1019,11 +1004,10 @@ function VideoPlayerCore({
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
-                <VideoPoster thumbnail={thumbnail} />
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={styles.video}
+                        style={styles.videoUnderPoster}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -1036,11 +1020,7 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
-                {!firstFrameRendered ? (
-                    <View style={styles.posterOverlay} pointerEvents="none">
-                        <VideoPoster thumbnail={thumbnail} />
-                    </View>
-                ) : null}
+                {!firstFrameRendered ? <VideoPoster thumbnail={thumbnail} /> : null}
             </View>
 
             <GestureDetector gesture={videoTapGesture}>
@@ -1202,21 +1182,17 @@ const styles = StyleSheet.create({
     posterLayer: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: POSTER_BG,
-        zIndex: 1,
-    },
-    posterOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 3,
+        zIndex: 2,
     },
     posterImage: {
         width: '100%',
         height: '100%',
     },
-    video: {
+    videoUnderPoster: {
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',
-        zIndex: 2,
+        zIndex: 1,
     },
     tapOverlay: {
         position: 'absolute',
