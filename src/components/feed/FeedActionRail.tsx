@@ -12,7 +12,7 @@ import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { FOLLOWING_DIDS_QUERY_KEY, useFollowingDids } from '@/hooks/useFollowingDids';
 import { addAccountToFollowingCache, appendAccountToFollowingSet, followAccount } from '@/atproto';
 import { useAuthStore } from '@/utils/authStore';
-import { squircleRadius, AVATAR_SIZE as AVATAR_SIZES } from '@/utils/avatarShape';
+import { squircleRadius } from '@/utils/avatarShape';
 import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,12 +24,15 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /** Uniform slot — Ionicons + custom SVGs share this hit area. */
 const ICON_SLOT = 30;
-/** Feed avatar — squircle, slightly larger than prior 40px circle-in-48px ring. */
-const AVATAR_SIZE = AVATAR_SIZES.feed;
+/** Feed rail creator avatar — slightly larger than AVATAR_SIZES.feed (42). */
+const FEED_RAIL_AVATAR_SIZE = 46;
+const AVATAR_SIZE = FEED_RAIL_AVATAR_SIZE;
 const AVATAR_RADIUS = squircleRadius(AVATAR_SIZE);
 const AVATAR_INNER = AVATAR_SIZE + 6;
 const AVATAR_RING = AVATAR_INNER + 4;
 const FOLLOW_BADGE_SIZE = 28;
+/** Lift avatar + follow badge together on the action rail. */
+const FEED_AVATAR_LIFT = -6;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 /** Reserved below every icon so counts don't shift icon vertical position. */
@@ -570,11 +573,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 2,
         overflow: 'visible',
+        transform: [{ translateY: FEED_AVATAR_LIFT }],
     },
     followBadge: {
         position: 'absolute',
-        right: -8,
-        bottom: -14,
+        right: -9,
+        bottom: -15,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,
