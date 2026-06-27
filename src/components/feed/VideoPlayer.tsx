@@ -978,19 +978,14 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface =
-        isActive &&
-        (firstFrameRendered || (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
-    const hidePoster = showVideoSurface;
-
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
-                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
+                <VideoPoster thumbnail={thumbnail} />
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={styles.video}
+                        style={[styles.video, firstFrameRendered ? styles.videoVisible : styles.videoHidden]}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -1175,6 +1170,12 @@ const styles = StyleSheet.create({
         height: '100%',
         backgroundColor: 'transparent',
         zIndex: 1,
+    },
+    videoHidden: {
+        opacity: 0,
+    },
+    videoVisible: {
+        opacity: 1,
     },
     tapOverlay: {
         position: 'absolute',

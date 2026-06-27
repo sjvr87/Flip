@@ -40,7 +40,7 @@ import {
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
 import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets } from '@/utils/tabBarLayout';
-import { resolveFeedSnapIndex } from '@/utils/feedScrollSnap';
+import { resolveFeedSnapIndex, isRigorousFeedSwipe } from '@/utils/feedScrollSnap';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
     cancelOffscreenPrefetch,
@@ -776,7 +776,6 @@ export default function LoopsFeed({ navigation }) {
 
             if (newIndex !== currentIndexRef.current) {
                 pauseAllFeedPlayers();
-                releaseAllVideoPrefetch();
             }
 
             maybeLoadMoreVideos(newIndex);
@@ -1068,7 +1067,7 @@ export default function LoopsFeed({ navigation }) {
     }, [maybeLoadMoreVideos]);
 
     const snapFeedFromScroll = useCallback(
-        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        (event: NativeSyntheticEvent<NativeScrollEvent>, animated = true) => {
             const { contentOffset, velocity } = event.nativeEvent;
             const target = resolveFeedSnapIndex(
                 contentOffset.y,
@@ -1084,15 +1083,10 @@ export default function LoopsFeed({ navigation }) {
                 return;
             }
 
-            if (isSnappingRef.current) {
-                isSnappingRef.current = false;
-                return;
-            }
-
             isSnappingRef.current = true;
             flatListRef.current?.scrollToOffset({
                 offset: targetOffset,
-                animated: false,
+                animated,
             });
         },
         [feedHeight, videosWithEnd.length],
@@ -1105,19 +1099,32 @@ export default function LoopsFeed({ navigation }) {
 
     const handleScrollEndDrag = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const velocityY = event.nativeEvent.velocity?.y ?? 0;
-            // Let momentum run — snapping here kills the scroll and pulls back to current video.
-            if (Math.abs(velocityY) >= 0.28) {
+            const { contentOffset, velocity } = event.nativeEvent;
+            const velocityY = velocity?.y ?? 0;
+
+            if (
+                isRigorousFeedSwipe(
+                    contentOffset.y,
+                    feedHeight,
+                    velocityY,
+                    scrollStartIndexRef.current,
+                )
+            ) {
+                snapFeedFromScroll(event, true);
                 return;
             }
-            snapFeedFromScroll(event);
+
+            // Slow release with no momentum — lock to exactly one video (or stay put).
+            if (Math.abs(velocityY) < 0.35) {
+                snapFeedFromScroll(event, false);
+            }
         },
-        [snapFeedFromScroll],
+        [feedHeight, snapFeedFromScroll],
     );
 
     const handleMomentumScrollEnd = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-            snapFeedFromScroll(event);
+            snapFeedFromScroll(event, false);
         },
         [snapFeedFromScroll],
     );
@@ -1247,9 +1254,12 @@ export default function LoopsFeed({ navigation }) {
                     extraData={currentIndex}
                     renderItem={renderItem}
                     keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                    pagingEnabled={false}
+                    pagingEnabled
                     showsVerticalScrollIndicator={false}
                     decelerationRate="fast"
+                    snapToInterval={feedHeight}
+                    snapToAlignment="start"
+                    disableIntervalMomentum
                     onScrollBeginDrag={handleScrollBeginDrag}
                     onScrollEndDrag={handleScrollEndDrag}
                     onMomentumScrollEnd={handleMomentumScrollEnd}
