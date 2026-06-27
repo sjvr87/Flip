@@ -21,6 +21,7 @@ import {
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
+    getCachedFeedVideos,
     markVideoSeenInSession,
     resetSessionSeen,
     softRefreshFeed,
@@ -42,7 +43,7 @@ import {
 } from '@/utils/feedPlaybackGuard';
 import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets } from '@/utils/tabBarLayout';
 import { resolveFeedSnapIndex, isRigorousFeedSwipe } from '@/utils/feedScrollSnap';
-import { feedQueryFn, feedVideosQueryKey } from '@/utils/feedQuery';
+import { feedInfiniteQueryOptions, feedQueryFn, feedVideosQueryKey } from '@/utils/feedQuery';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
     cancelOffscreenPrefetch,
@@ -242,6 +243,11 @@ export default function LoopsFeed({ navigation }) {
     const isSnappingRef = useRef(false);
     const rigorousSnapRef = useRef(false);
     const scrollStartIndexRef = useRef(0);
+    const tabScrollIndexRef = useRef<Record<FeedTab, number>>({
+        following: 0,
+        forYou: 0,
+        trending: 0,
+    });
     const router = useRouter();
     const queryClient = useQueryClient();
     const currentVideoRef = useRef(null);
@@ -275,10 +281,7 @@ export default function LoopsFeed({ navigation }) {
             });
             void queryClient
                 .prefetchInfiniteQuery({
-                    queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
-                    queryFn: feedQueryFn,
-                    initialPageParam: null,
-                    staleTime: getFeedStaleMs(tab),
+                    ...feedInfiniteQueryOptions(tab, epoch, viewerDid, getFeedStaleMs(tab)),
                 })
                 .then(() => {
                     warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
@@ -324,14 +327,7 @@ export default function LoopsFeed({ navigation }) {
         isFetching,
         isRefetching,
     } = useInfiniteQuery({
-        queryKey: feedVideosQueryKey(activeTab, feedEpoch, viewerDid),
-        queryFn: feedQueryFn,
-        getNextPageParam: (lastPage) => {
-            const cursor = lastPage.meta?.next_cursor;
-            return cursor && cursor.length > 0 ? cursor : undefined;
-        },
-        initialPageParam: null,
-        staleTime: getFeedStaleMs(activeTab),
+        ...feedInfiniteQueryOptions(activeTab, feedEpoch, viewerDid, getFeedStaleMs(activeTab)),
         gcTime: FEED_GC_MS,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
@@ -493,10 +489,7 @@ export default function LoopsFeed({ navigation }) {
             });
             void queryClient
                 .prefetchInfiniteQuery({
-                    queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
-                    queryFn: feedQueryFn,
-                    initialPageParam: null,
-                    staleTime: getFeedStaleMs(tab),
+                    ...feedInfiniteQueryOptions(tab, epoch, viewerDid, getFeedStaleMs(tab)),
                 })
                 .then(() => {
                     warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
@@ -514,6 +507,9 @@ export default function LoopsFeed({ navigation }) {
                 return;
             }
 
+            const prevTab = activeTabRef.current;
+            tabScrollIndexRef.current[prevTab] = currentIndexRef.current;
+
             warmFeedTabMedia(queryClient, tab, feedEpochsRef.current[tab] ?? 0, viewerDid, {
                 prefetchThumbnails,
                 prefetchVideoUrls,
@@ -529,15 +525,19 @@ export default function LoopsFeed({ navigation }) {
             currentVideoRef.current = null;
             watchStartTimeRef.current = null;
 
+            const restoredIndex = tabScrollIndexRef.current[tab] ?? 0;
             setActiveTab(tab);
-            setCurrentIndex(0);
-            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+            setCurrentIndex(restoredIndex);
 
             requestAnimationFrame(() => {
+                flatListRef.current?.scrollToOffset({
+                    offset: restoredIndex * feedHeight,
+                    animated: false,
+                });
                 refreshFeedIfStale(tab, feedEpochsRef.current[tab] ?? 0);
             });
         },
-        [queryClient, refreshFeedIfStale, viewerDid],
+        [queryClient, refreshFeedIfStale, viewerDid, feedHeight],
     );
 
     useEffect(() => {
@@ -747,6 +747,7 @@ export default function LoopsFeed({ navigation }) {
             maybeLoadMoreVideos(newIndex);
 
             setCurrentIndex(newIndex);
+            tabScrollIndexRef.current[activeTabRef.current] = newIndex;
             currentVideoRef.current = newVideo;
             watchStartTimeRef.current = Date.now();
 
@@ -1007,7 +1008,14 @@ export default function LoopsFeed({ navigation }) {
     );
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
-    const showInitialLoader = !feedQueryEnabled || (isLoading && !hasFeedData);
+    const cachedFeedData = getCachedFeedVideos(
+        queryClient,
+        activeTab,
+        feedEpoch,
+        viewerDid,
+    );
+    const showInitialLoader =
+        !feedQueryEnabled || (isLoading && !hasFeedData && cachedFeedData.length === 0);
 
     useEffect(() => {
         if (!showInitialLoader) {
@@ -1235,7 +1243,6 @@ export default function LoopsFeed({ navigation }) {
             ) : (
                 <FeedScrollGestureRoot>
                     <FlatList
-                    key={activeTab}
                     ref={flatListRef}
                     style={styles.feedList}
                     data={videosWithEnd}

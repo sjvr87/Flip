@@ -38,3 +38,22 @@ export const feedQueryFn = ({
 
 export const feedVideosQueryKey = (tab: FeedTab, epoch: number, viewerDid?: string | null) =>
     ['videos', tab, epoch, viewerDid ?? 'anon'] as const;
+
+export function getFeedNextPageParam(lastPage: { meta?: { next_cursor?: string | null } }) {
+    const cursor = lastPage.meta?.next_cursor;
+    return cursor && cursor.length > 0 ? cursor : undefined;
+}
+
+/** Shared infinite-query options for feed tabs (prefetch + useInfiniteQuery). */
+export const feedInfiniteQueryOptions = (
+    tab: FeedTab,
+    epoch: number,
+    viewerDid: string | null | undefined,
+    staleTime: number,
+) => ({
+    queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
+    queryFn: feedQueryFn,
+    initialPageParam: null as string | null,
+    getNextPageParam: getFeedNextPageParam,
+    staleTime,
+});

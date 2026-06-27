@@ -173,10 +173,11 @@ function VideoPlayer({
         );
     }
 
-    return (
+        return (
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            shouldPreload={shouldPreload}
             standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
             videoTopInset={videoTopInset}
@@ -208,6 +209,7 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    shouldPreload = true,
     standalonePlayback = false,
     feedHeight,
     videoTopInset = 0,
@@ -672,7 +674,15 @@ function VideoPlayerCore({
         }
         setFirstFrameRendered(true);
         setVideoReady(true);
-    }, [player]);
+        if (!isActive && isPlayerUsable(player)) {
+            try {
+                player.pause();
+                player.currentTime = 0;
+            } catch {
+                // player may already be released
+            }
+        }
+    }, [player, isActive]);
 
     // Fallback when onFirstFrameRender is delayed — only after playback actually starts.
     useEffect(() => {
@@ -689,6 +699,34 @@ function VideoPlayerCore({
         }, 600);
         return () => clearTimeout(timer);
     }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
+
+    // Warm the next slide: muted decode so first frame is ready before the user lands on it.
+    useEffect(() => {
+        if (!isPlayerUsable(player) || isActive || !shouldPreload || standalonePlayback) {
+            return;
+        }
+        if (!playbackAllowed || !screenFocused || firstFrameRendered) {
+            return;
+        }
+        try {
+            player.muted = true;
+            if (playerStatus === 'readyToPlay') {
+                player.play();
+            }
+        } catch {
+            // player may already be released
+        }
+    }, [
+        player,
+        playerEpoch,
+        playerStatus,
+        isActive,
+        shouldPreload,
+        standalonePlayback,
+        playbackAllowed,
+        screenFocused,
+        firstFrameRendered,
+    ]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -981,6 +1019,7 @@ function VideoPlayerCore({
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
+                <VideoPoster thumbnail={thumbnail} />
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
@@ -997,7 +1036,11 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
-                {!firstFrameRendered ? <VideoPoster thumbnail={thumbnail} /> : null}
+                {!firstFrameRendered ? (
+                    <View style={styles.posterOverlay} pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
+                    </View>
+                ) : null}
             </View>
 
             <GestureDetector gesture={videoTapGesture}>
@@ -1159,7 +1202,11 @@ const styles = StyleSheet.create({
     posterLayer: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: POSTER_BG,
-        zIndex: 2,
+        zIndex: 1,
+    },
+    posterOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 3,
     },
     posterImage: {
         width: '100%',
@@ -1169,7 +1216,7 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',
-        zIndex: 1,
+        zIndex: 2,
     },
     tapOverlay: {
         position: 'absolute',
