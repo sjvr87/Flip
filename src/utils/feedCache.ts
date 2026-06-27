@@ -110,7 +110,13 @@ export function getCachedFeedVideos(
     );
 }
 
-/** Warm thumbnails (and first video on iOS) before switching to a tab. */
+/** Default first-screen warm counts — thumbnails are cheap on Android. */
+export const FEED_TAB_WARM_THUMB_COUNT = 8;
+export const FEED_TAB_WARM_VIDEO_COUNT = 2;
+/** Thumbnails to warm around the active index while scrolling. */
+export const FEED_SCROLL_THUMB_RADIUS = 5;
+
+/** Warm thumbnails (and first videos on iOS) before switching to a tab. */
 export function warmFeedTabMedia(
     queryClient: QueryClient,
     tab: FeedTab,
@@ -128,8 +134,8 @@ export function warmFeedTabMedia(
         return;
     }
 
-    const thumbCount = options.thumbCount ?? 3;
-    const videoCount = options.videoCount ?? 1;
+    const thumbCount = options.thumbCount ?? FEED_TAB_WARM_THUMB_COUNT;
+    const videoCount = options.videoCount ?? FEED_TAB_WARM_VIDEO_COUNT;
     const thumbSlice = videos.slice(0, thumbCount);
     options.prefetchThumbnails(
         thumbSlice.flatMap((video) => [video.media?.thumbnail, video.account?.avatar]),
@@ -142,6 +148,31 @@ export function warmFeedTabMedia(
     if (videoUrls.length > 0) {
         options.prefetchVideoUrls(videoUrls);
     }
+}
+
+/** Warm thumbnails for videos near an index (scroll / hard-skip landing). */
+export function warmFeedVideosNearIndex(
+    videos: FlipVideo[],
+    centerIndex: number,
+    prefetchThumbnails: (urls: (string | undefined | null)[]) => void,
+    radius = FEED_SCROLL_THUMB_RADIUS,
+): void {
+    if (videos.length === 0 || centerIndex < 0) {
+        return;
+    }
+    const start = Math.max(0, centerIndex - 1);
+    const end = Math.min(videos.length - 1, centerIndex + radius);
+    const urls: (string | undefined | null)[] = [];
+    for (let i = start; i <= end; i += 1) {
+        const video = videos[i];
+        if (video?.media?.thumbnail) {
+            urls.push(video.media.thumbnail);
+        }
+        if (video?.account?.avatar) {
+            urls.push(video.account.avatar);
+        }
+    }
+    prefetchThumbnails(urls);
 }
 
 /** Optimistically sync comment count on main-feed and profile-reel cards. */

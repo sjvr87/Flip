@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 
 const prefetched = new Set<string>();
-const MAX_THUMBNAIL_PREFETCH = 16;
+const MAX_THUMBNAIL_PREFETCH = 40;
 
 /** Warm thumbnail/avatar URLs into expo-image disk cache (safe on Android). */
 export function prefetchThumbnails(urls: (string | undefined | null)[]): void {

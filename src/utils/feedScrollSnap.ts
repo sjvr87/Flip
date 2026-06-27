@@ -15,7 +15,11 @@ export function isRigorousFeedSwipe(
     }
     const vel = velocityY ?? 0;
     const dragRatio = (offsetY - startIndex * feedHeight) / feedHeight;
-    return Math.abs(vel) >= 2.75 && Math.abs(dragRatio) >= 0.2;
+    // Android often reports lower velocity — also allow long drags to qualify.
+    if (Math.abs(dragRatio) >= 0.55 && Math.abs(vel) >= 1.2) {
+        return true;
+    }
+    return Math.abs(vel) >= 2.1 && Math.abs(dragRatio) >= 0.15;
 }
 
 /**
@@ -41,7 +45,10 @@ export function resolveFeedSnapIndex(
     if (isRigorousFeedSwipe(offsetY, feedHeight, velocityY, startIndex)) {
         const jump = Math.min(
             5,
-            Math.max(3, Math.max(Math.round(Math.abs(vel) * 0.85), Math.round(Math.abs(dragRatio)))),
+            Math.max(
+                2,
+                Math.max(Math.round(Math.abs(dragRatio)), Math.round(Math.abs(vel) * 0.75)),
+            ),
         );
         const dir = vel > 0 ? 1 : dragRatio > 0 ? 1 : -1;
         return clampIndex(startIndex + dir * jump, maxIndex);

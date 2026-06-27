@@ -37,9 +37,9 @@ const WIFI_PROFILE: FeedNetworkProfile = {
     playerPreloadDistance: 1,
     prefetchAhead: 1,
     bufferOptions: {
-        preferredForwardBufferDuration: 12,
+        preferredForwardBufferDuration: 8,
         waitsToMinimizeStalling: true,
-        minBufferForPlayback: 2.5,
+        minBufferForPlayback: 1,
         maxBufferBytes: null,
     },
 };
