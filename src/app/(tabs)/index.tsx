@@ -44,7 +44,7 @@ import {
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
 import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets } from '@/utils/tabBarLayout';
-import { resolveFeedSnapIndex, isRigorousFeedSwipe } from '@/utils/feedScrollSnap';
+import { resolveFeedSnapIndex, isRigorousFeedSwipe, nearestFeedSnapIndex } from '@/utils/feedScrollSnap';
 import { feedInfiniteQueryOptions, feedQueryFn, feedVideosQueryKey } from '@/utils/feedQuery';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
@@ -1060,7 +1060,7 @@ export default function LoopsFeed({ navigation }) {
     const snapFeedFromScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>, animated = true) => {
             const { contentOffset, velocity } = event.nativeEvent;
-            const target = resolveFeedSnapIndex(
+            let target = resolveFeedSnapIndex(
                 contentOffset.y,
                 feedHeight,
                 velocity?.y,
@@ -1068,6 +1068,19 @@ export default function LoopsFeed({ navigation }) {
                 scrollStartIndexRef.current,
                 scrollEndDragVelocityRef.current,
             );
+
+            const nearest = nearestFeedSnapIndex(
+                contentOffset.y,
+                feedHeight,
+                videosWithEnd.length,
+            );
+            if (
+                Math.abs(target - nearest) >= 1 &&
+                Math.abs(contentOffset.y - nearest * feedHeight) < feedHeight * 0.45
+            ) {
+                target = nearest;
+            }
+
             const targetOffset = target * feedHeight;
             const start = scrollStartIndexRef.current;
 
@@ -1076,7 +1089,7 @@ export default function LoopsFeed({ navigation }) {
                 warmFeedVideosInRange(videosRef.current, start, target, prefetchThumbnails);
             }
 
-            if (Math.abs(contentOffset.y - targetOffset) <= 1) {
+            if (Math.abs(contentOffset.y - targetOffset) <= 2) {
                 isSnappingRef.current = false;
                 return;
             }
