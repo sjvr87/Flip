@@ -710,7 +710,7 @@ if ($Reconnect) {
   $ok = Write-DevStatus -ReverseOk $reverseOk
   Write-Host ""
   Write-Host "Scripts: flip-reset-dev.bat (nuclear) | flip-reload.bat (JS tweak)"
-  Write-Host "Tip: do not tap Flip icon after crash — reopening uses a stale dev-server URL."
+  Write-Host 'Tip: do not tap Flip icon after crash - reopening uses a stale dev-server URL.'
   exit $(if ($ok) { 0 } else { 1 })
 }
 
