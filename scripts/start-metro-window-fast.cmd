@@ -9,6 +9,12 @@ if not exist "package.json" (
 set CI=
 set EXPO_NO_TELEMETRY=1
 set EXPO_PUBLIC_USE_RN_FETCH=1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0test-metro-healthy.ps1" >nul 2>&1
+if not errorlevel 1 (
+  echo Metro already running on port 8081 - reusing existing bundler.
+  echo Close the "Flip Metro" taskbar window first if you need a fresh start, or run flip-kill-metro.bat
+  exit /b 0
+)
 call "%~dp0kill-metro-port-8081.cmd"
 if defined FLIP_DEV_HOSTNAME (
   set REACT_NATIVE_PACKAGER_HOSTNAME=%FLIP_DEV_HOSTNAME%

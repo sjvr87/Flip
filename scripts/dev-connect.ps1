@@ -753,6 +753,7 @@ Write-Host '- flip-sync.bat: adb reverse + wait for Metro (no launch; phone stay
 Write-Host '- flip-dev-restart.bat: pull + force Metro recycle if unhealthy (clear cache)'
 Write-Host ''
 Write-Host '=== Troubleshooting ===' -ForegroundColor Cyan
+Write-Host '- EADDRINUSE port 8081: flip-kill-metro.bat then flip-dev-restart.bat (one Metro window only)'
 Write-Host '- App will not connect at all: flip-reset-dev.bat or flip-reconnect.bat (USB cable plugged in)'
 Write-Host '- Do NOT reopen Flip from the app icon after a failed load - that reuses a stale dev-server URL'
 Write-Host '- USB: data cable + adb reverse to exp://127.0.0.1:8081 (preferred, no Wi-Fi required)'
