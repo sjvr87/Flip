@@ -2,7 +2,9 @@ import Avatar from '@/components/Avatar';
 import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
 import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
-import MegaphoneCommentIcon from '@/components/icons/MegaphoneCommentIcon';
+import {
+    MegaphoneCommentIconSlot,
+} from '@/components/icons/MegaphoneCommentIcon';
 import RemixVinylIcon from '@/components/icons/RemixVinylIcon';
 import SpeakerSoundIcon from '@/components/icons/SpeakerSoundIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
@@ -10,6 +12,7 @@ import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { FOLLOWING_DIDS_QUERY_KEY, useFollowingDids } from '@/hooks/useFollowingDids';
 import { addAccountToFollowingCache, appendAccountToFollowingSet, followAccount } from '@/atproto';
 import { useAuthStore } from '@/utils/authStore';
+import { squircleRadius } from '@/utils/avatarShape';
 import { ensureQueueMicrotask, safeQueueMicrotask } from '@/utils/safeQueueMicrotask';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -21,12 +24,16 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /** Uniform slot — Ionicons + custom SVGs share this hit area. */
 const ICON_SLOT = 30;
-/** Feed avatar — squircle, slightly larger than prior 40px circle-in-48px ring. */
-const AVATAR_SIZE = 48;
-const AVATAR_RADIUS = 14;
-const AVATAR_INNER = AVATAR_SIZE + 6;
-const AVATAR_RING = AVATAR_INNER + 4;
+/** Feed rail creator avatar — photo fills ring (no hollow padding). */
+const FEED_RAIL_AVATAR_SIZE = 48;
+const AVATAR_SIZE = FEED_RAIL_AVATAR_SIZE;
+const AVATAR_RADIUS = squircleRadius(AVATAR_SIZE);
+/** Thin ring only — image is AVATAR_SIZE, not smaller inside a larger box. */
+const AVATAR_RING = AVATAR_SIZE + 4;
+const AVATAR_INNER = AVATAR_SIZE;
 const FOLLOW_BADGE_SIZE = 28;
+/** Lift avatar + follow badge together on the action rail. */
+const FEED_AVATAR_LIFT = -10;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
 /** Reserved below every icon so counts don't shift icon vertical position. */
@@ -42,8 +49,7 @@ const OPTICAL = {
     remix: 1,
     comment: 1.17,
 } as const;
-/** Megaphone figure + waves read left-heavy in viewBox — nudge to rail centerline. */
-const COMMENT_ICON_OFFSET_X = 5;
+/** Megaphone optical offset lives in MegaphoneCommentIcon (shared with activity badge). */
 
 type FeedActionRailProps = {
     avatarUrl?: string | null;
@@ -181,9 +187,9 @@ function RemixActionIcon() {
 
 function CommentActionIcon() {
     return (
-        <ActionIconSlot opticalScale={OPTICAL.comment} opticalOffsetX={COMMENT_ICON_OFFSET_X}>
-            <MegaphoneCommentIcon size={ICON_SLOT} color={ICON_COLOR} />
-        </ActionIconSlot>
+        <View style={styles.iconShadow}>
+            <MegaphoneCommentIconSlot size={ICON_SLOT} color={ICON_COLOR} />
+        </View>
     );
 }
 
@@ -560,6 +566,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.35)',
+        padding: 0,
     },
     avatarRingFollowed: {
         borderColor: 'rgba(255,255,255,0.55)',
@@ -568,11 +575,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 2,
         overflow: 'visible',
+        transform: [{ translateY: FEED_AVATAR_LIFT }],
     },
     followBadge: {
         position: 'absolute',
-        right: -8,
-        bottom: -14,
+        right: -9,
+        bottom: -17,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,

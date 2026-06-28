@@ -1,5 +1,7 @@
 import MentionText from '@/components/MentionText';
+import Avatar from '@/components/Avatar';
 import { useTheme } from '@/contexts/ThemeContext';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import { useDebounce } from '@/hooks/useDebounce';
 import { fetchAccountBlocks, searchAccountBlocks, unblockAccount } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,7 +87,7 @@ export default function BlockedAccountsScreen() {
     const renderItem = ({ item }) => (
         <View
             style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black border-b border-gray-100 dark:border-gray-800`}>
-            <Image source={{ uri: item.account.avatar }} style={tw`w-12 h-12 rounded-full mr-3`} />
+            <Avatar url={item.account.avatar} width={AVATAR_SIZE.row} style={tw`mr-3`} />
             <View style={tw`flex-1`}>
                 <Text style={tw`text-base font-semibold text-gray-900 dark:text-white`}>
                     {item.account.name}

@@ -7,6 +7,7 @@ import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useFeatureFlag } from '@/hooks/useServerConfig';
 import { useAuthStore } from '@/utils/authStore';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import {
     commentDelete,
     commentLike,
@@ -759,7 +760,7 @@ export default function CommentsModal({
     const renderReply = ({ item: reply }) => (
         <View style={tw`flex-row py-3 pl-11 pr-4 gap-2`}>
             <PressableHaptics onPress={() => handleProfilePress(reply.account?.id)}>
-                <Avatar url={reply.account.avatar} size={28} />
+                <Avatar url={reply.account.avatar} width={AVATAR_SIZE.reply} />
             </PressableHaptics>
             <View style={tw`flex-1`}>
                 <View style={tw`flex-row items-center gap-2 mb-1`}>
@@ -904,7 +905,7 @@ export default function CommentsModal({
             <View
                 style={tw.style(`flex-row p-4 gap-3`, expandedComments.has(comment.id) && 'pb-0')}>
                 <PressableHaptics onPress={() => handleProfilePress(comment.account?.id)}>
-                    <Avatar url={comment.account.avatar} size={36} />
+                    <Avatar url={comment.account.avatar} width={AVATAR_SIZE.explore} />
                 </PressableHaptics>
                 <View style={tw`flex-1`}>
                     <View style={tw`flex flex-row items-center gap-2 mb-1`}>
@@ -1144,7 +1145,7 @@ export default function CommentsModal({
                             `flex flex-row items-center p-3 border-t border-gray-200 dark:border-gray-700 gap-3 bg-white dark:bg-black`,
                             { paddingBottom: tabBarMetrics.paddingBottom + 8 },
                         )}>
-                        <Avatar url={user?.avatar} size={32} />
+                        <Avatar url={user?.avatar} width={AVATAR_SIZE.comment} />
                         <TextInput
                             style={tw`flex-1 bg-white dark:bg-[#1c1c1e] text-black dark:text-white rounded-2xl border border-gray-300 dark:border-gray-600 px-4 py-3 max-h-[100px] text-[15px]`}
                             placeholder="Add a comment..."

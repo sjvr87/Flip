@@ -2,9 +2,7 @@ import { Divider, SectionHeader, SettingsItem } from '@/components/settings/Stac
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
-import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
 import { openBrowser } from '@/utils/requests';
-import { shareContent } from '@/utils/sharer';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
@@ -12,11 +10,11 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function SettingsScreen() {
-    const { logOut, resetOnboarding, user } = useAuthStore();
+    const { logOut } = useAuthStore();
     const router = useRouter();
     const queryClient = useQueryClient();
     const notificationStore = useNotificationStore();
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
 
     const performLogOut = async () => {
         queryClient.clear();
@@ -43,32 +41,13 @@ export default function SettingsScreen() {
         await openBrowser('https://github.com/joinloops/loops-expo/issues/new');
     };
 
-    const handleShare = async () => {
-        try {
-            await shareContent({
-                message: `Check out my account on Flip!`,
-                url: getProfileUrl(user),
-            });
-        } catch (error) {
-            console.error('Share error:', error);
-        }
-    };
-
-    const handleCopyProfileLink = async () => {
-        try {
-            await copyProfileLink(user);
-        } catch (error) {
-            console.error('Copy profile link error:', error);
-        }
-    };
-
     return (
-        <View style={tw`flex-1 bg-gray-100 dark:bg-black`}>
+        <View style={{ flex: 1, backgroundColor: colors.surfaceElevated }}>
             <Stack.Screen
                 options={{
                     title: 'Settings and privacy',
-                    headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: isDark ? '#fff' : '#000',
+                    headerStyle: { backgroundColor: colors.background },
+                    headerTintColor: colors.text,
                     headerBackVisible: false,
                     headerShown: true,
                     headerLeft: () => (
@@ -84,7 +63,7 @@ export default function SettingsScreen() {
                             <Ionicons
                                 name="chevron-back"
                                 size={24}
-                                color={isDark ? '#fff' : '#000'}
+                                color={colors.text}
                             />
                         </TouchableOpacity>
                     ),
@@ -110,18 +89,6 @@ export default function SettingsScreen() {
                     onPress={() => router.push('/private/settings/security')}
                 />
 
-                <Divider />
-                <SettingsItem
-                    icon="share-outline"
-                    label="Share profile"
-                    onPress={() => handleShare()}
-                />
-                <Divider />
-                <SettingsItem
-                    icon="copy-outline"
-                    label="Copy profile link"
-                    onPress={() => handleCopyProfileLink()}
-                />
                 <Divider />
                 <SectionHeader title="Content & Display" />
                 <SettingsItem
@@ -180,7 +147,7 @@ export default function SettingsScreen() {
                     onPress={() => handleSignOut()}
                 />
                 <View style={tw`flex justify-center items-center mt-5 mb-20`}>
-                    <Text style={tw`text-gray-500`}>Flip v1.0.2.4</Text>
+                    <Text style={{ color: colors.textMuted }}>Flip v1.0.2.4</Text>
                 </View>
             </ScrollView>
         </View>

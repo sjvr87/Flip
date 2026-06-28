@@ -1,7 +1,6 @@
 import { useThemeStore } from '@/components/ui/useThemeStore';
 import { getLoopsColors, type LoopsThemeColors } from '@/constants/loopsPalette';
 import { Storage } from '@/utils/cache';
-import { isWeb } from '@/utils/runtime';
 import React, {
     PropsWithChildren,
     createContext,
@@ -10,9 +9,10 @@ import React, {
     useEffect,
     useMemo,
     useRef,
+    useState,
 } from 'react';
 import { useColorScheme as useSystemColorScheme } from 'react-native';
-import tw, { useAppColorScheme, useDeviceContext } from 'twrnc';
+import tw, { useDeviceContext } from 'twrnc';
 
 export const storage = Storage;
 
@@ -38,47 +38,63 @@ function readPersistedColorScheme(): ColorScheme {
     return 'device';
 }
 
+function resolveColorScheme(
+    preference: ColorScheme,
+    systemColorScheme: 'light' | 'dark' | null | undefined,
+): ResolvedColorScheme {
+    if (preference === 'device') {
+        return systemColorScheme === 'dark' ? 'dark' : 'light';
+    }
+    return preference;
+}
+
 export const ThemeProvider = (props: PropsWithChildren) => {
-    const initialColorScheme = useMemo(() => readPersistedColorScheme(), []);
-
-    useDeviceContext(tw, {
-        // Web: observing system theme changes can re-trigger twrnc and loop ContextNavigator.
-        observeDeviceColorSchemeChanges: !isWeb,
-        initialColorScheme,
-    });
-
-    const [colorScheme, toggleColorScheme, setTwrncColorScheme] = useAppColorScheme(tw);
+    const [preference, setPreference] = useState<ColorScheme>(() => readPersistedColorScheme());
     const systemColorScheme = useSystemColorScheme();
 
-    const resolvedColorScheme = useMemo<ResolvedColorScheme>(() => {
-        if (colorScheme === 'device') {
-            return systemColorScheme === 'dark' ? 'dark' : 'light';
-        }
-        return colorScheme;
-    }, [colorScheme, systemColorScheme]);
+    const resolvedColorScheme = useMemo(
+        () => resolveColorScheme(preference, systemColorScheme),
+        [preference, systemColorScheme],
+    );
+
+    // twrnc only understands light/dark — never pass the literal string "device".
+    useDeviceContext(tw, {
+        observeDeviceColorSchemeChanges: false,
+        initialColorScheme: resolveColorScheme(readPersistedColorScheme(), systemColorScheme),
+    });
+
+    const [, setTwRevision] = useState(0);
+
+    useEffect(() => {
+        tw.setColorScheme(resolvedColorScheme);
+        setTwRevision((revision) => revision + 1);
+    }, [resolvedColorScheme]);
 
     const isDark = resolvedColorScheme === 'dark';
     const colors = useMemo(() => getLoopsColors(isDark), [isDark]);
     const skipFirstPersist = useRef(true);
 
-    const setColorScheme = useCallback(
-        (scheme: ColorScheme) => {
-            setTwrncColorScheme(scheme);
-        },
-        [setTwrncColorScheme],
-    );
+    const setColorScheme = useCallback((scheme: ColorScheme) => {
+        setPreference(scheme);
+        storage.set('colorScheme', scheme);
+    }, []);
 
     const toggleTheme = useCallback(() => {
-        toggleColorScheme();
-    }, [toggleColorScheme]);
+        setPreference((current) => {
+            const resolved = resolveColorScheme(current, systemColorScheme);
+            const next: ColorScheme = resolved === 'dark' ? 'light' : 'dark';
+            storage.set('colorScheme', next);
+            return next;
+        });
+    }, [systemColorScheme]);
 
     useEffect(() => {
         if (skipFirstPersist.current) {
             skipFirstPersist.current = false;
             return;
         }
-        storage.set('colorScheme', colorScheme as string);
-    }, [colorScheme]);
+        storage.set('colorScheme', preference);
+    }, [preference]);
 
     useEffect(() => {
         useThemeStore.getState().setMode(resolvedColorScheme);
@@ -87,7 +103,7 @@ export const ThemeProvider = (props: PropsWithChildren) => {
     return (
         <ThemeContext.Provider
             value={{
-                colorScheme: colorScheme as ColorScheme,
+                colorScheme: preference,
                 resolvedColorScheme,
                 isDark,
                 colors,

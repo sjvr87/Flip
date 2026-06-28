@@ -52,6 +52,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import tw from 'twrnc';
 
 const { width } = Dimensions.get('window');
@@ -151,6 +152,8 @@ function NetworkPostsSkeleton() {
     return (
         <ScrollView
             horizontal
+            nestedScrollEnabled
+            directionalLockEnabled
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={tw`px-4`}>
             {Array.from({ length: 3 }, (_, index) => (
@@ -260,7 +263,7 @@ const ExploreTextPostCard = memo(function ExploreTextPostCard({
             ]}>
             <View style={[tw`flex-1 px-4 pt-4`, { minHeight: 0 }]}>
                 <Pressable onPress={onOpenProfile} style={tw`flex-row items-center mb-2`}>
-                    <Avatar url={item.account.avatar} width={36} onPress={onOpenProfile} />
+                    <Avatar url={item.account.avatar} width={AVATAR_SIZE.explore} onPress={onOpenProfile} />
                     <View style={tw`ml-2.5 flex-1`}>
                         <Text
                             style={tw`text-black font-semibold text-sm dark:text-white`}
@@ -535,6 +538,8 @@ const ExploreListHeader = memo(function ExploreListHeader({
                 ) : textPosts.length > 0 ? (
                     <ScrollView
                         horizontal
+                        nestedScrollEnabled
+                        directionalLockEnabled
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={tw`px-4`}>
                         {textPosts.map((item) => (
@@ -569,6 +574,8 @@ const ExploreListHeader = memo(function ExploreListHeader({
                 ) : validTags.length > 0 ? (
                     <ScrollView
                         horizontal
+                        nestedScrollEnabled
+                        directionalLockEnabled
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={tw`px-4`}>
                         {validTags.map((item) => (

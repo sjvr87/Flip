@@ -4,6 +4,7 @@ import LinkifiedCaption from '@/components/feed/LinkifiedCaption';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { FlipVideo } from '@/atproto/types';
 import { toProfilePath } from '@/utils/profileNavigation';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -90,7 +91,7 @@ export default function CaptionExpandModal({
                         <TouchableOpacity
                             style={tw`flex-row items-center mb-3`}
                             onPress={() => navigateAway(toProfilePath(item.account.id))}>
-                            <Avatar url={item.account.avatar} size={36} />
+                            <Avatar url={item.account.avatar} width={AVATAR_SIZE.explore} />
                             <View style={tw`ml-3 flex-1`}>
                                 <MentionText
                                     username={item.account.username}

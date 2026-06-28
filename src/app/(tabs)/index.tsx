@@ -16,13 +16,19 @@ import {
     FEED_GC_MS,
     FEED_TABS,
     dedupeFeedVideos,
+    type FeedInfiniteCache,
     type FeedTab,
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
+    getCachedFeedInfiniteData,
+    getCachedFeedVideos,
     markVideoSeenInSession,
     resetSessionSeen,
     softRefreshFeed,
+    warmFeedTabMedia,
+    warmFeedVideosInRange,
+    warmFeedVideosNearIndex,
 } from '@/utils/feedCache';
 import {
     getFeedNetworkProfile,
@@ -33,11 +39,13 @@ import {
 import {
     isFeedPlaybackActive,
     onFeedTabChanged,
-    pauseAllFeedPlayers,
+    prepareFeedTabHandoff,
     setAppInForeground,
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
-import { computeFeedVideoViewport, useFlipTabBarMetrics } from '@/utils/tabBarLayout';
+import { computeFeedVideoViewport, useFlipTabBarMetrics, getFeedVideoBandInsets } from '@/utils/tabBarLayout';
+import { resolveFeedSnapIndex, isRigorousFeedSwipe, nearestFeedSnapIndex } from '@/utils/feedScrollSnap';
+import { feedInfiniteQueryOptions, feedQueryFn, feedVideosQueryKey } from '@/utils/feedQuery';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import {
     cancelOffscreenPrefetch,
@@ -46,9 +54,6 @@ import {
 } from '@/utils/videoPrefetch';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
-    fetchFollowingFeed,
-    fetchForYouFeed,
-    fetchTrendingFeed,
     getConfiguration,
     invalidateFollowingDidsCache,
     recordImpression,
@@ -71,7 +76,10 @@ import {
     AppState,
     FlatList,
     InteractionManager,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
     Platform,
+    PixelRatio,
     RefreshControl,
     StyleSheet,
     Text,
@@ -86,6 +94,8 @@ const LOAD_MORE_THRESHOLD = 4;
 const PREFETCH_AHEAD = feedPrefetchAhead;
 /** Stop auto-pagination when this many consecutive pages dedupe to zero new videos. */
 const MAX_EMPTY_DEDUPE_FETCHES = 8;
+/** Exit infinite home spinner and show retry UI after this long. */
+const FEED_LOADER_TIMEOUT_MS = 18_000;
 /** Only mount expo-video players within this distance of the active slide. */
 const PLAYER_PRELOAD_DISTANCE = feedPlayerPreloadDistance;
 
@@ -178,40 +188,6 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
     );
 });
 
-const fetchVideos = async ({
-    pageParam = null,
-    tab,
-    refreshEpoch = 0,
-}: {
-    pageParam?: string | null;
-    tab: FeedTab;
-    refreshEpoch?: number;
-}) => {
-    if (tab === 'trending') {
-        return await fetchTrendingFeed({ pageParam, refreshEpoch });
-    }
-    if (tab === 'forYou') {
-        return await fetchForYouFeed({ pageParam, refreshEpoch });
-    }
-    return await fetchFollowingFeed({ pageParam, refreshEpoch });
-};
-
-/** Read tab + epoch from query key so refetches never use a stale activeTab closure. */
-const feedQueryFn = ({
-    pageParam,
-    queryKey,
-}: {
-    pageParam: string | null;
-    queryKey: readonly unknown[];
-}) => {
-    const tab = queryKey[1] as FeedTab;
-    const refreshEpoch = typeof queryKey[2] === 'number' ? queryKey[2] : 0;
-    return fetchVideos({ pageParam, tab, refreshEpoch });
-};
-
-const feedVideosQueryKey = (tab: FeedTab, epoch: number, viewerDid?: string | null) =>
-    ['videos', tab, epoch, viewerDid ?? 'anon'] as const;
-
 const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0])) as Record<
     (typeof FEED_TABS)[number],
     number
@@ -219,9 +195,10 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 
 export default function LoopsFeed({ navigation }) {
     const { height: windowHeight } = useWindowDimensions();
-    const feedHeight = Math.round(windowHeight);
+    const feedHeight = PixelRatio.roundToNearestPixel(windowHeight);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
+    const feedVideoBand = useMemo(() => getFeedVideoBandInsets(), []);
     const feedVideoViewport = useMemo(
         () => computeFeedVideoViewport(windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved),
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
@@ -256,6 +233,8 @@ export default function LoopsFeed({ navigation }) {
     const [screenFocused, setScreenFocused] = useState(true);
     const [appActive, setAppActive] = useState(AppState.currentState === 'active');
     const [guardPlaybackActive, setGuardPlaybackActive] = useState(isFeedPlaybackActive);
+    const [loaderTimedOut, setLoaderTimedOut] = useState(false);
+    const [manualRefreshing, setManualRefreshing] = useState(false);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -263,6 +242,15 @@ export default function LoopsFeed({ navigation }) {
 
     useEffect(() => subscribeFeedPlaybackActive(setGuardPlaybackActive), []);
     const flatListRef = useRef(null);
+    const isSnappingRef = useRef(false);
+    const rigorousSnapRef = useRef(false);
+    const scrollStartIndexRef = useRef(0);
+    const scrollEndDragVelocityRef = useRef(0);
+    const tabScrollIndexRef = useRef<Record<FeedTab, number>>({
+        following: 0,
+        forYou: 0,
+        trending: 0,
+    });
     const router = useRouter();
     const queryClient = useQueryClient();
     const currentVideoRef = useRef(null);
@@ -290,19 +278,34 @@ export default function LoopsFeed({ navigation }) {
                 return;
             }
             const epoch = epochs[tab] ?? 0;
-            void queryClient.prefetchInfiniteQuery({
-                queryKey: feedVideosQueryKey(tab, epoch, viewerDid),
-                queryFn: feedQueryFn,
-                initialPageParam: null,
-                staleTime: getFeedStaleMs(tab),
+            warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                prefetchThumbnails,
+                prefetchVideoUrls,
             });
+            void queryClient
+                .prefetchInfiniteQuery({
+                    ...feedInfiniteQueryOptions(tab, epoch, viewerDid, getFeedStaleMs(tab)),
+                })
+                .then(() => {
+                    warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                        prefetchThumbnails,
+                        prefetchVideoUrls,
+                    });
+                })
+                .catch((error) => {
+                    console.warn('[feed] background prefetch failed:', tab, error);
+                });
         };
 
-        for (const tab of FEED_TABS) {
-            if (tab !== activeTabRef.current) {
-                prefetchTab(tab);
+        // Defer sibling-tab prefetch until the active feed has painted (avoids startup reload pressure).
+        const task = InteractionManager.runAfterInteractions(() => {
+            for (const tab of FEED_TABS) {
+                if (tab !== activeTabRef.current) {
+                    prefetchTab(tab);
+                }
             }
-        }
+        });
+        return () => task.cancel();
     }, [feedQueryEnabled, forYouEnabled, queryClient, viewerDid]);
 
     const recordVideoImpression = useCallback(
@@ -334,17 +337,13 @@ export default function LoopsFeed({ navigation }) {
         isFetching,
         isRefetching,
     } = useInfiniteQuery({
-        queryKey: feedVideosQueryKey(activeTab, feedEpoch, viewerDid),
-        queryFn: feedQueryFn,
-        getNextPageParam: (lastPage) => {
-            const cursor = lastPage.meta?.next_cursor;
-            return cursor && cursor.length > 0 ? cursor : undefined;
-        },
-        initialPageParam: null,
-        staleTime: getFeedStaleMs(activeTab),
+        ...feedInfiniteQueryOptions(activeTab, feedEpoch, viewerDid, getFeedStaleMs(activeTab)),
         gcTime: FEED_GC_MS,
-        refetchOnMount: true,
+        refetchOnMount: false,
         refetchOnWindowFocus: false,
+        placeholderData: (previousData) =>
+            previousData ??
+            getCachedFeedInfiniteData(queryClient, activeTab, feedEpoch, viewerDid),
         maxPages: 25,
         enabled: feedQueryEnabled,
     });
@@ -394,7 +393,13 @@ export default function LoopsFeed({ navigation }) {
         },
     });
 
-    const rawVideos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
+    const rawVideos = useMemo(() => {
+        if (data?.pages?.length) {
+            return data.pages.flatMap((page) => page.data);
+        }
+        const cached = getCachedFeedInfiniteData(queryClient, activeTab, feedEpoch, viewerDid);
+        return cached?.pages?.flatMap((page) => page.data) ?? [];
+    }, [data?.pages, queryClient, activeTab, feedEpoch, viewerDid]);
     const videos = useMemo(() => dedupeFeedVideos(rawVideos, activeTab), [rawVideos, activeTab]);
     const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
     const feedExhausted = !isLoading && !isFetchingNextPage && !hasNextPage && videos.length > 0;
@@ -484,25 +489,73 @@ export default function LoopsFeed({ navigation }) {
         [queryClient, viewerDid],
     );
 
-    const switchFeedTab = useCallback((tab: FeedTab) => {
-        if (tab === activeTabRef.current) {
-            return;
-        }
+    const warmFeedTab = useCallback(
+        (tab: FeedTab) => {
+            if (tab === activeTabRef.current) {
+                return;
+            }
+            if (tab === 'forYou' && !forYouEnabled) {
+                return;
+            }
+            const epoch = feedEpochsRef.current[tab] ?? 0;
+            warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                prefetchThumbnails,
+                prefetchVideoUrls,
+            });
+            void queryClient
+                .prefetchInfiniteQuery({
+                    ...feedInfiniteQueryOptions(tab, epoch, viewerDid, getFeedStaleMs(tab)),
+                })
+                .then(() => {
+                    warmFeedTabMedia(queryClient, tab, epoch, viewerDid, {
+                        prefetchThumbnails,
+                        prefetchVideoUrls,
+                    });
+                })
+                .catch((error) => {
+                    console.warn('[feed] tab prefetch failed:', tab, error);
+                });
+        },
+        [forYouEnabled, queryClient, viewerDid],
+    );
 
-        onFeedTabChanged();
-        releaseAllVideoPrefetch();
+    const switchFeedTab = useCallback(
+        (tab: FeedTab) => {
+            if (tab === activeTabRef.current) {
+                return;
+            }
 
-        if (currentVideoRef.current && watchStartTimeRef.current) {
-            const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
-            recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
-        }
-        currentVideoRef.current = null;
-        watchStartTimeRef.current = null;
+            const prevTab = activeTabRef.current;
+            tabScrollIndexRef.current[prevTab] = currentIndexRef.current;
 
-        setActiveTab(tab);
-        setCurrentIndex(0);
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-    }, []);
+            warmFeedTabMedia(queryClient, tab, feedEpochsRef.current[tab] ?? 0, viewerDid, {
+                prefetchThumbnails,
+                prefetchVideoUrls,
+            });
+
+            prepareFeedTabHandoff();
+
+            if (currentVideoRef.current && watchStartTimeRef.current) {
+                const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
+                recordVideoImpressionRef.current(currentVideoRef.current, watchDuration);
+            }
+            currentVideoRef.current = null;
+            watchStartTimeRef.current = null;
+
+            const restoredIndex = tabScrollIndexRef.current[tab] ?? 0;
+            setActiveTab(tab);
+            setCurrentIndex(restoredIndex);
+
+            requestAnimationFrame(() => {
+                flatListRef.current?.scrollToOffset({
+                    offset: restoredIndex * feedHeight,
+                    animated: false,
+                });
+                refreshFeedIfStale(tab, feedEpochsRef.current[tab] ?? 0);
+            });
+        },
+        [queryClient, refreshFeedIfStale, viewerDid, feedHeight],
+    );
 
     useEffect(() => {
         if (!isConfigLoading && appConfig) {
@@ -514,6 +567,7 @@ export default function LoopsFeed({ navigation }) {
 
     const onRefresh = useCallback(() => {
         const tab = activeTabRef.current;
+        setManualRefreshing(true);
         onFeedTabChanged();
         releaseAllVideoPrefetch();
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -530,6 +584,15 @@ export default function LoopsFeed({ navigation }) {
         queryClient.invalidateQueries({ queryKey: ['followingDids'] });
         hardRefreshFeed(queryClient, tab);
     }, [bumpFeedEpoch, queryClient]);
+
+    useEffect(() => {
+        if (!manualRefreshing) {
+            return;
+        }
+        if (!isFetching && !isRefetching) {
+            setManualRefreshing(false);
+        }
+    }, [manualRefreshing, isFetching, isRefetching]);
 
     useEffect(() => {
         const stopNetwork = startFeedNetworkMonitoring();
@@ -694,19 +757,16 @@ export default function LoopsFeed({ navigation }) {
             const prevVideo = currentVideoRef.current;
             const prevWatchStart = watchStartTimeRef.current;
 
-            if (newIndex !== currentIndexRef.current) {
-                pauseAllFeedPlayers();
-                releaseAllVideoPrefetch();
-            }
-
             maybeLoadMoreVideos(newIndex);
 
             setCurrentIndex(newIndex);
+            tabScrollIndexRef.current[activeTabRef.current] = newIndex;
             currentVideoRef.current = newVideo;
             watchStartTimeRef.current = Date.now();
 
             if (newVideo) {
                 markVideoSeenInSession(activeTabRef.current, newVideo);
+                warmFeedVideosNearIndex(videosRef.current, newIndex, prefetchThumbnails);
             }
 
             if (prevVideo && prevWatchStart) {
@@ -747,6 +807,8 @@ export default function LoopsFeed({ navigation }) {
         }
         cancelOffscreenPrefetch(keepUrls);
 
+        warmFeedVideosNearIndex(videos, currentIndex, prefetchThumbnails);
+
         if (prefetchAhead > 0) {
             const nextUrl = videos[currentIndex + 1]?.media?.src_url;
             prefetchVideoUrls(nextUrl ? [nextUrl] : []);
@@ -776,15 +838,22 @@ export default function LoopsFeed({ navigation }) {
         if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
             return;
         }
-        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
-        if (prefetchAhead <= 0) {
-            return;
+        const first = videos[0];
+        if (first?.media?.thumbnail) {
+            prefetchThumbnails([first.media.thumbnail, first.account?.avatar]);
         }
-        const nextUrl = videos[1]?.media?.src_url;
-        prefetchVideoUrls(nextUrl ? [nextUrl] : []);
+        const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
+        const urls: string[] = [];
+        if (first?.media?.src_url) {
+            urls.push(first.media.src_url);
+        }
+        if (prefetchAhead > 0 && videos[1]?.media?.src_url) {
+            urls.push(videos[1].media.src_url);
+        }
+        prefetchVideoUrls(urls);
     }, [
         activeTab,
-        videos.length,
+        videos,
         feedPlaybackEnabled,
         networkProfile.tier,
         networkProfile.prefetchAhead,
@@ -893,8 +962,8 @@ export default function LoopsFeed({ navigation }) {
                         activeIndex={currentIndex}
                         shouldPreload={shouldPreloadPlayer}
                         feedHeight={feedHeight}
-                        videoTopInset={feedVideoViewport.topInset}
-                        videoBottomReserved={feedVideoViewport.bottomReserved}
+                        videoTopInset={feedVideoBand.top}
+                        videoBottomReserved={feedVideoBand.bottom}
                         onLike={handleLike}
                         onComment={handleComment}
                         onCaptionExpand={handleCaptionExpand}
@@ -918,15 +987,15 @@ export default function LoopsFeed({ navigation }) {
                 );
             })();
 
-            return <View style={{ height: feedHeight, overflow: 'hidden' }}>{cell}</View>;
+            return <View style={{ height: feedHeight, overflow: 'hidden', backgroundColor: '#000' }}>{cell}</View>;
         },
         [
             activeTab,
             currentIndex,
             feedError,
             feedHeight,
-            feedVideoViewport.bottomReserved,
-            feedVideoViewport.topInset,
+            feedVideoBand.bottom,
+            feedVideoBand.top,
             onRefresh,
             tabBarMetrics.actionRailBottom,
             tabBarMetrics.bottomInset,
@@ -952,15 +1021,152 @@ export default function LoopsFeed({ navigation }) {
     );
 
     const hasFeedData = (data?.pages?.length ?? 0) > 0;
-    const feedListEmpty = videosWithEnd.length === 0;
+    const cachedFeedData = getCachedFeedVideos(
+        queryClient,
+        activeTab,
+        feedEpoch,
+        viewerDid,
+    );
     const showInitialLoader =
-        !feedQueryEnabled ||
-        (isLoading && !hasFeedData) ||
-        (feedListEmpty && !feedTrulyEmpty && !feedCaughtUp && (isFetching || isFetchingNextPage));
+        cachedFeedData.length === 0 &&
+        (!feedQueryEnabled || (isLoading && !hasFeedData));
+
+    useEffect(() => {
+        if (!showInitialLoader) {
+            setLoaderTimedOut(false);
+            return;
+        }
+        const timer = setTimeout(() => {
+            console.warn('[feed] initial loader timed out — showing retry UI');
+            setLoaderTimedOut(true);
+        }, FEED_LOADER_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [showInitialLoader, activeTab, feedEpoch]);
+
+    const showBlockingLoader = showInitialLoader && !loaderTimedOut && !feedError;
+
+    const loaderHint = !hasHydrated
+        ? 'Starting Flip…'
+        : !authReady
+          ? 'Restoring your session…'
+          : !isLoggedIn
+            ? 'Sign in to load your feed'
+            : 'Loading videos…';
 
     const handleEndReached = useCallback(() => {
         maybeLoadMoreVideos(videosRef.current.length - 1);
     }, [maybeLoadMoreVideos]);
+
+    const snapFeedFromScroll = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>, animated = true) => {
+            const { contentOffset, velocity } = event.nativeEvent;
+            let target = resolveFeedSnapIndex(
+                contentOffset.y,
+                feedHeight,
+                velocity?.y,
+                videosWithEnd.length,
+                scrollStartIndexRef.current,
+                scrollEndDragVelocityRef.current,
+            );
+
+            const nearest = nearestFeedSnapIndex(
+                contentOffset.y,
+                feedHeight,
+                videosWithEnd.length,
+            );
+            if (
+                Math.abs(target - nearest) >= 1 &&
+                Math.abs(contentOffset.y - nearest * feedHeight) < feedHeight * 0.45
+            ) {
+                target = nearest;
+            }
+
+            const targetOffset = target * feedHeight;
+            const start = scrollStartIndexRef.current;
+
+            warmFeedVideosNearIndex(videosRef.current, target, prefetchThumbnails);
+            if (Math.abs(target - start) > 1) {
+                warmFeedVideosInRange(videosRef.current, start, target, prefetchThumbnails);
+            }
+
+            if (Math.abs(contentOffset.y - targetOffset) <= 2) {
+                isSnappingRef.current = false;
+                return;
+            }
+
+            isSnappingRef.current = true;
+            flatListRef.current?.scrollToOffset({
+                offset: targetOffset,
+                animated,
+            });
+        },
+        [feedHeight, videosWithEnd.length],
+    );
+
+    const handleScrollBeginDrag = useCallback(() => {
+        scrollStartIndexRef.current = currentIndexRef.current;
+        scrollEndDragVelocityRef.current = 0;
+        isSnappingRef.current = false;
+        rigorousSnapRef.current = false;
+    }, []);
+
+    const handleScrollEndDrag = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const { contentOffset, velocity } = event.nativeEvent;
+            const velocityY = velocity?.y ?? 0;
+            scrollEndDragVelocityRef.current = velocityY;
+
+            if (
+                isRigorousFeedSwipe(
+                    contentOffset.y,
+                    feedHeight,
+                    velocityY,
+                    scrollStartIndexRef.current,
+                )
+            ) {
+                const target = resolveFeedSnapIndex(
+                    contentOffset.y,
+                    feedHeight,
+                    velocityY,
+                    videosWithEnd.length,
+                    scrollStartIndexRef.current,
+                    velocityY,
+                );
+                const dest = videosWithEnd[target];
+                if (dest?.media?.thumbnail) {
+                    prefetchThumbnails([dest.media.thumbnail]);
+                }
+                warmFeedVideosInRange(
+                    videosRef.current,
+                    scrollStartIndexRef.current,
+                    target,
+                    prefetchThumbnails,
+                );
+                rigorousSnapRef.current = true;
+                snapFeedFromScroll(event, false);
+                return;
+            }
+
+            // Slow release with no momentum — lock to exactly one video (or stay put).
+            if (Math.abs(velocityY) < 0.35) {
+                snapFeedFromScroll(event, false);
+            }
+        },
+        [feedHeight, snapFeedFromScroll, videosWithEnd],
+    );
+
+    const handleMomentumScrollEnd = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            if (rigorousSnapRef.current) {
+                rigorousSnapRef.current = false;
+                scrollEndDragVelocityRef.current = 0;
+                return;
+            }
+            snapFeedFromScroll(event, false);
+            scrollEndDragVelocityRef.current = 0;
+        },
+        [snapFeedFromScroll],
+    );
 
     const getItemLayout = useCallback(
         (data, index) => ({
@@ -971,22 +1177,74 @@ export default function LoopsFeed({ navigation }) {
         [feedHeight],
     );
 
-    const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
+    const refreshing = manualRefreshing && (isRefetching || isFetching) && !isFetchingNextPage;
 
-    if (showInitialLoader) {
-        return (
-            <View style={styles.container}>
-                <StatusBar style="light" backgroundColor="#000" translucent={Platform.OS === 'android'} />
-                <View
-                    pointerEvents="none"
-                    style={[styles.statusBarBand, { height: statusBarInset }]}
-                />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#fff" />
-                </View>
+    const feedHeader = (
+        <View style={[styles.header, { top: statusBarInset }]}>
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    accessibilityRole="tab"
+                    accessibilityLabel="Following"
+                    accessibilityState={{
+                        selected: activeTab === 'following',
+                    }}
+                    style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                    onPressIn={() => warmFeedTab('following')}
+                    onPress={() => switchFeedTab('following')}>
+                    <Text
+                        style={[
+                            styles.tabText,
+                            activeTab === 'following' && styles.activeTabText,
+                        ]}>
+                        Following
+                    </Text>
+                </TouchableOpacity>
+                {forYouEnabled && (
+                    <TouchableOpacity
+                        accessibilityRole="tab"
+                        accessibilityLabel="FYP"
+                        accessibilityState={{
+                            selected: activeTab === 'forYou',
+                        }}
+                        style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
+                        onPressIn={() => warmFeedTab('forYou')}
+                        onPress={() => switchFeedTab('forYou')}>
+                        <Text
+                            style={[
+                                styles.tabText,
+                                activeTab === 'forYou' && styles.activeTabText,
+                            ]}>
+                            FYP
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                    accessibilityRole="tab"
+                    accessibilityLabel="Trending"
+                    accessibilityState={{
+                        selected: activeTab === 'trending',
+                    }}
+                    style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                    onPressIn={() => warmFeedTab('trending')}
+                    onPress={() => switchFeedTab('trending')}>
+                    <Text
+                        style={[
+                            styles.tabText,
+                            activeTab === 'trending' && styles.activeTabText,
+                        ]}>
+                        Trending
+                    </Text>
+                </TouchableOpacity>
             </View>
-        );
-    }
+            <TouchableOpacity
+                accessibilityLabel="Search"
+                accessibilityRole="button"
+                style={styles.searchButton}
+                onPress={() => router.push('/private/search')}>
+                <SearchEyeIcon size={31} color="#FFFFFF" />
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         <View style={styles.container}>
@@ -995,114 +1253,83 @@ export default function LoopsFeed({ navigation }) {
                 pointerEvents="none"
                 style={[styles.statusBarBand, { height: statusBarInset }]}
             />
-            <View style={[styles.header, { top: statusBarInset + 2 }]}>
-                <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Following"
-                        accessibilityState={{
-                            selected: activeTab === 'following',
-                        }}
-                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => switchFeedTab('following')}>
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === 'following' && styles.activeTabText,
-                            ]}>
-                            Following
-                        </Text>
-                    </TouchableOpacity>
-                    {forYouEnabled && (
+            {feedHeader}
+
+            {showBlockingLoader ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#fff" />
+                    <Text style={styles.loaderHint}>{loaderHint}</Text>
+                    {!feedQueryEnabled && !isLoggedIn && authReady ? (
                         <TouchableOpacity
-                            accessibilityRole="tab"
-                            accessibilityLabel="FYP"
-                            accessibilityState={{
-                                selected: activeTab === 'forYou',
-                            }}
-                            style={[styles.tab, activeTab === 'forYou' && styles.activeTab]}
-                            onPress={() => switchFeedTab('forYou')}>
-                            <Text
-                                style={[
-                                    styles.tabText,
-                                    activeTab === 'forYou' && styles.activeTabText,
-                                ]}>
-                                FYP
-                            </Text>
+                            style={styles.loaderRetryButton}
+                            onPress={() => router.push('/sign-in')}>
+                            <Text style={styles.loaderRetryText}>Sign in</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity style={styles.loaderRetryButton} onPress={onRefresh}>
+                            <Text style={styles.loaderRetryText}>Retry</Text>
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                        accessibilityRole="tab"
-                        accessibilityLabel="Trending"
-                        accessibilityState={{
-                            selected: activeTab === 'trending',
-                        }}
-                        style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
-                        onPress={() => switchFeedTab('trending')}>
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === 'trending' && styles.activeTabText,
-                            ]}>
-                            Trending
-                        </Text>
-                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                    accessibilityLabel="Search"
-                    accessibilityRole="button"
-                    style={styles.searchButton}
-                    onPress={() => router.push('/private/search')}>
-                    <SearchEyeIcon size={31} color="#FFFFFF" />
-                </TouchableOpacity>
-            </View>
-
-            <FeedScrollGestureRoot>
-                <FlatList
-                key={activeTab}
-                ref={flatListRef}
-                style={styles.feedList}
-                data={videosWithEnd}
-                extraData={currentIndex}
-                renderItem={renderItem}
-                keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                pagingEnabled
-                showsVerticalScrollIndicator={false}
-                {...(Platform.OS === 'ios'
-                    ? {
-                          snapToInterval: feedHeight,
-                          snapToAlignment: 'start' as const,
-                          decelerationRate: 'fast' as const,
-                      }
-                    : {})}
-                scrollEventThrottle={16}
-                overScrollMode="never"
-                viewabilityConfig={viewabilityConfig.current}
-                onViewableItemsChanged={onViewableItemsChanged}
-                onEndReached={handleEndReached}
-                onEndReachedThreshold={0.5}
-                getItemLayout={getItemLayout}
-                removeClippedSubviews={Platform.OS !== 'android'}
-                maxToRenderPerBatch={feedMaxToRenderPerBatch}
-                windowSize={feedFlatListWindowSize}
-                initialNumToRender={feedInitialNumToRender}
-                updateCellsBatchingPeriod={50}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        progressViewOffset={statusBarInset + 40}
-                    />
-                }
-                ListFooterComponent={
-                    isFetchingNextPage ? (
-                        <View style={[styles.footer, { height: feedHeight }]}>
-                            <ActivityIndicator size="large" color="#fff" />
-                        </View>
-                    ) : null
-                }
+            ) : loaderTimedOut || feedError ? (
+                <FeedEmptyState
+                    tab={activeTab}
+                    onRefresh={onRefresh}
+                    error={
+                        feedError ||
+                        (loaderTimedOut
+                            ? 'Feed is taking too long. Tap retry or pull down.'
+                            : null)
+                    }
+                    itemHeight={feedHeight}
                 />
-            </FeedScrollGestureRoot>
+            ) : (
+                <FeedScrollGestureRoot>
+                    <FlatList
+                    ref={flatListRef}
+                    style={styles.feedList}
+                    data={videosWithEnd}
+                    extraData={currentIndex}
+                    renderItem={renderItem}
+                    keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
+                    pagingEnabled
+                    showsVerticalScrollIndicator={false}
+                    decelerationRate="fast"
+                    snapToInterval={feedHeight}
+                    snapToAlignment="start"
+                    disableIntervalMomentum
+                    onScrollBeginDrag={handleScrollBeginDrag}
+                    onScrollEndDrag={handleScrollEndDrag}
+                    onMomentumScrollEnd={handleMomentumScrollEnd}
+                    scrollEventThrottle={16}
+                    overScrollMode="never"
+                    viewabilityConfig={viewabilityConfig.current}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.5}
+                    getItemLayout={getItemLayout}
+                    removeClippedSubviews={false}
+                    maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                    windowSize={feedFlatListWindowSize}
+                    initialNumToRender={feedInitialNumToRender}
+                    updateCellsBatchingPeriod={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            progressViewOffset={statusBarInset + 40}
+                        />
+                    }
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <View style={[styles.footer, { height: feedHeight }]}>
+                                <ActivityIndicator size="large" color="#fff" />
+                            </View>
+                        ) : null
+                    }
+                    />
+                </FeedScrollGestureRoot>
+            )}
 
             <CommentsModal
                 visible={showComments}
@@ -1167,6 +1394,27 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#000',
+        gap: 12,
+    },
+    loaderHint: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 14,
+        marginTop: 8,
+        textAlign: 'center',
+        paddingHorizontal: 24,
+    },
+    loaderRetryButton: {
+        marginTop: 8,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#22D3EE',
+    },
+    loaderRetryText: {
+        color: '#22D3EE',
+        fontSize: 15,
+        fontWeight: '600',
     },
     header: {
         position: 'absolute',

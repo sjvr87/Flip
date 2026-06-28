@@ -14,6 +14,46 @@ export const TAB_BAR_PADDING_TOP = 0;
 /** Matches `TAB_ICON_SLOT_SIZE` in `(tabs)/_layout.tsx`. */
 export const TAB_BAR_ICON_ROW_HEIGHT = 42;
 
+/** Create-tab FLIP–IT label span in its 26×26 viewBox — home scrim + feed letterbox align here. */
+const CREATE_TAB_VIEWBOX = 26;
+const CREATE_FLIP_LABEL_BASELINE = 3.7;
+const CREATE_IT_LABEL_BASELINE = 24.1;
+const CREATE_LABEL_FONT_SIZE = 5.0;
+
+/** Ink top of “FLIP” through ink bottom of “IT” (Create tab icon), in viewBox units. */
+export function getTabBarIconOpticalSpanVb(): number {
+    const labelTop = CREATE_FLIP_LABEL_BASELINE - CREATE_LABEL_FONT_SIZE;
+    const labelBottom = CREATE_IT_LABEL_BASELINE + CREATE_LABEL_FONT_SIZE * 0.2;
+    return labelBottom - labelTop;
+}
+
+/** Pixel height from FLIP top to IT bottom at the standard tab icon slot size. */
+export function getTabBarIconOpticalHeight(
+    slotSize = TAB_BAR_ICON_ROW_HEIGHT,
+): number {
+    return Math.round(slotSize * (getTabBarIconOpticalSpanVb() / CREATE_TAB_VIEWBOX));
+}
+/** Lift icons above the system nav / gesture bar (Samsung edge-to-edge). */
+const TAB_BAR_ICON_LIFT_DP = Platform.OS === 'android' ? 8 : 4;
+/** When SafeAreaProvider reports 0, gesture nav still needs clearance. */
+const ANDROID_MIN_NAV_INSET_DP = 28;
+
+function resolveTabBarBottomInset(rawBottomInset: number): number {
+    if (Platform.OS !== 'android') {
+        return rawBottomInset;
+    }
+    const minPx = PixelRatio.roundToNearestPixel(ANDROID_MIN_NAV_INSET_DP);
+    const tiny = PixelRatio.roundToNearestPixel(8);
+    if (rawBottomInset < tiny) {
+        return minPx;
+    }
+    return rawBottomInset;
+}
+
+function resolveTabBarIconLift(): number {
+    return PixelRatio.roundToNearestPixel(TAB_BAR_ICON_LIFT_DP);
+}
+
 /** @deprecated Prefer `useFlipTabBarMetrics().contentHeight` */
 export const TAB_BAR_CONTENT_HEIGHT = TAB_BAR_ICON_ROW_HEIGHT;
 
@@ -22,6 +62,8 @@ export type FlipTabBarMetrics = {
     bottomInset: number;
     paddingTop: number;
     paddingBottom: number;
+    /** Extra gap between icon row and system nav (tab item margin). */
+    iconLift: number;
     contentHeight: number;
     /** Icon row only — feed video `bottom` inset (excludes system nav padding). */
     feedVideoBottomReserved: number;
@@ -35,16 +77,18 @@ export type FlipTabBarMetrics = {
 
 export function computeFlipTabBarMetrics(bottomInset: number): FlipTabBarMetrics {
     const paddingTop = TAB_BAR_PADDING_TOP;
-    const paddingBottom = bottomInset;
+    const iconLift = resolveTabBarIconLift();
+    const paddingBottom = resolveTabBarBottomInset(bottomInset);
     const contentHeight = TAB_BAR_ICON_ROW_HEIGHT;
-    const totalHeight = paddingTop + contentHeight + paddingBottom;
+    const totalHeight = paddingTop + contentHeight + iconLift + paddingBottom;
 
     return {
         bottomInset,
         paddingTop,
         paddingBottom,
+        iconLift,
         contentHeight,
-        feedVideoBottomReserved: contentHeight,
+        feedVideoBottomReserved: getTabBarIconOpticalHeight(contentHeight),
         totalHeight,
         feedOverlayBottom: totalHeight + 10,
         actionRailBottom: totalHeight + 20,
@@ -56,9 +100,8 @@ const ANDROID_STATUS_ICON_ROW_DP = 24;
 
 /**
  * Status bar band + feed video top inset.
- * Android feed only: ignore SafeAreaProvider top (edge-to-edge cutout inflation, e.g. ~149px
- * on Samsung punch-hole). Blend the 24dp icon row with the full status frame so the black band
- * sits between a short cap (~72px) and the full frame (~84–96px on ~3x Samsung).
+ * Android feed: match the OS status bar frame (clock/battery/signal row) exactly.
+ * Do not use SafeAreaProvider top — Samsung punch-hole safe area inflates (~149px).
  */
 export function getFeedStatusBarTopInset(safeAreaTop: number): number {
     if (Platform.OS !== 'android') {
@@ -67,8 +110,10 @@ export function getFeedStatusBarTopInset(safeAreaTop: number): number {
 
     const iconRowPx = PixelRatio.roundToNearestPixel(ANDROID_STATUS_ICON_ROW_DP);
     const frameHeight = StatusBar.currentHeight;
+
     if (frameHeight != null && frameHeight > 0) {
-        return Math.round((iconRowPx + frameHeight) / 2);
+        // Flush with system status icons — OS status bar height, never punch-hole safe area.
+        return frameHeight;
     }
 
     return iconRowPx;
@@ -102,15 +147,11 @@ export function getFlipTabBarStyle(
     borderColor: string,
 ): ViewStyle {
     const layout = getTabBarStyleFromMetrics(metrics);
-    const sizing =
-        variant === 'home' || Platform.OS !== 'android'
-            ? { height: layout.height }
-            : { minHeight: layout.height };
 
     const base: ViewStyle = {
         paddingTop: layout.paddingTop,
         paddingBottom: layout.paddingBottom,
-        ...sizing,
+        height: layout.height,
         elevation: 0,
         shadowOpacity: 0,
     };
@@ -124,7 +165,7 @@ export function getFlipTabBarStyle(
             bottom: 0,
             backgroundColor: TAB_BAR_HOME_NAV_BG,
             borderTopWidth: 0,
-            overflow: 'hidden',
+            overflow: 'visible',
         };
     }
 
@@ -155,6 +196,11 @@ export function computeFeedVideoViewport(
     const bottomReserved = tabBarContentHeight;
     const viewportHeight = Math.max(0, Math.round(windowHeight - topInset - bottomReserved));
     return { topInset, bottomReserved, viewportHeight };
+}
+
+/** Full-screen video band — tab/status chrome are overlays, not letterbox gaps. */
+export function getFeedVideoBandInsets(): { top: number; bottom: number } {
+    return { top: 0, bottom: 0 };
 }
 
 /** @deprecated Use `useFlipTabBarMetrics` or `computeFlipTabBarMetrics` */

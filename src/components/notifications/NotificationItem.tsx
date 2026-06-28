@@ -1,9 +1,23 @@
 import FoldedHeartIcon, { FOLDED_HEART_ACTIVITY_SIZE } from '@/components/icons/FoldedHeartIcon';
+import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
+import {
+    MEGAPHONE_COMMENT_ACTIVITY_SIZE,
+    MegaphoneCommentIconSlot,
+} from '@/components/icons/MegaphoneCommentIcon';
+import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
+import { useTheme } from '@/contexts/ThemeContext';
+import {
+    ACTIVITY_COMMENT_BADGE_OFFSET,
+    ACTIVITY_FOLLOW_BADGE_OFFSET,
+    ACTIVITY_FOLLOW_BADGE_SIZE,
+    ACTIVITY_LIKE_BADGE_OFFSET,
+    AVATAR_SIZE,
+} from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View, type ViewStyle } from 'react-native';
 import tw from 'twrnc';
 
 interface Actor {
@@ -29,12 +43,52 @@ interface NotificationItemProps {
     onProfilePress: (actor: Actor, item: any) => void;
 }
 
+const DEFAULT_ACTIVITY_BADGE_OFFSET: ViewStyle = { bottom: -2, right: -2 };
+const COMMENT_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_COMMENT_BADGE_OFFSET };
+const LIKE_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_LIKE_BADGE_OFFSET };
+const FOLLOW_ACTIVITY_BADGE_OFFSET: ViewStyle = { ...ACTIVITY_FOLLOW_BADGE_OFFSET };
+
+function isCommentActivityType(type: string): boolean {
+    return type === 'video.comment' || type === 'video.commentReply';
+}
+
+function isLikeActivityType(type: string): boolean {
+    return type === 'video.like' || type === 'comment.like' || type === 'commentReply.like';
+}
+
+function isFollowActivityType(type: string): boolean {
+    return type === 'new_follower';
+}
+
+function getActivityBadgeOffset(type: string): ViewStyle {
+    if (isCommentActivityType(type)) {
+        return COMMENT_ACTIVITY_BADGE_OFFSET;
+    }
+    if (isLikeActivityType(type)) {
+        return LIKE_ACTIVITY_BADGE_OFFSET;
+    }
+    if (isFollowActivityType(type)) {
+        return FOLLOW_ACTIVITY_BADGE_OFFSET;
+    }
+    return DEFAULT_ACTIVITY_BADGE_OFFSET;
+}
+
+function isCornerBadgeType(type: string): boolean {
+    return (
+        isCommentActivityType(type) ||
+        isLikeActivityType(type) ||
+        isFollowActivityType(type)
+    );
+}
+
 export const NotificationItem: React.FC<NotificationItemProps> = ({
     item,
     onPress,
     onProfilePress,
 }) => {
     const isUnread = item.read_at === null;
+    const { isDark } = useTheme();
+    const activityIconColor = isDark ? '#FFFFFF' : '#1A1A1A';
 
     const getNotificationText = () => {
         switch (item.type) {
@@ -78,14 +132,24 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const getBadgeIcon = () => {
         switch (item.type) {
             case 'new_follower':
-                return <Ionicons name="person-add" size={16} color="#007AFF" />;
+                return (
+                    <FollowAddBadgeIcon
+                        size={ACTIVITY_FOLLOW_BADGE_SIZE}
+                        color={activityIconColor}
+                    />
+                );
             case 'video.like':
             case 'comment.like':
             case 'commentReply.like':
                 return <FoldedHeartIcon size={FOLDED_HEART_ACTIVITY_SIZE} variant="filled" />;
             case 'video.commentReply':
             case 'video.comment':
-                return <Ionicons name="chatbubble" size={16} color="#007AFF" />;
+                return (
+                    <MegaphoneCommentIconSlot
+                        size={MEGAPHONE_COMMENT_ACTIVITY_SIZE}
+                        color={activityIconColor}
+                    />
+                );
             case 'comment.share':
             case 'commentReply.share':
             case 'video.share':
@@ -102,6 +166,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
     };
 
+    const badgeIcon = getBadgeIcon();
+    const badgeOffset = getActivityBadgeOffset(item.type);
+
     const showActionButtons = false;
 
     return (
@@ -111,16 +178,20 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             ]}>
             {isUnread && <View style={tw`w-2 h-2 rounded-full bg-red-500 mr-2 mt-1.5`} />}
 
-            <Pressable onPress={() => onProfilePress(item.actor, item)} style={tw`relative mr-3`}>
-                <Image source={{ uri: item.actor.avatar }} style={tw`w-12 h-12 rounded-full`} />
-                {getBadgeIcon() && (
+            <Pressable
+                onPress={() => onProfilePress(item.actor, item)}
+                style={[tw`relative mr-3`, { overflow: 'visible' }]}>
+                <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
+                {badgeIcon ? (
                     <View
                         style={[
-                            tw`absolute -bottom-1 -right-1 rounded-full p-1 bg-white dark:bg-gray-900`,
+                            tw`absolute items-center justify-center`,
+                            badgeOffset,
+                            isCornerBadgeType(item.type) && { zIndex: 10 },
                         ]}>
-                        {getBadgeIcon()}
+                        {badgeIcon}
                     </View>
-                )}
+                ) : null}
             </Pressable>
 
             <Pressable onPress={() => onPress(item)} style={tw`flex-1 flex-row items-center`}>

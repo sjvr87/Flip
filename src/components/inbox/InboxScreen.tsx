@@ -1,4 +1,5 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import Avatar from '@/components/Avatar';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -17,6 +18,7 @@ import {
     ScrollView,
     View,
 } from 'react-native';
+import { AVATAR_SIZE } from '@/utils/avatarShape';
 import tw from 'twrnc';
 
 interface CategoryCardProps {
@@ -99,14 +101,11 @@ function ConvoRow({ convo, myDid, onPress }: ConvoRowProps) {
 
     return (
         <PressableHaptics onPress={onPress} style={tw`flex-row items-center px-4 py-3`}>
-            {other?.avatar ? (
-                <Image source={{ uri: other.avatar }} style={tw`w-12 h-12 rounded-full mr-3`} />
-            ) : (
-                <View
-                    style={tw`w-12 h-12 rounded-full mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
-                    <Ionicons name="person" size={22} color="#999" />
-                </View>
-            )}
+            <Avatar
+                url={other?.avatar}
+                width={AVATAR_SIZE.row}
+                style={tw`mr-3`}
+            />
             <View style={tw`flex-1`}>
                 <StackText
                     fontSize="$4"

@@ -28,7 +28,6 @@ import Reanimated, {
     runOnJS,
     useAnimatedStyle,
     useSharedValue,
-    withDelay,
     withSpring,
     withTiming,
 } from 'react-native-reanimated';
@@ -43,9 +42,16 @@ const ZOOM_MIN = 1;
 const ZOOM_MAX = 10;
 const ZOOM_RAIL_HEIGHT = 176;
 const ZOOM_RAIL_THUMB = 10;
+/** Camera defaults to 1x — only show the label once zoom is meaningfully above that. */
+const ZOOM_LABEL_MIN = 1.05;
 
 function formatZoomLabel(value: number) {
-    return value < 1.5 ? '1x' : `${value.toFixed(1)}x`;
+    return `${value.toFixed(1)}x`;
+}
+
+function shouldShowZoomLabel(value: number) {
+    'worklet';
+    return value >= ZOOM_LABEL_MIN;
 }
 
 function mapPermissionResult(granted: boolean, result: string | undefined): AndroidPermissionState {
@@ -108,7 +114,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const zoomRailStartZoom = useSharedValue(1);
     const zoomIndicatorOpacity = useSharedValue(0);
     const [zoomLevel, setZoomLevel] = useState(1);
-    const [zoomText, setZoomText] = useState('1x');
+    const [zoomText, setZoomText] = useState('');
 
     const { thumbUri: galleryThumbUri, reload: reloadGalleryThumb } = useRecentGalleryThumb();
     const pendingRemix = usePendingAudioReuseStore((s) => s.pending);
@@ -160,7 +166,11 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     useEffect(() => {
         const interval = setInterval(() => {
             const value = zoom.value;
-            setZoomText(formatZoomLabel(value));
+            if (shouldShowZoomLabel(value)) {
+                setZoomText(formatZoomLabel(value));
+            } else {
+                setZoomText('');
+            }
             // Throttle native CameraX setZoomRatio — 20Hz React updates were freezing preview.
             const rounded = Math.round(value * 20) / 20;
             if (Math.abs(rounded - lastNativeZoomRef.current) >= 0.05) {
@@ -286,33 +296,35 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         return Math.max(ZOOM_MIN, Math.min(value, ZOOM_MAX));
     };
 
-    const revealZoomIndicator = () => {
+    const hideZoomIndicator = () => {
         'worklet';
         cancelAnimation(zoomIndicatorOpacity);
-        zoomIndicatorOpacity.value = withTiming(1, { duration: 150 });
+        zoomIndicatorOpacity.value = withTiming(0, { duration: 100 });
     };
 
-    const hideZoomIndicatorSoon = () => {
+    const syncZoomIndicatorVisibility = () => {
         'worklet';
-        cancelAnimation(zoomIndicatorOpacity);
-        zoomIndicatorOpacity.value = withDelay(1500, withTiming(0, { duration: 200 }));
+        if (shouldShowZoomLabel(zoom.value)) {
+            cancelAnimation(zoomIndicatorOpacity);
+            zoomIndicatorOpacity.value = 1;
+        } else {
+            hideZoomIndicator();
+        }
     };
 
     const pinchGesture = Gesture.Pinch()
         .onBegin(() => {
             'worklet';
             zoomOffset.value = zoom.value;
-            revealZoomIndicator();
         })
         .onUpdate((event) => {
             'worklet';
             zoom.value = clampZoom(zoomOffset.value * event.scale);
-            cancelAnimation(zoomIndicatorOpacity);
-            zoomIndicatorOpacity.value = 1;
+            syncZoomIndicatorVisibility();
         })
         .onEnd(() => {
             'worklet';
-            hideZoomIndicatorSoon();
+            hideZoomIndicator();
             runOnJS(syncNativeZoom)(zoom.value);
         });
 
@@ -322,8 +334,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             'worklet';
             zoom.value = withSpring(1);
             runOnJS(syncNativeZoom)(1);
-            revealZoomIndicator();
-            hideZoomIndicatorSoon();
+            hideZoomIndicator();
         });
 
     const zoomRailGesture = Gesture.Pan()
@@ -332,19 +343,17 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             'worklet';
             zoomRailStartY.value = event.absoluteY;
             zoomRailStartZoom.value = zoom.value;
-            revealZoomIndicator();
         })
         .onUpdate((event) => {
             'worklet';
             const deltaY = zoomRailStartY.value - event.absoluteY;
             const zoomDelta = (deltaY / ZOOM_RAIL_HEIGHT) * (ZOOM_MAX - ZOOM_MIN);
             zoom.value = clampZoom(zoomRailStartZoom.value + zoomDelta);
-            cancelAnimation(zoomIndicatorOpacity);
-            zoomIndicatorOpacity.value = 1;
+            syncZoomIndicatorVisibility();
         })
         .onEnd(() => {
             'worklet';
-            hideZoomIndicatorSoon();
+            hideZoomIndicator();
             runOnJS(syncNativeZoom)(zoom.value);
         });
 
@@ -509,7 +518,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
             <Reanimated.View
                 style={[styles.zoomIndicator, zoomIndicatorStyle]}
                 pointerEvents="none">
-                <Text style={styles.zoomText}>{zoomText}</Text>
+                {zoomText ? <Text style={styles.zoomText}>{zoomText}</Text> : null}
             </Reanimated.View>
 
             <View style={styles.rightControls}>
@@ -717,15 +726,23 @@ const styles = StyleSheet.create({
     },
     zoomIndicator: {
         position: 'absolute',
-        top: '44%',
-        alignSelf: 'center',
-        backgroundColor: 'rgba(0,0,0,0.55)',
-        borderRadius: 18,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
+        right: 48,
+        top: '40%',
+        height: ZOOM_RAIL_HEIGHT,
+        justifyContent: 'center',
+        alignItems: 'flex-end',
         zIndex: 11,
     },
-    zoomText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+    zoomText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '600',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 10,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        overflow: 'hidden',
+    },
     controlButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     bottomContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: 40 },
     recordingIndicator: {

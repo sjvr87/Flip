@@ -1,10 +1,17 @@
 import MentionText from '@/components/MentionText';
+import Avatar from '@/components/Avatar';
+import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText } from '@/components/ui/Stack';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { useTheme } from '@/contexts/ThemeContext';
+import {
+    ACTIVITY_FOLLOW_BADGE_OFFSET,
+    ACTIVITY_FOLLOW_BADGE_SIZE,
+    AVATAR_SIZE,
+} from '@/utils/avatarShape';
 import { timeAgo } from '@/utils/ui';
-import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import tw from 'twrnc';
 
 interface Actor {
@@ -38,6 +45,8 @@ export function FollowerNotificationRow({
     isAccepted,
 }: Props) {
     const isUnread = item.read_at === null;
+    const { isDark } = useTheme();
+    const followBadgeColor = isDark ? '#FFFFFF' : '#1A1A1A';
     const followText = item.kit?.path ? 'followed you from a Starter Kit.' : 'followed you.';
 
     return (
@@ -45,18 +54,20 @@ export function FollowerNotificationRow({
             style={tw`flex-row items-center py-3 px-4 border-b border-gray-100 dark:border-gray-900`}>
             {isUnread ? <View style={tw`w-2 h-2 rounded-full bg-red-500 mr-2`} /> : null}
 
-            <Pressable onPress={onProfilePress} style={tw`relative mr-3`}>
-                {item.actor.avatar ? (
-                    <Image source={{ uri: item.actor.avatar }} style={tw`w-12 h-12 rounded-full`} />
-                ) : (
-                    <View
-                        style={tw`w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
-                        <Ionicons name="person" size={22} color="#999" />
-                    </View>
-                )}
+            <Pressable
+                onPress={onProfilePress}
+                style={[tw`relative mr-3`, { overflow: 'visible' }]}>
+                <Avatar url={item.actor.avatar} width={AVATAR_SIZE.row} />
                 <View
-                    style={tw`absolute -bottom-1 -right-1 rounded-full p-1 bg-white dark:bg-gray-900`}>
-                    <Ionicons name="person-add" size={14} color="#007AFF" />
+                    style={[
+                        tw`absolute items-center justify-center`,
+                        ACTIVITY_FOLLOW_BADGE_OFFSET,
+                        { zIndex: 10 },
+                    ]}>
+                    <FollowAddBadgeIcon
+                        size={ACTIVITY_FOLLOW_BADGE_SIZE}
+                        color={followBadgeColor}
+                    />
                 </View>
             </Pressable>
 

@@ -1,6 +1,7 @@
 import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
+import { squircleRadius } from '@/utils/avatarShape';
 import { fetchSelfAccount, getMimeType, updateAccountAvatar } from '@/utils/requests';
 import { truncate } from '@/utils/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,6 +76,8 @@ export default function EditProfileScreen() {
     const username = user?.username;
     const bio = user?.bio;
     const profileUrl = getProfileUrl(user);
+    const profilePhotoSize = 128;
+    const profilePhotoRadius = squircleRadius(profilePhotoSize);
 
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -163,7 +166,7 @@ export default function EditProfileScreen() {
     };
 
     const copyProfileUrl = async () => {
-        await copyProfileLink(user);
+        await copyProfileLink(user, { showAlert: false });
     };
 
     return (
@@ -200,7 +203,10 @@ export default function EditProfileScreen() {
                     <Pressable onPress={handleChangePhoto}>
                         <View style={tw`relative`}>
                             <View
-                                style={tw`w-32 h-32 rounded-full bg-gray-200 items-center justify-center overflow-hidden`}>
+                                style={[
+                                    tw`w-32 h-32 bg-gray-200 items-center justify-center overflow-hidden`,
+                                    { borderRadius: profilePhotoRadius },
+                                ]}>
                                 {profileImage ? (
                                     <Image
                                         source={{ uri: profileImage }}
@@ -211,7 +217,10 @@ export default function EditProfileScreen() {
                                 )}
                             </View>
                             <View
-                                style={tw`absolute inset-0 bg-black bg-opacity-40 rounded-full items-center justify-center`}>
+                                style={[
+                                    tw`absolute inset-0 bg-black bg-opacity-40 items-center justify-center`,
+                                    { borderRadius: profilePhotoRadius },
+                                ]}>
                                 <Ionicons name="camera" size={32} color="white" />
                             </View>
                         </View>

@@ -5,7 +5,7 @@ import { toProfilePath } from '@/utils/profileNavigation';
 import { safeRouterPush } from '@/utils/safeNavigation';
 import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
-import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
+import { isFeedFrameReady, markFeedFrameReady } from '@/utils/feedFrameCache';
 import {
     claimFeedAudio,
     isFeedPlaybackActive,
@@ -101,6 +101,10 @@ function VideoSlidePlaceholder({
 }) {
     const thumbnail = item.media?.thumbnail;
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
+    const videoBandStyle =
+        videoTopInset === 0 && videoBottomReserved === 0
+            ? { top: 0, left: 0, right: 0, height: slideHeight }
+            : { top: videoTopInset, bottom: videoBottomReserved };
 
     useEffect(() => {
         prefetchThumbnails([thumbnail]);
@@ -112,11 +116,7 @@ function VideoSlidePlaceholder({
 
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View
-                style={[
-                    styles.videoWrapper,
-                    { top: videoTopInset, bottom: videoBottomReserved },
-                ]}>
+            <View style={[styles.videoWrapper, videoBandStyle]}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>
@@ -173,10 +173,11 @@ function VideoPlayer({
         );
     }
 
-    return (
+        return (
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            shouldPreload={shouldPreload}
             standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
             videoTopInset={videoTopInset}
@@ -208,6 +209,7 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    shouldPreload = true,
     standalonePlayback = false,
     feedHeight,
     videoTopInset = 0,
@@ -246,10 +248,10 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle = {
-        top: videoTopInset,
-        bottom: videoBottomReserved,
-    };
+    const videoBandStyle =
+        videoTopInset === 0 && videoBottomReserved === 0
+            ? { top: 0, left: 0, right: 0, height: slideHeight }
+            : { top: videoTopInset, bottom: videoBottomReserved };
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
@@ -269,7 +271,7 @@ function VideoPlayerCore({
     const [viewPlayer, setViewPlayer] = useState<ExpoVideoPlayer | null>(null);
     const [viewEpoch, setViewEpoch] = useState(0);
     const [videoReady, setVideoReady] = useState(false);
-    const [firstFrameRendered, setFirstFrameRendered] = useState(false);
+    const [firstFrameRendered, setFirstFrameRendered] = useState(() => isFeedFrameReady(srcUrl));
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
@@ -413,7 +415,7 @@ function VideoPlayerCore({
         setPlayer(null);
         setPlayerEpoch(0);
         setVideoReady(false);
-        setFirstFrameRendered(false);
+        setFirstFrameRendered(isFeedFrameReady(srcUrl));
         setPlayerStatus('idle');
         if (stale) {
             queuePlayerRelease(stale);
@@ -442,7 +444,7 @@ function VideoPlayerCore({
         setPlayer(nextPlayer);
         setPlayerEpoch(epoch);
         setVideoReady(nextPlayer.status === 'readyToPlay');
-        setFirstFrameRendered(false);
+        setFirstFrameRendered(isFeedFrameReady(srcUrl));
         setPlayerStatus(nextPlayer.status);
 
         return () => {
@@ -670,25 +672,66 @@ function VideoPlayerCore({
         if (!isMountedRef.current || playerRef.current !== player) {
             return;
         }
+        markFeedFrameReady(srcUrl);
         setFirstFrameRendered(true);
         setVideoReady(true);
-    }, [player]);
-
-    // Android textureView may not fire onFirstFrameRender while the view is opacity:0.
-    useEffect(() => {
-        if (!isActive || firstFrameRendered || !isPlayerUsable(player)) {
-            return;
-        }
-        if (!isPlaying && playerStatus !== 'readyToPlay') {
-            return;
-        }
-        const timer = setTimeout(() => {
-            if (isMountedRef.current && playerRef.current === player && !firstFrameRendered) {
-                setFirstFrameRendered(true);
+        if (!isActive && isPlayerUsable(player)) {
+            try {
+                player.pause();
+                player.currentTime = 0;
+            } catch {
+                // player may already be released
             }
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
+        }
+    }, [player, isActive, srcUrl]);
+
+    // Fallback when onFirstFrameRender is delayed on Android surfaceView.
+    useEffect(() => {
+        if ((!isActive && !shouldPreload) || firstFrameRendered || !isPlayerUsable(player)) {
+            return;
+        }
+        if (isFeedFrameReady(srcUrl)) {
+            setFirstFrameRendered(true);
+            setVideoReady(true);
+            return;
+        }
+        let cancelled = false;
+        const revealIfReady = () => {
+            if (cancelled || !isMountedRef.current || playerRef.current !== player) {
+                return;
+            }
+            try {
+                if (player.playing || player.status === 'readyToPlay') {
+                    markFeedFrameReady(srcUrl);
+                    setFirstFrameRendered(true);
+                    setVideoReady(true);
+                    if (!isActive) {
+                        player.pause();
+                        player.currentTime = 0;
+                    }
+                }
+            } catch {
+                // player may already be released
+            }
+        };
+        revealIfReady();
+        const interval = setInterval(revealIfReady, 80);
+        const stop = setTimeout(() => clearInterval(interval), 3000);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+            clearTimeout(stop);
+        };
+    }, [
+        isActive,
+        shouldPreload,
+        firstFrameRendered,
+        isPlaying,
+        player,
+        playerEpoch,
+        playerStatus,
+        srcUrl,
+    ]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -738,7 +781,7 @@ function VideoPlayerCore({
                 !isManuallyPaused &&
                 !(item.is_sensitive && !playSensitive);
 
-            if (isActive && !wasActiveRef.current && everActiveRef.current) {
+            if (isActive && !wasActiveRef.current && everActiveRef.current && !isFeedFrameReady(srcUrl)) {
                 player.currentTime = 0;
             }
             if (isActive) {
@@ -978,30 +1021,27 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface =
-        isActive &&
-        (firstFrameRendered || (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
-    const hidePoster = showVideoSurface;
-
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
-                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={styles.video}
+                        style={styles.videoUnderPoster}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
                         pointerEvents="none"
-                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        surfaceType="surfaceView"
                         onFirstFrameRender={handleFirstFrameRender}
                         accessible={true}
                         accessibilityLabel={item.media.alt_text || 'Video content'}
                         accessibilityHint="Tap to pause or play"
                         contentFit="cover"
                     />
+                ) : null}
+                {!firstFrameRendered && (isActive || shouldPreload) ? (
+                    <VideoPoster thumbnail={thumbnail} />
                 ) : null}
             </View>
 
@@ -1170,7 +1210,7 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    video: {
+    videoUnderPoster: {
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',

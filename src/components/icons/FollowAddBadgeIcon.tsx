@@ -8,7 +8,7 @@ type FollowAddBadgeIconProps = {
 
 const VIEW = 36;
 const STROKE = 2.65;
-const PLUS_STROKE = 4.0;
+const PLUS_STROKE = 2.9;
 const CENTER_X = 18;
 
 /**

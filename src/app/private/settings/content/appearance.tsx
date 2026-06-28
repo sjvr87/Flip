@@ -4,7 +4,7 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function AppearanceScreen() {
-    const { colorScheme, isDark, setColorScheme } = useTheme();
+    const { colorScheme, colors, setColorScheme } = useTheme();
 
     const handleThemeSelect = (theme: ColorScheme) => {
         setColorScheme(theme);
@@ -46,32 +46,46 @@ export default function AppearanceScreen() {
 
     const RadioButton = ({ selected }: { selected: boolean }) => (
         <View
-            style={tw`w-6 h-6 rounded-full border-2 ${selected ? 'border-[#22D3EE]' : 'border-gray-300 dark:border-gray-600'} items-center justify-center`}>
-            {selected && <View style={tw`w-3.5 h-3.5 rounded-full bg-[#22D3EE]`} />}
+            style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                borderWidth: 2,
+                borderColor: selected ? '#22D3EE' : colors.border,
+                alignItems: 'center',
+                justifyContent: 'center',
+            }}>
+            {selected && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#22D3EE' }} />}
         </View>
     );
 
     return (
-        <View style={tw`flex-1 bg-white dark:bg-black`}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <Stack.Screen
                 options={{
                     title: 'Appearance',
-                    headerStyle: tw`bg-white dark:bg-black`,
-                    headerTintColor: isDark ? '#fff' : '#000',
+                    headerStyle: { backgroundColor: colors.background },
+                    headerTintColor: colors.text,
                     headerBackTitle: 'Settings',
                     headerShown: true,
                 }}
             />
 
             <ScrollView style={tw`flex-1`}>
-                <View style={tw`bg-white dark:bg-black py-8 px-4`}>
+                <View style={{ backgroundColor: colors.background, paddingVertical: 32, paddingHorizontal: 16 }}>
                     <View style={tw`flex-row justify-around items-start mb-6`}>
                         <TouchableOpacity
                             style={tw`items-center`}
                             onPress={() => handleThemeSelect('light')}>
                             <ThemeMockup theme="light" />
                             <Text
-                                style={tw`text-base font-semibold mt-4 mb-3 text-gray-900 dark:text-white`}>
+                                style={{
+                                    fontSize: 16,
+                                    fontWeight: '600',
+                                    marginTop: 16,
+                                    marginBottom: 12,
+                                    color: colors.text,
+                                }}>
                                 Light
                             </Text>
                             <RadioButton selected={colorScheme === 'light'} />
@@ -82,7 +96,13 @@ export default function AppearanceScreen() {
                             onPress={() => handleThemeSelect('dark')}>
                             <ThemeMockup theme="dark" />
                             <Text
-                                style={tw`text-base font-semibold mt-4 mb-3 text-gray-900 dark:text-white`}>
+                                style={{
+                                    fontSize: 16,
+                                    fontWeight: '600',
+                                    marginTop: 16,
+                                    marginBottom: 12,
+                                    color: colors.text,
+                                }}>
                                 Dark
                             </Text>
                             <RadioButton selected={colorScheme === 'dark'} />
@@ -90,16 +110,22 @@ export default function AppearanceScreen() {
                     </View>
                 </View>
 
-                <View style={tw`h-px bg-gray-200 dark:bg-gray-800`} />
+                <View style={{ height: 1, backgroundColor: colors.border }} />
 
                 <TouchableOpacity
-                    style={tw`flex-row items-center py-5 px-5 bg-white dark:bg-black`}
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 20,
+                        paddingHorizontal: 20,
+                        backgroundColor: colors.background,
+                    }}
                     onPress={() => handleThemeSelect('device')}>
-                    <View style={tw`flex-1`}>
-                        <Text style={tw`text-base font-medium text-gray-900 dark:text-white`}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '500', color: colors.text }}>
                             System
                         </Text>
-                        <Text style={tw`mt-1 text-sm text-gray-500 dark:text-gray-400`}>
+                        <Text style={{ marginTop: 4, fontSize: 14, color: colors.textSecondary }}>
                             Match your device&apos;s display settings
                         </Text>
                     </View>

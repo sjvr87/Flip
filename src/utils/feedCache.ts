@@ -86,6 +86,146 @@ type FeedInfiniteData = {
     pageParams: unknown[];
 };
 
+export type FeedInfiniteCache = FeedInfiniteData;
+
+/** Query key segment for viewer — matches feedVideosQueryKey. */
+export function feedViewerCacheKey(viewerDid?: string | null): string {
+    return viewerDid ?? 'anon';
+}
+
+/** Read raw infinite-query cache, falling back to anon key after session restore. */
+export function getCachedFeedInfiniteData(
+    queryClient: QueryClient,
+    tab: FeedTab,
+    epoch: number,
+    viewerDid?: string | null,
+): FeedInfiniteData | undefined {
+    const primaryKey = ['videos', tab, epoch, feedViewerCacheKey(viewerDid)] as const;
+    const primary = queryClient.getQueryData<FeedInfiniteData>(primaryKey);
+    if (primary?.pages?.length) {
+        return primary;
+    }
+    if (viewerDid) {
+        const anon = queryClient.getQueryData<FeedInfiniteData>([
+            'videos',
+            tab,
+            epoch,
+            'anon',
+        ]);
+        if (anon?.pages?.length) {
+            return anon;
+        }
+    }
+    return undefined;
+}
+
+/** Read cached feed videos for a tab (deduped) — used for tab-switch media warmup. */
+export function getCachedFeedVideos(
+    queryClient: QueryClient,
+    tab: FeedTab,
+    epoch: number,
+    viewerDid?: string | null,
+): FlipVideo[] {
+    const cached = getCachedFeedInfiniteData(queryClient, tab, epoch, viewerDid);
+    if (!cached?.pages?.length) {
+        return [];
+    }
+    return dedupeFeedVideos(
+        cached.pages.flatMap((page) => page.data),
+        tab,
+    );
+}
+
+/** Default first-screen warm counts — thumbnails are cheap on Android. */
+export const FEED_TAB_WARM_THUMB_COUNT = 8;
+export const FEED_TAB_WARM_VIDEO_COUNT = 2;
+/** Thumbnails to warm around the active index while scrolling. */
+export const FEED_SCROLL_THUMB_RADIUS = 5;
+
+/** Warm thumbnails (and first videos on iOS) before switching to a tab. */
+export function warmFeedTabMedia(
+    queryClient: QueryClient,
+    tab: FeedTab,
+    epoch: number,
+    viewerDid: string | null | undefined,
+    options: {
+        prefetchThumbnails: (urls: (string | undefined | null)[]) => void;
+        prefetchVideoUrls: (urls: string[]) => void;
+        videoCount?: number;
+        thumbCount?: number;
+    },
+): void {
+    const videos = getCachedFeedVideos(queryClient, tab, epoch, viewerDid);
+    if (videos.length === 0) {
+        return;
+    }
+
+    const thumbCount = options.thumbCount ?? FEED_TAB_WARM_THUMB_COUNT;
+    const videoCount = options.videoCount ?? FEED_TAB_WARM_VIDEO_COUNT;
+    const thumbSlice = videos.slice(0, thumbCount);
+    options.prefetchThumbnails(
+        thumbSlice.flatMap((video) => [video.media?.thumbnail, video.account?.avatar]),
+    );
+
+    const videoUrls = videos
+        .slice(0, videoCount)
+        .map((video) => video.media?.src_url)
+        .filter((url): url is string => typeof url === 'string' && url.length > 0);
+    if (videoUrls.length > 0) {
+        options.prefetchVideoUrls(videoUrls);
+    }
+}
+
+/** Warm thumbnails for videos near an index (scroll / hard-skip landing). */
+export function warmFeedVideosNearIndex(
+    videos: FlipVideo[],
+    centerIndex: number,
+    prefetchThumbnails: (urls: (string | undefined | null)[]) => void,
+    radius = FEED_SCROLL_THUMB_RADIUS,
+): void {
+    if (videos.length === 0 || centerIndex < 0) {
+        return;
+    }
+    const start = Math.max(0, centerIndex - 1);
+    const end = Math.min(videos.length - 1, centerIndex + radius);
+    const urls: (string | undefined | null)[] = [];
+    for (let i = start; i <= end; i += 1) {
+        const video = videos[i];
+        if (video?.media?.thumbnail) {
+            urls.push(video.media.thumbnail);
+        }
+        if (video?.account?.avatar) {
+            urls.push(video.account.avatar);
+        }
+    }
+    prefetchThumbnails(urls);
+}
+
+/** Warm thumbnails for every index in a hard-skip landing range. */
+export function warmFeedVideosInRange(
+    videos: FlipVideo[],
+    fromIndex: number,
+    toIndex: number,
+    prefetchThumbnails: (urls: (string | undefined | null)[]) => void,
+): void {
+    if (videos.length === 0) {
+        return;
+    }
+    const lo = Math.max(0, Math.min(fromIndex, toIndex));
+    const hi = Math.min(videos.length - 1, Math.max(fromIndex, toIndex));
+    const urls: (string | undefined | null)[] = [];
+    for (let i = lo; i <= hi; i += 1) {
+        const video = videos[i];
+        if (video?.media?.thumbnail) {
+            urls.push(video.media.thumbnail);
+        }
+        if (video?.account?.avatar) {
+            urls.push(video.account.avatar);
+        }
+    }
+    prefetchThumbnails(urls);
+}
+
 /** Optimistically sync comment count on main-feed and profile-reel cards. */
 export function patchFeedVideoComments(
     queryClient: QueryClient,

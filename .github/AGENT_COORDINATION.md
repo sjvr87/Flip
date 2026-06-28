@@ -182,7 +182,7 @@ Proceed only if the line contains `social.flip.app`. If not, run `am start -n so
 4. **Agent taps (optional):** After focus check (above), agents may tap tabs with `adb shell input tap` using Flip-only coordinates (see reference for R3GL10HN64A) **or** user taps while agent captures logcat. User taps remain preferred for OAuth and ambiguous layouts.
 5. `adb shell input keyevent` only if Flip is foreground and the key is unambiguous (e.g. BACK inside Flip). **Do not** use keyevents to switch tabs.
 
-**GitHub tracking:** [issue #17](https://github.com/sjvr87/Flip/issues/17) -- tab verification via user taps **or** Flip-foreground coordinate taps + logcat.
+**GitHub tracking:** [issue #17](https://github.com/sjvr87/Flip/issues/17) — canonical agent brief: [issue-17-minimal.md](issue-17-minimal.md) (cloud agents commit/push; user runs local `git pull` + `flip-reload.bat`).
 ## Current Workflow (Metro + MMKV + Device Testing)
 
 ### Phase 1: Build & Prep (Parallel)

@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 const SPLASH_FAILSAFE_MS = 10_000;
+const AUTH_READY_FAILSAFE_MS = 15_000;
 const EXPO_GO_BANNER_MS = 4000;
 
 if (isExpoGo) {
@@ -220,6 +221,17 @@ function NativeAppContent() {
         } catch {
             // ignore
         }
+    }, [hasHydrated]);
+
+    useEffect(() => {
+        if (!hasHydrated) return;
+        const authFailsafe = setTimeout(() => {
+            if (!useAuthStore.getState().authReady) {
+                console.warn('[startup] authReady fail-safe — unblocking tabs');
+                useAuthStore.setState({ authReady: true });
+            }
+        }, AUTH_READY_FAILSAFE_MS);
+        return () => clearTimeout(authFailsafe);
     }, [hasHydrated]);
 
     useEffect(() => {

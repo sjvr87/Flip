@@ -24,7 +24,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
     const lensR = 5.2;
 
     return (
-        <Svg width={size} height={size} viewBox="0 0 26 26" fill="none">
+        <Svg width={size} height={size} viewBox="0 -2 26 28" fill="none">
             <Text
                 x={CX}
                 y={3.7}
@@ -113,7 +113,7 @@ const CreateCameraTabIcon = memo(function CreateCameraTabIcon({
 
             <Text
                 x={CX}
-                y={25.0}
+                y={24.1}
                 fill={color}
                 opacity={strokeOpacity}
                 fontSize={LABEL_FONT_SIZE}
