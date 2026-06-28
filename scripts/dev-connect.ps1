@@ -1,6 +1,7 @@
 # Flip dev connect: pull, adb reverse, Metro (reuse or start one window), launch app.
-# Deep links always use LAN IP (192.168.x.x) - never 127.0.0.1 - bypassing the dev launcher picker.
-# adb reverse tcp:8081 is set for USB fallback; scripts still launch exp://LAN:8081 via deep link.
+# Deep links prefer USB path (exp://127.0.0.1:8081) when adb reverse is active; fall back to
+# LAN IP (exp://192.168.x.x:8081) when no USB device is present.  Both paths bypass the dev
+# launcher picker.  metro.config.js binds Metro to 0.0.0.0 so both paths reach the bundler.
 #
 # Modes:
 #   (default)        flip-dev.bat           - pull + adb + reuse Metro (or start one window)
@@ -263,6 +264,29 @@ function Invoke-MetroReload {
   }
 }
 
+function Invoke-BundleWarmup {
+  param(
+    [string]$MetroHost = "127.0.0.1",  # must match the host the device will use (USB or LAN)
+    [int]$TimeoutSec = 3               # short: goal is to start the compile, not wait for it
+  )
+  # Trigger Metro's JS compilation pipeline before the app launches.  The request is
+  # intentionally short-lived — by the time the app cold-starts (~2-5 s) Metro's cache
+  # is already warm.  Do NOT include lazy=true; that would delay compilation.
+  try {
+    $r = Invoke-WebRequest -Uri "http://${MetroHost}:8081/index.bundle?platform=android&dev=true&hot=false" `
+      -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction SilentlyContinue
+    if ($r -and $r.StatusCode -lt 500) {
+      Write-Host "  Bundle warm-up: Metro responded ($($r.StatusCode)) — bundle request queued." -ForegroundColor DarkGray
+    } else {
+      Write-Host "  Bundle warm-up: request sent to ${MetroHost}:8081." -ForegroundColor DarkGray
+    }
+  } catch {
+    # Timeout and connection errors are expected when Metro is still starting or the bundle
+    # compile takes longer than $TimeoutSec.  The request was still received by Metro.
+    Write-Host "  Bundle warm-up: request to ${MetroHost}:8081 timed out or failed — Metro may still be starting." -ForegroundColor DarkGray
+  }
+}
+
 function Select-TargetSerials([string[]]$AllSerials) {
   if ($AllSerials.Count -eq 0) { return @() }
   if ($PreferredDevice -and ($AllSerials -contains $PreferredDevice)) {
@@ -315,7 +339,8 @@ function Start-FlipApp {
   param(
     [string]$Serial,
     [string]$AdbPath,
-    [string]$DevServerHost
+    [string]$DevServerHost,      # LAN IP (192.168.x.x) — used when no USB reverse
+    [bool]$UsbReverseOk = $false # when true, prefer 127.0.0.1 via adb reverse
   )
 
   if (-not (Wait-MetroHealthy -TimeoutSec 120)) {
@@ -323,37 +348,49 @@ function Start-FlipApp {
     return $false
   }
 
+  # Prefer the USB path (127.0.0.1) when adb reverse is active — it is reliable even when
+  # Wi-Fi is unavailable or the LAN path is broken.  metro.config.js binds to 0.0.0.0 so
+  # Metro accepts connections on both 127.0.0.1 (USB) and the LAN IP (Wi-Fi).
+  $effectiveHost = if ($UsbReverseOk) { "127.0.0.1" } elseif ($DevServerHost) { $DevServerHost } else { $null }
+
+  if (-not $effectiveHost) {
+    Write-Host "  $Serial : no USB reverse and no LAN IP - cannot build deep link" -ForegroundColor Red
+    Write-Host "  Connect USB (data cable + USB debugging) or join same Wi-Fi as PC." -ForegroundColor Yellow
+    return $false
+  }
+
+  # Pre-warm the Metro bundle cache so the device doesn't time-out on first load.
+  # Use the same host the device will connect to (USB or LAN).
+  Invoke-BundleWarmup -MetroHost $effectiveHost
+
   $null = Invoke-AdbQuiet -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "force-stop", "social.flip.app")
   Start-Sleep -Milliseconds 400
 
-  if ($DevServerHost) {
-    # Base exp:// URL only — route paths break DevLauncherManifestParser.downloadManifest.
-    # Home tab is set via Tabs initialRouteName="index" in src/app/(tabs)/_layout.tsx.
-    $metroUrl = "exp://${DevServerHost}:8081"
-    $encodedUrl = Escape-DeepLinkUrlParam $metroUrl
-    $deepLink = "flip://expo-development-client/?url=$encodedUrl"
-    $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @(
-      "-s", $Serial, "shell", "am", "start",
-      "-a", "android.intent.action.VIEW",
-      "-d", $deepLink
-    )
-    Write-Host "  $Serial : $start"
-    Write-Host "  $Serial : deep link $metroUrl (bypasses dev launcher picker)" -ForegroundColor DarkGray
-  } else {
-    $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @("-s", $Serial, "shell", "am", "start", "-n", "social.flip.app/.MainActivity")
-    Write-Host "  $Serial : $start"
-  }
+  # Base exp:// URL only — route paths break DevLauncherManifestParser.downloadManifest.
+  # Home tab is set via Tabs initialRouteName="index" in src/app/(tabs)/_layout.tsx.
+  $metroUrl = "exp://${effectiveHost}:8081"
+  $encodedUrl = Escape-DeepLinkUrlParam $metroUrl
+  $deepLink = "flip://expo-development-client/?url=$encodedUrl"
+  $start = Invoke-AdbString -AdbPath $AdbPath -AdbArgs @(
+    "-s", $Serial, "shell", "am", "start",
+    "-a", "android.intent.action.VIEW",
+    "-d", $deepLink
+  )
+  Write-Host "  $Serial : $start"
+  $pathLabel = if ($UsbReverseOk) { "USB adb-reverse" } else { "LAN Wi-Fi" }
+  Write-Host "  $Serial : deep link $metroUrl ($pathLabel — bypasses dev launcher picker)" -ForegroundColor DarkGray
   return $true
 }
 
 function Write-NoLanIpHelp {
   Write-Host ""
-  Write-Host "============================================================" -ForegroundColor Red
-  Write-Host "  NO LAN IP FOUND - phone cannot reach Metro safely" -ForegroundColor Red
-  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host "============================================================" -ForegroundColor Yellow
+  Write-Host "  NO LAN IP FOUND - using USB adb-reverse path (127.0.0.1)" -ForegroundColor Yellow
+  Write-Host "============================================================" -ForegroundColor Yellow
   Write-Host ""
-  Write-Host "Flip dev uses your PC LAN address (192.168.x.x), not 127.0.0.1." -ForegroundColor Yellow
-  Write-Host "Connect phone and PC to the same Wi-Fi, then re-run this script." -ForegroundColor Yellow
+  Write-Host "No Wi-Fi LAN address detected on this PC." -ForegroundColor DarkGray
+  Write-Host "adb reverse is active, so the device will reach Metro via USB (127.0.0.1:8081)." -ForegroundColor DarkGray
+  Write-Host "For Wi-Fi / LAN path: connect PC and phone to the same network." -ForegroundColor DarkGray
   Write-Host ""
 }
 
@@ -386,11 +423,16 @@ function Write-DevStatus {
   if ($finalMetroHealthy) {
     Write-Host 'Metro window: taskbar -> Command Prompt titled "Flip Metro" (bundler / QR / connection URL)'
   }
+  if ($ReverseOk) {
+    Write-Host "Launch URL: exp://127.0.0.1:8081 (USB adb-reverse — bypasses Wi-Fi requirement)"
+  }
   if ($script:LanIp) {
-    Write-Host "Launch URL: exp://${script:LanIp}:8081 (bypasses dev launcher picker; Home via initialRouteName)"
+    if (-not $ReverseOk) {
+      Write-Host "Launch URL: exp://${script:LanIp}:8081 (LAN Wi-Fi — bypasses dev launcher picker)"
+    }
     Write-Host ("Metro LAN /status: {0}" -f $(if ($finalLanHealthy) { "running" } else { "NOT reachable - run flip-reset-dev.bat" }))
-  } else {
-    Write-Host "Launch URL: (no LAN IP - connect PC and phone to same Wi-Fi)" -ForegroundColor Yellow
+  } elseif (-not $ReverseOk) {
+    Write-Host "Launch URL: (no USB reverse and no LAN IP — connect USB or same Wi-Fi)" -ForegroundColor Yellow
   }
   return $finalMetroHealthy
 }
@@ -447,14 +489,14 @@ if ($Reset) {
     exit 1
   }
 
-  Write-Host "[5/6] Launch Flip with LAN dev-server URL"
+  Write-Host "[5/6] Launch Flip via USB (127.0.0.1) or LAN"
   if ($serials.Count -gt 0) {
-    if (-not $script:LanIp) {
+    if (-not $script:LanIp -and -not $reverseOk) {
       Write-NoLanIpHelp
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp -UsbReverseOk $reverseOk
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -465,7 +507,11 @@ if ($Reset) {
   Write-Host "=== When app won't connect ===" -ForegroundColor Cyan
   Write-Host "- Run flip-reset-dev.bat (this script)"
   Write-Host "- Dev launcher cached 127.0.0.1: tap RESET on Recently Opened (scripts bypass picker via deep link)"
-  Write-Host "- Same Wi-Fi as PC ($($script:LanIp)); allow Node through Windows Firewall on 8081"
+  if ($reverseOk) {
+    Write-Host "- USB path active (127.0.0.1:8081 via adb reverse) — Wi-Fi not required"
+  } else {
+    Write-Host "- Same Wi-Fi as PC ($($script:LanIp)); allow Node through Windows Firewall on 8081"
+  }
   exit $(if ($ok) { 0 } else { 1 })
 }
 
@@ -510,12 +556,12 @@ if ($ConnectOnly -and -not $Reconnect) {
     Invoke-MetroReload | Out-Null
   } elseif ($serials.Count -gt 0) {
     Write-Host "[5/6] Launch Flip on device"
-    if (-not $script:LanIp) {
+    if (-not $script:LanIp -and -not $reverseOk) {
       Write-NoLanIpHelp
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp -UsbReverseOk $reverseOk
     }
   } else {
     Write-Host "[5/6] Launch/reload - skipped (no device)" -ForegroundColor Yellow
@@ -539,14 +585,14 @@ if ($Reconnect) {
     exit 1
   }
 
-  Write-Host "[5/6] Launch Flip with LAN dev-server URL"
+  Write-Host "[5/6] Launch Flip via USB (127.0.0.1) or LAN"
   if ($serials.Count -gt 0) {
-    if (-not $script:LanIp) {
+    if (-not $script:LanIp -and -not $reverseOk) {
       Write-NoLanIpHelp
       exit 1
     }
     foreach ($serial in $serials) {
-      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+      Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp -UsbReverseOk $reverseOk
     }
   } else {
     Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -578,12 +624,12 @@ if (-not $metroHealthy) {
 
 Write-Host "[5/6] Launch Flip on device"
 if ($serials.Count -gt 0) {
-  if (-not $script:LanIp) {
+  if (-not $script:LanIp -and -not $reverseOk) {
     Write-NoLanIpHelp
     exit 1
   }
   foreach ($serial in $serials) {
-    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp
+    Start-FlipApp -Serial $serial -AdbPath $adb -DevServerHost $script:LanIp -UsbReverseOk $reverseOk
   }
 } else {
   Write-Host "  Skipped (no device)." -ForegroundColor Yellow
@@ -602,10 +648,10 @@ Write-Host "- flip-dev-restart.bat: pull + force Metro recycle if unhealthy (cle
 Write-Host ""
 Write-Host "=== Troubleshooting ===" -ForegroundColor Cyan
 Write-Host "- App won't connect at all: flip-reset-dev.bat"
-Write-Host "- Dev launcher cached 127.0.0.1: tap RESET on Recently Opened (deep link bypasses picker)"
+Write-Host "- Dev launcher cached wrong URL: tap RESET on Recently Opened (deep link bypasses picker)"
 Write-Host "- Beta/preview app [flip-beta.bat] is standalone - it cannot load live JS from your PC"
+Write-Host "- USB: adb reverse active -> 127.0.0.1:8081 (no Wi-Fi needed); data cable + USB debugging on"
 Write-Host "- LAN: phone on same Wi-Fi as PC ($($script:LanIp)), allow Node through Windows Firewall on 8081"
-Write-Host "- USB: data cable, USB debugging on, accept RSA fingerprint on phone"
 Write-Host "- Dev client only (not Expo Go); package social.flip.app"
 
 if (-not $ok) {
