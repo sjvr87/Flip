@@ -11,7 +11,7 @@ export const shouldPrefetchVideo = !ANDROID_VIDEO_SAFE_MODE;
 /** Android: active + neighbors — wider window reduces black flash on scroll-back. */
 export const feedPlayerPreloadDistance = ANDROID_VIDEO_SAFE_MODE ? 2 : 2;
 
-export const feedFlatListWindowSize = ANDROID_VIDEO_SAFE_MODE ? 5 : 6;
+export const feedFlatListWindowSize = ANDROID_VIDEO_SAFE_MODE ? 3 : 6;
 
 export const feedInitialNumToRender = ANDROID_VIDEO_SAFE_MODE ? 1 : 2;
 

@@ -1228,7 +1228,9 @@ function VideoPlayerCore({
     const progressBarHeight = isScrubbing ? PROGRESS_BAR_SCRUB_HEIGHT : PROGRESS_BAR_HEIGHT;
 
     const videoBody = (
-        <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
+        <View
+            style={[styles.videoContainer, { height: slideHeight }]}
+            pointerEvents={isActive ? 'box-none' : 'none'}>
             <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
                 {videoViewPlayer ? (
@@ -1260,169 +1262,181 @@ function VideoPlayerCore({
                 </Animated.View>
             ) : null}
 
-            <GestureDetector gesture={videoGesture}>
-                <View
-                    style={[
-                        styles.tapOverlay,
-                        isActive ? { bottom: PROGRESS_BAR_TOUCH_HEIGHT } : null,
-                    ]}
-                    collapsable={false}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play. Press and hold to speed up."
-                    accessibilityRole="button"
-                />
-            </GestureDetector>
+            {isActive ? (
+                <>
+                    <GestureDetector gesture={videoGesture}>
+                        <View
+                            style={[styles.tapOverlay, { bottom: PROGRESS_BAR_TOUCH_HEIGHT }]}
+                            collapsable={false}
+                            accessible={true}
+                            accessibilityLabel="Video"
+                            accessibilityHint="Tap to pause or play. Press and hold to speed up."
+                            accessibilityRole="button"
+                        />
+                    </GestureDetector>
 
-            {isActive && playbackDuration > 0 ? (
-                <GestureDetector gesture={scrubGesture}>
-                    <View
-                        style={[styles.progressBarTouchArea, { bottom: videoBottomReserved }]}
-                        onLayout={handleProgressBarLayout}
-                        accessible={true}
-                        accessibilityLabel="Video progress"
-                        accessibilityRole="adjustable"
-                        accessibilityHint="Drag to seek through the video">
-                        <View style={[styles.progressBarTrack, { height: progressBarHeight }]}>
+                    {playbackDuration > 0 ? (
+                        <GestureDetector gesture={scrubGesture}>
                             <View
                                 style={[
-                                    styles.progressBarFill,
-                                    {
-                                        width: `${progressFraction * 100}%`,
-                                        height: progressBarHeight,
-                                    },
+                                    styles.progressBarTouchArea,
+                                    { bottom: videoBottomReserved },
                                 ]}
+                                onLayout={handleProgressBarLayout}
+                                accessible={true}
+                                accessibilityLabel="Video progress"
+                                accessibilityRole="adjustable"
+                                accessibilityHint="Drag to seek through the video">
+                                <View
+                                    style={[
+                                        styles.progressBarTrack,
+                                        { height: progressBarHeight },
+                                    ]}>
+                                    <View
+                                        style={[
+                                            styles.progressBarFill,
+                                            {
+                                                width: `${progressFraction * 100}%`,
+                                                height: progressBarHeight,
+                                            },
+                                        ]}
+                                    />
+                                </View>
+                            </View>
+                        </GestureDetector>
+                    ) : null}
+
+                    <View
+                        pointerEvents="none"
+                        style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
+                        <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                            style={StyleSheet.absoluteFillObject}
+                            pointerEvents="none"
+                        />
+                    </View>
+
+                    <FeedActionRail
+                        avatarUrl={item.account?.avatar}
+                        profileLabel={`View ${item.account.username}'s profile`}
+                        creatorId={item.account?.id}
+                        creatorUsername={item.account?.username}
+                        isOwnPost={item.is_owner}
+                        isLiked={isLiked}
+                        isBookmarked={isBookmarked}
+                        isReposted={isReposted}
+                        isMuted={feedMuted}
+                        likeCount={likeCount}
+                        commentCount={safeCount(item.comments)}
+                        bookmarkCount={bookmarkCount}
+                        repostCount={repostCount}
+                        canComment={item.permissions?.can_comment}
+                        canUseAudio={canUseAudio}
+                        bottomInset={bottomInset}
+                        tabBarHeight={tabBarHeight}
+                        overlayBottom={actionRailBottom ?? overlayBottom}
+                        onProfilePress={() => safeRouterPush(toProfilePath(item.account.id))}
+                        onLike={handleLike}
+                        onComment={() => onComment(item)}
+                        onBookmark={handleBookmark}
+                        onRepost={handleRepost}
+                        onShare={() => onShare(item)}
+                        onMuteToggle={toggleFeedMuted}
+                        onUseAudio={handleUseAudio}
+                        onOther={() => onOther(item)}
+                    />
+
+                    <View
+                        style={[styles.bottomInfo, { bottom: captionBottom }]}
+                        pointerEvents="box-none">
+                        <TouchableOpacity
+                            onPress={() => {
+                                onNavigate?.();
+                                safeRouterPush(toProfilePath(item.account.id));
+                            }}
+                            accessible={true}
+                            accessibilityLabel={`View @${item.account.username}'s profile`}
+                            accessibilityRole="link">
+                            <MentionText username={item.account.username} style={styles.username} />
+                        </TouchableOpacity>
+                        {item.caption && (
+                            <LinkifiedCaption
+                                caption={item.caption}
+                                tags={item.tags || []}
+                                mentions={item.mentions || []}
+                                style={styles.caption}
+                                numberOfLines={1}
+                                onCaptionPress={() => onCaptionExpand?.(item)}
+                                onHashtagPress={(tag) => {
+                                    onNavigate?.();
+                                    router.push(`/private/search?query=${tag}`);
+                                }}
+                                onMentionPress={(username, profileId) => {
+                                    onNavigate?.();
+                                    const target = profileId ?? username;
+                                    if (!target) return;
+                                    safeRouterPush(toProfilePath(target));
+                                }}
+                                onMorePress={() => onCaptionExpand?.(item)}
                             />
-                        </View>
+                        )}
+
+                        {item?.meta?.contains_ai && (
+                            <View>
+                                <View
+                                    style={styles.aiLabelWrapper}
+                                    accessible={true}
+                                    accessibilityLabel="Creator labeled this as AI-generated content"
+                                    accessibilityRole="text">
+                                    <Text style={styles.aiLabelText}>
+                                        Creator labeled as AI-generated
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.audioInfo}
+                            onPress={() => {
+                                const target = showRemixedAudio
+                                    ? (item.audioSource?.profileId ?? item.audioSource?.username)
+                                    : item.account.id;
+                                if (!target) return;
+                                onNavigate?.();
+                                safeRouterPush(toProfilePath(target));
+                            }}
+                            accessible={true}
+                            accessibilityLabel={
+                                showRemixedAudio
+                                    ? `Audio from ${audioLabel}`
+                                    : 'Original audio from this creator'
+                            }
+                            accessibilityRole="button">
+                            <Ionicons
+                                name="musical-notes"
+                                size={14}
+                                color="white"
+                                importantForAccessibility="no"
+                            />
+                            <Text style={styles.audioText}>
+                                {showRemixedAudio ? `♪ ${audioLabel}` : audioLabel}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {item?.meta?.contains_ad && (
+                            <View>
+                                <View
+                                    style={styles.aiLabelWrapper}
+                                    accessible={true}
+                                    accessibilityLabel="Sponsored content"
+                                    accessibilityRole="text">
+                                    <Text style={styles.aiLabelText}>Sponsored</Text>
+                                </View>
+                            </View>
+                        )}
                     </View>
-                </GestureDetector>
+                </>
             ) : null}
-
-            <View
-                pointerEvents="none"
-                style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                    style={StyleSheet.absoluteFillObject}
-                    pointerEvents="none"
-                />
-            </View>
-
-            <FeedActionRail
-                avatarUrl={item.account?.avatar}
-                profileLabel={`View ${item.account.username}'s profile`}
-                creatorId={item.account?.id}
-                creatorUsername={item.account?.username}
-                isOwnPost={item.is_owner}
-                isLiked={isLiked}
-                isBookmarked={isBookmarked}
-                isReposted={isReposted}
-                isMuted={feedMuted}
-                likeCount={likeCount}
-                commentCount={safeCount(item.comments)}
-                bookmarkCount={bookmarkCount}
-                repostCount={repostCount}
-                canComment={item.permissions?.can_comment}
-                canUseAudio={canUseAudio}
-                bottomInset={bottomInset}
-                tabBarHeight={tabBarHeight}
-                overlayBottom={actionRailBottom ?? overlayBottom}
-                onProfilePress={() => safeRouterPush(toProfilePath(item.account.id))}
-                onLike={handleLike}
-                onComment={() => onComment(item)}
-                onBookmark={handleBookmark}
-                onRepost={handleRepost}
-                onShare={() => onShare(item)}
-                onMuteToggle={toggleFeedMuted}
-                onUseAudio={handleUseAudio}
-                onOther={() => onOther(item)}
-            />
-
-            <View style={[styles.bottomInfo, { bottom: captionBottom }]} pointerEvents="box-none">
-                <TouchableOpacity
-                    onPress={() => {
-                        onNavigate?.();
-                        safeRouterPush(toProfilePath(item.account.id));
-                    }}
-                    accessible={true}
-                    accessibilityLabel={`View @${item.account.username}'s profile`}
-                    accessibilityRole="link">
-                    <MentionText username={item.account.username} style={styles.username} />
-                </TouchableOpacity>
-                {item.caption && (
-                    <LinkifiedCaption
-                        caption={item.caption}
-                        tags={item.tags || []}
-                        mentions={item.mentions || []}
-                        style={styles.caption}
-                        numberOfLines={1}
-                        onCaptionPress={() => onCaptionExpand?.(item)}
-                        onHashtagPress={(tag) => {
-                            onNavigate?.();
-                            router.push(`/private/search?query=${tag}`);
-                        }}
-                        onMentionPress={(username, profileId) => {
-                            onNavigate?.();
-                            const target = profileId ?? username;
-                            if (!target) return;
-                            safeRouterPush(toProfilePath(target));
-                        }}
-                        onMorePress={() => onCaptionExpand?.(item)}
-                    />
-                )}
-
-                {item?.meta?.contains_ai && (
-                    <View>
-                        <View
-                            style={styles.aiLabelWrapper}
-                            accessible={true}
-                            accessibilityLabel="Creator labeled this as AI-generated content"
-                            accessibilityRole="text">
-                            <Text style={styles.aiLabelText}>Creator labeled as AI-generated</Text>
-                        </View>
-                    </View>
-                )}
-
-                <TouchableOpacity
-                    style={styles.audioInfo}
-                    onPress={() => {
-                        const target = showRemixedAudio
-                            ? (item.audioSource?.profileId ?? item.audioSource?.username)
-                            : item.account.id;
-                        if (!target) return;
-                        onNavigate?.();
-                        safeRouterPush(toProfilePath(target));
-                    }}
-                    accessible={true}
-                    accessibilityLabel={
-                        showRemixedAudio
-                            ? `Audio from ${audioLabel}`
-                            : 'Original audio from this creator'
-                    }
-                    accessibilityRole="button">
-                    <Ionicons
-                        name="musical-notes"
-                        size={14}
-                        color="white"
-                        importantForAccessibility="no"
-                    />
-                    <Text style={styles.audioText}>
-                        {showRemixedAudio ? `♪ ${audioLabel}` : audioLabel}
-                    </Text>
-                </TouchableOpacity>
-
-                {item?.meta?.contains_ad && (
-                    <View>
-                        <View
-                            style={styles.aiLabelWrapper}
-                            accessible={true}
-                            accessibilityLabel="Sponsored content"
-                            accessibilityRole="text">
-                            <Text style={styles.aiLabelText}>Sponsored</Text>
-                        </View>
-                    </View>
-                )}
-            </View>
         </View>
     );
 
