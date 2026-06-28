@@ -10,7 +10,7 @@ if not exist "package.json" (
 echo.
 echo == Flip fix connect ==
 echo Stops auto-sync, then adb reverse + Metro + exp://127.0.0.1:8081 launch.
-echo Do NOT reopen Flip from the app icon — let this script launch it.
+echo Do NOT reopen Flip from the app icon - let this script launch it.
 echo.
 call flip-pause-auto-sync.bat
 echo.

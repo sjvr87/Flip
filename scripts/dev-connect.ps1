@@ -615,10 +615,10 @@ if ($Reset) {
   $ok = Write-DevStatus -ReverseOk $reverseOk
   Write-Host ""
   Write-Host '=== When app will not connect ===' -ForegroundColor Cyan
-  Write-Host "- Run flip-reset-dev.bat (this script)"
-  Write-Host "- USB data cable + flip-reconnect.bat (exp://127.0.0.1:8081 via adb reverse)"
-  Write-Host "- Do NOT reopen Flip manually — use a script so the deep link bypasses stale dev launcher URLs"
-  Write-Host "- Wi-Fi fallback: same network as PC; allow Node through Windows Firewall on 8081"
+  Write-Host '- Run flip-reset-dev.bat (this script)'
+  Write-Host '- USB data cable + flip-reconnect.bat (exp://127.0.0.1:8081 via adb reverse)'
+  Write-Host '- Do NOT reopen Flip manually - use a script so the deep link bypasses stale dev launcher URLs'
+  Write-Host '- Wi-Fi fallback: same network as PC; allow Node through Windows Firewall on 8081'
   exit $(if ($ok) { 0 } else { 1 })
 }
 
@@ -744,20 +744,20 @@ if ($serials.Count -gt 0) {
 $ok = Write-DevStatus -ReverseOk $reverseOk
 Write-Host ""
 Write-Host "=== Scripts ===" -ForegroundColor Cyan
-Write-Host "- flip-reset-dev.bat: pull + kill Metro + clear cache + adb reverse + launch"
-Write-Host "- flip-dev.bat: first connect / sync branch - pull + adb + reuse Metro"
-Write-Host "- flip-reconnect.bat: pull + adb + fix Metro + launch (after crash)"
-Write-Host "- flip-connect.bat: adb + launch only (Metro already healthy)"
-Write-Host "- flip-reload.bat: adb + POST /reload (JS tweak, app already running)"
-Write-Host "- flip-sync.bat: adb reverse + wait for Metro (no launch; phone stays on current app)"
-Write-Host "- flip-dev-restart.bat: pull + force Metro recycle if unhealthy (clear cache)"
-Write-Host ""
-Write-Host "=== Troubleshooting ===" -ForegroundColor Cyan
+Write-Host '- flip-reset-dev.bat: pull + kill Metro + clear cache + adb reverse + launch'
+Write-Host '- flip-dev.bat: first connect / sync branch - pull + adb + reuse Metro'
+Write-Host '- flip-reconnect.bat: pull + adb + fix Metro + launch (after crash)'
+Write-Host '- flip-connect.bat: adb + launch only (Metro already healthy)'
+Write-Host '- flip-reload.bat: adb + POST /reload (JS tweak, app already running)'
+Write-Host '- flip-sync.bat: adb reverse + wait for Metro (no launch; phone stays on current app)'
+Write-Host '- flip-dev-restart.bat: pull + force Metro recycle if unhealthy (clear cache)'
+Write-Host ''
+Write-Host '=== Troubleshooting ===' -ForegroundColor Cyan
 Write-Host '- App will not connect at all: flip-reset-dev.bat or flip-reconnect.bat (USB cable plugged in)'
-Write-Host "- Do NOT reopen Flip from the app icon after a failed load — that reuses a stale dev-server URL"
-Write-Host "- USB: data cable + adb reverse -> exp://127.0.0.1:8081 (preferred; no Wi-Fi required)"
-Write-Host "- Wi-Fi: same network as PC ($($script:LanIp)); allow Node through Windows Firewall on 8081"
-Write-Host "- Dev client only (not Expo Go); package social.flip.app"
+Write-Host '- Do NOT reopen Flip from the app icon after a failed load - that reuses a stale dev-server URL'
+Write-Host '- USB: data cable + adb reverse to exp://127.0.0.1:8081 (preferred, no Wi-Fi required)'
+Write-Host ('- Wi-Fi: same network as PC ({0}); allow Node through Windows Firewall on 8081' -f $script:LanIp)
+Write-Host '- Dev client only (not Expo Go); package social.flip.app'
 
 if (-not $ok) {
   Write-MetroNotRunningBanner
