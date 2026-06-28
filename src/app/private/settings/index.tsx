@@ -142,6 +142,17 @@ export default function SettingsScreen() {
                     onPress={() => router.push('/private/settings/content/notifications')}
                 />
                 <Divider />
+                <SettingsItem
+                    icon="globe-outline"
+                    label="Connected Servers (Coming Soon)"
+                    onPress={() =>
+                        Alert.alert(
+                            'Coming Soon',
+                            'Multi-server support is under development. Stay tuned!',
+                        )
+                    }
+                />
+                <Divider />
                 {/* <SettingsItem icon="play-circle-outline" label="Playback" onPress={() => router.push('/private/settings/content/playback')} />
                 <Divider /> */}
                 {/* <Divider /> */}

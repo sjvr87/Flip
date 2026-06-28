@@ -2,6 +2,7 @@ import { MAX_RECORDING_SECONDS } from '@/camera/camerawesome/config';
 import { launchUploadGalleryPicker } from '@/camera/launchUploadGalleryPicker';
 import { useRecentGalleryThumb } from '@/camera/useRecentGalleryThumb';
 import ReferenceAudioPlayer from '@/components/feed/ReferenceAudioPlayer';
+import { ScreenFlashOverlay, useScreenFlash } from '@/components/camera/ScreenFlashOverlay';
 import { remixReferenceBannerSuffix } from '@/utils/expoAudioAvailability';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
@@ -115,6 +116,9 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
     const clearPendingRemix = usePendingAudioReuseStore((s) => s.clearPending);
     const remixReferenceUrl = pendingRemix?.referenceVideoUrl;
 
+    const { opacity: screenFlashOpacity, fireFlash, startFlash, stopFlash } = useScreenFlash();
+    const shouldScreenFlash = cameraPosition === 'front' && flash;
+
     const syncNativeZoom = useCallback((value: number) => {
         lastNativeZoomRef.current = value;
         setZoomLevel(value);
@@ -199,14 +203,16 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
         if (isRecording || !isCameraReady || captureMode !== 'video') return;
         recordingRef.current = true;
         setIsRecording(true);
-    }, [isRecording, isCameraReady, captureMode]);
+        if (shouldScreenFlash) startFlash();
+    }, [isRecording, isCameraReady, captureMode, shouldScreenFlash, startFlash]);
 
     const stopRecording = useCallback(() => {
         if (!recordingRef.current) return;
         recordingRef.current = false;
         setIsRecording(false);
+        stopFlash();
         zoom.value = withSpring(1);
-    }, [zoom]);
+    }, [zoom, stopFlash]);
 
     useEffect(() => {
         if (captureMode === 'photo' && isRecording) {
@@ -252,8 +258,9 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
     const takePhoto = useCallback(() => {
         if (!isCameraReady || isRecording || captureMode !== 'photo') return;
+        if (shouldScreenFlash) fireFlash(400);
         setPhotoRequestId((id) => id + 1);
-    }, [isCameraReady, isRecording, captureMode]);
+    }, [isCameraReady, isRecording, captureMode, shouldScreenFlash, fireFlash]);
 
     const handleClose = () => {
         if (isRecording) stopRecording();
@@ -418,6 +425,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
 
     return (
         <GestureHandlerRootView style={styles.container}>
+            <ScreenFlashOverlay opacity={screenFlashOpacity} />
             {isCameraReady && remixReferenceUrl ? (
                 <ReferenceAudioPlayer url={remixReferenceUrl} active={isFocused} />
             ) : null}
@@ -521,10 +529,7 @@ export default function FlipCameraScreenAndroid({ onClose }: Props) {
                     style={styles.controlButton}>
                     <Ionicons name="camera-reverse" size={28} color="#fff" />
                 </PressableHaptics>
-                <TouchableOpacity
-                    onPress={() => setFlash((f) => !f)}
-                    style={styles.controlButton}
-                    disabled={cameraPosition === 'front'}>
+                <TouchableOpacity onPress={() => setFlash((f) => !f)} style={styles.controlButton}>
                     <Ionicons name={flash ? 'flash' : 'flash-off'} size={24} color="#fff" />
                 </TouchableOpacity>
             </View>
