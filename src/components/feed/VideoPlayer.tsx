@@ -89,22 +89,43 @@ function VideoPoster({ thumbnail }: { thumbnail?: string }) {
             style={styles.posterImage}
             contentFit="cover"
             cachePolicy="memory-disk"
+            recyclingKey={thumbnail}
             transition={0}
-            placeholder={{ color: POSTER_BG }}
+            priority="high"
         />
+    );
+}
+
+function FullBleedPosterShell({
+    thumbnail,
+    opacity = 1,
+}: {
+    thumbnail?: string;
+    opacity?: Animated.Value | number;
+}) {
+    if (!thumbnail) {
+        return <View style={styles.posterLayerFullBleed} pointerEvents="none" />;
+    }
+    if (typeof opacity === 'number') {
+        return (
+            <View style={[styles.posterLayerFullBleed, { opacity }]} pointerEvents="none">
+                <VideoPoster thumbnail={thumbnail} />
+            </View>
+        );
+    }
+    return (
+        <Animated.View style={[styles.posterLayerFullBleed, { opacity }]} pointerEvents="none">
+            <VideoPoster thumbnail={thumbnail} />
+        </Animated.View>
     );
 }
 
 function VideoSlidePlaceholder({
     item,
     feedHeight,
-    videoTopInset = 0,
-    videoBottomReserved = 0,
 }: {
     item: { media?: { thumbnail?: string; src_url?: string } };
     feedHeight?: number;
-    videoTopInset?: number;
-    videoBottomReserved?: number;
 }) {
     const thumbnail = item.media?.thumbnail;
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
@@ -119,9 +140,7 @@ function VideoSlidePlaceholder({
 
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View style={styles.posterLayerFullBleed} pointerEvents="none">
-                <VideoPoster thumbnail={thumbnail} />
-            </View>
+            <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
         </View>
     );
 }
@@ -154,55 +173,62 @@ function VideoPlayer({
     actionRailBottom,
 }) {
     const wantsPlayer = isActive || shouldPreload;
-    const [holdPlayer, setHoldPlayer] = useState(wantsPlayer);
+    const slideHeight = feedHeight ?? SCREEN_HEIGHT;
+    const thumbnail = item.media?.thumbnail;
+    const [holdPlayer, setHoldPlayer] = useState(wantsPlayer || isActive);
+    const wasActiveRef = useRef(isActive);
 
     useEffect(() => {
-        if (wantsPlayer) {
+        if (isActive) {
+            wasActiveRef.current = true;
+        }
+    }, [isActive]);
+
+    useEffect(() => {
+        if (wantsPlayer || isActive) {
             setHoldPlayer(true);
             return;
         }
-        const timer = setTimeout(() => setHoldPlayer(false), feedPlayerReleaseDelayMs);
+        const delay = wasActiveRef.current ? feedPlayerReleaseDelayMs * 2 : feedPlayerReleaseDelayMs;
+        const timer = setTimeout(() => {
+            setHoldPlayer(false);
+            wasActiveRef.current = false;
+        }, delay);
         return () => clearTimeout(timer);
-    }, [wantsPlayer]);
-
-    if (!holdPlayer) {
-        return (
-            <VideoSlidePlaceholder
-                item={item}
-                feedHeight={feedHeight}
-                videoTopInset={videoTopInset}
-                videoBottomReserved={videoBottomReserved}
-            />
-        );
-    }
+    }, [wantsPlayer, isActive]);
 
     return (
-        <VideoPlayerCore
-            item={item}
-            isActive={isActive}
-            standalonePlayback={standalonePlayback}
-            feedHeight={feedHeight}
-            videoTopInset={videoTopInset}
-            videoBottomReserved={videoBottomReserved}
-            onLike={onLike}
-            onComment={onComment}
-            onCaptionExpand={onCaptionExpand}
-            onShare={onShare}
-            onBookmark={onBookmark}
-            onRepost={onRepost}
-            onOther={onOther}
-            bottomInset={bottomInset}
-            commentsOpen={commentsOpen}
-            screenFocused={screenFocused}
-            videoPlaybackRates={videoPlaybackRates}
-            shareOpen={shareOpen}
-            otherOpen={otherOpen}
-            navigation={navigation}
-            onNavigate={onNavigate}
-            tabBarHeight={tabBarHeight}
-            overlayBottom={overlayBottom}
-            actionRailBottom={actionRailBottom}
-        />
+        <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
+            <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
+            {holdPlayer ? (
+                <VideoPlayerCore
+                    item={item}
+                    isActive={isActive}
+                    standalonePlayback={standalonePlayback}
+                    feedHeight={feedHeight}
+                    videoTopInset={videoTopInset}
+                    videoBottomReserved={videoBottomReserved}
+                    onLike={onLike}
+                    onComment={onComment}
+                    onCaptionExpand={onCaptionExpand}
+                    onShare={onShare}
+                    onBookmark={onBookmark}
+                    onRepost={onRepost}
+                    onOther={onOther}
+                    bottomInset={bottomInset}
+                    commentsOpen={commentsOpen}
+                    screenFocused={screenFocused}
+                    videoPlaybackRates={videoPlaybackRates}
+                    shareOpen={shareOpen}
+                    otherOpen={otherOpen}
+                    navigation={navigation}
+                    onNavigate={onNavigate}
+                    tabBarHeight={tabBarHeight}
+                    overlayBottom={overlayBottom}
+                    actionRailBottom={actionRailBottom}
+                />
+            ) : null}
+        </View>
     );
 }
 
@@ -284,6 +310,8 @@ function VideoPlayerCore({
     const playbackDurationRef = useRef(0);
     const progressBarWidthRef = useRef(SCREEN_WIDTH);
     const wasPlayingBeforeScrubRef = useRef(false);
+    const activationReadyRef = useRef(false);
+    const wasActiveForPosterRef = useRef(isActive);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -751,9 +779,6 @@ function VideoPlayerCore({
                 !isManuallyPaused &&
                 !(item.is_sensitive && !playSensitive);
 
-            if (isActive && !wasActiveRef.current && everActiveRef.current) {
-                player.currentTime = 0;
-            }
             if (isActive) {
                 everActiveRef.current = true;
             }
@@ -808,19 +833,30 @@ function VideoPlayerCore({
             setHoldSpeedActive(false);
             setIsScrubbing(false);
             isScrubbingRef.current = false;
+            activationReadyRef.current = false;
+            wasActiveForPosterRef.current = false;
             posterOpacity.setValue(1);
             return;
         }
-        if (firstFrameRendered) {
+
+        if (!wasActiveForPosterRef.current) {
+            activationReadyRef.current = false;
+            posterOpacity.setValue(1);
+        }
+        wasActiveForPosterRef.current = true;
+
+        const videoSurfaceReady =
+            firstFrameRendered && (isPlaying || playerStatus === 'readyToPlay');
+
+        if (videoSurfaceReady && !activationReadyRef.current) {
+            activationReadyRef.current = true;
             Animated.timing(posterOpacity, {
                 toValue: 0,
-                duration: 200,
+                duration: 180,
                 useNativeDriver: true,
             }).start();
-            return;
         }
-        posterOpacity.setValue(1);
-    }, [isActive, firstFrameRendered, posterOpacity]);
+    }, [isActive, firstFrameRendered, isPlaying, playerStatus, posterOpacity]);
 
     useEffect(() => {
         playbackDurationRef.current = playbackDuration;
@@ -1145,19 +1181,12 @@ function VideoPlayerCore({
             : null;
 
     if (!srcUrl) {
-        return (
-            <VideoSlidePlaceholder
-                item={item}
-                feedHeight={feedHeight}
-                videoTopInset={videoTopInset}
-                videoBottomReserved={videoBottomReserved}
-            />
-        );
+        return null;
     }
 
     if (item.is_sensitive && !playSensitive) {
         return (
-            <View style={[styles.videoContainer, { height: slideHeight }]}>
+            <View style={styles.coreRoot}>
                 <View
                     style={styles.sensitiveOverlay}
                     accessible={true}
@@ -1189,8 +1218,10 @@ function VideoPlayerCore({
         );
     }
 
-    const videoFrameVisible = isActive && firstFrameRendered;
-    const showPosterLayer = !!thumbnail;
+    const videoSurfaceReady =
+        isActive &&
+        firstFrameRendered &&
+        (isPlaying || playerStatus === 'readyToPlay');
     const progressFraction =
         playbackDuration > 0
             ? isScrubbing
@@ -1200,21 +1231,14 @@ function VideoPlayerCore({
     const progressBarHeight = isScrubbing ? PROGRESS_BAR_SCRUB_HEIGHT : PROGRESS_BAR_HEIGHT;
 
     const videoBody = (
-        <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
-            {showPosterLayer ? (
-                <Animated.View
-                    style={[styles.posterLayerFullBleed, { opacity: posterOpacity }]}
-                    pointerEvents="none">
-                    <VideoPoster thumbnail={thumbnail} />
-                </Animated.View>
-            ) : null}
+        <View style={styles.coreRoot} pointerEvents="box-none">
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
                         style={[
                             styles.video,
-                            videoFrameVisible ? styles.videoVisible : styles.videoHidden,
+                            videoSurfaceReady ? styles.videoVisible : styles.videoHidden,
                         ]}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
@@ -1229,6 +1253,14 @@ function VideoPlayerCore({
                     />
                 ) : null}
             </View>
+
+            {thumbnail ? (
+                <Animated.View
+                    style={[styles.posterCoverLayer, { opacity: posterOpacity }]}
+                    pointerEvents="none">
+                    <VideoPoster thumbnail={thumbnail} />
+                </Animated.View>
+            ) : null}
 
             <GestureDetector gesture={videoGesture}>
                 <View
@@ -1404,7 +1436,11 @@ const styles = StyleSheet.create({
         width: SCREEN_WIDTH,
         position: 'relative',
         overflow: 'hidden',
-        backgroundColor: POSTER_BG,
+        backgroundColor: 'transparent',
+    },
+    coreRoot: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 4,
     },
     videoWrapper: {
         position: 'absolute',
@@ -1416,11 +1452,20 @@ const styles = StyleSheet.create({
     },
     posterLayerFullBleed: {
         ...StyleSheet.absoluteFillObject,
-        zIndex: 3,
+        zIndex: 1,
+        overflow: 'hidden',
+    },
+    posterCoverLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 6,
+        overflow: 'hidden',
     },
     posterImage: {
-        width: '100%',
-        height: '100%',
+        position: 'absolute',
+        top: '-1%',
+        left: '-1%',
+        width: '102%',
+        height: '102%',
     },
     video: {
         width: '100%',

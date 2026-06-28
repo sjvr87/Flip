@@ -421,6 +421,7 @@ export default function LoopsFeed({ navigation }) {
     videosRef.current = videos;
     const currentIndexRef = useRef(currentIndex);
     currentIndexRef.current = currentIndex;
+    const previousIndexRef = useRef(currentIndex);
 
     const hasNextPageRef = useRef(hasNextPage);
     hasNextPageRef.current = hasNextPage;
@@ -695,8 +696,8 @@ export default function LoopsFeed({ navigation }) {
             const prevWatchStart = watchStartTimeRef.current;
 
             if (newIndex !== currentIndexRef.current) {
+                previousIndexRef.current = currentIndexRef.current;
                 pauseAllFeedPlayers();
-                releaseAllVideoPrefetch();
             }
 
             maybeLoadMoreVideos(newIndex);
@@ -884,7 +885,8 @@ export default function LoopsFeed({ navigation }) {
                 const shouldPreloadPlayer =
                     feedPlaybackEnabled &&
                     (index === currentIndex ||
-                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE);
+                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE ||
+                        index === previousIndexRef.current);
 
                 return (
                     <FeedVideoCell
@@ -918,7 +920,11 @@ export default function LoopsFeed({ navigation }) {
                 );
             })();
 
-            return <View style={{ height: feedHeight, overflow: 'hidden' }}>{cell}</View>;
+            return (
+                <View style={{ height: feedHeight, overflow: 'hidden', backgroundColor: 'transparent' }}>
+                    {cell}
+                </View>
+            );
         },
         [
             activeTab,
