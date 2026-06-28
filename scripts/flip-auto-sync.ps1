@@ -23,6 +23,8 @@ if (-not (Test-Path $LogDir)) {
 }
 $LogFile = Join-Path $LogDir 'auto-sync.log'
 $LockFile = Join-Path $LogDir 'auto-sync.lock'
+$LastReloadFile = Join-Path $LogDir 'auto-sync.last-reload'
+$MinReloadIntervalSec = 25
 
 function Clear-StaleAutoSyncLock {
     if (-not (Test-Path $LockFile)) { return }
@@ -80,11 +82,21 @@ function Invoke-PhoneReload {
         return $true
     }
 
+    if (Test-Path $LastReloadFile) {
+        $lastReload = (Get-Item $LastReloadFile).LastWriteTimeUtc
+        $elapsed = ((Get-Date).ToUniversalTime() - $lastReload).TotalSeconds
+        if ($elapsed -lt $MinReloadIntervalSec) {
+            Write-Log "Skipping phone reload (debounce ${MinReloadIntervalSec}s, ${([int]$elapsed)}s since last)." 'DarkGray'
+            return $true
+        }
+    }
+
     $devConnect = Join-Path $PSScriptRoot 'dev-connect.ps1'
     if (Test-Path $devConnect) {
         Write-Log 'Reloading phone (adb + Metro)...' 'Cyan'
         & $devConnect -ConnectOnly -Reload 2>&1 | ForEach-Object { Write-Host $_ }
         if ($LASTEXITCODE -eq 0) {
+            Set-Content -Path $LastReloadFile -Value (Get-Date -Format 'o') -NoNewline
             Write-Log 'Phone reload OK.' 'Green'
             return $true
         }
@@ -93,6 +105,7 @@ function Invoke-PhoneReload {
     if (Test-MetroHealthy) {
         Write-Log 'USB reload failed - trying Metro /reload (Wi-Fi; keep Flip open on phone)...' 'Yellow'
         if (Invoke-MetroReloadDirect) {
+            Set-Content -Path $LastReloadFile -Value (Get-Date -Format 'o') -NoNewline
             Write-Log 'Metro reload sent (Wi-Fi path).' 'Green'
             return $true
         }
@@ -218,8 +231,7 @@ try {
             if ($remote -ne $local) {
                 $null = Sync-Branch -TargetBranch $watchBranch
             } else {
-                Write-Log "Remote moved; local matches ($localShort). Reloading phone..." 'DarkGray'
-                Invoke-PhoneReload | Out-Null
+                Write-Log "Remote moved; local matches ($localShort). Skipping redundant reload (debounced)." 'DarkGray'
             }
             $lastRemote = $remote
         } elseif ($local -and $remote -and $local -ne $remote) {

@@ -88,6 +88,37 @@ type FeedInfiniteData = {
 
 export type FeedInfiniteCache = FeedInfiniteData;
 
+/** Query key segment for viewer — matches feedVideosQueryKey. */
+export function feedViewerCacheKey(viewerDid?: string | null): string {
+    return viewerDid ?? 'anon';
+}
+
+/** Read raw infinite-query cache, falling back to anon key after session restore. */
+export function getCachedFeedInfiniteData(
+    queryClient: QueryClient,
+    tab: FeedTab,
+    epoch: number,
+    viewerDid?: string | null,
+): FeedInfiniteData | undefined {
+    const primaryKey = ['videos', tab, epoch, feedViewerCacheKey(viewerDid)] as const;
+    const primary = queryClient.getQueryData<FeedInfiniteData>(primaryKey);
+    if (primary?.pages?.length) {
+        return primary;
+    }
+    if (viewerDid) {
+        const anon = queryClient.getQueryData<FeedInfiniteData>([
+            'videos',
+            tab,
+            epoch,
+            'anon',
+        ]);
+        if (anon?.pages?.length) {
+            return anon;
+        }
+    }
+    return undefined;
+}
+
 /** Read cached feed videos for a tab (deduped) — used for tab-switch media warmup. */
 export function getCachedFeedVideos(
     queryClient: QueryClient,
@@ -95,12 +126,7 @@ export function getCachedFeedVideos(
     epoch: number,
     viewerDid?: string | null,
 ): FlipVideo[] {
-    const cached = queryClient.getQueryData<FeedInfiniteData>([
-        'videos',
-        tab,
-        epoch,
-        viewerDid ?? 'anon',
-    ]);
+    const cached = getCachedFeedInfiniteData(queryClient, tab, epoch, viewerDid);
     if (!cached?.pages?.length) {
         return [];
     }

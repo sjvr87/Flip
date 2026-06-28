@@ -21,6 +21,7 @@ import {
     getFeedSoftRefreshMs,
     getFeedStaleMs,
     hardRefreshFeed,
+    getCachedFeedInfiniteData,
     getCachedFeedVideos,
     markVideoSeenInSession,
     resetSessionSeen,
@@ -288,14 +289,21 @@ export default function LoopsFeed({ navigation }) {
                         prefetchThumbnails,
                         prefetchVideoUrls,
                     });
+                })
+                .catch((error) => {
+                    console.warn('[feed] background prefetch failed:', tab, error);
                 });
         };
 
-        for (const tab of FEED_TABS) {
-            if (tab !== activeTabRef.current) {
-                prefetchTab(tab);
+        // Defer sibling-tab prefetch until the active feed has painted (avoids startup reload pressure).
+        const task = InteractionManager.runAfterInteractions(() => {
+            for (const tab of FEED_TABS) {
+                if (tab !== activeTabRef.current) {
+                    prefetchTab(tab);
+                }
             }
-        }
+        });
+        return () => task.cancel();
     }, [feedQueryEnabled, forYouEnabled, queryClient, viewerDid]);
 
     const recordVideoImpression = useCallback(
@@ -331,10 +339,9 @@ export default function LoopsFeed({ navigation }) {
         gcTime: FEED_GC_MS,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
-        placeholderData: () =>
-            queryClient.getQueryData<FeedInfiniteCache>(
-                feedVideosQueryKey(activeTab, feedEpoch, viewerDid),
-            ),
+        placeholderData: (previousData) =>
+            previousData ??
+            getCachedFeedInfiniteData(queryClient, activeTab, feedEpoch, viewerDid),
         maxPages: 25,
         enabled: feedQueryEnabled,
     });
@@ -384,7 +391,13 @@ export default function LoopsFeed({ navigation }) {
         },
     });
 
-    const rawVideos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
+    const rawVideos = useMemo(() => {
+        if (data?.pages?.length) {
+            return data.pages.flatMap((page) => page.data);
+        }
+        const cached = getCachedFeedInfiniteData(queryClient, activeTab, feedEpoch, viewerDid);
+        return cached?.pages?.flatMap((page) => page.data) ?? [];
+    }, [data?.pages, queryClient, activeTab, feedEpoch, viewerDid]);
     const videos = useMemo(() => dedupeFeedVideos(rawVideos, activeTab), [rawVideos, activeTab]);
     const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
     const feedExhausted = !isLoading && !isFetchingNextPage && !hasNextPage && videos.length > 0;
@@ -496,6 +509,9 @@ export default function LoopsFeed({ navigation }) {
                         prefetchThumbnails,
                         prefetchVideoUrls,
                     });
+                })
+                .catch((error) => {
+                    console.warn('[feed] tab prefetch failed:', tab, error);
                 });
         },
         [forYouEnabled, queryClient, viewerDid],
@@ -1015,7 +1031,8 @@ export default function LoopsFeed({ navigation }) {
         viewerDid,
     );
     const showInitialLoader =
-        !feedQueryEnabled || (isLoading && !hasFeedData && cachedFeedData.length === 0);
+        cachedFeedData.length === 0 &&
+        (!feedQueryEnabled || (isLoading && !hasFeedData));
 
     useEffect(() => {
         if (!showInitialLoader) {
