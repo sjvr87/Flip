@@ -1066,15 +1066,10 @@ export default function LoopsFeed({ navigation }) {
                 extraData={currentIndex}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                pagingEnabled
                 showsVerticalScrollIndicator={false}
-                {...(Platform.OS === 'ios'
-                    ? {
-                          snapToInterval: feedHeight,
-                          snapToAlignment: 'start' as const,
-                          decelerationRate: 'fast' as const,
-                      }
-                    : {})}
+                snapToInterval={feedHeight}
+                snapToAlignment="start"
+                decelerationRate="fast"
                 scrollEventThrottle={16}
                 overScrollMode="never"
                 viewabilityConfig={viewabilityConfig.current}
