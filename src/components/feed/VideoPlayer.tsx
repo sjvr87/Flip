@@ -34,8 +34,10 @@ import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
+    Animated,
     Dimensions,
     InteractionManager,
+    LayoutChangeEvent,
     Platform,
     StyleSheet,
     Text,
@@ -49,6 +51,12 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 /** Tap overlay stops here so the right action rail stays visible and tappable. */
 const ACTION_RAIL_WIDTH = 72;
+
+const PROGRESS_BAR_HEIGHT = 3;
+const PROGRESS_BAR_SCRUB_HEIGHT = 8;
+const PROGRESS_BAR_TOUCH_HEIGHT = 28;
+const HOLD_SPEED_RATE = 2;
+const HOLD_SPEED_MIN_DURATION_MS = 300;
 
 function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -72,19 +80,18 @@ function isPlayerUsable(player: ExpoVideoPlayer | null | undefined): player is E
 }
 
 function VideoPoster({ thumbnail }: { thumbnail?: string }) {
+    if (!thumbnail) {
+        return null;
+    }
     return (
-        <View style={styles.posterLayer} pointerEvents="none">
-            {thumbnail ? (
-                <Image
-                    source={{ uri: thumbnail }}
-                    style={styles.posterImage}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
-                    placeholder={{ color: POSTER_BG }}
-                />
-            ) : null}
-        </View>
+        <Image
+            source={{ uri: thumbnail }}
+            style={styles.posterImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={0}
+            placeholder={{ color: POSTER_BG }}
+        />
     );
 }
 
@@ -112,11 +119,7 @@ function VideoSlidePlaceholder({
 
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View
-                style={[
-                    styles.videoWrapper,
-                    { top: videoTopInset, bottom: videoBottomReserved },
-                ]}>
+            <View style={styles.posterLayerFullBleed} pointerEvents="none">
                 <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>
@@ -271,6 +274,16 @@ function VideoPlayerCore({
     const [videoReady, setVideoReady] = useState(false);
     const [firstFrameRendered, setFirstFrameRendered] = useState(false);
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
+    const [holdSpeedActive, setHoldSpeedActive] = useState(false);
+    const [isScrubbing, setIsScrubbing] = useState(false);
+    const [scrubFraction, setScrubFraction] = useState(0);
+    const [playbackPosition, setPlaybackPosition] = useState(0);
+    const [playbackDuration, setPlaybackDuration] = useState(0);
+    const posterOpacity = useMemo(() => new Animated.Value(1), []);
+    const isScrubbingRef = useRef(false);
+    const playbackDurationRef = useRef(0);
+    const progressBarWidthRef = useRef(SCREEN_WIDTH);
+    const wasPlayingBeforeScrubRef = useRef(false);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -627,11 +640,11 @@ function VideoPlayerCore({
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
         try {
-            player.playbackRate = playbackRate;
+            player.playbackRate = holdSpeedActive ? HOLD_SPEED_RATE : playbackRate;
         } catch (error) {
             console.log('Playback rate error:', error);
         }
-    }, [playbackRate, player, playerEpoch]);
+    }, [playbackRate, player, playerEpoch, holdSpeedActive]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -792,6 +805,93 @@ function VideoPlayerCore({
 
     useEffect(() => {
         if (!isActive) {
+            setHoldSpeedActive(false);
+            setIsScrubbing(false);
+            isScrubbingRef.current = false;
+            posterOpacity.setValue(1);
+            return;
+        }
+        if (firstFrameRendered) {
+            Animated.timing(posterOpacity, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+            return;
+        }
+        posterOpacity.setValue(1);
+    }, [isActive, firstFrameRendered, posterOpacity]);
+
+    useEffect(() => {
+        playbackDurationRef.current = playbackDuration;
+    }, [playbackDuration]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player) || !isActive) {
+            return;
+        }
+
+        const syncDuration = () => {
+            try {
+                const duration = player.duration;
+                if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+                    setPlaybackDuration(duration);
+                }
+            } catch {
+                // player may be released
+            }
+        };
+
+        try {
+            player.timeUpdateEventInterval = 0.15;
+        } catch {
+            // non-fatal
+        }
+
+        syncDuration();
+
+        const onTimeUpdate = ({ currentTime }: { currentTime: number }) => {
+            if (!isMountedRef.current || playerRef.current !== player || isScrubbingRef.current) {
+                return;
+            }
+            if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
+                setPlaybackPosition(currentTime);
+            }
+            syncDuration();
+        };
+
+        let timeSub: { remove: () => void } | null = null;
+        try {
+            timeSub = player.addListener('timeUpdate', onTimeUpdate);
+        } catch {
+            return;
+        }
+
+        return () => {
+            timeSub?.remove();
+            try {
+                if (isPlayerUsable(player)) {
+                    player.timeUpdateEventInterval = 0;
+                }
+            } catch {
+                // non-fatal
+            }
+        };
+    }, [player, playerEpoch, isActive]);
+
+    useEffect(() => {
+        const mediaDuration = item.media?.duration;
+        if (
+            typeof mediaDuration === 'number' &&
+            Number.isFinite(mediaDuration) &&
+            mediaDuration > 0
+        ) {
+            setPlaybackDuration((prev) => (prev > 0 ? prev : mediaDuration));
+        }
+    }, [item.media?.duration, item.id]);
+
+    useEffect(() => {
+        if (!isActive) {
             setPlaySensitive(false);
         }
     }, [isActive]);
@@ -847,6 +947,84 @@ function VideoPlayerCore({
         togglePlayPauseRef.current();
     }, [item.id, isManuallyPaused]);
 
+    const onHoldSpeedStart = useCallback(() => {
+        if (!isActive || isScrubbingRef.current) {
+            return;
+        }
+        setHoldSpeedActive(true);
+    }, [isActive]);
+
+    const onHoldSpeedEnd = useCallback(() => {
+        setHoldSpeedActive(false);
+    }, []);
+
+    const beginScrub = useCallback(() => {
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer)) {
+            return;
+        }
+        isScrubbingRef.current = true;
+        setIsScrubbing(true);
+        try {
+            wasPlayingBeforeScrubRef.current = activePlayer.playing;
+            activePlayer.pause();
+            if (!standalonePlayback) {
+                releaseFeedAudio(item.id);
+            }
+            setIsPlaying(false);
+        } catch {
+            // player may be released
+        }
+    }, [item.id, standalonePlayback]);
+
+    const updateScrub = useCallback((x: number) => {
+        const width = progressBarWidthRef.current;
+        const duration = playbackDurationRef.current;
+        if (width <= 0 || duration <= 0) {
+            return;
+        }
+        const fraction = Math.max(0, Math.min(1, x / width));
+        setScrubFraction(fraction);
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer)) {
+            return;
+        }
+        try {
+            activePlayer.currentTime = fraction * duration;
+            setPlaybackPosition(fraction * duration);
+        } catch {
+            // player may be released
+        }
+    }, []);
+
+    const endScrub = useCallback(() => {
+        isScrubbingRef.current = false;
+        setIsScrubbing(false);
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || !isActive) {
+            return;
+        }
+        try {
+            if (
+                wasPlayingBeforeScrubRef.current &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive)
+            ) {
+                if (!standalonePlayback && !claimFeedAudio(item.id)) {
+                    return;
+                }
+                activePlayer.play();
+                setIsPlaying(true);
+            }
+        } catch {
+            // player may be released
+        }
+    }, [isActive, isManuallyPaused, item.id, item.is_sensitive, playSensitive, standalonePlayback]);
+
+    const handleProgressBarLayout = useCallback((event: LayoutChangeEvent) => {
+        progressBarWidthRef.current = event.nativeEvent.layout.width;
+    }, []);
+
     const videoTapGesture = useMemo(
         () =>
             Gesture.Tap()
@@ -855,6 +1033,39 @@ function VideoPlayerCore({
                     runOnJS(handleTapOverlay)();
                 }),
         [handleTapOverlay],
+    );
+
+    const holdSpeedGesture = useMemo(
+        () =>
+            Gesture.LongPress()
+                .minDuration(HOLD_SPEED_MIN_DURATION_MS)
+                .onStart(() => {
+                    runOnJS(onHoldSpeedStart)();
+                })
+                .onFinalize(() => {
+                    runOnJS(onHoldSpeedEnd)();
+                }),
+        [onHoldSpeedStart, onHoldSpeedEnd],
+    );
+
+    const videoGesture = useMemo(
+        () => Gesture.Exclusive(holdSpeedGesture, videoTapGesture),
+        [holdSpeedGesture, videoTapGesture],
+    );
+
+    const scrubGesture = useMemo(
+        () =>
+            Gesture.Pan()
+                .onBegin(() => {
+                    runOnJS(beginScrub)();
+                })
+                .onUpdate((event) => {
+                    runOnJS(updateScrub)(event.x);
+                })
+                .onFinalize(() => {
+                    runOnJS(endScrub)();
+                }),
+        [beginScrub, updateScrub, endScrub],
     );
 
     const handleUseAudio = () => {
@@ -978,19 +1189,33 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface =
-        isActive &&
-        (firstFrameRendered || (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
-    const hidePoster = showVideoSurface;
+    const videoFrameVisible = isActive && firstFrameRendered;
+    const showPosterLayer = !!thumbnail;
+    const progressFraction =
+        playbackDuration > 0
+            ? isScrubbing
+                ? scrubFraction
+                : Math.max(0, Math.min(1, playbackPosition / playbackDuration))
+            : 0;
+    const progressBarHeight = isScrubbing ? PROGRESS_BAR_SCRUB_HEIGHT : PROGRESS_BAR_HEIGHT;
 
     const videoBody = (
         <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
+            {showPosterLayer ? (
+                <Animated.View
+                    style={[styles.posterLayerFullBleed, { opacity: posterOpacity }]}
+                    pointerEvents="none">
+                    <VideoPoster thumbnail={thumbnail} />
+                </Animated.View>
+            ) : null}
             <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
-                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={styles.video}
+                        style={[
+                            styles.video,
+                            videoFrameVisible ? styles.videoVisible : styles.videoHidden,
+                        ]}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -1005,16 +1230,43 @@ function VideoPlayerCore({
                 ) : null}
             </View>
 
-            <GestureDetector gesture={videoTapGesture}>
+            <GestureDetector gesture={videoGesture}>
                 <View
-                    style={styles.tapOverlay}
+                    style={[
+                        styles.tapOverlay,
+                        isActive ? { bottom: PROGRESS_BAR_TOUCH_HEIGHT } : null,
+                    ]}
                     collapsable={false}
                     accessible={true}
                     accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play"
+                    accessibilityHint="Tap to pause or play. Press and hold to speed up."
                     accessibilityRole="button"
                 />
             </GestureDetector>
+
+            {isActive && playbackDuration > 0 ? (
+                <GestureDetector gesture={scrubGesture}>
+                    <View
+                        style={[styles.progressBarTouchArea, { bottom: videoBottomReserved }]}
+                        onLayout={handleProgressBarLayout}
+                        accessible={true}
+                        accessibilityLabel="Video progress"
+                        accessibilityRole="adjustable"
+                        accessibilityHint="Drag to seek through the video">
+                        <View style={[styles.progressBarTrack, { height: progressBarHeight }]}>
+                            <View
+                                style={[
+                                    styles.progressBarFill,
+                                    {
+                                        width: `${progressFraction * 100}%`,
+                                        height: progressBarHeight,
+                                    },
+                                ]}
+                            />
+                        </View>
+                    </View>
+                </GestureDetector>
+            ) : null}
 
             <View
                 pointerEvents="none"
@@ -1158,13 +1410,13 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
-        backgroundColor: POSTER_BG,
+        backgroundColor: 'transparent',
         overflow: 'hidden',
-    },
-    posterLayer: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: POSTER_BG,
         zIndex: 2,
+    },
+    posterLayerFullBleed: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 3,
     },
     posterImage: {
         width: '100%',
@@ -1174,6 +1426,13 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',
+    },
+    videoVisible: {
+        opacity: 1,
+        zIndex: 2,
+    },
+    videoHidden: {
+        opacity: 0,
         zIndex: 1,
     },
     tapOverlay: {
@@ -1287,8 +1546,25 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: '20%',
-        zIndex: 3,
-        elevation: 3,
+        zIndex: 4,
+        elevation: 4,
+    },
+    progressBarTouchArea: {
+        position: 'absolute',
+        left: 0,
+        right: ACTION_RAIL_WIDTH,
+        height: PROGRESS_BAR_TOUCH_HEIGHT,
+        justifyContent: 'flex-end',
+        zIndex: 12,
+        elevation: 12,
+    },
+    progressBarTrack: {
+        width: '100%',
+        backgroundColor: 'rgba(255,255,255,0.25)',
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        backgroundColor: '#fff',
     },
     aiLabelWrapper: {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
