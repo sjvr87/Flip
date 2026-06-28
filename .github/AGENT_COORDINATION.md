@@ -1,5 +1,37 @@
 # Agent Coordination Protocol
 
+---
+
+## No-Middleman Handoff Protocol (Cursor ↔ Copilot via GitHub)
+
+**Goal:** Both agents communicate directly through GitHub — @sjvr87 does NOT copy/paste.
+
+### Channel
+All handoff packets go to **Issue #18 — "Agent Handoff Channel"** in this repo.  
+Create it if missing: `gh issue create --title "Agent Handoff Channel — Cursor ↔ Copilot" --label "agent-handoff" --body "Persistent thread. Do not close."`
+
+### Cursor's job (sender)
+1. Before any risky change → post a **CURSOR HANDOFF PACKET** comment to Issue #18 (see `.cursor/rules/copilot-handoff.mdc` for exact format)
+2. **Stop and wait** for Copilot's reply before proceeding
+3. Poll: `gh issue view 18 --repo sjvr87/Flip --comments`
+4. Apply Copilot's ✅ approval or ❌ fix, then post a follow-up
+
+### Copilot's job (reviewer)
+1. When a handoff packet appears on Issue #18 → read task, diff, errors, risky step
+2. Validate the change against the codebase
+3. Reply to Issue #18 with **one** of:
+   - `✅ APPROVED — proceed` + optional notes
+   - `❌ BLOCKED — apply this fix instead:` + diff/patch
+   - `⚠️ NEEDS INFO — <question>`
+4. After Cursor applies → verify result on next packet or CI run
+
+### Rules for both agents
+- Never make the user relay messages between agents
+- Real-time Metro + logcat errors → post to Issue #18 immediately, don't wait
+- If BOTH agents are blocked → only then escalate to @sjvr87
+
+---
+
 ## Execution Rules
 
 ### 1. **No Context Switching**

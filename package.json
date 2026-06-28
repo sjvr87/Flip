@@ -30,7 +30,9 @@
     "dev:connect:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-connect.ps1 -Reset",
     "flip:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipDev.ps1",
     "beta:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
-    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1"
+    "flip:beta": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-FlipBeta.ps1",
+    "handoff:post": "node ./scripts/handoff.js post",
+    "handoff:view": "node ./scripts/handoff.js view"
   },
   "dependencies": {
     "@atproto/api": "^0.20.16",

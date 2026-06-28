@@ -32,3 +32,4 @@ Prefer a **single agent** when tasks share context:
 - **[auto-dev-workflow.mdc](auto-dev-workflow.mdc)** — pull + Metro prep can overlap with unrelated implementation when safe
 - **[auto-permissions.mdc](auto-permissions.mdc)** — request `git_write`, `network` / `full_network`, and `all` on the first attempt for parallel shell work
 - **[auto-push-progress.mdc](auto-push-progress.mdc)** — push progress without serializing unrelated fixes that are already done
+- **[headroom-wrap.mdc](headroom-wrap.mdc)** — each parallel subagent must independently use `rtk` prefix and `headroom_compress`; token savings apply to every agent launched
