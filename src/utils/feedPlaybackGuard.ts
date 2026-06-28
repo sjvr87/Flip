@@ -215,6 +215,19 @@ export function onFeedTabChanged(): void {
     });
 }
 
+/** Tab switch within home feed — pause only; keep decoders warm when cells stay mounted. */
+export function prepareFeedTabHandoff(): void {
+    activeFeedPlayerId = null;
+    bumpPlaybackGeneration();
+    for (const { pause } of registeredPlayers) {
+        try {
+            pause();
+        } catch {
+            // ignore
+        }
+    }
+}
+
 /** @deprecated Use setHomeTabFocused(false) from tabs layout. */
 export function stopFeedAudioOnTabLeave(): void {
     setHomeTabFocused(false);

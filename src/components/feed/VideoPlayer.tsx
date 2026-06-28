@@ -5,7 +5,7 @@ import { toProfilePath } from '@/utils/profileNavigation';
 import { safeRouterPush } from '@/utils/safeNavigation';
 import { ANDROID_VIDEO_SAFE_MODE, feedPlayerReleaseDelayMs } from '@/utils/androidVideoSafeMode';
 import { audioAttributionLabel, isOriginalAudio } from '@/utils/audioAttribution';
-import { prepareForCameraCapture } from '@/utils/cameraCapturePrepare';
+import { isFeedFrameReady, markFeedFrameReady } from '@/utils/feedFrameCache';
 import {
     claimFeedAudio,
     isFeedPlaybackActive,
@@ -271,7 +271,7 @@ function VideoPlayerCore({
     const [viewPlayer, setViewPlayer] = useState<ExpoVideoPlayer | null>(null);
     const [viewEpoch, setViewEpoch] = useState(0);
     const [videoReady, setVideoReady] = useState(false);
-    const [firstFrameRendered, setFirstFrameRendered] = useState(false);
+    const [firstFrameRendered, setFirstFrameRendered] = useState(() => isFeedFrameReady(srcUrl));
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
@@ -415,7 +415,7 @@ function VideoPlayerCore({
         setPlayer(null);
         setPlayerEpoch(0);
         setVideoReady(false);
-        setFirstFrameRendered(false);
+        setFirstFrameRendered(isFeedFrameReady(srcUrl));
         setPlayerStatus('idle');
         if (stale) {
             queuePlayerRelease(stale);
@@ -444,7 +444,7 @@ function VideoPlayerCore({
         setPlayer(nextPlayer);
         setPlayerEpoch(epoch);
         setVideoReady(nextPlayer.status === 'readyToPlay');
-        setFirstFrameRendered(false);
+        setFirstFrameRendered(isFeedFrameReady(srcUrl));
         setPlayerStatus(nextPlayer.status);
 
         return () => {
@@ -672,6 +672,7 @@ function VideoPlayerCore({
         if (!isMountedRef.current || playerRef.current !== player) {
             return;
         }
+        markFeedFrameReady(srcUrl);
         setFirstFrameRendered(true);
         setVideoReady(true);
         if (!isActive && isPlayerUsable(player)) {
@@ -682,36 +683,55 @@ function VideoPlayerCore({
                 // player may already be released
             }
         }
-    }, [player, isActive]);
+    }, [player, isActive, srcUrl]);
 
     // Fallback when onFirstFrameRender is delayed on Android surfaceView.
     useEffect(() => {
-        if (!isActive || firstFrameRendered || !isPlayerUsable(player)) {
+        if ((!isActive && !shouldPreload) || firstFrameRendered || !isPlayerUsable(player)) {
+            return;
+        }
+        if (isFeedFrameReady(srcUrl)) {
+            setFirstFrameRendered(true);
+            setVideoReady(true);
             return;
         }
         let cancelled = false;
-        const revealIfPlaying = () => {
+        const revealIfReady = () => {
             if (cancelled || !isMountedRef.current || playerRef.current !== player) {
                 return;
             }
             try {
                 if (player.playing || player.status === 'readyToPlay') {
+                    markFeedFrameReady(srcUrl);
                     setFirstFrameRendered(true);
                     setVideoReady(true);
+                    if (!isActive) {
+                        player.pause();
+                        player.currentTime = 0;
+                    }
                 }
             } catch {
                 // player may already be released
             }
         };
-        revealIfPlaying();
-        const interval = setInterval(revealIfPlaying, 120);
-        const stop = setTimeout(() => clearInterval(interval), 2500);
+        revealIfReady();
+        const interval = setInterval(revealIfReady, 80);
+        const stop = setTimeout(() => clearInterval(interval), 3000);
         return () => {
             cancelled = true;
             clearInterval(interval);
             clearTimeout(stop);
         };
-    }, [isActive, firstFrameRendered, isPlaying, player, playerEpoch, playerStatus]);
+    }, [
+        isActive,
+        shouldPreload,
+        firstFrameRendered,
+        isPlaying,
+        player,
+        playerEpoch,
+        playerStatus,
+        srcUrl,
+    ]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -761,7 +781,7 @@ function VideoPlayerCore({
                 !isManuallyPaused &&
                 !(item.is_sensitive && !playSensitive);
 
-            if (isActive && !wasActiveRef.current && everActiveRef.current) {
+            if (isActive && !wasActiveRef.current && everActiveRef.current && !isFeedFrameReady(srcUrl)) {
                 player.currentTime = 0;
             }
             if (isActive) {
@@ -1020,7 +1040,9 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
-                {!firstFrameRendered ? <VideoPoster thumbnail={thumbnail} /> : null}
+                {!firstFrameRendered && (isActive || shouldPreload) ? (
+                    <VideoPoster thumbnail={thumbnail} />
+                ) : null}
             </View>
 
             <GestureDetector gesture={videoTapGesture}>

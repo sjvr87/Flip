@@ -27,6 +27,7 @@ import {
     resetSessionSeen,
     softRefreshFeed,
     warmFeedTabMedia,
+    warmFeedVideosInRange,
     warmFeedVideosNearIndex,
 } from '@/utils/feedCache';
 import {
@@ -38,7 +39,7 @@ import {
 import {
     isFeedPlaybackActive,
     onFeedTabChanged,
-    pauseAllFeedPlayers,
+    prepareFeedTabHandoff,
     setAppInForeground,
     subscribeFeedPlaybackActive,
 } from '@/utils/feedPlaybackGuard';
@@ -244,6 +245,7 @@ export default function LoopsFeed({ navigation }) {
     const isSnappingRef = useRef(false);
     const rigorousSnapRef = useRef(false);
     const scrollStartIndexRef = useRef(0);
+    const scrollEndDragVelocityRef = useRef(0);
     const tabScrollIndexRef = useRef<Record<FeedTab, number>>({
         following: 0,
         forYou: 0,
@@ -531,8 +533,7 @@ export default function LoopsFeed({ navigation }) {
                 prefetchVideoUrls,
             });
 
-            onFeedTabChanged();
-            pauseAllFeedPlayers();
+            prepareFeedTabHandoff();
 
             if (currentVideoRef.current && watchStartTimeRef.current) {
                 const watchDuration = (Date.now() - watchStartTimeRef.current) / 1000;
@@ -755,10 +756,6 @@ export default function LoopsFeed({ navigation }) {
             const newVideo = videosRef.current[newIndex];
             const prevVideo = currentVideoRef.current;
             const prevWatchStart = watchStartTimeRef.current;
-
-            if (newIndex !== currentIndexRef.current) {
-                pauseAllFeedPlayers();
-            }
 
             maybeLoadMoreVideos(newIndex);
 
@@ -1069,10 +1066,15 @@ export default function LoopsFeed({ navigation }) {
                 velocity?.y,
                 videosWithEnd.length,
                 scrollStartIndexRef.current,
+                scrollEndDragVelocityRef.current,
             );
             const targetOffset = target * feedHeight;
+            const start = scrollStartIndexRef.current;
 
             warmFeedVideosNearIndex(videosRef.current, target, prefetchThumbnails);
+            if (Math.abs(target - start) > 1) {
+                warmFeedVideosInRange(videosRef.current, start, target, prefetchThumbnails);
+            }
 
             if (Math.abs(contentOffset.y - targetOffset) <= 1) {
                 isSnappingRef.current = false;
@@ -1090,6 +1092,7 @@ export default function LoopsFeed({ navigation }) {
 
     const handleScrollBeginDrag = useCallback(() => {
         scrollStartIndexRef.current = currentIndexRef.current;
+        scrollEndDragVelocityRef.current = 0;
         isSnappingRef.current = false;
         rigorousSnapRef.current = false;
     }, []);
@@ -1098,6 +1101,7 @@ export default function LoopsFeed({ navigation }) {
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
             const { contentOffset, velocity } = event.nativeEvent;
             const velocityY = velocity?.y ?? 0;
+            scrollEndDragVelocityRef.current = velocityY;
 
             if (
                 isRigorousFeedSwipe(
@@ -1113,11 +1117,18 @@ export default function LoopsFeed({ navigation }) {
                     velocityY,
                     videosWithEnd.length,
                     scrollStartIndexRef.current,
+                    velocityY,
                 );
                 const dest = videosWithEnd[target];
                 if (dest?.media?.thumbnail) {
                     prefetchThumbnails([dest.media.thumbnail]);
                 }
+                warmFeedVideosInRange(
+                    videosRef.current,
+                    scrollStartIndexRef.current,
+                    target,
+                    prefetchThumbnails,
+                );
                 rigorousSnapRef.current = true;
                 snapFeedFromScroll(event, false);
                 return;
@@ -1135,9 +1146,11 @@ export default function LoopsFeed({ navigation }) {
         (event: NativeSyntheticEvent<NativeScrollEvent>) => {
             if (rigorousSnapRef.current) {
                 rigorousSnapRef.current = false;
+                scrollEndDragVelocityRef.current = 0;
                 return;
             }
             snapFeedFromScroll(event, false);
+            scrollEndDragVelocityRef.current = 0;
         },
         [snapFeedFromScroll],
     );

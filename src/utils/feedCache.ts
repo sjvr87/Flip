@@ -201,6 +201,31 @@ export function warmFeedVideosNearIndex(
     prefetchThumbnails(urls);
 }
 
+/** Warm thumbnails for every index in a hard-skip landing range. */
+export function warmFeedVideosInRange(
+    videos: FlipVideo[],
+    fromIndex: number,
+    toIndex: number,
+    prefetchThumbnails: (urls: (string | undefined | null)[]) => void,
+): void {
+    if (videos.length === 0) {
+        return;
+    }
+    const lo = Math.max(0, Math.min(fromIndex, toIndex));
+    const hi = Math.min(videos.length - 1, Math.max(fromIndex, toIndex));
+    const urls: (string | undefined | null)[] = [];
+    for (let i = lo; i <= hi; i += 1) {
+        const video = videos[i];
+        if (video?.media?.thumbnail) {
+            urls.push(video.media.thumbnail);
+        }
+        if (video?.account?.avatar) {
+            urls.push(video.account.avatar);
+        }
+    }
+    prefetchThumbnails(urls);
+}
+
 /** Optimistically sync comment count on main-feed and profile-reel cards. */
 export function patchFeedVideoComments(
     queryClient: QueryClient,
