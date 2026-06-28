@@ -13,6 +13,8 @@ ensureQueueMicrotask();
 require('./src/bootstrap/abortSignalPolyfill');
 require('./src/bootstrap/nativeFetch');
 require('@expo/metro-runtime');
+// Re-apply AbortSignal patches — @expo/metro-runtime may replace globals.
+require('./src/bootstrap/abortSignalPolyfill').ensureAbortSignalPolyfills();
 if (typeof global.__flipBindQueueMicrotask === 'function') {
     global.__flipBindQueueMicrotask(boundQueueMicrotask);
 }
