@@ -1,4 +1,6 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import Avatar from '@/components/Avatar';
+import { squircleRadiusForSize } from '@/constants/avatarTokens';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -100,10 +102,13 @@ function ConvoRow({ convo, myDid, onPress }: ConvoRowProps) {
     return (
         <PressableHaptics onPress={onPress} style={tw`flex-row items-center px-4 py-3`}>
             {other?.avatar ? (
-                <Image source={{ uri: other.avatar }} style={tw`w-12 h-12 rounded-full mr-3`} />
+                <Avatar url={other.avatar} width={48} style={tw`mr-3`} />
             ) : (
                 <View
-                    style={tw`w-12 h-12 rounded-full mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`}>
+                    style={[
+                        tw`w-12 h-12 mr-3 bg-gray-200 dark:bg-gray-800 items-center justify-center`,
+                        { borderRadius: squircleRadiusForSize(48) },
+                    ]}>
                     <Ionicons name="person" size={22} color="#999" />
                 </View>
             )}

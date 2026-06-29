@@ -1,3 +1,4 @@
+import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { fetchStarterKit, fetchStarterKitUsed } from '@/utils/requests';
@@ -100,10 +101,7 @@ function AccountCard({ account, onFollow, isFollowing, isLoading, onPress }: Acc
                 pressed && tw`bg-white/5`,
             ]}>
             {/* Avatar */}
-            <Image
-                source={{ uri: account.avatar }}
-                style={tw`w-12 h-12 rounded-full bg-gray-800`}
-            />
+            <Avatar url={account.avatar} width={48} />
 
             {/* Info */}
             <View style={tw`flex-1 mx-3`}>
@@ -338,10 +336,7 @@ export default function StarterKitShow() {
                     </View>
 
                     <Pressable style={tw`flex-row items-center gap-2 mt-4`}>
-                        <Image
-                            source={{ uri: kit.creator.avatar }}
-                            style={tw`w-5 h-5 rounded-full bg-gray-800`}
-                        />
+                        <Avatar url={kit.creator.avatar} width={20} />
                         <Text style={tw`text-gray-600 dark:text-gray-400 text-base`}>
                             Curated by{' '}
                             <MentionText

@@ -1,3 +1,4 @@
+import Avatar from '@/components/Avatar';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
@@ -179,10 +180,7 @@ export default function SearchScreen() {
                 style={tw`flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800`}
                 onPress={() => router.push(toProfilePath(item.id))}
                 activeOpacity={0.7}>
-                <Image
-                    source={{ uri: item.avatar }}
-                    style={tw`w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700`}
-                />
+                <Avatar url={item.avatar} width={56} />
                 <View style={tw`flex-1 ml-3`}>
                     <View style={tw`flex-row items-center`}>
                         <Text
@@ -272,10 +270,7 @@ export default function SearchScreen() {
             </View>
 
             <View style={tw`flex-row items-start mt-1.5`}>
-                <Image
-                    source={{ uri: item.account.avatar }}
-                    style={tw`w-5 h-5 rounded-full mr-1.5 mt-0.5`}
-                />
+                <Avatar url={item.account.avatar} width={20} style={tw`mr-1.5 mt-0.5`} />
                 <Text
                     style={tw`flex-1 text-xs text-gray-700 dark:text-gray-300 leading-4`}
                     numberOfLines={2}>

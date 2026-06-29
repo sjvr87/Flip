@@ -1,3 +1,5 @@
+import Avatar from '@/components/Avatar';
+import { squircleRadiusForSize } from '@/constants/avatarTokens';
 import { SectionHeader } from '@/components/settings/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { copyProfileLink, getProfileUrl } from '@/utils/profileUrl';
@@ -199,19 +201,12 @@ export default function EditProfileScreen() {
                 <View style={tw`items-center py-8 bg-white dark:bg-black`}>
                     <Pressable onPress={handleChangePhoto}>
                         <View style={tw`relative`}>
+                            <Avatar url={profileImage} width={128} />
                             <View
-                                style={tw`w-32 h-32 rounded-full bg-gray-200 items-center justify-center overflow-hidden`}>
-                                {profileImage ? (
-                                    <Image
-                                        source={{ uri: profileImage }}
-                                        style={tw`w-full h-full`}
-                                    />
-                                ) : (
-                                    <Ionicons name="person" size={60} color="#999" />
-                                )}
-                            </View>
-                            <View
-                                style={tw`absolute inset-0 bg-black bg-opacity-40 rounded-full items-center justify-center`}>
+                                style={[
+                                    tw`absolute inset-0 bg-black bg-opacity-40 items-center justify-center`,
+                                    { borderRadius: squircleRadiusForSize(128) },
+                                ]}>
                                 <Ionicons name="camera" size={32} color="white" />
                             </View>
                         </View>

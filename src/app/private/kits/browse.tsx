@@ -1,3 +1,4 @@
+import Avatar from '@/components/Avatar';
 import MentionText from '@/components/MentionText';
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -119,10 +120,7 @@ const KitCard = ({
                         {item.title}
                     </Text>
                     <View style={tw`flex-row items-center gap-1.5 mt-0.5`}>
-                        <Image
-                            source={{ uri: item.creator.avatar }}
-                            style={tw`w-4 h-4 rounded-full`}
-                        />
+                        <Avatar url={item.creator.avatar} width={16} />
                         <MentionText username={item.creator.username} style={tw`text-xs`} />
                     </View>
                 </View>
@@ -154,13 +152,13 @@ const KitCard = ({
                     ]}>
                     <View style={tw`flex-row items-center`}>
                         {approvedAccounts.slice(0, 3).map((a, idx) => (
-                            <Image
+                            <Avatar
                                 key={a.id}
-                                source={{ uri: a.avatar }}
+                                url={a.avatar}
+                                width={24}
                                 style={[
-                                    tw`w-6 h-6 rounded-full`,
                                     { borderWidth: 1.5, borderColor: cardBg },
-                                    idx > 0 && { marginLeft: -8 },
+                                    idx > 0 ? { marginLeft: -8 } : undefined,
                                 ]}
                             />
                         ))}
