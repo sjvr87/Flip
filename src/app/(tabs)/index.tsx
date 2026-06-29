@@ -415,6 +415,14 @@ export default function LoopsFeed({ navigation }) {
 
     const rawVideos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
     const videos = useMemo(() => dedupeFeedVideos(rawVideos, activeTab), [rawVideos, activeTab]);
+    const feedHeadThumbKey = useMemo(
+        () =>
+            videos
+                .slice(0, 6)
+                .map((video) => video?.id ?? '')
+                .join(':'),
+        [videos],
+    );
     const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
     const feedExhausted = !isLoading && !isFetchingNextPage && !hasNextPage && videos.length > 0;
     const feedDedupeExhausted =
@@ -752,10 +760,10 @@ export default function LoopsFeed({ navigation }) {
             return;
         }
 
-        const preloadDistance = Math.min(
-            PLAYER_PRELOAD_DISTANCE,
-            networkProfile.playerPreloadDistance,
-        );
+        const preloadDistance =
+            networkProfile.tier === 'slow' || networkProfile.tier === 'offline'
+                ? networkProfile.playerPreloadDistance
+                : Math.max(networkProfile.playerPreloadDistance, PLAYER_PRELOAD_DISTANCE);
         const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
 
         const keepUrls = new Set<string>();
@@ -773,7 +781,7 @@ export default function LoopsFeed({ navigation }) {
         }
 
         const thumbUrls: string[] = [];
-        for (let i = -1; i <= 2; i += 1) {
+        for (let i = -preloadDistance; i <= preloadDistance + 2; i += 1) {
             const video = videos[currentIndex + i];
             if (video?.media?.thumbnail) {
                 thumbUrls.push(video.media.thumbnail);
@@ -791,6 +799,21 @@ export default function LoopsFeed({ navigation }) {
         networkProfile.prefetchAhead,
         networkProfile.playerPreloadDistance,
     ]);
+
+    useEffect(() => {
+        if (!feedPlaybackEnabled || videos.length === 0) {
+            return;
+        }
+        const thumbUrls: string[] = [];
+        const warmCount = Math.min(6, videos.length);
+        for (let i = 0; i < warmCount; i += 1) {
+            const video = videos[i];
+            if (video?.media?.thumbnail) {
+                thumbUrls.push(video.media.thumbnail);
+            }
+        }
+        prefetchThumbnails(thumbUrls);
+    }, [activeTab, feedHeadThumbKey, feedPlaybackEnabled, videos]);
 
     useEffect(() => {
         if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {

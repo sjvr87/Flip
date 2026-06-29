@@ -208,6 +208,7 @@ function VideoPlayer({
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            shouldPreload={shouldPreload}
             standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
             onLike={onLike}
@@ -237,6 +238,7 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    shouldPreload = false,
     standalonePlayback = false,
     feedHeight,
     onLike,
@@ -310,8 +312,7 @@ function VideoPlayerCore({
     const playbackDurationRef = useRef(0);
     const progressBarWidthRef = useRef(SCREEN_WIDTH);
     const wasPlayingBeforeScrubRef = useRef(false);
-    const activationReadyRef = useRef(false);
-    const wasActiveForPosterRef = useRef(isActive);
+    const preloadPrimingRef = useRef(false);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -784,17 +785,39 @@ function VideoPlayerCore({
             }
 
             if (shouldPlay && isMountedRef.current) {
+                preloadPrimingRef.current = false;
                 if (!standalonePlayback && !claimFeedAudio(item.id)) {
                     return;
                 }
                 player.play();
                 setIsPlaying(true);
             } else if (isMountedRef.current) {
-                player.pause();
-                if (!standalonePlayback) {
-                    releaseFeedAudio(item.id);
+                const primingNeighbor =
+                    shouldPreload &&
+                    !isActive &&
+                    playbackAllowed &&
+                    screenFocused &&
+                    (playerStatus === 'loading' || playerStatus === 'idle');
+
+                if (primingNeighbor) {
+                    preloadPrimingRef.current = true;
+                    try {
+                        player.muted = true;
+                        if (!player.playing) {
+                            player.play();
+                        }
+                    } catch {
+                        // player may be released
+                    }
+                    setIsPlaying(false);
+                } else {
+                    preloadPrimingRef.current = false;
+                    player.pause();
+                    if (!standalonePlayback) {
+                        releaseFeedAudio(item.id);
+                    }
+                    setIsPlaying(false);
                 }
-                setIsPlaying(false);
             }
 
             wasActiveRef.current = isActive;
@@ -815,6 +838,8 @@ function VideoPlayerCore({
         playbackAllowed,
         item.id,
         standalonePlayback,
+        shouldPreload,
+        playerStatus,
     ]);
 
     useEffect(() => {
@@ -833,30 +858,85 @@ function VideoPlayerCore({
             setHoldSpeedActive(false);
             setIsScrubbing(false);
             isScrubbingRef.current = false;
-            activationReadyRef.current = false;
-            wasActiveForPosterRef.current = false;
+            preloadPrimingRef.current = false;
             bandPosterOpacity.setValue(1);
             return;
         }
 
-        if (!wasActiveForPosterRef.current) {
-            activationReadyRef.current = false;
-            bandPosterOpacity.setValue(1);
-        }
-        wasActiveForPosterRef.current = true;
+        const readyToReveal =
+            firstFrameRendered &&
+            playerStatus !== 'loading' &&
+            (isPlaying || playerStatus === 'readyToPlay');
 
-        const bandPosterCanFade =
-            firstFrameRendered && (isPlaying || playerStatus === 'readyToPlay');
-
-        if (bandPosterCanFade && !activationReadyRef.current) {
-            activationReadyRef.current = true;
-            Animated.timing(bandPosterOpacity, {
-                toValue: 0,
-                duration: 220,
-                useNativeDriver: true,
-            }).start();
-        }
+        Animated.timing(bandPosterOpacity, {
+            toValue: readyToReveal ? 0 : 1,
+            duration: readyToReveal ? 220 : 100,
+            useNativeDriver: true,
+        }).start();
     }, [isActive, firstFrameRendered, isPlaying, playerStatus, bandPosterOpacity]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player) || isActive || !shouldPreload) {
+            return;
+        }
+        if (!playbackAllowed || !screenFocused) {
+            return;
+        }
+
+        const primeBuffer = () => {
+            if (!isPlayerUsable(player) || playerRef.current !== player || isActive) {
+                return;
+            }
+            try {
+                if (player.status === 'readyToPlay') {
+                    preloadPrimingRef.current = false;
+                    player.pause();
+                    return;
+                }
+                preloadPrimingRef.current = true;
+                player.muted = true;
+                if (!player.playing) {
+                    player.play();
+                }
+            } catch {
+                // player may be released
+            }
+        };
+
+        primeBuffer();
+
+        const onStatus = ({ status }: { status: string }) => {
+            if (!isMountedRef.current || playerRef.current !== player || isActive) {
+                return;
+            }
+            if (status === 'readyToPlay') {
+                preloadPrimingRef.current = false;
+                try {
+                    player.pause();
+                } catch {
+                    // player may be released
+                }
+            }
+        };
+
+        let statusSub: { remove: () => void } | null = null;
+        try {
+            statusSub = player.addListener('statusChange', onStatus);
+        } catch {
+            return;
+        }
+
+        return () => {
+            statusSub?.remove();
+        };
+    }, [
+        player,
+        playerEpoch,
+        isActive,
+        shouldPreload,
+        playbackAllowed,
+        screenFocused,
+    ]);
 
     useEffect(() => {
         playbackDurationRef.current = playbackDuration;

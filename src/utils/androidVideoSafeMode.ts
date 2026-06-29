@@ -13,7 +13,8 @@ export const feedPlayerPreloadDistance = ANDROID_VIDEO_SAFE_MODE ? 2 : 2;
 
 export const feedFlatListWindowSize = ANDROID_VIDEO_SAFE_MODE ? 3 : 6;
 
-export const feedInitialNumToRender = ANDROID_VIDEO_SAFE_MODE ? 1 : 2;
+/** Mount active + next slide on cold start so scroll-forward does not cold-buffer. */
+export const feedInitialNumToRender = ANDROID_VIDEO_SAFE_MODE ? 2 : 3;
 
 export const feedMaxToRenderPerBatch = ANDROID_VIDEO_SAFE_MODE ? 2 : 2;
 
