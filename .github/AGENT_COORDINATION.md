@@ -269,7 +269,7 @@ Proceed only if the line contains `social.flip.app`. If not, run `am start -n so
 
 **Do NOT** loop on oauthFetch routing -- that path is exhausted.
 
-**Logcat artifact:** `docs/oauth-logcat-2026-06-23.txt`
+**Logcat artifact:** `docs/oauth-logcat-2026-06-23.txt` *(removed — artifact deleted in cleanup PR)*
 
 ---
 
