@@ -43,13 +43,7 @@ function SheetRow({
     );
 }
 
-export function ProfileHandleSheet({
-    visible,
-    user,
-    onClose,
-    onCopyHandle,
-    onShowQr,
-}: Props) {
+export function ProfileHandleSheet({ visible, user, onClose, onCopyHandle, onShowQr }: Props) {
     const insets = useSafeAreaInsets();
     const { isDark } = useTheme();
     const handle = getProfileHandle(user);
@@ -70,7 +64,8 @@ export function ProfileHandleSheet({
                         style={tw`text-lg font-bold text-center mb-2 px-4 text-black dark:text-white`}>
                         {handle || 'Profile'}
                     </Text>
-                    <Text style={tw`text-sm text-center mb-4 px-4 text-gray-500 dark:text-gray-400`}>
+                    <Text
+                        style={tw`text-sm text-center mb-4 px-4 text-gray-500 dark:text-gray-400`}>
                         See you on the flip side
                     </Text>
 

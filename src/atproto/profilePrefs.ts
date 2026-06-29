@@ -90,9 +90,7 @@ export async function saveProfilePrefs(
                     : undefined
                 : existing.hideFollowingList,
         topFriends:
-            'topFriends' in patch
-                ? sanitizeTopFriends(patch.topFriends)
-                : existing.topFriends,
+            'topFriends' in patch ? sanitizeTopFriends(patch.topFriends) : existing.topFriends,
         updatedAt: new Date().toISOString(),
     };
 

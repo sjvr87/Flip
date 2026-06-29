@@ -17,13 +17,13 @@ export function ProfileQrCode({
 }: Props) {
     const cells = useMemo(() => {
         if (!value) {
-            return { moduleCount: 0, filled: [] as Array<{ x: number; y: number }> };
+            return { moduleCount: 0, filled: [] as { x: number; y: number }[] };
         }
 
         const qr = QRCode.create(value, { errorCorrectionLevel: 'M' });
         const modules = qr.modules;
         const moduleCount = modules.size;
-        const filled: Array<{ x: number; y: number }> = [];
+        const filled: { x: number; y: number }[] = [];
 
         for (let y = 0; y < moduleCount; y += 1) {
             for (let x = 0; x < moduleCount; x += 1) {

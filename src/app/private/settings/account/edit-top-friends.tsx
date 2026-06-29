@@ -89,7 +89,8 @@ export default function EditTopFriendsScreen() {
                             Pick up to eight people to feature on your profile — MySpace style.
                             Order is saved as you add them.
                         </Text>
-                        <Text style={tw`mt-2 text-sm font-semibold text-gray-700 dark:text-gray-200`}>
+                        <Text
+                            style={tw`mt-2 text-sm font-semibold text-gray-700 dark:text-gray-200`}>
                             {topFriends.length}/{MAX_TOP_FRIENDS} selected
                         </Text>
                     </View>
@@ -151,7 +152,9 @@ export default function EditTopFriendsScreen() {
                                     <Ionicons
                                         name={selected ? 'checkmark-circle' : 'add-circle-outline'}
                                         size={24}
-                                        color={selected ? '#22d3ee' : isDark ? '#9ca3af' : '#6b7280'}
+                                        color={
+                                            selected ? '#22d3ee' : isDark ? '#9ca3af' : '#6b7280'
+                                        }
                                     />
                                 </PressableHaptics>
                             );

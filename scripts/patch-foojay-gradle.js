@@ -7,11 +7,14 @@
 const fs = require('fs');
 const path = require('path');
 
+const isWindows = process.platform === 'win32';
 const JDK17 = 'C\\:\\\\Program Files\\\\Eclipse Adoptium\\\\jdk-17.0.19.10-hotspot';
-const javaBlock = `org.gradle.java.home=${JDK17}
+const javaBlock = isWindows
+  ? `org.gradle.java.home=${JDK17}
 org.gradle.java.installations.auto-download=false
 org.gradle.java.installations.paths=${JDK17}
-`;
+`
+  : '';
 
 const settingsFile = path.join(
   __dirname,
@@ -42,7 +45,7 @@ const gradlePluginProps = path.join(
   'gradle-plugin',
   'gradle.properties',
 );
-if (fs.existsSync(path.dirname(gradlePluginProps))) {
+if (isWindows && fs.existsSync(path.dirname(gradlePluginProps))) {
   fs.writeFileSync(gradlePluginProps, javaBlock);
 }
 
@@ -57,12 +60,31 @@ if (fs.existsSync(androidGradleProps)) {
     /# Use Android Studio.*?\norg\.gradle\.java\.home=.*?\n/s,
     '',
   );
-  if (!androidSrc.includes('org.gradle.java.installations.paths')) {
+  // Strip Windows-only JDK paths so Linux CI uses JAVA_HOME from the runner.
+  androidSrc = androidSrc.replace(
+    /# Use JDK 17 \(RN gradle-plugin jvmToolchain\)\norg\.gradle\.java\.home=.*?\norg\.gradle\.java\.installations\.auto-download=.*?\norg\.gradle\.java\.installations\.paths=.*?\n\n?/s,
+    '',
+  );
+  androidSrc = androidSrc.replace(
+    /org\.gradle\.java\.home=C\\:\\\\Program Files\\\\Eclipse Adoptium\\\\jdk-.*?\n/g,
+    '',
+  );
+  androidSrc = androidSrc.replace(
+    /org\.gradle\.java\.installations\.auto-download=false\n/g,
+    '',
+  );
+  androidSrc = androidSrc.replace(
+    /org\.gradle\.java\.installations\.paths=C\\:\\\\Program Files\\\\Eclipse Adoptium\\\\jdk-.*?\n/g,
+    '',
+  );
+
+  if (isWindows && javaBlock && !androidSrc.includes('org.gradle.java.installations.paths')) {
     androidSrc = androidSrc.replace(
       '# Project-wide Gradle settings.\n',
       `# Project-wide Gradle settings.\n\n# Use JDK 17 (RN gradle-plugin jvmToolchain)\n${javaBlock}`,
     );
-    fs.writeFileSync(androidGradleProps, androidSrc);
     console.log('[patch-foojay-gradle] Set JDK 17 in android/gradle.properties');
   }
+
+  fs.writeFileSync(androidGradleProps, androidSrc);
 }
