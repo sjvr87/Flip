@@ -52,19 +52,17 @@ jobs:
             fi
           fi
 
-          changed_files=$(git diff --name-only --diff-filter=ACMRT "$base_sha" "${{ github.sha }}" -- '*.js' '*.jsx' '*.ts' '*.tsx')
+          git diff --name-only --diff-filter=ACMRT -z "$base_sha" "${{ github.sha }}" -- '*.js' '*.jsx' '*.ts' '*.tsx' > .changed-js-ts-files
 
-          if [[ -z "$changed_files" ]]; then
+          if [[ ! -s .changed-js-ts-files ]]; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          printf "%s\n" "$changed_files" > .changed-js-ts-files
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
 
       - name: Run ESLint
         if: steps.changed-files.outputs.has_changes == 'true'
-        run: xargs npx eslint --max-warnings=0 < .changed-js-ts-files
+        run: xargs -0 npx eslint --max-warnings=0 < .changed-js-ts-files
 
       - name: Run TypeScript type check
         if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
