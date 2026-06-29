@@ -170,33 +170,19 @@ function patchExpoAutolinkingNode() {
   if (fs.existsSync(osKt)) {
     const osSrc = fs.readFileSync(osKt, 'utf8');
     if (!osSrc.includes('resolveNodeExecutable')) {
+      // Insert import and resolveNodeExecutable() after the object opening brace.
+      // This avoids depending on the exact isWindows() function signature which
+      // can vary across expo-modules-autolinking versions (e.g. `= expr` vs `=> expr`).
       const nextOs = osSrc.replace(
         'package expo.modules.plugin\n\nobject Os {',
-        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {`,
-      ).replace(
-        '  fun isWindows(): Boolean =>',
-        `  fun resolveNodeExecutable(): String {
-    System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
-    if (isWindows()) {
-      val candidates = listOf(
-        "C:\\\\Program Files\\\\nodejs\\\\node.exe",
-        System.getenv("LOCALAPPDATA")?.let { "$it\\\\fnm_multishells\\\\node.exe" },
-        System.getenv("APPDATA")?.let { "$it\\\\nvm\\\\node.exe" },
-        System.getenv("NVM_HOME")?.let { "$it\\\\nodejs\\\\node.exe" },
-      )
-      for (candidate in candidates) {
-        if (candidate != null && File(candidate).exists()) {
-          return candidate
-        }
-      }
-    }
-    return "node"
-  }
-
-  fun isWindows(): Boolean =>`,
+        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {\n  fun resolveNodeExecutable(): String {\n    System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }\n    if (isWindows()) {\n      val candidates = listOf(\n        "C:\\\\Program Files\\\\nodejs\\\\node.exe",\n        System.getenv("LOCALAPPDATA")?.let { "$it\\\\fnm_multishells\\\\node.exe" },\n        System.getenv("APPDATA")?.let { "$it\\\\nvm\\\\node.exe" },\n        System.getenv("NVM_HOME")?.let { "$it\\\\nodejs\\\\node.exe" },\n      )\n      for (candidate in candidates) {\n        if (candidate != null && File(candidate).exists()) {\n          return candidate\n        }\n      }\n    }\n    return "node"\n  }`,
       );
-      fs.writeFileSync(osKt, nextOs);
-      console.log('[patch-android-node] Patched expo Os.kt for Node resolution');
+      if (nextOs !== osSrc) {
+        fs.writeFileSync(osKt, nextOs);
+        console.log('[patch-android-node] Patched expo Os.kt for Node resolution');
+      } else {
+        console.warn('[patch-android-node] WARNING: Could not patch Os.kt — object header not found');
+      }
     }
   }
 
