@@ -1,6 +1,7 @@
 import AccountHeader from '@/components/profile/AccountHeader';
 import AccountTabs from '@/components/profile/AccountTabs';
 import ProfilePlaylists from '@/components/profile/ProfilePlaylists';
+import ProfileTopFriends from '@/components/profile/ProfileTopFriends';
 import VideoGrid from '@/components/profile/VideoGrid';
 import { ReportModal } from '@/components/ReportModal';
 import { StackText, YStack } from '@/components/ui/Stack';
@@ -10,6 +11,7 @@ import {
     cancelFollowRequest as atprotoCancelFollowRequest,
     fetchAccount as atprotoFetchAccount,
     fetchAccountState as atprotoFetchAccountState,
+    fetchProfilePrefs,
     fetchUserVideos as atprotoFetchUserVideos,
     fetchUserPhotos as atprotoFetchUserPhotos,
     followAccount as atprotoFollowAccount,
@@ -113,6 +115,14 @@ export default function ProfileScreen() {
         enabled: !!user && !!id,
         staleTime: 2 * 60 * 1000,
     });
+
+    const { data: profilePrefs } = useQuery({
+        queryKey: ['profilePrefs', id?.toString()],
+        queryFn: () => fetchProfilePrefs(id),
+        enabled: !!id && atproto,
+    });
+
+    const isProfileOwner = !!user?.is_owner;
 
     const { data: playlists, isLoading: playlistsLoading } = useQuery({
         queryKey: ['accountPlaylists', id?.toString()],
@@ -464,6 +474,12 @@ export default function ProfileScreen() {
                             onUnblockPress={handleOnUnblockPress}
                             isFollowLoading={followMutation.isPending}
                         />
+                        {atproto ? (
+                            <ProfileTopFriends
+                                topFriendIds={profilePrefs?.topFriends}
+                                isOwner={isProfileOwner}
+                            />
+                        ) : null}
                         <AccountTabs
                             activeTab={activeTab}
                             onTabChange={setActiveTab}

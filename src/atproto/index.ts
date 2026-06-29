@@ -109,6 +109,14 @@ export {
     unblockAccount,
 } from './profile';
 
+export {
+    fetchProfilePrefs,
+    saveProfilePrefs,
+    canViewFollowLists,
+    PROFILE_PREFS_COLLECTION,
+} from './profilePrefs';
+export type { FlipProfilePrefs } from './profilePrefs';
+
 export { fetchReportRules, submitReport } from './moderation';
 
 export { uploadMediaPost } from './upload';
