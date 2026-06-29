@@ -59,8 +59,10 @@ export async function fetchProfilePrefs(actorDid: string): Promise<FlipProfilePr
             }),
         );
         return fromRecord(res.data.value as ProfilePrefsRecord);
-    } catch {
-        return null;
+    } catch (error) {
+        const err = error as any;
+        if (err?.error === 'RecordNotFound' || err?.status === 404) return null;
+        throw error;
     }
 }
 
