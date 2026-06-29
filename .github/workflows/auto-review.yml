@@ -45,15 +45,7 @@ jobs:
         with:
           script: |
             const pr = context.payload.pull_request;
-            
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pr.number,
-              event: 'APPROVE',
-              body: '✅ Approved by Copilot. Merging now.'
-            });
-            
+
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
