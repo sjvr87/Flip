@@ -113,10 +113,7 @@ function VideoSlidePlaceholder({
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
             <View
-                style={[
-                    styles.videoWrapper,
-                    { top: videoTopInset, bottom: videoBottomReserved },
-                ]}>
+                style={[styles.videoWrapper, { top: videoTopInset, bottom: videoBottomReserved }]}>
                 <VideoPoster thumbnail={thumbnail} />
             </View>
         </View>

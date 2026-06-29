@@ -170,12 +170,14 @@ function patchExpoAutolinkingNode() {
   if (fs.existsSync(osKt)) {
     const osSrc = fs.readFileSync(osKt, 'utf8');
     if (!osSrc.includes('resolveNodeExecutable')) {
-      const nextOs = osSrc.replace(
-        'package expo.modules.plugin\n\nobject Os {',
-        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {`,
-      ).replace(
-        '  fun isWindows(): Boolean =>',
-        `  fun resolveNodeExecutable(): String {
+      const nextOs = osSrc
+        .replace(
+          'package expo.modules.plugin\n\nobject Os {',
+          `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {`,
+        )
+        .replace(
+          /  fun isWindows\(\): Boolean =\s*\n/,
+          `  fun resolveNodeExecutable(): String {
     System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
     if (isWindows()) {
       val candidates = listOf(
@@ -193,8 +195,9 @@ function patchExpoAutolinkingNode() {
     return "node"
   }
 
-  fun isWindows(): Boolean =>`,
-      );
+  fun isWindows(): Boolean =
+`,
+        );
       fs.writeFileSync(osKt, nextOs);
       console.log('[patch-android-node] Patched expo Os.kt for Node resolution');
     }
@@ -245,7 +248,12 @@ function patchExpoAutolinkingNode() {
 }
 
 function ensureLocalProperties() {
-  const propsFile = path.join(__dirname, '..', 'android', 'local.properties');
+  const androidDir = path.join(__dirname, '..', 'android');
+  if (!fs.existsSync(androidDir)) {
+    return;
+  }
+
+  const propsFile = path.join(androidDir, 'local.properties');
   const sdkDir = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
   if (!sdkDir || !fs.existsSync(sdkDir)) {
     return;
@@ -265,16 +273,14 @@ function ensureLocalProperties() {
   console.log('[patch-android-node] Wrote android/local.properties sdk.dir');
 }
 
-if (!fs.existsSync(settingsFile)) {
-  process.exit(0);
-}
+if (fs.existsSync(settingsFile)) {
+  const src = fs.readFileSync(settingsFile, 'utf8');
+  const next = patchSettingsGradle(src);
 
-const src = fs.readFileSync(settingsFile, 'utf8');
-const next = patchSettingsGradle(src);
-
-if (next && next !== src) {
-  fs.writeFileSync(settingsFile, next);
-  console.log('[patch-android-node] Patched android/settings.gradle for Node resolution');
+  if (next && next !== src) {
+    fs.writeFileSync(settingsFile, next);
+    console.log('[patch-android-node] Patched android/settings.gradle for Node resolution');
+  }
 }
 
 patchGradleProperties();

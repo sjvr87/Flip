@@ -22,13 +22,7 @@ const FollowAddBadgeIcon = memo(function FollowAddBadgeIcon({
     return (
         <Svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`} fill="none">
             {/* Person bust — centered */}
-            <Circle
-                cx={CENTER_X}
-                cy={13.8}
-                r={3.8}
-                stroke={color}
-                strokeWidth={STROKE}
-            />
+            <Circle cx={CENTER_X} cy={13.8} r={3.8} stroke={color} strokeWidth={STROKE} />
             <Path
                 d="M9.8 22.4 Q18 28.4 26.2 22.4"
                 stroke={color}

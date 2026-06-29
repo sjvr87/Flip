@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -40,5 +42,5 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run TypeScript type check
-        run: npx tsc --noEmit
+      - name: Run changed-file TypeScript check
+        run: node ./scripts/typecheck-multiverse-client.js

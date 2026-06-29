@@ -57,10 +57,7 @@ type RecordVideoEmbed = {
     aspectRatio?: { width: number; height: number };
 };
 
-function videoCdnUrls(
-    did: string,
-    cid: string,
-): { thumbnail: string; playlist: string } {
+function videoCdnUrls(did: string, cid: string): { thumbnail: string; playlist: string } {
     const encodedDid = encodeURIComponent(did);
     const base = `https://video.bsky.app/watch/${encodedDid}/${cid}`;
     return {

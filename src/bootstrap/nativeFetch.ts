@@ -16,7 +16,7 @@ let installed = false;
 
 type GlobalWithFetchBackup = typeof globalThis & { originalFetch?: typeof fetch };
 
-function useReactNativeFetchGlobally(): boolean {
+function shouldUseReactNativeFetchGlobally(): boolean {
     return (
         process.env.EXPO_PUBLIC_USE_RN_FETCH === '1' ||
         process.env.EXPO_PUBLIC_USE_RN_FETCH === 'true'
@@ -75,7 +75,7 @@ export function getDefaultFetch(): typeof fetch {
     if (Platform.OS === 'web') {
         return fetch.bind(globalThis);
     }
-    if (useReactNativeFetchGlobally()) {
+    if (shouldUseReactNativeFetchGlobally()) {
         if (!defaultFetch) {
             defaultFetch = resolveNativeFetch();
         }

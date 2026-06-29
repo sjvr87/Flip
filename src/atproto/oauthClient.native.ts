@@ -1,8 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 import { openAuthSessionAsync } from 'expo-web-browser';
 import { OAuthClient, type OAuthSession } from '@atproto/oauth-client';
-const NativeModule = require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
-const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
 import { nativeFetch, oauthFetch, runWithNativeFetchGlobal } from '@/bootstrap/nativeFetch';
 import { getOAuthClientMetadata } from './oauthClientMetadata';
@@ -17,6 +15,9 @@ import {
     StateStore,
     clearOAuthTransientSecureStore,
 } from './oauthStores.native';
+const NativeModule =
+    require('@atproto/oauth-client-expo/dist/ExpoAtprotoOAuthClientModule').default;
+const { ExpoKey } = require('@atproto/oauth-client-expo/dist/utils/expo-key');
 
 // JSI polyfills (DisposableStack, URL) required by @atproto/oauth-client-expo.
 require('@atproto/oauth-client-expo/dist/polyfill.native');
@@ -251,9 +252,7 @@ async function exchangeOAuthCallback(
 }
 
 /** Complete Bluesky OAuth when Android delivers the redirect via deep link instead of Custom Tab. */
-export async function completeOAuthCallback(
-    params: URLSearchParams,
-): Promise<OAuthSession> {
+export async function completeOAuthCallback(params: URLSearchParams): Promise<OAuthSession> {
     if (oauthSignInFlight) {
         try {
             return await withTimeout(oauthSignInFlight, OAUTH_SIGNIN_WAIT_MS, 'OAuth sign-in');
@@ -281,7 +280,9 @@ export function isOAuthSignInInFlight(): boolean {
     return oauthSignInFlight !== null;
 }
 
-export async function waitForOAuthSignIn(timeoutMs = OAUTH_SIGNIN_WAIT_MS): Promise<OAuthSession | null> {
+export async function waitForOAuthSignIn(
+    timeoutMs = OAUTH_SIGNIN_WAIT_MS,
+): Promise<OAuthSession | null> {
     if (!oauthSignInFlight) {
         return null;
     }

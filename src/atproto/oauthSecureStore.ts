@@ -20,9 +20,7 @@ type StoredEntry = {
  * SecureStore-backed TTL cache for OAuth data that must survive the browser
  * redirect (DPoP nonces, authorization state). In-memory layer for hot reads.
  */
-export class SecureSimpleStoreTTL<V extends Value>
-    implements SimpleStore<string, V>, Disposable
-{
+export class SecureSimpleStoreTTL<V extends Value> implements SimpleStore<string, V>, Disposable {
     readonly #cache = new Map<string, V>();
     readonly #exp = new Map<string, number>();
     readonly #prefix: string;
