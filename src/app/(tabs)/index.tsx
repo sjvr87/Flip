@@ -150,6 +150,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
 
     return (
         <VideoPlayer
+            key={item.id}
             item={item}
             isActive={isActive}
             shouldPreload={shouldPreload}

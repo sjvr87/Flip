@@ -276,10 +276,7 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle = {
-        top: videoTopInset,
-        bottom: videoBottomReserved,
-    };
+    const progressBarBottom = tabBarHeight + bottomInset;
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
@@ -1245,8 +1242,7 @@ function VideoPlayerCore({
         <View
             style={[styles.videoContainer, { height: slideHeight }]}
             pointerEvents={isActive ? 'box-none' : 'none'}>
-            <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
-            <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
+            <View style={styles.videoFill} pointerEvents="none">
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
@@ -1263,7 +1259,12 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
-                {isActive && thumbnail ? (
+                {thumbnail && !isActive ? (
+                    <View style={styles.bandPosterLayer} pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
+                    </View>
+                ) : null}
+                {thumbnail && isActive ? (
                     <Animated.View
                         style={[styles.bandPosterLayer, { opacity: bandPosterOpacity }]}
                         pointerEvents="none">
@@ -1276,7 +1277,10 @@ function VideoPlayerCore({
                 <>
                     <GestureDetector gesture={videoGesture}>
                         <View
-                            style={[styles.tapOverlay, { bottom: PROGRESS_BAR_TOUCH_HEIGHT }]}
+                            style={[
+                                styles.tapOverlay,
+                                { bottom: progressBarBottom + PROGRESS_BAR_TOUCH_HEIGHT },
+                            ]}
                             collapsable={false}
                             accessible={true}
                             accessibilityLabel="Video"
@@ -1290,7 +1294,7 @@ function VideoPlayerCore({
                             <View
                                 style={[
                                     styles.progressBarTouchArea,
-                                    { bottom: videoBottomReserved },
+                                    { bottom: progressBarBottom },
                                 ]}
                                 onLayout={handleProgressBarLayout}
                                 accessible={true}
@@ -1460,10 +1464,8 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: 'transparent',
     },
-    videoWrapper: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
+    videoFill: {
+        ...StyleSheet.absoluteFillObject,
         backgroundColor: 'transparent',
         overflow: 'hidden',
         zIndex: 2,
