@@ -90,17 +90,25 @@ try {
 const diagnosticHeader = /^(.*?):\d+:\d+ - error TS\d+:/;
 const relevantLines = [];
 let includeCurrentDiagnostic = false;
+let matchedDiagnostics = 0;
 
 for (const line of output.split(/\r?\n/)) {
     const match = line.match(diagnosticHeader);
 
     if (match) {
+        matchedDiagnostics += 1;
         includeCurrentDiagnostic = changedFileSet.has(match[1].replace(/\\/g, '/'));
     }
 
     if (includeCurrentDiagnostic) {
         relevantLines.push(line);
     }
+}
+
+if (matchedDiagnostics === 0 && output.includes('error TS')) {
+    console.error('[typecheck-changed] Unable to parse TypeScript diagnostics; failing closed.');
+    console.error(output.trimEnd());
+    process.exit(1);
 }
 
 if (relevantLines.length > 0) {
