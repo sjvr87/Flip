@@ -46,12 +46,11 @@ jobs:
           script: |
             const pr = context.payload.pull_request;
             
-            await github.rest.pulls.createReview({
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: pr.number,
-              event: 'APPROVE',
-              body: '✅ Approved by Copilot. Merging now.'
+              issue_number: pr.number,
+              body: '✅ Copilot auto-merge check passed. Merging now.'
             });
             
             await github.rest.pulls.merge({
