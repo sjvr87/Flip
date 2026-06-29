@@ -193,20 +193,7 @@ export function onFeedTabChanged(): void {
     feedPlaybackSuspended = true;
     notifyPlaybackActive();
     bumpPlaybackGeneration();
-    for (const { pause, release } of registeredPlayers) {
-        try {
-            pause();
-        } catch {
-            // ignore
-        }
-        try {
-            release();
-        } catch {
-            // ignore
-        }
-    }
-    registeredPlayers.clear();
-
+    pauseAllFeedPlayers();
     requestAnimationFrame(() => {
         feedPlaybackSuspended = false;
         if (homeTabFocused && appInForeground) {

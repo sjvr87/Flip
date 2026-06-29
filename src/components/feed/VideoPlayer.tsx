@@ -57,7 +57,7 @@ const PROGRESS_BAR_HEIGHT = 3;
 const PROGRESS_BAR_SCRUB_HEIGHT = 8;
 const PROGRESS_BAR_TOUCH_HEIGHT = 28;
 const PROGRESS_BAR_FILL = '#39FF14';
-const PROGRESS_BAR_TRACK = 'rgba(255,255,255,0.22)';
+const PROGRESS_BAR_TRACK = 'rgba(57, 255, 20, 0.28)';
 const HOLD_SPEED_RATE = 2;
 const HOLD_SPEED_MIN_DURATION_MS = 300;
 
@@ -363,13 +363,19 @@ function VideoPlayerCore({
             setViewEpoch(0);
             return;
         }
+        const canAttachSurface = playerStatus === 'readyToPlay' || firstFrameRendered;
+        if (!canAttachSurface) {
+            setViewPlayer(null);
+            setViewEpoch(0);
+            return;
+        }
         setViewPlayer(player);
         setViewEpoch(playerEpoch);
         return () => {
             setViewPlayer(null);
             setViewEpoch(0);
         };
-    }, [player, playerEpoch]);
+    }, [player, playerEpoch, playerStatus, firstFrameRendered]);
 
     useEffect(() => {
         if (viewPlayer) {
@@ -427,21 +433,21 @@ function VideoPlayerCore({
         }
 
         if (!standalonePlayback && !playbackAllowed) {
-            const stale = playerRef.current;
-            if (!stale) {
+            const activePlayer = playerRef.current;
+            if (!activePlayer) {
                 return;
             }
-            playerRef.current = null;
-            boundSrcRef.current = undefined;
-            setPlayer(null);
-            setPlayerEpoch(0);
-            setViewPlayer(null);
-            setViewEpoch(0);
-            setVideoReady(false);
-            setFirstFrameRendered(false);
-            setPlayerStatus('idle');
-            setIsPlaying(false);
-            releasePlayerNow(stale);
+            try {
+                activePlayer.pause();
+                activePlayer.muted = true;
+            } catch {
+                // player may already be released
+            }
+            if (isMountedRef.current) {
+                setIsPlaying(false);
+                setViewPlayer(null);
+                setViewEpoch(0);
+            }
             return;
         }
 
@@ -1259,6 +1265,11 @@ function VideoPlayerCore({
         viewPlayer && isPlayerUsable(viewPlayer) && playerRef.current === viewPlayer
             ? viewPlayer
             : null;
+    const revealVideoPixels =
+        isActive &&
+        firstFrameRendered &&
+        playerStatus !== 'loading' &&
+        (isPlaying || playerStatus === 'readyToPlay');
 
     if (!srcUrl) {
         return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
@@ -1321,32 +1332,41 @@ function VideoPlayerCore({
             pointerEvents={isActive ? 'box-none' : 'none'}>
             <View style={styles.videoFill} pointerEvents="none">
                 {videoViewPlayer ? (
-                    <VideoView
-                        key={`${srcUrl}-${viewEpoch}`}
-                        style={styles.video}
-                        player={videoViewPlayer}
-                        allowsPictureInPicture={false}
-                        nativeControls={false}
-                        pointerEvents="none"
-                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
-                        onFirstFrameRender={handleFirstFrameRender}
-                        accessible={true}
-                        accessibilityLabel={item.media.alt_text || 'Video content'}
-                        accessibilityHint="Tap to pause or play"
-                        contentFit="cover"
-                    />
-                ) : null}
-                {thumbnail && !isActive ? (
-                    <View style={styles.bandPosterLayer} pointerEvents="none">
-                        <VideoPoster thumbnail={thumbnail} />
+                    <View
+                        style={[
+                            styles.videoSurfaceMount,
+                            !revealVideoPixels && styles.videoSurfaceHidden,
+                        ]}
+                        pointerEvents="none">
+                        <VideoView
+                            key={`${srcUrl}-${viewEpoch}`}
+                            style={styles.video}
+                            player={videoViewPlayer}
+                            allowsPictureInPicture={false}
+                            nativeControls={false}
+                            useExoShutter={false}
+                            pointerEvents="none"
+                            surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                            onFirstFrameRender={handleFirstFrameRender}
+                            accessible={true}
+                            accessibilityLabel={item.media.alt_text || 'Video content'}
+                            accessibilityHint="Tap to pause or play"
+                            contentFit="cover"
+                        />
                     </View>
                 ) : null}
-                {thumbnail && isActive ? (
-                    <Animated.View
-                        style={[styles.bandPosterLayer, { opacity: bandPosterOpacity }]}
-                        pointerEvents="none">
-                        <VideoPoster thumbnail={thumbnail} />
-                    </Animated.View>
+                {thumbnail ? (
+                    <View style={styles.posterOverlay} pointerEvents="none">
+                        {isActive ? (
+                            <Animated.View
+                                style={[StyleSheet.absoluteFillObject, { opacity: bandPosterOpacity }]}
+                                pointerEvents="none">
+                                <VideoPoster thumbnail={thumbnail} />
+                            </Animated.View>
+                        ) : (
+                            <VideoPoster thumbnail={thumbnail} />
+                        )}
+                    </View>
                 ) : null}
             </View>
 
@@ -1563,9 +1583,16 @@ const styles = StyleSheet.create({
     posterImage: {
         ...StyleSheet.absoluteFillObject,
     },
-    bandPosterLayer: {
+    videoSurfaceMount: {
         ...StyleSheet.absoluteFillObject,
-        zIndex: 3,
+    },
+    videoSurfaceHidden: {
+        opacity: 0,
+    },
+    posterOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 20,
+        elevation: 20,
     },
     video: {
         width: '100%',
