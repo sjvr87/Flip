@@ -29,11 +29,13 @@ export default function EditTopFriendsScreen() {
     const { data: followingPage, isLoading: followingLoading } = useQuery({
         queryKey: ['accountFollowing', user?.id, 'top8-picker'],
         queryFn: async () => {
-            const res = await fetchAccountFollowing({
-                queryKey: ['accountFollowing', user!.id, ''],
-                pageParam: 0,
-            });
-            return res.data ?? [];
+            const res = await withAuthenticatedFetch(() =>
+                getAgent().app.bsky.graph.getFollows({ actor: user!.id, limit: 100 }),
+            );
+            return res.data.follows.map((follow) => ({
+                id: follow.did,
+                username: follow.handle ?? follow.did,
+            }));
         },
         enabled: !!user?.id,
     });
