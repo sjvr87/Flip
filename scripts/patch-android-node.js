@@ -170,12 +170,31 @@ function patchExpoAutolinkingNode() {
   if (fs.existsSync(osKt)) {
     const osSrc = fs.readFileSync(osKt, 'utf8');
     if (!osSrc.includes('resolveNodeExecutable')) {
-      // Insert import and resolveNodeExecutable() after the object opening brace.
-      // This avoids depending on the exact isWindows() function signature which
-      // can vary across expo-modules-autolinking versions (e.g. `= expr` vs `=> expr`).
+      // Insert import and resolveNodeExecutable() directly after the object opening brace.
+      // Using a single replace avoids depending on the exact isWindows() function signature,
+      // which differs across expo-modules-autolinking versions (e.g. `Boolean =\n` vs `Boolean =>`).
+      const resolveNodeFn = [
+        '  fun resolveNodeExecutable(): String {',
+        '    System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }',
+        '    if (isWindows()) {',
+        '      val candidates = listOf(',
+        '        "C:\\\\Program Files\\\\nodejs\\\\node.exe",',
+        '        System.getenv("LOCALAPPDATA")?.let { "$it\\\\fnm_multishells\\\\node.exe" },',
+        '        System.getenv("APPDATA")?.let { "$it\\\\nvm\\\\node.exe" },',
+        '        System.getenv("NVM_HOME")?.let { "$it\\\\nodejs\\\\node.exe" },',
+        '      )',
+        '      for (candidate in candidates) {',
+        '        if (candidate != null && File(candidate).exists()) {',
+        '          return candidate',
+        '        }',
+        '      }',
+        '    }',
+        '    return "node"',
+        '  }',
+      ].join('\n');
       const nextOs = osSrc.replace(
         'package expo.modules.plugin\n\nobject Os {',
-        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {\n  fun resolveNodeExecutable(): String {\n    System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }\n    if (isWindows()) {\n      val candidates = listOf(\n        "C:\\\\Program Files\\\\nodejs\\\\node.exe",\n        System.getenv("LOCALAPPDATA")?.let { "$it\\\\fnm_multishells\\\\node.exe" },\n        System.getenv("APPDATA")?.let { "$it\\\\nvm\\\\node.exe" },\n        System.getenv("NVM_HOME")?.let { "$it\\\\nodejs\\\\node.exe" },\n      )\n      for (candidate in candidates) {\n        if (candidate != null && File(candidate).exists()) {\n          return candidate\n        }\n      }\n    }\n    return "node"\n  }`,
+        `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {\n${resolveNodeFn}`,
       );
       if (nextOs !== osSrc) {
         fs.writeFileSync(osKt, nextOs);
