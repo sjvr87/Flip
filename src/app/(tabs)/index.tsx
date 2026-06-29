@@ -46,6 +46,11 @@ import {
 } from '@/utils/videoPrefetch';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
+    FEED_CELL_OVERLAP,
+    getFeedItemStride,
+    getFeedSlideHeight,
+} from '@/utils/feedSlideLayout';
+import {
     fetchFollowingFeed,
     fetchForYouFeed,
     fetchTrendingFeed,
@@ -71,6 +76,7 @@ import {
     AppState,
     FlatList,
     InteractionManager,
+    LayoutChangeEvent,
     Platform,
     RefreshControl,
     StyleSheet,
@@ -150,6 +156,7 @@ const FeedVideoCell = React.memo(function FeedVideoCell({
 
     return (
         <VideoPlayer
+            key={item.id}
             item={item}
             isActive={isActive}
             shouldPreload={shouldPreload}
@@ -219,7 +226,8 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 
 export default function LoopsFeed({ navigation }) {
     const { height: windowHeight } = useWindowDimensions();
-    const feedHeight = Math.round(windowHeight);
+    const [feedHeight, setFeedHeight] = useState(() => getFeedSlideHeight(windowHeight));
+    const feedItemStride = useMemo(() => getFeedItemStride(feedHeight), [feedHeight]);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const feedVideoViewport = useMemo(
@@ -227,6 +235,17 @@ export default function LoopsFeed({ navigation }) {
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
     );
     const statusBarInset = feedVideoViewport.topInset;
+
+    useEffect(() => {
+        setFeedHeight(getFeedSlideHeight(windowHeight));
+    }, [windowHeight]);
+
+    const handleFeedListLayout = useCallback((event: LayoutChangeEvent) => {
+        const measured = getFeedSlideHeight(event.nativeEvent.layout.height);
+        if (measured > 0) {
+            setFeedHeight((prev) => (prev === measured ? prev : measured));
+        }
+    }, []);
     const authReady = useAuthStore((state) => state.authReady);
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
@@ -396,6 +415,14 @@ export default function LoopsFeed({ navigation }) {
 
     const rawVideos = useMemo(() => data?.pages?.flatMap((page) => page.data) ?? [], [data?.pages]);
     const videos = useMemo(() => dedupeFeedVideos(rawVideos, activeTab), [rawVideos, activeTab]);
+    const feedHeadThumbKey = useMemo(
+        () =>
+            videos
+                .slice(0, 6)
+                .map((video) => video?.id ?? '')
+                .join(':'),
+        [videos],
+    );
     const feedTrulyEmpty = !isLoading && rawVideos.length === 0;
     const feedExhausted = !isLoading && !isFetchingNextPage && !hasNextPage && videos.length > 0;
     const feedDedupeExhausted =
@@ -421,6 +448,7 @@ export default function LoopsFeed({ navigation }) {
     videosRef.current = videos;
     const currentIndexRef = useRef(currentIndex);
     currentIndexRef.current = currentIndex;
+    const previousIndexRef = useRef(currentIndex);
 
     const hasNextPageRef = useRef(hasNextPage);
     hasNextPageRef.current = hasNextPage;
@@ -695,8 +723,8 @@ export default function LoopsFeed({ navigation }) {
             const prevWatchStart = watchStartTimeRef.current;
 
             if (newIndex !== currentIndexRef.current) {
+                previousIndexRef.current = currentIndexRef.current;
                 pauseAllFeedPlayers();
-                releaseAllVideoPrefetch();
             }
 
             maybeLoadMoreVideos(newIndex);
@@ -732,10 +760,10 @@ export default function LoopsFeed({ navigation }) {
             return;
         }
 
-        const preloadDistance = Math.min(
-            PLAYER_PRELOAD_DISTANCE,
-            networkProfile.playerPreloadDistance,
-        );
+        const preloadDistance =
+            networkProfile.tier === 'slow' || networkProfile.tier === 'offline'
+                ? networkProfile.playerPreloadDistance
+                : Math.max(networkProfile.playerPreloadDistance, PLAYER_PRELOAD_DISTANCE);
         const prefetchAhead = Math.min(PREFETCH_AHEAD, networkProfile.prefetchAhead);
 
         const keepUrls = new Set<string>();
@@ -753,7 +781,7 @@ export default function LoopsFeed({ navigation }) {
         }
 
         const thumbUrls: string[] = [];
-        for (let i = -1; i <= 2; i += 1) {
+        for (let i = -preloadDistance; i <= preloadDistance + 2; i += 1) {
             const video = videos[currentIndex + i];
             if (video?.media?.thumbnail) {
                 thumbUrls.push(video.media.thumbnail);
@@ -771,6 +799,21 @@ export default function LoopsFeed({ navigation }) {
         networkProfile.prefetchAhead,
         networkProfile.playerPreloadDistance,
     ]);
+
+    useEffect(() => {
+        if (!feedPlaybackEnabled || videos.length === 0) {
+            return;
+        }
+        const thumbUrls: string[] = [];
+        const warmCount = Math.min(6, videos.length);
+        for (let i = 0; i < warmCount; i += 1) {
+            const video = videos[i];
+            if (video?.media?.thumbnail) {
+                thumbUrls.push(video.media.thumbnail);
+            }
+        }
+        prefetchThumbnails(thumbUrls);
+    }, [activeTab, feedHeadThumbKey, feedPlaybackEnabled, videos]);
 
     useEffect(() => {
         if (!feedPlaybackEnabled || videos.length === 0 || currentIndex !== 0) {
@@ -884,7 +927,8 @@ export default function LoopsFeed({ navigation }) {
                 const shouldPreloadPlayer =
                     feedPlaybackEnabled &&
                     (index === currentIndex ||
-                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE);
+                        Math.abs(index - currentIndex) <= PLAYER_PRELOAD_DISTANCE ||
+                        index === previousIndexRef.current);
 
                 return (
                     <FeedVideoCell
@@ -918,13 +962,25 @@ export default function LoopsFeed({ navigation }) {
                 );
             })();
 
-            return <View style={{ height: feedHeight, overflow: 'hidden' }}>{cell}</View>;
+            return (
+                <View
+                    style={{
+                        height: feedHeight,
+                        marginBottom:
+                            index < videosWithEnd.length - 1 ? -FEED_CELL_OVERLAP : 0,
+                        overflow: 'hidden',
+                        backgroundColor: '#000',
+                    }}>
+                    {cell}
+                </View>
+            );
         },
         [
             activeTab,
             currentIndex,
             feedError,
             feedHeight,
+            videosWithEnd.length,
             feedVideoViewport.bottomReserved,
             feedVideoViewport.topInset,
             onRefresh,
@@ -964,11 +1020,11 @@ export default function LoopsFeed({ navigation }) {
 
     const getItemLayout = useCallback(
         (data, index) => ({
-            length: feedHeight,
-            offset: feedHeight * index,
+            length: feedItemStride,
+            offset: feedItemStride * index,
             index,
         }),
-        [feedHeight],
+        [feedItemStride],
     );
 
     const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
@@ -1062,13 +1118,15 @@ export default function LoopsFeed({ navigation }) {
                 key={activeTab}
                 ref={flatListRef}
                 style={styles.feedList}
+                onLayout={handleFeedListLayout}
                 data={videosWithEnd}
                 extraData={currentIndex}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                 showsVerticalScrollIndicator={false}
-                snapToInterval={feedHeight}
+                snapToInterval={feedItemStride}
                 snapToAlignment="start"
+                disableIntervalMomentum
                 decelerationRate="fast"
                 scrollEventThrottle={16}
                 overScrollMode="never"

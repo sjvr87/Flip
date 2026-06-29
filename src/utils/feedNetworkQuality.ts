@@ -34,25 +34,25 @@ export type FeedNetworkProfile = {
 
 const WIFI_PROFILE: FeedNetworkProfile = {
     tier: 'wifi',
-    playerPreloadDistance: 1,
+    playerPreloadDistance: 2,
     prefetchAhead: 1,
     bufferOptions: {
-        preferredForwardBufferDuration: 12,
+        preferredForwardBufferDuration: 18,
         waitsToMinimizeStalling: true,
-        minBufferForPlayback: 2.5,
+        minBufferForPlayback: 3,
         maxBufferBytes: null,
     },
 };
 
 const CELLULAR_PROFILE: FeedNetworkProfile = {
     tier: 'cellular',
-    playerPreloadDistance: 1,
+    playerPreloadDistance: 2,
     prefetchAhead: 1,
     bufferOptions: {
-        preferredForwardBufferDuration: 6,
+        preferredForwardBufferDuration: 10,
         waitsToMinimizeStalling: true,
-        minBufferForPlayback: 1.5,
-        maxBufferBytes: 16 * 1024 * 1024,
+        minBufferForPlayback: 2,
+        maxBufferBytes: 24 * 1024 * 1024,
     },
 };
 

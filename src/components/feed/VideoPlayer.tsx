@@ -24,6 +24,7 @@ import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { canUseFlipCamera } from '@/utils/runtime';
 import { buildFeedVideoSource } from '@/utils/feedVideoSource';
+import { FEED_MEDIA_EDGE_BLEED } from '@/utils/feedSlideLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,8 +35,10 @@ import { createVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
+    Animated,
     Dimensions,
     InteractionManager,
+    LayoutChangeEvent,
     Platform,
     StyleSheet,
     Text,
@@ -49,6 +52,14 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 /** Tap overlay stops here so the right action rail stays visible and tappable. */
 const ACTION_RAIL_WIDTH = 72;
+
+const PROGRESS_BAR_HEIGHT = 3;
+const PROGRESS_BAR_SCRUB_HEIGHT = 8;
+const PROGRESS_BAR_TOUCH_HEIGHT = 28;
+const PROGRESS_BAR_FILL = '#39FF14';
+const PROGRESS_BAR_TRACK = 'rgba(57, 255, 20, 0.28)';
+const HOLD_SPEED_RATE = 2;
+const HOLD_SPEED_MIN_DURATION_MS = 300;
 
 function safeCount(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -72,32 +83,52 @@ function isPlayerUsable(player: ExpoVideoPlayer | null | undefined): player is E
 }
 
 function VideoPoster({ thumbnail }: { thumbnail?: string }) {
+    if (!thumbnail) {
+        return null;
+    }
     return (
-        <View style={styles.posterLayer} pointerEvents="none">
-            {thumbnail ? (
-                <Image
-                    source={{ uri: thumbnail }}
-                    style={styles.posterImage}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
-                    placeholder={{ color: POSTER_BG }}
-                />
-            ) : null}
-        </View>
+        <Image
+            source={{ uri: thumbnail }}
+            style={styles.posterImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={thumbnail}
+            transition={0}
+            priority="high"
+        />
+    );
+}
+
+function FullBleedPosterShell({
+    thumbnail,
+    opacity = 1,
+}: {
+    thumbnail?: string;
+    opacity?: Animated.Value | number;
+}) {
+    if (!thumbnail) {
+        return <View style={styles.posterLayerFullBleed} pointerEvents="none" />;
+    }
+    if (typeof opacity === 'number') {
+        return (
+            <View style={[styles.posterLayerFullBleed, { opacity }]} pointerEvents="none">
+                <VideoPoster thumbnail={thumbnail} />
+            </View>
+        );
+    }
+    return (
+        <Animated.View style={[styles.posterLayerFullBleed, { opacity }]} pointerEvents="none">
+            <VideoPoster thumbnail={thumbnail} />
+        </Animated.View>
     );
 }
 
 function VideoSlidePlaceholder({
     item,
     feedHeight,
-    videoTopInset = 0,
-    videoBottomReserved = 0,
 }: {
     item: { media?: { thumbnail?: string; src_url?: string } };
     feedHeight?: number;
-    videoTopInset?: number;
-    videoBottomReserved?: number;
 }) {
     const thumbnail = item.media?.thumbnail;
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
@@ -112,13 +143,7 @@ function VideoSlidePlaceholder({
 
     return (
         <View style={[styles.videoContainer, { height: slideHeight }]}>
-            <View
-                style={[
-                    styles.videoWrapper,
-                    { top: videoTopInset, bottom: videoBottomReserved },
-                ]}>
-                <VideoPoster thumbnail={thumbnail} />
-            </View>
+            <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
         </View>
     );
 }
@@ -151,36 +176,41 @@ function VideoPlayer({
     actionRailBottom,
 }) {
     const wantsPlayer = isActive || shouldPreload;
-    const [holdPlayer, setHoldPlayer] = useState(wantsPlayer);
+    const [holdPlayer, setHoldPlayer] = useState(wantsPlayer || isActive);
+    const wasActiveRef = useRef(isActive);
 
     useEffect(() => {
-        if (wantsPlayer) {
+        if (isActive) {
+            wasActiveRef.current = true;
+        }
+    }, [isActive]);
+
+    useEffect(() => {
+        if (wantsPlayer || isActive) {
             setHoldPlayer(true);
             return;
         }
-        const timer = setTimeout(() => setHoldPlayer(false), feedPlayerReleaseDelayMs);
+        const delay = wasActiveRef.current
+            ? feedPlayerReleaseDelayMs * 2
+            : feedPlayerReleaseDelayMs;
+        const timer = setTimeout(() => {
+            setHoldPlayer(false);
+            wasActiveRef.current = false;
+        }, delay);
         return () => clearTimeout(timer);
-    }, [wantsPlayer]);
+    }, [wantsPlayer, isActive]);
 
-    if (!holdPlayer) {
-        return (
-            <VideoSlidePlaceholder
-                item={item}
-                feedHeight={feedHeight}
-                videoTopInset={videoTopInset}
-                videoBottomReserved={videoBottomReserved}
-            />
-        );
+    if (!holdPlayer && !isActive) {
+        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
     return (
         <VideoPlayerCore
             item={item}
             isActive={isActive}
+            shouldPreload={shouldPreload}
             standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
-            videoTopInset={videoTopInset}
-            videoBottomReserved={videoBottomReserved}
             onLike={onLike}
             onComment={onComment}
             onCaptionExpand={onCaptionExpand}
@@ -208,10 +238,9 @@ export default React.memo(VideoPlayer);
 function VideoPlayerCore({
     item,
     isActive,
+    shouldPreload = false,
     standalonePlayback = false,
     feedHeight,
-    videoTopInset = 0,
-    videoBottomReserved = 0,
     onLike,
     onComment,
     onCaptionExpand,
@@ -246,10 +275,7 @@ function VideoPlayerCore({
     const setPendingAudioReuse = usePendingAudioReuseStore((s) => s.setPending);
     const [playSensitive, setPlaySensitive] = useState(false);
     const slideHeight = feedHeight ?? SCREEN_HEIGHT;
-    const videoBandStyle = {
-        top: videoTopInset,
-        bottom: videoBottomReserved,
-    };
+    const progressBarBottom = tabBarHeight + bottomInset;
     const captionBottom = overlayBottom ?? bottomInset + tabBarHeight + 10;
     const feedGradientBottom = bottomInset + tabBarHeight;
     const audioLabel = audioAttributionLabel(item);
@@ -271,6 +297,22 @@ function VideoPlayerCore({
     const [videoReady, setVideoReady] = useState(false);
     const [firstFrameRendered, setFirstFrameRendered] = useState(false);
     const [playerStatus, setPlayerStatus] = useState<string>('idle');
+    const [holdSpeedActive, setHoldSpeedActive] = useState(false);
+    const [isScrubbing, setIsScrubbing] = useState(false);
+    const [scrubFraction, setScrubFraction] = useState(0);
+    const [playbackPosition, setPlaybackPosition] = useState(0);
+    const [playbackDuration, setPlaybackDuration] = useState(() => {
+        const mediaDuration = item.media?.duration;
+        return typeof mediaDuration === 'number' && Number.isFinite(mediaDuration) && mediaDuration > 0
+            ? mediaDuration
+            : 0;
+    });
+    const bandPosterOpacity = useMemo(() => new Animated.Value(1), []);
+    const isScrubbingRef = useRef(false);
+    const playbackDurationRef = useRef(0);
+    const progressBarWidthRef = useRef(SCREEN_WIDTH);
+    const wasPlayingBeforeScrubRef = useRef(false);
+    const preloadPrimingRef = useRef(false);
     const [networkProfile, setNetworkProfile] = useState<FeedNetworkProfile>(() =>
         getFeedNetworkProfile(),
     );
@@ -385,21 +427,21 @@ function VideoPlayerCore({
         }
 
         if (!standalonePlayback && !playbackAllowed) {
-            const stale = playerRef.current;
-            if (!stale) {
+            const activePlayer = playerRef.current;
+            if (!activePlayer) {
                 return;
             }
-            playerRef.current = null;
-            boundSrcRef.current = undefined;
-            setPlayer(null);
-            setPlayerEpoch(0);
-            setViewPlayer(null);
-            setViewEpoch(0);
-            setVideoReady(false);
-            setFirstFrameRendered(false);
-            setPlayerStatus('idle');
-            setIsPlaying(false);
-            releasePlayerNow(stale);
+            try {
+                activePlayer.pause();
+                activePlayer.muted = true;
+            } catch {
+                // player may already be released
+            }
+            if (isMountedRef.current) {
+                setIsPlaying(false);
+                setViewPlayer(null);
+                setViewEpoch(0);
+            }
             return;
         }
 
@@ -627,11 +669,11 @@ function VideoPlayerCore({
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
         try {
-            player.playbackRate = playbackRate;
+            player.playbackRate = holdSpeedActive ? HOLD_SPEED_RATE : playbackRate;
         } catch (error) {
             console.log('Playback rate error:', error);
         }
-    }, [playbackRate, player, playerEpoch]);
+    }, [playbackRate, player, playerEpoch, holdSpeedActive]);
 
     useEffect(() => {
         if (!isPlayerUsable(player)) return;
@@ -738,25 +780,44 @@ function VideoPlayerCore({
                 !isManuallyPaused &&
                 !(item.is_sensitive && !playSensitive);
 
-            if (isActive && !wasActiveRef.current && everActiveRef.current) {
-                player.currentTime = 0;
-            }
             if (isActive) {
                 everActiveRef.current = true;
             }
 
             if (shouldPlay && isMountedRef.current) {
+                preloadPrimingRef.current = false;
                 if (!standalonePlayback && !claimFeedAudio(item.id)) {
                     return;
                 }
                 player.play();
                 setIsPlaying(true);
             } else if (isMountedRef.current) {
-                player.pause();
-                if (!standalonePlayback) {
-                    releaseFeedAudio(item.id);
+                const primingNeighbor =
+                    shouldPreload &&
+                    !isActive &&
+                    playbackAllowed &&
+                    screenFocused &&
+                    (playerStatus === 'loading' || playerStatus === 'idle');
+
+                if (primingNeighbor) {
+                    preloadPrimingRef.current = true;
+                    try {
+                        player.muted = true;
+                        if (!player.playing) {
+                            player.play();
+                        }
+                    } catch {
+                        // player may be released
+                    }
+                    setIsPlaying(false);
+                } else {
+                    preloadPrimingRef.current = false;
+                    player.pause();
+                    if (!standalonePlayback) {
+                        releaseFeedAudio(item.id);
+                    }
+                    setIsPlaying(false);
                 }
-                setIsPlaying(false);
             }
 
             wasActiveRef.current = isActive;
@@ -777,6 +838,8 @@ function VideoPlayerCore({
         playbackAllowed,
         item.id,
         standalonePlayback,
+        shouldPreload,
+        playerStatus,
     ]);
 
     useEffect(() => {
@@ -789,6 +852,159 @@ function VideoPlayerCore({
         }
         void prefetchVideoUrl(url);
     }, [item.media?.src_url, isActive]);
+
+    useEffect(() => {
+        if (!isActive) {
+            setHoldSpeedActive(false);
+            setIsScrubbing(false);
+            isScrubbingRef.current = false;
+            preloadPrimingRef.current = false;
+            bandPosterOpacity.setValue(1);
+            return;
+        }
+
+        const readyToReveal =
+            firstFrameRendered &&
+            playerStatus !== 'loading' &&
+            (isPlaying || playerStatus === 'readyToPlay');
+
+        Animated.timing(bandPosterOpacity, {
+            toValue: readyToReveal ? 0 : 1,
+            duration: readyToReveal ? 220 : 100,
+            useNativeDriver: true,
+        }).start();
+    }, [isActive, firstFrameRendered, isPlaying, playerStatus, bandPosterOpacity]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player) || isActive || !shouldPreload) {
+            return;
+        }
+        if (!playbackAllowed || !screenFocused) {
+            return;
+        }
+
+        const primeBuffer = () => {
+            if (!isPlayerUsable(player) || playerRef.current !== player || isActive) {
+                return;
+            }
+            try {
+                if (player.status === 'readyToPlay') {
+                    preloadPrimingRef.current = false;
+                    player.pause();
+                    return;
+                }
+                preloadPrimingRef.current = true;
+                player.muted = true;
+                if (!player.playing) {
+                    player.play();
+                }
+            } catch {
+                // player may be released
+            }
+        };
+
+        primeBuffer();
+
+        const onStatus = ({ status }: { status: string }) => {
+            if (!isMountedRef.current || playerRef.current !== player || isActive) {
+                return;
+            }
+            if (status === 'readyToPlay') {
+                preloadPrimingRef.current = false;
+                try {
+                    player.pause();
+                } catch {
+                    // player may be released
+                }
+            }
+        };
+
+        let statusSub: { remove: () => void } | null = null;
+        try {
+            statusSub = player.addListener('statusChange', onStatus);
+        } catch {
+            return;
+        }
+
+        return () => {
+            statusSub?.remove();
+        };
+    }, [
+        player,
+        playerEpoch,
+        isActive,
+        shouldPreload,
+        playbackAllowed,
+        screenFocused,
+    ]);
+
+    useEffect(() => {
+        playbackDurationRef.current = playbackDuration;
+    }, [playbackDuration]);
+
+    useEffect(() => {
+        if (!isPlayerUsable(player) || !isActive) {
+            return;
+        }
+
+        const syncDuration = () => {
+            try {
+                const duration = player.duration;
+                if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+                    setPlaybackDuration(duration);
+                }
+            } catch {
+                // player may be released
+            }
+        };
+
+        try {
+            player.timeUpdateEventInterval = 0.15;
+        } catch {
+            // non-fatal
+        }
+
+        syncDuration();
+
+        const onTimeUpdate = ({ currentTime }: { currentTime: number }) => {
+            if (!isMountedRef.current || playerRef.current !== player || isScrubbingRef.current) {
+                return;
+            }
+            if (typeof currentTime === 'number' && Number.isFinite(currentTime)) {
+                setPlaybackPosition(currentTime);
+            }
+            syncDuration();
+        };
+
+        let timeSub: { remove: () => void } | null = null;
+        try {
+            timeSub = player.addListener('timeUpdate', onTimeUpdate);
+        } catch {
+            return;
+        }
+
+        return () => {
+            timeSub?.remove();
+            try {
+                if (isPlayerUsable(player)) {
+                    player.timeUpdateEventInterval = 0;
+                }
+            } catch {
+                // non-fatal
+            }
+        };
+    }, [player, playerEpoch, isActive]);
+
+    useEffect(() => {
+        const mediaDuration = item.media?.duration;
+        if (
+            typeof mediaDuration === 'number' &&
+            Number.isFinite(mediaDuration) &&
+            mediaDuration > 0
+        ) {
+            setPlaybackDuration((prev) => (prev > 0 ? prev : mediaDuration));
+        }
+    }, [item.media?.duration, item.id]);
 
     useEffect(() => {
         if (!isActive) {
@@ -847,6 +1063,84 @@ function VideoPlayerCore({
         togglePlayPauseRef.current();
     }, [item.id, isManuallyPaused]);
 
+    const onHoldSpeedStart = useCallback(() => {
+        if (!isActive || isScrubbingRef.current) {
+            return;
+        }
+        setHoldSpeedActive(true);
+    }, [isActive]);
+
+    const onHoldSpeedEnd = useCallback(() => {
+        setHoldSpeedActive(false);
+    }, []);
+
+    const beginScrub = useCallback(() => {
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer)) {
+            return;
+        }
+        isScrubbingRef.current = true;
+        setIsScrubbing(true);
+        try {
+            wasPlayingBeforeScrubRef.current = activePlayer.playing;
+            activePlayer.pause();
+            if (!standalonePlayback) {
+                releaseFeedAudio(item.id);
+            }
+            setIsPlaying(false);
+        } catch {
+            // player may be released
+        }
+    }, [item.id, standalonePlayback]);
+
+    const updateScrub = useCallback((x: number) => {
+        const width = progressBarWidthRef.current;
+        const duration = playbackDurationRef.current;
+        if (width <= 0 || duration <= 0) {
+            return;
+        }
+        const fraction = Math.max(0, Math.min(1, x / width));
+        setScrubFraction(fraction);
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer)) {
+            return;
+        }
+        try {
+            activePlayer.currentTime = fraction * duration;
+            setPlaybackPosition(fraction * duration);
+        } catch {
+            // player may be released
+        }
+    }, []);
+
+    const endScrub = useCallback(() => {
+        isScrubbingRef.current = false;
+        setIsScrubbing(false);
+        const activePlayer = playerRef.current;
+        if (!isPlayerUsable(activePlayer) || !isActive) {
+            return;
+        }
+        try {
+            if (
+                wasPlayingBeforeScrubRef.current &&
+                !isManuallyPaused &&
+                !(item.is_sensitive && !playSensitive)
+            ) {
+                if (!standalonePlayback && !claimFeedAudio(item.id)) {
+                    return;
+                }
+                activePlayer.play();
+                setIsPlaying(true);
+            }
+        } catch {
+            // player may be released
+        }
+    }, [isActive, isManuallyPaused, item.id, item.is_sensitive, playSensitive, standalonePlayback]);
+
+    const handleProgressBarLayout = useCallback((event: LayoutChangeEvent) => {
+        progressBarWidthRef.current = event.nativeEvent.layout.width;
+    }, []);
+
     const videoTapGesture = useMemo(
         () =>
             Gesture.Tap()
@@ -855,6 +1149,39 @@ function VideoPlayerCore({
                     runOnJS(handleTapOverlay)();
                 }),
         [handleTapOverlay],
+    );
+
+    const holdSpeedGesture = useMemo(
+        () =>
+            Gesture.LongPress()
+                .minDuration(HOLD_SPEED_MIN_DURATION_MS)
+                .onStart(() => {
+                    runOnJS(onHoldSpeedStart)();
+                })
+                .onFinalize(() => {
+                    runOnJS(onHoldSpeedEnd)();
+                }),
+        [onHoldSpeedStart, onHoldSpeedEnd],
+    );
+
+    const videoGesture = useMemo(
+        () => Gesture.Exclusive(holdSpeedGesture, videoTapGesture),
+        [holdSpeedGesture, videoTapGesture],
+    );
+
+    const scrubGesture = useMemo(
+        () =>
+            Gesture.Pan()
+                .onBegin(() => {
+                    runOnJS(beginScrub)();
+                })
+                .onUpdate((event) => {
+                    runOnJS(updateScrub)(event.x);
+                })
+                .onFinalize(() => {
+                    runOnJS(endScrub)();
+                }),
+        [beginScrub, updateScrub, endScrub],
     );
 
     const handleUseAudio = () => {
@@ -932,16 +1259,10 @@ function VideoPlayerCore({
         viewPlayer && isPlayerUsable(viewPlayer) && playerRef.current === viewPlayer
             ? viewPlayer
             : null;
+    const mountActiveVideoView = Boolean(videoViewPlayer && isActive);
 
     if (!srcUrl) {
-        return (
-            <VideoSlidePlaceholder
-                item={item}
-                feedHeight={feedHeight}
-                videoTopInset={videoTopInset}
-                videoBottomReserved={videoBottomReserved}
-            />
-        );
+        return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
     }
 
     if (item.is_sensitive && !playSensitive) {
@@ -978,22 +1299,37 @@ function VideoPlayerCore({
         );
     }
 
-    const showVideoSurface =
-        isActive &&
-        (firstFrameRendered || (videoReady && (isPlaying || playerStatus === 'readyToPlay')));
-    const hidePoster = showVideoSurface;
+    const effectiveDuration =
+        playbackDuration > 0
+            ? playbackDuration
+            : typeof item.media?.duration === 'number' &&
+                Number.isFinite(item.media.duration) &&
+                item.media.duration > 0
+              ? item.media.duration
+              : 0;
+    const progressFraction =
+        effectiveDuration > 0
+            ? isScrubbing
+                ? scrubFraction
+                : Math.max(0, Math.min(1, playbackPosition / effectiveDuration))
+            : 0;
+    const progressBarHeight = isScrubbing ? PROGRESS_BAR_SCRUB_HEIGHT : PROGRESS_BAR_HEIGHT;
+    const showProgressBar = isActive;
 
     const videoBody = (
-        <View style={[styles.videoContainer, { height: slideHeight }]} pointerEvents="box-none">
-            <View style={[styles.videoWrapper, videoBandStyle]} pointerEvents="none">
-                {!hidePoster ? <VideoPoster thumbnail={thumbnail} /> : null}
-                {videoViewPlayer ? (
+        <View
+            style={[styles.videoContainer, { height: slideHeight }]}
+            pointerEvents={isActive ? 'box-none' : 'none'}>
+            <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
+            <View style={styles.videoFill} pointerEvents="none">
+                {mountActiveVideoView ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
                         style={styles.video}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
+                        useExoShutter={false}
                         pointerEvents="none"
                         surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
                         onFirstFrameRender={handleFirstFrameRender}
@@ -1003,144 +1339,198 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
-            </View>
-
-            <GestureDetector gesture={videoTapGesture}>
-                <View
-                    style={styles.tapOverlay}
-                    collapsable={false}
-                    accessible={true}
-                    accessibilityLabel="Video"
-                    accessibilityHint="Tap to pause or play"
-                    accessibilityRole="button"
-                />
-            </GestureDetector>
-
-            <View
-                pointerEvents="none"
-                style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-                    style={StyleSheet.absoluteFillObject}
-                    pointerEvents="none"
-                />
-            </View>
-
-            <FeedActionRail
-                avatarUrl={item.account?.avatar}
-                profileLabel={`View ${item.account.username}'s profile`}
-                creatorId={item.account?.id}
-                creatorUsername={item.account?.username}
-                isOwnPost={item.is_owner}
-                isLiked={isLiked}
-                isBookmarked={isBookmarked}
-                isReposted={isReposted}
-                isMuted={feedMuted}
-                likeCount={likeCount}
-                commentCount={safeCount(item.comments)}
-                bookmarkCount={bookmarkCount}
-                repostCount={repostCount}
-                canComment={item.permissions?.can_comment}
-                canUseAudio={canUseAudio}
-                bottomInset={bottomInset}
-                tabBarHeight={tabBarHeight}
-                overlayBottom={actionRailBottom ?? overlayBottom}
-                onProfilePress={() => safeRouterPush(toProfilePath(item.account.id))}
-                onLike={handleLike}
-                onComment={() => onComment(item)}
-                onBookmark={handleBookmark}
-                onRepost={handleRepost}
-                onShare={() => onShare(item)}
-                onMuteToggle={toggleFeedMuted}
-                onUseAudio={handleUseAudio}
-                onOther={() => onOther(item)}
-            />
-
-            <View style={[styles.bottomInfo, { bottom: captionBottom }]} pointerEvents="box-none">
-                <TouchableOpacity
-                    onPress={() => {
-                        onNavigate?.();
-                        safeRouterPush(toProfilePath(item.account.id));
-                    }}
-                    accessible={true}
-                    accessibilityLabel={`View @${item.account.username}'s profile`}
-                    accessibilityRole="link">
-                    <MentionText username={item.account.username} style={styles.username} />
-                </TouchableOpacity>
-                {item.caption && (
-                    <LinkifiedCaption
-                        caption={item.caption}
-                        tags={item.tags || []}
-                        mentions={item.mentions || []}
-                        style={styles.caption}
-                        numberOfLines={1}
-                        onCaptionPress={() => onCaptionExpand?.(item)}
-                        onHashtagPress={(tag) => {
-                            onNavigate?.();
-                            router.push(`/private/search?query=${tag}`);
-                        }}
-                        onMentionPress={(username, profileId) => {
-                            onNavigate?.();
-                            const target = profileId ?? username;
-                            if (!target) return;
-                            safeRouterPush(toProfilePath(target));
-                        }}
-                        onMorePress={() => onCaptionExpand?.(item)}
-                    />
-                )}
-
-                {item?.meta?.contains_ai && (
-                    <View>
-                        <View
-                            style={styles.aiLabelWrapper}
-                            accessible={true}
-                            accessibilityLabel="Creator labeled this as AI-generated content"
-                            accessibilityRole="text">
-                            <Text style={styles.aiLabelText}>Creator labeled as AI-generated</Text>
-                        </View>
+                {thumbnail && !isActive ? (
+                    <View style={styles.bandPosterLayer} pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
                     </View>
-                )}
-
-                <TouchableOpacity
-                    style={styles.audioInfo}
-                    onPress={() => {
-                        const target = showRemixedAudio
-                            ? (item.audioSource?.profileId ?? item.audioSource?.username)
-                            : item.account.id;
-                        if (!target) return;
-                        onNavigate?.();
-                        safeRouterPush(toProfilePath(target));
-                    }}
-                    accessible={true}
-                    accessibilityLabel={
-                        showRemixedAudio
-                            ? `Audio from ${audioLabel}`
-                            : 'Original audio from this creator'
-                    }
-                    accessibilityRole="button">
-                    <Ionicons
-                        name="musical-notes"
-                        size={14}
-                        color="white"
-                        importantForAccessibility="no"
-                    />
-                    <Text style={styles.audioText}>
-                        {showRemixedAudio ? `♪ ${audioLabel}` : audioLabel}
-                    </Text>
-                </TouchableOpacity>
-
-                {item?.meta?.contains_ad && (
-                    <View>
-                        <View
-                            style={styles.aiLabelWrapper}
-                            accessible={true}
-                            accessibilityLabel="Sponsored content"
-                            accessibilityRole="text">
-                            <Text style={styles.aiLabelText}>Sponsored</Text>
-                        </View>
-                    </View>
-                )}
+                ) : null}
+                {thumbnail && isActive ? (
+                    <Animated.View
+                        style={[styles.bandPosterLayer, { opacity: bandPosterOpacity }]}
+                        pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
+                    </Animated.View>
+                ) : null}
             </View>
+
+            {isActive ? (
+                <>
+                    <GestureDetector gesture={videoGesture}>
+                        <View
+                            style={[
+                                styles.tapOverlay,
+                                { bottom: progressBarBottom + PROGRESS_BAR_TOUCH_HEIGHT },
+                            ]}
+                            collapsable={false}
+                            accessible={true}
+                            accessibilityLabel="Video"
+                            accessibilityHint="Tap to pause or play. Press and hold to speed up."
+                            accessibilityRole="button"
+                        />
+                    </GestureDetector>
+
+                    {showProgressBar ? (
+                        <GestureDetector gesture={scrubGesture}>
+                            <View
+                                style={[
+                                    styles.progressBarTouchArea,
+                                    { bottom: progressBarBottom },
+                                ]}
+                                onLayout={handleProgressBarLayout}
+                                accessible={true}
+                                accessibilityLabel="Video progress"
+                                accessibilityRole="adjustable"
+                                accessibilityHint="Drag to seek through the video">
+                                <View
+                                    style={[
+                                        styles.progressBarTrack,
+                                        { height: progressBarHeight },
+                                    ]}>
+                                    <View
+                                        style={[
+                                            styles.progressBarFill,
+                                            {
+                                                width: `${progressFraction * 100}%`,
+                                                height: progressBarHeight,
+                                            },
+                                        ]}
+                                    />
+                                </View>
+                            </View>
+                        </GestureDetector>
+                    ) : null}
+
+                    <View
+                        pointerEvents="none"
+                        style={[styles.gradientOverlay, { bottom: feedGradientBottom }]}>
+                        <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+                            style={StyleSheet.absoluteFillObject}
+                            pointerEvents="none"
+                        />
+                    </View>
+
+                    <FeedActionRail
+                        avatarUrl={item.account?.avatar}
+                        profileLabel={`View ${item.account.username}'s profile`}
+                        creatorId={item.account?.id}
+                        creatorUsername={item.account?.username}
+                        isOwnPost={item.is_owner}
+                        isLiked={isLiked}
+                        isBookmarked={isBookmarked}
+                        isReposted={isReposted}
+                        isMuted={feedMuted}
+                        likeCount={likeCount}
+                        commentCount={safeCount(item.comments)}
+                        bookmarkCount={bookmarkCount}
+                        repostCount={repostCount}
+                        canComment={item.permissions?.can_comment}
+                        canUseAudio={canUseAudio}
+                        bottomInset={bottomInset}
+                        tabBarHeight={tabBarHeight}
+                        overlayBottom={actionRailBottom ?? overlayBottom}
+                        onProfilePress={() => safeRouterPush(toProfilePath(item.account.id))}
+                        onLike={handleLike}
+                        onComment={() => onComment(item)}
+                        onBookmark={handleBookmark}
+                        onRepost={handleRepost}
+                        onShare={() => onShare(item)}
+                        onMuteToggle={toggleFeedMuted}
+                        onUseAudio={handleUseAudio}
+                        onOther={() => onOther(item)}
+                    />
+
+                    <View
+                        style={[styles.bottomInfo, { bottom: captionBottom }]}
+                        pointerEvents="box-none">
+                        <TouchableOpacity
+                            onPress={() => {
+                                onNavigate?.();
+                                safeRouterPush(toProfilePath(item.account.id));
+                            }}
+                            accessible={true}
+                            accessibilityLabel={`View @${item.account.username}'s profile`}
+                            accessibilityRole="link">
+                            <MentionText username={item.account.username} style={styles.username} />
+                        </TouchableOpacity>
+                        {item.caption && (
+                            <LinkifiedCaption
+                                caption={item.caption}
+                                tags={item.tags || []}
+                                mentions={item.mentions || []}
+                                style={styles.caption}
+                                numberOfLines={1}
+                                onCaptionPress={() => onCaptionExpand?.(item)}
+                                onHashtagPress={(tag) => {
+                                    onNavigate?.();
+                                    router.push(`/private/search?query=${tag}`);
+                                }}
+                                onMentionPress={(username, profileId) => {
+                                    onNavigate?.();
+                                    const target = profileId ?? username;
+                                    if (!target) return;
+                                    safeRouterPush(toProfilePath(target));
+                                }}
+                                onMorePress={() => onCaptionExpand?.(item)}
+                            />
+                        )}
+
+                        {item?.meta?.contains_ai && (
+                            <View>
+                                <View
+                                    style={styles.aiLabelWrapper}
+                                    accessible={true}
+                                    accessibilityLabel="Creator labeled this as AI-generated content"
+                                    accessibilityRole="text">
+                                    <Text style={styles.aiLabelText}>
+                                        Creator labeled as AI-generated
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.audioInfo}
+                            onPress={() => {
+                                const target = showRemixedAudio
+                                    ? (item.audioSource?.profileId ?? item.audioSource?.username)
+                                    : item.account.id;
+                                if (!target) return;
+                                onNavigate?.();
+                                safeRouterPush(toProfilePath(target));
+                            }}
+                            accessible={true}
+                            accessibilityLabel={
+                                showRemixedAudio
+                                    ? `Audio from ${audioLabel}`
+                                    : 'Original audio from this creator'
+                            }
+                            accessibilityRole="button">
+                            <Ionicons
+                                name="musical-notes"
+                                size={14}
+                                color="white"
+                                importantForAccessibility="no"
+                            />
+                            <Text style={styles.audioText}>
+                                {showRemixedAudio ? `♪ ${audioLabel}` : audioLabel}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {item?.meta?.contains_ad && (
+                            <View>
+                                <View
+                                    style={styles.aiLabelWrapper}
+                                    accessible={true}
+                                    accessibilityLabel="Sponsored content"
+                                    accessibilityRole="text">
+                                    <Text style={styles.aiLabelText}>Sponsored</Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+                </>
+            ) : null}
         </View>
     );
 
@@ -1154,27 +1544,37 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: POSTER_BG,
     },
-    videoWrapper: {
+    videoFill: {
         position: 'absolute',
-        left: 0,
-        right: 0,
+        top: -FEED_MEDIA_EDGE_BLEED,
+        left: -FEED_MEDIA_EDGE_BLEED,
+        right: -FEED_MEDIA_EDGE_BLEED,
+        bottom: -FEED_MEDIA_EDGE_BLEED,
         backgroundColor: POSTER_BG,
         overflow: 'hidden',
-    },
-    posterLayer: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: POSTER_BG,
         zIndex: 2,
     },
+    posterLayerFullBleed: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1,
+        overflow: 'hidden',
+    },
     posterImage: {
-        width: '100%',
-        height: '100%',
+        ...StyleSheet.absoluteFillObject,
+    },
+    bandPosterLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 6,
+        elevation: 6,
     },
     video: {
         width: '100%',
         height: '100%',
-        backgroundColor: 'transparent',
-        zIndex: 1,
+        backgroundColor: POSTER_BG,
     },
     tapOverlay: {
         position: 'absolute',
@@ -1287,8 +1687,25 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: '20%',
-        zIndex: 3,
-        elevation: 3,
+        zIndex: 4,
+        elevation: 4,
+    },
+    progressBarTouchArea: {
+        position: 'absolute',
+        left: 0,
+        right: ACTION_RAIL_WIDTH,
+        height: PROGRESS_BAR_TOUCH_HEIGHT,
+        justifyContent: 'flex-end',
+        zIndex: 12,
+        elevation: 12,
+    },
+    progressBarTrack: {
+        width: '100%',
+        backgroundColor: PROGRESS_BAR_TRACK,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        backgroundColor: PROGRESS_BAR_FILL,
     },
     aiLabelWrapper: {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
