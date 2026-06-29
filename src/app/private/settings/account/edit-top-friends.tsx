@@ -1,8 +1,8 @@
 import { PressableHaptics } from '@/components/ui/PressableHaptics';
 import { StackText, XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { fetchProfilePrefs, saveProfilePrefs } from '@/atproto';
-import { fetchAccountFollowing, fetchSelfAccount } from '@/utils/requests';
+import { fetchProfilePrefs, fetchSelfAccount, saveProfilePrefs } from '@/atproto';
+import { getAgent, withAuthenticatedFetch } from '@/atproto/agent';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
