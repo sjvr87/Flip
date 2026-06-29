@@ -363,19 +363,13 @@ function VideoPlayerCore({
             setViewEpoch(0);
             return;
         }
-        const canAttachSurface = playerStatus === 'readyToPlay' || firstFrameRendered;
-        if (!canAttachSurface) {
-            setViewPlayer(null);
-            setViewEpoch(0);
-            return;
-        }
         setViewPlayer(player);
         setViewEpoch(playerEpoch);
         return () => {
             setViewPlayer(null);
             setViewEpoch(0);
         };
-    }, [player, playerEpoch, playerStatus, firstFrameRendered]);
+    }, [player, playerEpoch]);
 
     useEffect(() => {
         if (viewPlayer) {
@@ -1265,11 +1259,7 @@ function VideoPlayerCore({
         viewPlayer && isPlayerUsable(viewPlayer) && playerRef.current === viewPlayer
             ? viewPlayer
             : null;
-    const revealVideoPixels =
-        isActive &&
-        firstFrameRendered &&
-        playerStatus !== 'loading' &&
-        (isPlaying || playerStatus === 'readyToPlay');
+    const mountActiveVideoView = Boolean(videoViewPlayer && isActive);
 
     if (!srcUrl) {
         return <VideoSlidePlaceholder item={item} feedHeight={feedHeight} />;
@@ -1330,43 +1320,36 @@ function VideoPlayerCore({
         <View
             style={[styles.videoContainer, { height: slideHeight }]}
             pointerEvents={isActive ? 'box-none' : 'none'}>
+            <FullBleedPosterShell thumbnail={thumbnail} opacity={1} />
             <View style={styles.videoFill} pointerEvents="none">
-                {videoViewPlayer ? (
-                    <View
-                        style={[
-                            styles.videoSurfaceMount,
-                            !revealVideoPixels && styles.videoSurfaceHidden,
-                        ]}
-                        pointerEvents="none">
-                        <VideoView
-                            key={`${srcUrl}-${viewEpoch}`}
-                            style={styles.video}
-                            player={videoViewPlayer}
-                            allowsPictureInPicture={false}
-                            nativeControls={false}
-                            useExoShutter={false}
-                            pointerEvents="none"
-                            surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
-                            onFirstFrameRender={handleFirstFrameRender}
-                            accessible={true}
-                            accessibilityLabel={item.media.alt_text || 'Video content'}
-                            accessibilityHint="Tap to pause or play"
-                            contentFit="cover"
-                        />
+                {mountActiveVideoView ? (
+                    <VideoView
+                        key={`${srcUrl}-${viewEpoch}`}
+                        style={styles.video}
+                        player={videoViewPlayer}
+                        allowsPictureInPicture={false}
+                        nativeControls={false}
+                        useExoShutter={false}
+                        pointerEvents="none"
+                        surfaceType={Platform.OS === 'android' ? 'textureView' : 'surfaceView'}
+                        onFirstFrameRender={handleFirstFrameRender}
+                        accessible={true}
+                        accessibilityLabel={item.media.alt_text || 'Video content'}
+                        accessibilityHint="Tap to pause or play"
+                        contentFit="cover"
+                    />
+                ) : null}
+                {thumbnail && !isActive ? (
+                    <View style={styles.bandPosterLayer} pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
                     </View>
                 ) : null}
-                {thumbnail ? (
-                    <View style={styles.posterOverlay} pointerEvents="none">
-                        {isActive ? (
-                            <Animated.View
-                                style={[StyleSheet.absoluteFillObject, { opacity: bandPosterOpacity }]}
-                                pointerEvents="none">
-                                <VideoPoster thumbnail={thumbnail} />
-                            </Animated.View>
-                        ) : (
-                            <VideoPoster thumbnail={thumbnail} />
-                        )}
-                    </View>
+                {thumbnail && isActive ? (
+                    <Animated.View
+                        style={[styles.bandPosterLayer, { opacity: bandPosterOpacity }]}
+                        pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
+                    </Animated.View>
                 ) : null}
             </View>
 
@@ -1583,16 +1566,10 @@ const styles = StyleSheet.create({
     posterImage: {
         ...StyleSheet.absoluteFillObject,
     },
-    videoSurfaceMount: {
+    bandPosterLayer: {
         ...StyleSheet.absoluteFillObject,
-    },
-    videoSurfaceHidden: {
-        opacity: 0,
-    },
-    posterOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 20,
-        elevation: 20,
+        zIndex: 6,
+        elevation: 6,
     },
     video: {
         width: '100%',
