@@ -248,7 +248,12 @@ function patchExpoAutolinkingNode() {
 }
 
 function ensureLocalProperties() {
-  const propsFile = path.join(__dirname, '..', 'android', 'local.properties');
+  const androidDir = path.join(__dirname, '..', 'android');
+  if (!fs.existsSync(androidDir)) {
+    return;
+  }
+
+  const propsFile = path.join(androidDir, 'local.properties');
   const sdkDir = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
   if (!sdkDir || !fs.existsSync(sdkDir)) {
     return;
