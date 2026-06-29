@@ -1,4 +1,5 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { FLIP_STAGING_PDS_CONFIGURED, FLIP_STAGING_PDS_HOST } from '@/constants/stagingPds';
 import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
@@ -35,6 +36,7 @@ import tw from 'twrnc';
 type SignInMode = 'loading' | 'unlock' | 'password' | 'full' | 'oauth';
 
 const APP_PASSWORD_HELP_URL = 'https://bsky.app/settings/app-passwords';
+const DEFAULT_BSKY_SERVICE = 'bsky.social';
 
 function formatHandle(identifier: string): string {
     if (identifier.includes('@')) return identifier;
@@ -61,7 +63,9 @@ export default function SignInScreen() {
     const [biometricsAvailable, setBiometricsAvailable] = useState(false);
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
-    const [service, setService] = useState('bsky.social');
+    const devDefaultService =
+        __DEV__ && FLIP_STAGING_PDS_CONFIGURED ? FLIP_STAGING_PDS_HOST : DEFAULT_BSKY_SERVICE;
+    const [service, setService] = useState(devDefaultService);
     const [showAppPassword, setShowAppPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
@@ -225,8 +229,7 @@ export default function SignInScreen() {
         setSavedHandle(null);
         setIdentifier('');
         setPassword('');
-        setService('bsky.social');
-        setService('bsky.social');
+        setService(devDefaultService);
         setShowAppPassword(false);
         setMode('oauth');
     };
@@ -359,7 +362,12 @@ export default function SignInScreen() {
 
             <Pressable
                 style={styles.textLink}
-                onPress={() => { setLoginError(null); setIsLoading(false); setShowAppPassword(true); setMode('full'); }}>
+                onPress={() => {
+                    setLoginError(null);
+                    setIsLoading(false);
+                    setShowAppPassword(true);
+                    setMode('full');
+                }}>
                 <Text style={[styles.textLinkLabelMuted, isDark && styles.textLinkLabelMutedDark]}>
                     Use app password instead
                 </Text>
