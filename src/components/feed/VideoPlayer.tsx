@@ -55,6 +55,8 @@ const ACTION_RAIL_WIDTH = 72;
 const PROGRESS_BAR_HEIGHT = 3;
 const PROGRESS_BAR_SCRUB_HEIGHT = 8;
 const PROGRESS_BAR_TOUCH_HEIGHT = 28;
+const PROGRESS_BAR_FILL = '#39FF14';
+const PROGRESS_BAR_TRACK = 'rgba(255,255,255,0.22)';
 const HOLD_SPEED_RATE = 2;
 const HOLD_SPEED_MIN_DURATION_MS = 300;
 
@@ -303,8 +305,13 @@ function VideoPlayerCore({
     const [isScrubbing, setIsScrubbing] = useState(false);
     const [scrubFraction, setScrubFraction] = useState(0);
     const [playbackPosition, setPlaybackPosition] = useState(0);
-    const [playbackDuration, setPlaybackDuration] = useState(0);
-    const posterOpacity = useMemo(() => new Animated.Value(1), []);
+    const [playbackDuration, setPlaybackDuration] = useState(() => {
+        const mediaDuration = item.media?.duration;
+        return typeof mediaDuration === 'number' && Number.isFinite(mediaDuration) && mediaDuration > 0
+            ? mediaDuration
+            : 0;
+    });
+    const bandPosterOpacity = useMemo(() => new Animated.Value(1), []);
     const isScrubbingRef = useRef(false);
     const playbackDurationRef = useRef(0);
     const progressBarWidthRef = useRef(SCREEN_WIDTH);
@@ -834,28 +841,28 @@ function VideoPlayerCore({
             isScrubbingRef.current = false;
             activationReadyRef.current = false;
             wasActiveForPosterRef.current = false;
-            posterOpacity.setValue(1);
+            bandPosterOpacity.setValue(1);
             return;
         }
 
         if (!wasActiveForPosterRef.current) {
             activationReadyRef.current = false;
-            posterOpacity.setValue(1);
+            bandPosterOpacity.setValue(1);
         }
         wasActiveForPosterRef.current = true;
 
-        const videoSurfaceReady =
+        const bandPosterCanFade =
             firstFrameRendered && (isPlaying || playerStatus === 'readyToPlay');
 
-        if (videoSurfaceReady && !activationReadyRef.current) {
+        if (bandPosterCanFade && !activationReadyRef.current) {
             activationReadyRef.current = true;
-            Animated.timing(posterOpacity, {
+            Animated.timing(bandPosterOpacity, {
                 toValue: 0,
-                duration: 180,
+                duration: 220,
                 useNativeDriver: true,
             }).start();
         }
-    }, [isActive, firstFrameRendered, isPlaying, playerStatus, posterOpacity]);
+    }, [isActive, firstFrameRendered, isPlaying, playerStatus, bandPosterOpacity]);
 
     useEffect(() => {
         playbackDurationRef.current = playbackDuration;
@@ -1217,15 +1224,22 @@ function VideoPlayerCore({
         );
     }
 
-    const videoSurfaceReady =
-        isActive && firstFrameRendered && (isPlaying || playerStatus === 'readyToPlay');
-    const progressFraction =
+    const effectiveDuration =
         playbackDuration > 0
+            ? playbackDuration
+            : typeof item.media?.duration === 'number' &&
+                Number.isFinite(item.media.duration) &&
+                item.media.duration > 0
+              ? item.media.duration
+              : 0;
+    const progressFraction =
+        effectiveDuration > 0
             ? isScrubbing
                 ? scrubFraction
-                : Math.max(0, Math.min(1, playbackPosition / playbackDuration))
+                : Math.max(0, Math.min(1, playbackPosition / effectiveDuration))
             : 0;
     const progressBarHeight = isScrubbing ? PROGRESS_BAR_SCRUB_HEIGHT : PROGRESS_BAR_HEIGHT;
+    const showProgressBar = isActive;
 
     const videoBody = (
         <View
@@ -1236,10 +1250,7 @@ function VideoPlayerCore({
                 {videoViewPlayer ? (
                     <VideoView
                         key={`${srcUrl}-${viewEpoch}`}
-                        style={[
-                            styles.video,
-                            videoSurfaceReady ? styles.videoVisible : styles.videoHidden,
-                        ]}
+                        style={styles.video}
                         player={videoViewPlayer}
                         allowsPictureInPicture={false}
                         nativeControls={false}
@@ -1252,15 +1263,14 @@ function VideoPlayerCore({
                         contentFit="cover"
                     />
                 ) : null}
+                {isActive && thumbnail ? (
+                    <Animated.View
+                        style={[styles.bandPosterLayer, { opacity: bandPosterOpacity }]}
+                        pointerEvents="none">
+                        <VideoPoster thumbnail={thumbnail} />
+                    </Animated.View>
+                ) : null}
             </View>
-
-            {thumbnail ? (
-                <Animated.View
-                    style={[styles.posterCoverLayer, { opacity: posterOpacity }]}
-                    pointerEvents="none">
-                    <VideoPoster thumbnail={thumbnail} />
-                </Animated.View>
-            ) : null}
 
             {isActive ? (
                 <>
@@ -1275,7 +1285,7 @@ function VideoPlayerCore({
                         />
                     </GestureDetector>
 
-                    {playbackDuration > 0 ? (
+                    {showProgressBar ? (
                         <GestureDetector gesture={scrubGesture}>
                             <View
                                 style={[
@@ -1467,34 +1477,17 @@ const styles = StyleSheet.create({
         zIndex: 1,
         overflow: 'hidden',
     },
-    posterCoverLayer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 6,
-        overflow: 'hidden',
-    },
     posterImage: {
-        position: 'absolute',
-        top: '-1%',
-        left: '-1%',
-        width: '102%',
-        height: '102%',
+        ...StyleSheet.absoluteFillObject,
+    },
+    bandPosterLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 3,
     },
     video: {
         width: '100%',
         height: '100%',
         backgroundColor: 'transparent',
-    },
-    videoVisible: {
-        opacity: 1,
-        zIndex: 2,
-    },
-    videoHidden: {
-        opacity: 0,
-        zIndex: 1,
     },
     tapOverlay: {
         position: 'absolute',
@@ -1621,11 +1614,11 @@ const styles = StyleSheet.create({
     },
     progressBarTrack: {
         width: '100%',
-        backgroundColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: PROGRESS_BAR_TRACK,
         overflow: 'hidden',
     },
     progressBarFill: {
-        backgroundColor: '#fff',
+        backgroundColor: PROGRESS_BAR_FILL,
     },
     aiLabelWrapper: {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
