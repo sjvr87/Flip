@@ -174,7 +174,7 @@ function patchExpoAutolinkingNode() {
         'package expo.modules.plugin\n\nobject Os {',
         `package expo.modules.plugin\n\nimport java.io.File\n\nobject Os {`,
       ).replace(
-        '  fun isWindows(): Boolean =>',
+        '  fun isWindows(): Boolean =',
         `  fun resolveNodeExecutable(): String {
     System.getenv("NODE_BINARY")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
     if (isWindows()) {
@@ -193,7 +193,7 @@ function patchExpoAutolinkingNode() {
     return "node"
   }
 
-  fun isWindows(): Boolean =>`,
+  fun isWindows(): Boolean =`,
       );
       fs.writeFileSync(osKt, nextOs);
       console.log('[patch-android-node] Patched expo Os.kt for Node resolution');
