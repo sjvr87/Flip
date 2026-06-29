@@ -24,6 +24,7 @@ import { useFeedPlaybackStore } from '@/utils/feedPlaybackStore';
 import { usePendingAudioReuseStore } from '@/utils/pendingAudioReuseStore';
 import { canUseFlipCamera } from '@/utils/runtime';
 import { buildFeedVideoSource } from '@/utils/feedVideoSource';
+import { FEED_MEDIA_EDGE_BLEED } from '@/utils/feedSlideLayout';
 import { prefetchThumbnails } from '@/utils/thumbnailPrefetch';
 import { prefetchVideoUrl, takePrefetchedPlayer } from '@/utils/videoPrefetch';
 import { Ionicons } from '@expo/vector-icons';
@@ -209,8 +210,6 @@ function VideoPlayer({
             isActive={isActive}
             standalonePlayback={standalonePlayback}
             feedHeight={feedHeight}
-            videoTopInset={videoTopInset}
-            videoBottomReserved={videoBottomReserved}
             onLike={onLike}
             onComment={onComment}
             onCaptionExpand={onCaptionExpand}
@@ -240,8 +239,6 @@ function VideoPlayerCore({
     isActive,
     standalonePlayback = false,
     feedHeight,
-    videoTopInset = 0,
-    videoBottomReserved = 0,
     onLike,
     onComment,
     onCaptionExpand,
@@ -1462,11 +1459,15 @@ const styles = StyleSheet.create({
         width: SCREEN_WIDTH,
         position: 'relative',
         overflow: 'hidden',
-        backgroundColor: 'transparent',
+        backgroundColor: POSTER_BG,
     },
     videoFill: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'transparent',
+        position: 'absolute',
+        top: -FEED_MEDIA_EDGE_BLEED,
+        left: -FEED_MEDIA_EDGE_BLEED,
+        right: -FEED_MEDIA_EDGE_BLEED,
+        bottom: -FEED_MEDIA_EDGE_BLEED,
+        backgroundColor: POSTER_BG,
         overflow: 'hidden',
         zIndex: 2,
     },
@@ -1489,7 +1490,7 @@ const styles = StyleSheet.create({
     video: {
         width: '100%',
         height: '100%',
-        backgroundColor: 'transparent',
+        backgroundColor: POSTER_BG,
     },
     tapOverlay: {
         position: 'absolute',

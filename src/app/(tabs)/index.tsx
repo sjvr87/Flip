@@ -46,6 +46,11 @@ import {
 } from '@/utils/videoPrefetch';
 import { FeedScrollGestureRoot } from '@/utils/feedScrollGesture';
 import {
+    FEED_CELL_OVERLAP,
+    getFeedItemStride,
+    getFeedSlideHeight,
+} from '@/utils/feedSlideLayout';
+import {
     fetchFollowingFeed,
     fetchForYouFeed,
     fetchTrendingFeed,
@@ -71,6 +76,7 @@ import {
     AppState,
     FlatList,
     InteractionManager,
+    LayoutChangeEvent,
     Platform,
     RefreshControl,
     StyleSheet,
@@ -220,7 +226,8 @@ const INITIAL_FEED_EPOCHS = Object.fromEntries(FEED_TABS.map((tab) => [tab, 0]))
 
 export default function LoopsFeed({ navigation }) {
     const { height: windowHeight } = useWindowDimensions();
-    const feedHeight = Math.round(windowHeight);
+    const [feedHeight, setFeedHeight] = useState(() => getFeedSlideHeight(windowHeight));
+    const feedItemStride = useMemo(() => getFeedItemStride(feedHeight), [feedHeight]);
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const feedVideoViewport = useMemo(
@@ -228,6 +235,17 @@ export default function LoopsFeed({ navigation }) {
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
     );
     const statusBarInset = feedVideoViewport.topInset;
+
+    useEffect(() => {
+        setFeedHeight(getFeedSlideHeight(windowHeight));
+    }, [windowHeight]);
+
+    const handleFeedListLayout = useCallback((event: LayoutChangeEvent) => {
+        const measured = getFeedSlideHeight(event.nativeEvent.layout.height);
+        if (measured > 0) {
+            setFeedHeight((prev) => (prev === measured ? prev : measured));
+        }
+    }, []);
     const authReady = useAuthStore((state) => state.authReady);
     const hideForYouFeed = useAuthStore((state) => state.hideForYouFeed);
     const defaultFeed = useAuthStore((state) => state.defaultFeed);
@@ -922,7 +940,14 @@ export default function LoopsFeed({ navigation }) {
             })();
 
             return (
-                <View style={{ height: feedHeight, overflow: 'hidden', backgroundColor: 'transparent' }}>
+                <View
+                    style={{
+                        height: feedHeight,
+                        marginBottom:
+                            index < videosWithEnd.length - 1 ? -FEED_CELL_OVERLAP : 0,
+                        overflow: 'hidden',
+                        backgroundColor: '#000',
+                    }}>
                     {cell}
                 </View>
             );
@@ -932,6 +957,7 @@ export default function LoopsFeed({ navigation }) {
             currentIndex,
             feedError,
             feedHeight,
+            videosWithEnd.length,
             feedVideoViewport.bottomReserved,
             feedVideoViewport.topInset,
             onRefresh,
@@ -971,11 +997,11 @@ export default function LoopsFeed({ navigation }) {
 
     const getItemLayout = useCallback(
         (data, index) => ({
-            length: feedHeight,
-            offset: feedHeight * index,
+            length: feedItemStride,
+            offset: feedItemStride * index,
             index,
         }),
-        [feedHeight],
+        [feedItemStride],
     );
 
     const refreshing = (isRefetching || isFetching) && !isFetchingNextPage && !showInitialLoader;
@@ -1069,13 +1095,15 @@ export default function LoopsFeed({ navigation }) {
                 key={activeTab}
                 ref={flatListRef}
                 style={styles.feedList}
+                onLayout={handleFeedListLayout}
                 data={videosWithEnd}
                 extraData={currentIndex}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
                 showsVerticalScrollIndicator={false}
-                snapToInterval={feedHeight}
+                snapToInterval={feedItemStride}
                 snapToAlignment="start"
+                disableIntervalMomentum
                 decelerationRate="fast"
                 scrollEventThrottle={16}
                 overScrollMode="never"
