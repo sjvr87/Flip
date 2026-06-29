@@ -1,10 +1,6 @@
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
 import { useTheme } from '@/contexts/ThemeContext';
-import {
-    AGE_VERIFY_BYPASS,
-    AGE_VERIFY_ENABLED,
-    getPostAuthRoute,
-} from '@/utils/ageVerification';
+import { AGE_VERIFY_BYPASS, AGE_VERIFY_ENABLED, getPostAuthRoute } from '@/utils/ageVerification';
 import { useAuthStore } from '@/utils/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -66,7 +62,9 @@ export default function VerifyAgeScreen() {
                 </Text>
                 {AGE_VERIFY_BYPASS ? (
                     <Pressable onPress={handleDevBypass} style={styles.devBypass}>
-                        <Text style={{ color: LOOP_ACCENT, fontSize: 14 }}>Dev: skip verification</Text>
+                        <Text style={{ color: LOOP_ACCENT, fontSize: 14 }}>
+                            Dev: skip verification
+                        </Text>
                     </Pressable>
                 ) : null}
                 <Pressable onPress={handleSignOut} style={styles.signOut}>

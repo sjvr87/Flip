@@ -164,9 +164,7 @@ function extractVideoMeta(
     };
 }
 
-function mapNotification(
-    notification: AppBskyNotificationDefs.Notification,
-): FlipNotification {
+function mapNotification(notification: AppBskyNotificationDefs.Notification): FlipNotification {
     const subjectUri = getNotificationSubjectUri(notification);
     const videoMeta = extractVideoMeta(notification, subjectUri);
 

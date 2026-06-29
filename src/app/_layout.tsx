@@ -240,9 +240,7 @@ function NativeAppContent() {
     return (
         <>
             <ThemedStatusBar />
-            <Stack
-                screenOptions={{ headerShown: false }}
-                initialRouteName={initialRoute}>
+            <Stack screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
                 <Stack.Screen name="sign-in" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="verify-age" options={{ gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" />

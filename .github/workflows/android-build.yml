@@ -57,10 +57,13 @@ jobs:
         run: node ./scripts/patch-android-node.js && node ./scripts/patch-foojay-gradle.js
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          api-levels: 35
-          build-tools-version: 35.0.0
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME}"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Prebuild Android native project
         run: npm run android:prebuild

@@ -223,7 +223,12 @@ export default function LoopsFeed({ navigation }) {
     const insets = useSafeAreaInsets();
     const tabBarMetrics = useFlipTabBarMetrics();
     const feedVideoViewport = useMemo(
-        () => computeFeedVideoViewport(windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved),
+        () =>
+            computeFeedVideoViewport(
+                windowHeight,
+                insets.top,
+                tabBarMetrics.feedVideoBottomReserved,
+            ),
         [windowHeight, insets.top, tabBarMetrics.feedVideoBottomReserved],
     );
     const statusBarInset = feedVideoViewport.topInset;
@@ -235,8 +240,7 @@ export default function LoopsFeed({ navigation }) {
     const viewerDid = useAuthStore((state) => state.user?.id);
     const feedQueryEnabled = hasHydrated && isLoggedIn && authReady;
     const [feedEpochs, setFeedEpochs] = useState(INITIAL_FEED_EPOCHS);
-    const normalizedDefault =
-        defaultFeed === 'local' ? 'trending' : defaultFeed;
+    const normalizedDefault = defaultFeed === 'local' ? 'trending' : defaultFeed;
     const [activeTab, setActiveTab] = useState<FeedTab>(normalizedDefault as FeedTab);
     const feedEpoch = feedEpochs[activeTab] ?? 0;
     const feedEpochRef = useRef(feedEpoch);
@@ -976,7 +980,11 @@ export default function LoopsFeed({ navigation }) {
     if (showInitialLoader) {
         return (
             <View style={styles.container}>
-                <StatusBar style="light" backgroundColor="#000" translucent={Platform.OS === 'android'} />
+                <StatusBar
+                    style="light"
+                    backgroundColor="#000"
+                    translucent={Platform.OS === 'android'}
+                />
                 <View
                     pointerEvents="none"
                     style={[styles.statusBarBand, { height: statusBarInset }]}
@@ -990,11 +998,12 @@ export default function LoopsFeed({ navigation }) {
 
     return (
         <View style={styles.container}>
-            <StatusBar style="light" backgroundColor="#000" translucent={Platform.OS === 'android'} />
-            <View
-                pointerEvents="none"
-                style={[styles.statusBarBand, { height: statusBarInset }]}
+            <StatusBar
+                style="light"
+                backgroundColor="#000"
+                translucent={Platform.OS === 'android'}
             />
+            <View pointerEvents="none" style={[styles.statusBarBand, { height: statusBarInset }]} />
             <View style={[styles.header, { top: statusBarInset + 2 }]}>
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
@@ -1059,43 +1068,43 @@ export default function LoopsFeed({ navigation }) {
 
             <FeedScrollGestureRoot>
                 <FlatList
-                key={activeTab}
-                ref={flatListRef}
-                style={styles.feedList}
-                data={videosWithEnd}
-                extraData={currentIndex}
-                renderItem={renderItem}
-                keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
-                showsVerticalScrollIndicator={false}
-                snapToInterval={feedHeight}
-                snapToAlignment="start"
-                decelerationRate="fast"
-                scrollEventThrottle={16}
-                overScrollMode="never"
-                viewabilityConfig={viewabilityConfig.current}
-                onViewableItemsChanged={onViewableItemsChanged}
-                onEndReached={handleEndReached}
-                onEndReachedThreshold={0.5}
-                getItemLayout={getItemLayout}
-                removeClippedSubviews={Platform.OS !== 'android'}
-                maxToRenderPerBatch={feedMaxToRenderPerBatch}
-                windowSize={feedFlatListWindowSize}
-                initialNumToRender={feedInitialNumToRender}
-                updateCellsBatchingPeriod={50}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        progressViewOffset={statusBarInset + 40}
-                    />
-                }
-                ListFooterComponent={
-                    isFetchingNextPage ? (
-                        <View style={[styles.footer, { height: feedHeight }]}>
-                            <ActivityIndicator size="large" color="#fff" />
-                        </View>
-                    ) : null
-                }
+                    key={activeTab}
+                    ref={flatListRef}
+                    style={styles.feedList}
+                    data={videosWithEnd}
+                    extraData={currentIndex}
+                    renderItem={renderItem}
+                    keyExtractor={(item, index) => item.id ?? `feed-item-${index}`}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={feedHeight}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    scrollEventThrottle={16}
+                    overScrollMode="never"
+                    viewabilityConfig={viewabilityConfig.current}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.5}
+                    getItemLayout={getItemLayout}
+                    removeClippedSubviews={Platform.OS !== 'android'}
+                    maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                    windowSize={feedFlatListWindowSize}
+                    initialNumToRender={feedInitialNumToRender}
+                    updateCellsBatchingPeriod={50}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            progressViewOffset={statusBarInset + 40}
+                        />
+                    }
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <View style={[styles.footer, { height: feedHeight }]}>
+                                <ActivityIndicator size="large" color="#fff" />
+                            </View>
+                        ) : null
+                    }
                 />
             </FeedScrollGestureRoot>
 
