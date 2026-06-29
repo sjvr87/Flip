@@ -1,4 +1,10 @@
 import Avatar from '@/components/Avatar';
+import {
+    FEED_AVATAR_INNER,
+    FEED_AVATAR_RADIUS,
+    FEED_AVATAR_RING,
+    FEED_AVATAR_SIZE,
+} from '@/constants/avatarTokens';
 import FoldedHeartIcon from '@/components/icons/FoldedHeartIcon';
 import RepostArrowIcon from '@/components/icons/RepostArrowIcon';
 import FollowAddBadgeIcon from '@/components/icons/FollowAddBadgeIcon';
@@ -21,11 +27,11 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /** Uniform slot — Ionicons + custom SVGs share this hit area. */
 const ICON_SLOT = 30;
-/** Feed avatar — squircle, slightly larger than prior 40px circle-in-48px ring. */
-const AVATAR_SIZE = 48;
-const AVATAR_RADIUS = 14;
-const AVATAR_INNER = AVATAR_SIZE + 6;
-const AVATAR_RING = AVATAR_INNER + 4;
+/** Feed avatar — squircle, prominent at top of the action rail. */
+const AVATAR_SIZE = FEED_AVATAR_SIZE;
+const AVATAR_RADIUS = FEED_AVATAR_RADIUS;
+const AVATAR_INNER = FEED_AVATAR_INNER;
+const AVATAR_RING = FEED_AVATAR_RING;
 const FOLLOW_BADGE_SIZE = 28;
 const ICON_COLOR = '#FFFFFF';
 const MIN_TOUCH = 48;
@@ -292,7 +298,6 @@ function FeedActionRail({
                                 <Avatar
                                     url={avatarUrl}
                                     width={AVATAR_SIZE}
-                                    rounded={false}
                                     radius={AVATAR_RADIUS}
                                     borderWidth={0}
                                     placeholder={{ color: '#3a3a3a' }}
@@ -311,7 +316,6 @@ function FeedActionRail({
                                 <Avatar
                                     url={avatarUrl}
                                     width={AVATAR_SIZE}
-                                    rounded={false}
                                     radius={AVATAR_RADIUS}
                                     borderWidth={0}
                                     placeholder={{ color: '#3a3a3a' }}
@@ -566,7 +570,8 @@ const styles = StyleSheet.create({
     },
     avatarStack: {
         alignItems: 'center',
-        marginBottom: 2,
+        marginTop: -8,
+        marginBottom: 0,
         overflow: 'visible',
     },
     followBadge: {

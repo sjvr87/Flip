@@ -1,3 +1,4 @@
+import { squircleRadiusForSize } from '@/constants/avatarTokens';
 import { Storage } from '@/utils/cache';
 import { Image, ImageProps } from 'expo-image';
 import { router } from 'expo-router';
@@ -6,6 +7,7 @@ import { Pressable, StyleSheet, ViewStyle } from 'react-native';
 
 /**
  * Reusable Avatar component built on expo-image.
+ * - Default shape is squircle (rounded square, matching the video feed).
  * - Clickable via `href` (expo-router) or `onPress`.
  * - Theming support for size, radius and border.
  * - Hardcoded fallback URL if loading fails.
@@ -19,7 +21,7 @@ const THEMES = {
     sm: { size: 32, radius: 9999, borderWidth: 0, borderColor: 'transparent' },
     md: { size: 40, radius: 9999, borderWidth: 0, borderColor: 'transparent' },
     lg: { size: 56, radius: 9999, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
-    xl: { size: 120, radius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+    xl: { size: 120, radius: 9999, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
 } as const;
 
 export type AvatarThemeKey = keyof typeof THEMES;
@@ -30,14 +32,20 @@ export type AvatarThemeConfig = {
     borderColor?: string;
 };
 
+export type AvatarShape = 'squircle' | 'circle';
+
 export type AvatarProps = {
     /** Primary image URL */
     url?: string | null;
     /** Shorthand for square size. Height === Width. */
-    width?: number; // alias: size
-    /** Corner radius (ignored if `rounded` is true). */
+    width?: number;
+    /** Alias for `width`. */
+    size?: number;
+    /** Corner radius (ignored for circle; defaults to proportional squircle). */
     radius?: number;
-    /** If true, makes the avatar a perfect circle (default true). */
+    /** Avatar corner shape. Defaults to squircle app-wide. */
+    shape?: AvatarShape;
+    /** @deprecated Use `shape="circle"` instead. When true, forces a circle. */
     rounded?: boolean;
     /** Border width in dp. */
     borderWidth?: number;
@@ -75,11 +83,23 @@ const pickTheme = (theme?: AvatarThemeKey | AvatarThemeConfig) => {
     return { ...THEMES.md, ...theme };
 };
 
+const resolveShape = (
+    shape: AvatarShape | undefined,
+    rounded: boolean | undefined,
+): AvatarShape => {
+    if (rounded === true) return 'circle';
+    if (shape) return shape;
+    if (rounded === false) return 'squircle';
+    return 'squircle';
+};
+
 const Avatar = memo(function Avatar({
     url,
     width,
+    size,
     radius,
-    rounded = true,
+    shape,
+    rounded,
     borderWidth,
     borderColor,
     theme,
@@ -101,9 +121,13 @@ const Avatar = memo(function Avatar({
 
     const resolvedTheme = useMemo(() => pickTheme(theme), [theme]);
 
-    const size = width ?? resolvedTheme.size ?? 40;
+    const avatarSize = width ?? size ?? resolvedTheme.size ?? 40;
+    const resolvedShape = resolveShape(shape, rounded);
 
-    const computedRadius = rounded ? Math.ceil(size / 2) : (radius ?? resolvedTheme.radius ?? 0);
+    const computedRadius =
+        resolvedShape === 'circle'
+            ? Math.ceil(avatarSize / 2)
+            : (radius ?? squircleRadiusForSize(avatarSize));
 
     const finalBorderWidth = borderWidth ?? resolvedTheme.borderWidth ?? 0;
     const finalBorderColor = borderColor ?? resolvedTheme.borderColor ?? 'transparent';
@@ -138,8 +162,8 @@ const Avatar = memo(function Avatar({
             style={[
                 styles.base,
                 {
-                    width: size,
-                    height: size,
+                    width: avatarSize,
+                    height: avatarSize,
                     borderRadius: computedRadius,
                     borderWidth: finalBorderWidth,
                     borderColor: finalBorderColor,

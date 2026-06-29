@@ -1,4 +1,6 @@
+import Avatar from '@/components/Avatar';
 import { LOOP_ACCENT } from '@/constants/loopsPalette';
+import { squircleRadiusForSize } from '@/constants/avatarTokens';
 import { XStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getCurrentUser } from '@/atproto/auth';
@@ -276,7 +278,13 @@ export default function SignInScreen() {
     const unlockView = (
         <View style={styles.centered}>
             {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" />
+                <Avatar
+                    url={avatarUri}
+                    width={88}
+                    style={styles.avatar}
+                    borderWidth={3}
+                    borderColor="rgba(255,255,255,0.35)"
+                />
             ) : (
                 <View style={styles.avatarPlaceholder}>
                     <Ionicons name="person" size={40} color="rgba(255,255,255,0.8)" />
@@ -600,17 +608,12 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.75)',
     },
     avatar: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
         marginBottom: 8,
-        borderWidth: 3,
-        borderColor: 'rgba(255,255,255,0.35)',
     },
     avatarPlaceholder: {
         width: 88,
         height: 88,
-        borderRadius: 44,
+        borderRadius: squircleRadiusForSize(88),
         marginBottom: 8,
         backgroundColor: 'rgba(255,255,255,0.15)',
         alignItems: 'center',
