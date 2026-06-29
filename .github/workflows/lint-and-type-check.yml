@@ -52,7 +52,7 @@ jobs:
             fi
           fi
 
-          git diff --name-only --diff-filter=ACMRT -z "$base_sha" "${{ github.sha }}" -- '*.js' '*.jsx' '*.ts' '*.tsx' > .changed-js-ts-files
+          git diff --name-only --diff-filter=ACMRT -z "$base_sha" "${{ github.sha }}" -- ':(glob)**/*.js' ':(glob)**/*.jsx' ':(glob)**/*.ts' ':(glob)**/*.tsx' > .changed-js-ts-files
 
           if [[ ! -s .changed-js-ts-files ]]; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
